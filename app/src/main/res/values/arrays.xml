@@ -312,8 +312,8 @@
         <item>Box64</item>
     </string-array>
     <string-array name="wine_entries">
+        <item>proton-10-arm64ec</item>
         <item>proton-9.0-x86_64</item>
-        <item>proton-9.0-arm64ec</item>
     </string-array>
     <string-array name="vkbasalt_sharpness_entries">
         <item>None</item>
