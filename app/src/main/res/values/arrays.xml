@@ -47,11 +47,11 @@
         <item>None</item>
     </string-array>
     <string-array name="dxvk_version_entries">
-        <item>1.11.1-sarek</item>
-        <item>1.10.3-arm64ec-async</item>
         <item>1.10.3</item>
-        <item>2.3.1</item>
-        <item>2.3.1-arm64ec-gplasync</item>
+        <item>1.5.5</item>
+        <item>1.7.2</item>
+        <item>1.9.3</item>
+        <item>1.11.1-sarek</item>
     </string-array>
     <string-array name="dxvk_max_device_memory_entries">
         <item>0 (Default)</item>
