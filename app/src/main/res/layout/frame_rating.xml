@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="5dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="5dp"
+    android:layout_marginStart="12dp"
+    android:layout_marginTop="12dp"
+    android:background="@drawable/bg_transparent_dark"
+    android:gravity="center_vertical">
+
+    <!-- Renderer Name -->
+    <TextView
+        android:id="@+id/TVRenderer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="#A0FFFFFF"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:text="DXVK" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=" | "
+        android:textColor="#40FFFFFF"
+        android:textSize="12sp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp" />
+
+    <!-- CPU Usage -->
+    <TextView
+        android:id="@+id/TVCPU"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="#C0FFFFFF"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:text="CPU 0%" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=" | "
+        android:textColor="#40FFFFFF"
+        android:textSize="12sp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp" />
+
+    <!-- RAM Usage -->
+    <TextView
+        android:id="@+id/TVRAM"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="#C0FFFFFF"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:text="RAM 0.0G" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=" | "
+        android:textColor="#40FFFFFF"
+        android:textSize="12sp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp" />
+
+    <!-- FPS -->
+    <TextView
+        android:id="@+id/TVFPS"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="#FFFFFF"
+        android:fontFamily="sans-serif-bold"
+        android:includeFontPadding="false"
+        android:text="60.0 FPS" />
+
+</LinearLayout>
