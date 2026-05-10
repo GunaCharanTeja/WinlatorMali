@@ -99,6 +99,22 @@ public abstract class Box64PresetManager {
 
             }
         }
+        else if (id.equals(Box64Preset.UNREAL_ENGINE_3)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "1");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "1");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "256");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "1");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "0");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "1");
+                envVars.put("BOX64_MMAP32", "0");
+            }
+        }
         else if (id.startsWith(Box64Preset.CUSTOM)) {
             for (String[] preset : customPresetsIterator(prefix, context)) {
                 if (preset[0].equals(id)) {
@@ -117,6 +133,7 @@ public abstract class Box64PresetManager {
         presets.add(new Box64Preset(Box64Preset.COMPATIBILITY, context.getString(R.string.compatibility)));
         presets.add(new Box64Preset(Box64Preset.INTERMEDIATE, context.getString(R.string.intermediate)));
         presets.add(new Box64Preset(Box64Preset.PERFORMANCE, context.getString(R.string.performance)));
+        presets.add(new Box64Preset(Box64Preset.UNREAL_ENGINE_3, context.getString(R.string.unreal_engine_3)));
         for (String[] preset : customPresetsIterator(prefix, context)) presets.add(new Box64Preset(preset[0], preset[1]));
         return presets;
     }

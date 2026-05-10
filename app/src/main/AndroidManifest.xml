@@ -48,6 +48,7 @@
         android:allowBackup="false"
         android:allowAudioPlaybackCapture="true"
         android:hardwareAccelerated="true"
+        android:largeHeap="true"
         android:supportsRtl="true"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
 
