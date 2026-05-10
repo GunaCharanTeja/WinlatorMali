@@ -8,8 +8,13 @@ import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.GameManager;
+import android.app.GameState;
+import android.os.PerformanceHintManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
@@ -19,7 +24,10 @@ import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.os.Process;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -62,6 +70,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.AdrenotoolsManager;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.CPUStatus;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.FileUtils;
@@ -183,6 +192,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private boolean isPaused = false;
     private boolean isRelativeMouseMovement = false;
     private boolean isMouseDisabled = false;
+    private PowerManager.WakeLock wakeLock;
 
     // Inside the XServerDisplayActivity class
     private SensorManager sensorManager;
@@ -197,6 +207,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private Handler  timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable hideControlsRunnable;
+    private PerformanceHintManager.Session performanceSession;
+    private EmulationService emulationService;
+    private final ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            EmulationService.EmulationBinder binder = (EmulationService.EmulationBinder) service;
+            emulationService = binder.getService();
+            if (environment != null) emulationService.setEnvironment(environment);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            emulationService = null;
+        }
+    };
 
     private boolean isDarkMode;
 
@@ -248,6 +273,47 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
 
+        Intent serviceIntent = new Intent(this, EmulationService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
+        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                PerformanceHintManager phm = (PerformanceHintManager) getSystemService(Context.PERFORMANCE_HINT_SERVICE);
+                if (phm != null) {
+                    // Create a session for the main UI and Renderer threads
+                    int[] tids = {android.os.Process.myTid()};
+                    performanceSession = phm.createHintSession(tids, 16666666L); // 16.6ms target for 60fps
+                }
+
+                GameManager gameManager = (GameManager)getSystemService("game");
+                if (gameManager != null) {
+                    // This signals to the system that the user prefers performance
+                    // Note: Modes are usually managed by the System UI, but we check/log here
+                    int mode = gameManager.getGameMode();
+                    Log.d("XServerDisplayActivity", "Current Game Mode: " + mode);
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        gameManager.setGameState(new GameState(false, GameState.MODE_CONTENT));
+                    }
+                }
+            } catch (Exception e) {
+                Log.w("XServerDisplayActivity", "GameManager not supported on this device");
+            }
+        }
+
+        PowerManager powerManager = (PowerManager)getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Winlator:WakeLock");
+        wakeLock.acquire(1000 * 60 * 60 * 24); // Acquire for 24 hours max
+
         android.view.WindowManager.LayoutParams params = getWindow().getAttributes();
         params.preferredRefreshRate = pickHighestRefreshRate();
         getWindow().setAttributes(params);
@@ -255,7 +321,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         setContentView(R.layout.xserver_display_activity);
 
         preloaderDialog = new PreloaderDialog(this);
-        preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         cursorLock = preferences.getBoolean("cursor_lock", true);
 
@@ -412,7 +477,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
 
-        taskAffinityMask = (short) ProcessHelper.getAffinityMask(container.getCPUList(true));
+                taskAffinityMask = (short) ProcessHelper.getAffinityMask(container.getCPUList(true));
         taskAffinityMaskWoW64 = (short) ProcessHelper.getAffinityMask(container.getCPUListWoW64(true));
 
         if (shortcut != null) {
@@ -717,6 +782,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public void onResume() {
         super.onResume();
 
+        if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(1000 * 60 * 60 * 24);
+
         if (environment != null) {
             xServerView.onResume();
             environment.onResume();
@@ -729,6 +796,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onPause() {
         super.onPause();
+
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
 
         // Check if we are entering Picture-in-Picture mode
         if (!isInPictureInPictureMode()) {
@@ -807,7 +876,30 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        if (performanceSession != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) performanceSession.close();
+        }
+        unbindService(serviceConnection);
+        stopService(new Intent(this, EmulationService.class));
         super.onDestroy();
+        if (midiHandler != null) {
+            midiHandler.stop();
+            midiHandler = null;
+        }
+        if (preloaderDialog != null) preloaderDialog.close();
+        environment.stopEnvironmentComponents();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // Only release non-critical caches. We prioritize keeping the emulator RAM.
+        if (level >= TRIM_MEMORY_MODERATE) {
+            if (preloaderDialog != null) {
+                // Preloader dialog is a small UI element, but we check if we can clear its context
+            }
+        }
     }
 
     @Override
@@ -972,6 +1064,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             touchpadView.requestPointerCapture();
         else if (!hasFocus)
             touchpadView.releasePointerCapture();
+    }
+
+    public void reportActualWorkDuration() {
+        if (performanceSession != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            performanceSession.reportActualWorkDuration(10000000L);
+        }
     }
 
     // private void extractInputDLLs() {

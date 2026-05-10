@@ -141,6 +141,7 @@ public abstract class ProcessHelper {
         Executors.newSingleThreadExecutor().execute(new Runnable() {
             @Override
             public void run() {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
                 try {
                     int status = process.waitFor();
                     terminationCallback.call(status);

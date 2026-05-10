@@ -5,9 +5,11 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.os.Process;
 import android.util.Log;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.XrActivity;
 import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.math.XForm;
@@ -72,6 +74,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY);
         GPUImage.checkIsSupported();
 
         GLES20.glFrontFace(GLES20.GL_CCW);
@@ -104,6 +107,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
+        if (xServerView.getContext() instanceof XServerDisplayActivity) {
+            ((XServerDisplayActivity) xServerView.getContext()).reportActualWorkDuration();
+        }
+
         if (toggleFullscreen) {
             fullscreen = !fullscreen;
             toggleFullscreen = false;

@@ -68,8 +68,8 @@ tasks.register("downloadProton") {
 }
 
 tasks.register("prepareKotlinBuildScriptModel"){}
-downloadProton.dependsOn(downloadImageFS)
-preBuild.dependsOn(downloadProton)
+// downloadProton.dependsOn(downloadImageFS)
+// preBuild.dependsOn(downloadProton)
 
 android {
     namespace 'com.winlator.cmod'

@@ -177,6 +177,13 @@
     <string name="intermediate">Intermediate</string>
     <string name="performance">Performance</string>
     <string name="unreal_engine_3">Unreal Engine 3</string>
+    <string name="max_performance">Max Performance</string>
+    <string name="battery_saver">Battery Saver</string>
+    <string name="unity_engine">Unity Engine</string>
+    <string name="source_engine">Source Engine</string>
+    <string name="classic_games">Classic Games</string>
+    <string name="ultra_stability">Ultra Stability</string>
+    <string name="indie_mono">Indie / Mono Games</string>
     <string name="preset">Preset</string>
     <string name="you_cannot_remove_this_preset">You cannot remove this preset</string>
     <string name="dxwrapper_help_content"><![CDATA[

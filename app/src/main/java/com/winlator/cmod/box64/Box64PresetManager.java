@@ -99,6 +99,106 @@ public abstract class Box64PresetManager {
 
             }
         }
+        else if (id.equals(Box64Preset.MAX_PERFORMANCE)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "0");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "1");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "0");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "3");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "0");
+            envVars.put(ucPrefix+"_DYNAREC_WEAKBARRIER", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "1024");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "1");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "1");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "2");
+                envVars.put("BOX64_UNITYPLAYER", "0");
+                envVars.put("BOX64_MMAP32", "1");
+            }
+        }
+        else if (id.equals(Box64Preset.BATTERY_SAVER)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "1");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "1");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "128");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "0");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "0");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "1");
+                envVars.put("BOX64_MMAP32", "0");
+                envVars.put("BOX64_MAXCPU", "4");
+            }
+        }
+        else if (id.equals(Box64Preset.UNITY_ENGINE)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "1");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "1");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "128");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "1");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "1");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "1");
+                envVars.put("BOX64_MMAP32", "0");
+            }
+        }
+        else if (id.equals(Box64Preset.SOURCE_ENGINE)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "1");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "0");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "3");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "0");
+            envVars.put(ucPrefix+"_DYNAREC_WEAKBARRIER", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "512");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "1");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "1");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "0");
+                envVars.put("BOX64_MMAP32", "1");
+            }
+        }
+        else if (id.equals(Box64Preset.CLASSIC_GAMES)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "1");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "1");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "128");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "0");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "0");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "0");
+                envVars.put("BOX64_MMAP32", "0");
+                envVars.put("BOX64_MAXCPU", "2");
+            }
+        }
+        else if (id.equals(Box64Preset.ULTRA_STABILITY)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "1");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "0");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "3");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "128");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "0");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "1");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "1");
+                envVars.put("BOX64_MMAP32", "0");
+            }
+        }
         else if (id.equals(Box64Preset.UNREAL_ENGINE_3)) {
             envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
@@ -133,6 +233,12 @@ public abstract class Box64PresetManager {
         presets.add(new Box64Preset(Box64Preset.COMPATIBILITY, context.getString(R.string.compatibility)));
         presets.add(new Box64Preset(Box64Preset.INTERMEDIATE, context.getString(R.string.intermediate)));
         presets.add(new Box64Preset(Box64Preset.PERFORMANCE, context.getString(R.string.performance)));
+        presets.add(new Box64Preset(Box64Preset.MAX_PERFORMANCE, context.getString(R.string.max_performance)));
+        presets.add(new Box64Preset(Box64Preset.BATTERY_SAVER, context.getString(R.string.battery_saver)));
+        presets.add(new Box64Preset(Box64Preset.UNITY_ENGINE, context.getString(R.string.unity_engine)));
+        presets.add(new Box64Preset(Box64Preset.SOURCE_ENGINE, context.getString(R.string.source_engine)));
+        presets.add(new Box64Preset(Box64Preset.CLASSIC_GAMES, context.getString(R.string.classic_games)));
+        presets.add(new Box64Preset(Box64Preset.ULTRA_STABILITY, context.getString(R.string.ultra_stability)));
         presets.add(new Box64Preset(Box64Preset.UNREAL_ENGINE_3, context.getString(R.string.unreal_engine_3)));
         for (String[] preset : customPresetsIterator(prefix, context)) presets.add(new Box64Preset(preset[0], preset[1]));
         return presets;

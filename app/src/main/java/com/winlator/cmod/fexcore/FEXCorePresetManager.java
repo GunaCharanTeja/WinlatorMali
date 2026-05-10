@@ -62,6 +62,35 @@ public class FEXCorePresetManager {
             envVars.put("FEX_X87REDUCEDPRECISION", "1");
             envVars.put("FEX_MULTIBLOCK", "1");
         }
+        else if (id.equals(FEXCorePreset.MAX_PERFORMANCE)) {
+            envVars.put("FEX_TSOENABLED", "0");
+            envVars.put("FEX_VECTORTSOENABLED", "0");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
+            envVars.put("FEX_X87REDUCEDPRECISION", "1");
+            envVars.put("FEX_MULTIBLOCK", "1");
+            envVars.put("FEX_HOSTFEATURES", "enableavx");
+        }
+        else if (id.equals(FEXCorePreset.BATTERY_SAVER)) {
+            envVars.put("FEX_TSOENABLED", "1");
+            envVars.put("FEX_VECTORTSOENABLED", "1");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "1");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "1");
+            envVars.put("FEX_X87REDUCEDPRECISION", "0");
+            envVars.put("FEX_MULTIBLOCK", "0");
+            envVars.put("FEX_DISABLEL2CACHE", "1");
+            envVars.put("FEX_DYNAMICL1CACHE", "1");
+        }
+        else if (id.equals(FEXCorePreset.INDIE_MONO)) {
+            envVars.put("FEX_TSOENABLED", "1");
+            envVars.put("FEX_VECTORTSOENABLED", "1");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "1");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "1");
+            envVars.put("FEX_X87REDUCEDPRECISION", "0");
+            envVars.put("FEX_MULTIBLOCK", "0");
+            envVars.put("FEX_SMC_CHECKS", "full");
+            envVars.put("FEX_MONOHACKS", "1");
+        }
         else if (id.equals(FEXCorePreset.UNREAL_ENGINE_3)) {
             envVars.put("FEX_TSOENABLED", "1");
             envVars.put("FEX_VECTORTSOENABLED", "1");
@@ -88,6 +117,9 @@ public class FEXCorePresetManager {
         presets.add(new FEXCorePreset(FEXCorePreset.COMPATIBILITY, context.getString(R.string.compatibility)));
         presets.add(new FEXCorePreset(FEXCorePreset.INTERMEDIATE, context.getString(R.string.intermediate)));
         presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE, context.getString(R.string.performance)));
+        presets.add(new FEXCorePreset(FEXCorePreset.MAX_PERFORMANCE, context.getString(R.string.max_performance)));
+        presets.add(new FEXCorePreset(FEXCorePreset.BATTERY_SAVER, context.getString(R.string.battery_saver)));
+        presets.add(new FEXCorePreset(FEXCorePreset.INDIE_MONO, context.getString(R.string.indie_mono)));
         presets.add(new FEXCorePreset(FEXCorePreset.UNREAL_ENGINE_3, context.getString(R.string.unreal_engine_3)));
         for (String[] preset : customPresetsIterator(context)) presets.add(new FEXCorePreset(preset[0], preset[1]));
         return presets;

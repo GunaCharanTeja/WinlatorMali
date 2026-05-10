@@ -7,6 +7,9 @@ public class FEXCorePreset {
     public static final String COMPATIBILITY = "COMPATIBILITY";
     public static final String INTERMEDIATE = "INTERMEDIATE";
     public static final String PERFORMANCE = "PERFORMANCE";
+    public static final String MAX_PERFORMANCE = "MAX_PERFORMANCE";
+    public static final String BATTERY_SAVER = "BATTERY_SAVER";
+    public static final String INDIE_MONO = "INDIE_MONO";
     public static final String UNREAL_ENGINE_3 = "UNREAL_ENGINE_3";
     public static final String CUSTOM = "CUSTOM";
     public final String id;
