@@ -1,9 +1,9 @@
 package com.winlator.cmod.core;
 
 public abstract class DefaultVersion {
-    public static final String BOX64 = "0.3.7";
-    public static final String WOWBOX64 = "0.3.7";
-    public static final String FEXCORE = "2508";
+    public static final String BOX64 = "0.4.1";
+    public static final String WOWBOX64 = "0.4.1";
+    public static final String FEXCORE = "2601";
     public static final String WRAPPER = "System";
     public static final String WRAPPER_ADRENO = "turnip25.1.0";
     public static final String DXVK = GPUInformation.getRenderer(null, null).contains("Mali") ? "1.7.2" : "2.3.1";

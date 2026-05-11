@@ -25,8 +25,6 @@
     </string-array>
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>
-        <item>v819</item>
-        <item>turnip25.1.0</item>
     </string-array>
     <string-array name="audio_driver_entries">
         <item>ALSA</item>
@@ -132,12 +130,15 @@
     </string-array>
     <string-array name="box64_version_entries">
         <item>0.3.7</item>
+        <item>0.4.1</item>
     </string-array>
     <string-array name="wowbox64_version_entries">
         <item>0.3.7</item>
+        <item>0.4.1</item>
     </string-array>
     <string-array name="fexcore_version_entries">
         <item>2508</item>
+        <item>2601</item>
     </string-array>
     <string-array name="desktop_theme_entries">
         <item>Light</item>
