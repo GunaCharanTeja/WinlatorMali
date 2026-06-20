@@ -23,8 +23,8 @@ Winlator Mali is an Android application that lets you run Windows (x86_64) appli
 ## What's New in Winlator Mali
 
 - **Multiple Vulkan Wrapper Selection** — Choose between `Wrapper`, `Wrapper-Leegao`, and `Wrapper V2` per container
-- **ASTC Transcoding** — ASTC texture transcoding implemented directly in-app via leegao's bcn_layer
-- **ETC2 Transcoding** — ETC2 texture transcoding implemented directly in-app via leegao's bcn_layer
+- **ASTC Transcoding** — ASTC texture transcoding implemented directly in-app, using a modified version of leegao's bcn_layer with improved performance and stability
+- **ETC2 Transcoding** — ETC2 texture transcoding implemented directly in-app, using a modified version of leegao's bcn_layer with improved performance and stability
 - **Advanced HUD** — Enhanced in-game overlay based on Winlator Ludashi's HUD, further improved
 - **Unified Control System** — Simplified from three separate modes (XInput, DInput, Exclusive) into one unified input system
 - **Improved Shortcut Cards** — Redesigned game shortcut cards with cover art support, visually inspired by Winlator Ludashi 3.0 (independently implemented)
