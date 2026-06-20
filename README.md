@@ -28,6 +28,7 @@ Winlator Mali is an Android application that lets you run Windows (x86_64) appli
 - **Advanced HUD** — Enhanced in-game overlay based on Winlator Ludashi's HUD, further improved
 - **Unified Control System** — Simplified from three separate modes (XInput, DInput, Exclusive) into one unified input system
 - **Graphics Driver Manager** — Manage and update Vulkan wrappers (Wrapper, Wrapper-Leegao, Wrapper V2) and bcn_layer directly from local storage; user-installed drivers take priority over the default bundled ones
+- **Gyro View** — Use your device's gyroscope for camera/view control in games
 - **Revamped Controls UI** — Every control icon redesigned and refreshed for a cleaner look
 
 > 🚀 **More features coming in the first release** — including overall performance, stability, and RAM improvements specifically targeted at MediaTek devices.
