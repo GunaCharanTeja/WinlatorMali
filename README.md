@@ -12,9 +12,9 @@ Winlator Mali is an Android application that lets you run Windows (x86_64) appli
 
 ## Screenshots
 
-| GTA IV | Batman: Arkham City |
-|--------|---------------------|
-| ![GTA IV](https://github.com/user-attachments/assets/398743bc-fb29-45ed-b479-fb59d97fe965) | ![Batman Arkham City](https://github.com/user-attachments/assets/9a4a58de-3691-48c3-89db-227af39b8b3d) |
+| GTA IV | Batman: Arkham City | Devil May Cry (2013) |
+|--------|---------------------|----------------------|
+| ![GTA IV](https://github.com/user-attachments/assets/398743bc-fb29-45ed-b479-fb59d97fe965) | ![Batman Arkham City](https://github.com/user-attachments/assets/9a4a58de-3691-48c3-89db-227af39b8b3d) | ![Devil May Cry 2013](https://github.com/user-attachments/assets/c89d1a06-adc0-4211-bcf7-64a1a6fcba8c) |
 
 *Running on Mali-G610 MC4 (Dimensity 7200) via DXVK + Vulkan Wrapper*
 
