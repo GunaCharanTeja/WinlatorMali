@@ -27,6 +27,10 @@ Winlator Mali is an Android application that lets you run Windows (x86_64) appli
 - **ETC2 Transcoding** — ETC2 texture transcoding implemented directly in-app via leegao's bcn_layer
 - **Advanced HUD** — Enhanced in-game overlay based on Winlator Ludashi's HUD, further improved
 - **Unified Control System** — Simplified from three separate modes (XInput, DInput, Exclusive) into one unified input system
+- **Improved Shortcut Cards** — Redesigned game shortcut cards with cover art support, visually inspired by Winlator Ludashi 3.0 (independently implemented)
+- **Cover Art Manager** — Built-in option to manage cover arts for your games
+- **Auto Game Name Detection** — Automatically identifies the full game name from the game's default executable via Steam
+- **Auto Cover Art Fetching** — Automatically fetches cover art from SteamGridDB based on the detected game name
 
 ---
 
