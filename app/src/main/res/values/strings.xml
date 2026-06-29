@@ -343,6 +343,8 @@
     <string name="glibc_exp_edition">Based On</string>
     <string name="enabled_async">Enable Async</string>
     <string name="enabled_async_cache">Enable Async Cache</string>
+    <string name="dxvk_config">DXVK Config</string>
+    <string name="dxvk_config_defaults_info">Defaults: enableAsync=True, numCompilerThreads=2, memoryTrack=False, presentThrottle=0, debugLayer=False, nvapiHack=True, useRawSsbo=True, maxFrameLatency=1</string>
     <string name="vkd3d_feature_level">VKD3D Feature Level</string>
     <string name="filter">Filter</string>
     <string name="all">All</string>

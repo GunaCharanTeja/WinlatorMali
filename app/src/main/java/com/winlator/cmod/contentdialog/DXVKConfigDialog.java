@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.ToggleButton;
 
 import com.winlator.cmod.R;
@@ -36,6 +37,7 @@ public class DXVKConfigDialog extends ContentDialog {
     public static final int DXVK_TYPE_ASYNC = 1;
     public static final int DXVK_TYPE_GPLASYNC = 2;
     private final ToggleButton swAsync;
+    private final ToggleButton swDXVKConfig;
     private boolean isARM64EC = false;
     private final ToggleButton swAsyncCache;
     private final View llAsync;
@@ -89,6 +91,7 @@ public class DXVKConfigDialog extends ContentDialog {
         final Spinner sDDRAWrapper = findViewById(R.id.SDDRAWrapper);
         final Spinner sMaxDeviceMemory = findViewById(R.id.SMaxDeviceMemory);
         swAsync = findViewById(R.id.SWAsync);
+        swDXVKConfig = findViewById(R.id.SWDXVKConfig);
         swAsyncCache = findViewById(R.id.SWAsyncCache);
         llAsync = findViewById(R.id.LLAsync);
         llAsyncCache = findViewById(R.id.LLAsyncCache);
@@ -115,7 +118,9 @@ public class DXVKConfigDialog extends ContentDialog {
         } catch (NumberFormatException e) {}
 
         swAsync.setChecked(config.get("async").equals("1"));
+        swDXVKConfig.setChecked(config.get("dxvkConfig", "1").equals("1"));
         swAsyncCache.setChecked(config.get("asyncCache").equals("1"));
+        findViewById(R.id.IVDXVKConfigInfo).setOnClickListener(v -> showDXVKConfigInfo());
 
         updateConfigVisibility(getDXVKType(sDXVKVersion.getSelectedItemPosition()));
 
@@ -175,6 +180,7 @@ public class DXVKConfigDialog extends ContentDialog {
             config.put("framerate", StringUtils.parseNumber(sFramerate.getSelectedItem()));
             config.put("async", ((swAsync.isChecked())&&(llAsync.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("asyncCache", ((swAsyncCache.isChecked())&&(llAsyncCache.getVisibility()==View.VISIBLE))?"1":"0");
+            config.put("dxvkConfig", swDXVKConfig.isChecked() ? "1" : "0");
             VKD3DVersionItem selectedItem = (VKD3DVersionItem) sVKD3DVersion.getSelectedItem();
             config.put("vkd3dVersion", selectedItem.getIdentifier());
             config.put("vkd3dLevel", sVKD3DFeatureLevel.getSelectedItem().toString());
@@ -241,53 +247,66 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
-        String maxDeviceMemoryIndex = config.get("maxDeviceMemory");
-        String maxDeviceMemoryValue = "";
-        if (!maxDeviceMemoryIndex.isEmpty()) {
-            switch (maxDeviceMemoryIndex) {
-                case "1": maxDeviceMemoryValue = "512"; break;
-                case "2": maxDeviceMemoryValue = "1024"; break;
-                case "3": maxDeviceMemoryValue = "2048"; break;
-                case "4": maxDeviceMemoryValue = "3072"; break;
-                case "5": maxDeviceMemoryValue = "4096"; break;
-            }
-        }
-
-        // Initialize default global optimizations for DXVK
-        String content = "dxgi.nvapiHack = True\n" +
-                         "dxvk.useRawSsbo = True\n" +
-                         "d3d11.allowMapFlagNoWait = True\n" +
-                         "d3d11.dcSingleUseMode = True\n" +
-                         "d3d11.relaxedBarriers = True\n" +
-                         "d3d9.allowDirectBufferMapping = True\n" +
-                         "d3d9.maxFrameLatency = 1\n" +
-                         "dxvk.deferSurfaceCreation = True\n" +
-                         "dxvk.maxFrameLatency = 1\n";
-
-        if (!maxDeviceMemoryValue.isEmpty()) {
-            content += "dxgi.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
-            content += "dxgi.maxSharedMemory = " + maxDeviceMemoryValue + "\n";
-            content += "d3d9.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
-            content += "d3d9.maxAvailableMemory = " + maxDeviceMemoryValue + "\n";
-        }
-
-        String framerate = config.get("framerate");
-        if (!framerate.isEmpty() && !framerate.equals("0")) {
-            content += "dxgi.maxFrameRate = " + framerate + "\n";
-            content += "d3d9.maxFrameRate = " + framerate + "\n";
-            envVars.put("DXVK_FRAME_RATE", framerate);
-        }
-
+        boolean dxvkConfigEnabled = config.get("dxvkConfig", "1").equals("1");
         File configFile = new File(context.getFilesDir(), "imagefs/home/xuser/.config/dxvk.conf");
-        try {
-            configFile.getParentFile().mkdirs();
-            if (configFile.exists()) configFile.delete();
-            try (FileOutputStream fos = new FileOutputStream(configFile);
-                 OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
-                osw.write(content);
+
+        if (dxvkConfigEnabled) {
+            String maxDeviceMemoryIndex = config.get("maxDeviceMemory");
+            String maxDeviceMemoryValue = "";
+            if (!maxDeviceMemoryIndex.isEmpty()) {
+                switch (maxDeviceMemoryIndex) {
+                    case "1": maxDeviceMemoryValue = "512"; break;
+                    case "2": maxDeviceMemoryValue = "1024"; break;
+                    case "3": maxDeviceMemoryValue = "2048"; break;
+                    case "4": maxDeviceMemoryValue = "3072"; break;
+                    case "5": maxDeviceMemoryValue = "4096"; break;
+                }
             }
-            envVars.put("DXVK_CONFIG_FILE", configFile.getAbsolutePath());
-        } catch (Exception e) {}
+
+            // Initialize default global optimizations for DXVK
+            String content = "dxgi.nvapiHack = True\n" +
+                             "dxvk.useRawSsbo = True\n" +
+                             "d3d11.allowMapFlagNoWait = True\n" +
+                             "d3d11.dcSingleUseMode = True\n" +
+                             "d3d11.relaxedBarriers = True\n" +
+                             "d3d9.allowDirectBufferMapping = True\n" +
+                             "d3d9.maxFrameLatency = 1\n" +
+                             "dxvk.deferSurfaceCreation = True\n" +
+                             "dxvk.maxFrameLatency = 1\n" +
+                             "dxvk.enableAsync = True\n" +
+                             "dxvk.numCompilerThreads = 2\n" +
+                             "dxvk.memoryTrack = False\n" +
+                             "dxvk.presentThrottle = 0\n" +
+                             "dxvk.debugLayer = False\n";
+
+            if (!maxDeviceMemoryValue.isEmpty()) {
+                content += "dxgi.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
+                content += "dxgi.maxSharedMemory = " + maxDeviceMemoryValue + "\n";
+                content += "d3d9.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
+                content += "d3d9.maxAvailableMemory = " + maxDeviceMemoryValue + "\n";
+            }
+
+            String framerate = config.get("framerate");
+            if (!framerate.isEmpty() && !framerate.equals("0")) {
+                content += "dxgi.maxFrameRate = " + framerate + "\n";
+                content += "d3d9.maxFrameRate = " + framerate + "\n";
+                envVars.put("DXVK_FRAME_RATE", framerate);
+            }
+
+            try {
+                configFile.getParentFile().mkdirs();
+                if (configFile.exists()) configFile.delete();
+                try (FileOutputStream fos = new FileOutputStream(configFile);
+                     OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
+                    osw.write(content);
+                }
+                envVars.put("DXVK_CONFIG_FILE", configFile.getAbsolutePath());
+            } catch (Exception e) {}
+        } else {
+            try {
+                if (configFile.exists()) configFile.delete();
+            } catch (Exception e) {}
+        }
 
         String async = config.get("async");
         if (!async.isEmpty() && !async.equals("0"))
@@ -339,5 +358,34 @@ public class DXVKConfigDialog extends ContentDialog {
 
         ArrayAdapter<VKD3DVersionItem> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList);
         spinner.setAdapter(adapter);
+    }
+
+    private void showDXVKConfigInfo() {
+        ContentDialog dialog = new ContentDialog(context, R.layout.lsfg_info_dialog);
+        dialog.setTitle("DXVK Config Defaults");
+        dialog.setIcon(R.drawable.ic_driver_info);
+
+        TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
+        String message = "<b>Generated DXVK Configuration Defaults</b><br/><br/>" +
+                "When enabled, Winlator generates a <b>dxvk.conf</b> file at container start with the following optimization settings:<br/><br/>" +
+                "• <b>dxvk.enableAsync</b> = True<br/>" +
+                "• <b>dxvk.numCompilerThreads</b> = 2<br/>" +
+                "• <b>dxvk.memoryTrack</b> = False<br/>" +
+                "• <b>dxvk.presentThrottle</b> = 0<br/>" +
+                "• <b>dxvk.debugLayer</b> = False<br/>" +
+                "• <b>dxgi.nvapiHack</b> = True<br/>" +
+                "• <b>dxvk.useRawSsbo</b> = True<br/>" +
+                "• <b>d3d11.allowMapFlagNoWait</b> = True<br/>" +
+                "• <b>d3d11.dcSingleUseMode</b> = True<br/>" +
+                "• <b>d3d11.relaxedBarriers</b> = True<br/>" +
+                "• <b>d3d9.allowDirectBufferMapping</b> = True<br/>" +
+                "• <b>d3d9.maxFrameLatency</b> = 1<br/>" +
+                "• <b>dxvk.deferSurfaceCreation</b> = True<br/>" +
+                "• <b>dxvk.maxFrameLatency</b> = 1<br/><br/>" +
+                "It also dynamically appends memory limits and framerate constraints based on your container configuration.";
+        tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
+
+        dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+        dialog.show();
     }
 }

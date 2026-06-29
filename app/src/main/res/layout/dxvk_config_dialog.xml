@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="200dp">
 
@@ -7,6 +8,47 @@
         android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/LLDXVKConfig"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/dxvk_config" />
+
+            <ImageView
+                android:id="@+id/IVDXVKConfigInfo"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_driver_info"
+                android:padding="4dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Info"
+                app:tint="#ff9e9e9e" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" />
+
+            <ToggleButton
+                android:id="@+id/SWDXVKConfig"
+                android:layout_width="64dp"
+                android:layout_height="32dp"
+                android:background="@drawable/toggle_button_selector"
+                android:textOn=""
+                android:textOff="" />
+
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
