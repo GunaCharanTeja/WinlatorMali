@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <LinearLayout
+        android:layout_width="340dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="8dp">
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <CheckBox
+                android:id="@+id/CBEnableLSFG"
+                android:layout_width="0.0dip"
+                android:layout_weight="1.0"
+                android:layout_height="wrap_content"
+                android:text="@string/enable_lsfg" />
+            <ImageView
+                android:id="@+id/IVLSFGInfo"
+                android:layout_width="40.0dip"
+                android:layout_height="40.0dip"
+                android:padding="8.0dip"
+                android:src="@drawable/ic_driver_info"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Info"
+                app:tint="#ff9e9e9e" />
+        </LinearLayout>
+        <TextView
+            android:textSize="12.0sp"
+            android:textColor="#ff9e9e9e"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/lsfg_description"
+            android:paddingStart="16.0dip"
+            android:paddingEnd="16.0dip" />
+        <LinearLayout
+            android:orientation="vertical"
+            android:id="@+id/LLLSFGSettings"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16.0dip"
+            android:paddingEnd="16.0dip">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8.0dip"
+                android:text="@string/lsfg_quality" />
+            <Spinner
+                android:id="@+id/SLSFGQuality"
+                android:entries="@array/lsfg_quality_entries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8.0dip"
+                android:text="Target FPS" />
+            <Spinner
+                android:id="@+id/SLSFGTargetFPS"
+                android:entries="@array/lsfg_target_fps_entries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8.0dip"
+                android:text="@string/motion_blur" />
+            <com.winlator.cmod.widget.SeekBar
+                android:id="@+id/SBLSFGMotionBlur"
+                android:layout_width="match_parent"
+                android:layout_height="60.0dip"
+                app:sbMaxValue="1.0"
+                app:sbMinValue="0.0"
+                app:sbStep="0.01" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

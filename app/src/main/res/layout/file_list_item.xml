@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:background="?selectableItemBackground"
+    android:padding="12.0dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <ImageView
+        android:id="@+id/IVIcon"
+        android:layout_width="40.0dip"
+        android:layout_height="40.0dip"
+        android:src="@android:drawable/ic_menu_view"
+        app:tint="?colorAccent" />
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="0.0dip"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.0"
+        android:layout_marginStart="16.0dip">
+        <TextView
+            android:textSize="16.0sp"
+            android:textStyle="bold"
+            android:textColor="?android:textColorPrimary"
+            android:id="@+id/TVFileName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FolderName" />
+        <TextView
+            android:textSize="12.0sp"
+            android:textColor="?android:textColorSecondary"
+            android:id="@+id/TVFileDetails"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 items | Drwxrwx" />
+    </LinearLayout>
+    <ImageView
+        android:id="@+id/BTFileMenu"
+        android:visibility="gone"
+        android:layout_width="24.0dip"
+        android:layout_height="24.0dip"
+        android:src="@android:drawable/ic_menu_more"
+        app:tint="?android:textColorSecondary" />
+</LinearLayout>

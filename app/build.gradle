@@ -1,0 +1,242 @@
+import java.net.URL
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.security.MessageDigest
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        // Adjust Gradle plugin versions if needed
+        classpath 'com.android.tools.build:gradle:8.8.0'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0'
+    }
+
+}
+
+plugins {
+    id 'com.android.application'
+}
+
+tasks.register("downloadImageFS") {
+    def assetDir = new File(project.rootDir, ["app","src","main","assets"].join(File.separator))
+    File imageFS = new File(assetDir, "imagefs.txz")
+    int parts = 4
+
+    doLast {
+        if (!imageFS.exists()) {
+            println("ImageFS was not present, downloading...\n")
+            FileOutputStream outputStream = new FileOutputStream(imageFS)
+            for (int i = 0; i < parts; i++) {
+                String partName = String.format("imagefs.txz.%02d", i)
+                File partFile = new File(assetDir, partName)
+                String partURL = String.format("https://gitlab.com/winlator3/winlator-extra/-/raw/main/imagefs/imagefs.txz.%02d", i)
+                
+                int maxRetries = 3
+                int attempt = 0
+                boolean success = false
+                while (attempt < maxRetries && !success) {
+                    attempt++
+                    try {
+                        URL url = new URL(partURL)
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection()
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        conn.setConnectTimeout(15000)
+                        if (conn.getResponseCode() == 200) {
+                            long contentLength = conn.getContentLengthLong()
+                            partFile.withOutputStream { fos ->
+                                conn.inputStream.withStream { is ->
+                                    byte[] buffer = new byte[65536]
+                                    int read
+                                    long total = 0
+                                    while ((read = is.read(buffer)) != -1) {
+                                        fos.write(buffer, 0, read)
+                                        total += read
+                                    }
+                                    if (contentLength > 0 && total != contentLength) throw new IOException("Part corrupted")
+                                }
+                            }
+                            success = true
+                        } else throw new IOException("Status " + conn.getResponseCode())
+                    } catch (Exception e) {
+                        println("Retry " + attempt + " for " + partName + ": " + e.message)
+                        if (attempt >= maxRetries) throw e
+                    }
+                }
+                outputStream << partFile.bytes
+                partFile.delete()
+            }
+            outputStream.close()
+        }
+    }
+}
+
+tasks.register("downloadProton") {
+    def assetDir = new File(project.rootDir, ["app","src","main","assets"].join(File.separator))
+    def files = [
+        [name: "proton-9.0-x86_64.txz", url: "https://gitlab.com/winlator3/winlator-extra/-/raw/main/proton/proton-9.0-x86_64.txz"],
+        [name: "proton-10-arm64ec.txz", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-10-arm64ec/proton-10-arm64ec.txz"],
+        [name: "proton-10-arm64ec_container_pattern.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-10-arm64ec/proton-10-arm64ec_container_pattern.tzst"],
+        [name: "proton-9.0-arm64ec.txz", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-9-arm64ec/proton-9.0-arm64ec.txz"],
+        [name: "proton-9.0-arm64ec_container_pattern.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-9-arm64ec/proton-9.0-arm64ec_container_pattern.tzst"]
+    ]
+
+    doLast {
+        files.each { fileInfo ->
+            File dest = new File(assetDir, fileInfo.name)
+            if (!dest.exists()) {
+                int maxRetries = 3
+                int attempt = 0
+                boolean success = false
+                while (attempt < maxRetries && !success) {
+                    attempt++
+                    try {
+                        println("Downloading ${fileInfo.name} (Attempt ${attempt}/${maxRetries})...")
+                        URL url = new URL(fileInfo.url)
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection()
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        conn.setConnectTimeout(20000)
+                        conn.setReadTimeout(60000)
+                        
+                        if (conn.getResponseCode() == 200) {
+                            long expectedSize = conn.getContentLengthLong()
+                            dest.withOutputStream { fos ->
+                                conn.inputStream.withStream { is ->
+                                    byte[] buffer = new byte[131072] // 128KB buffer for max speed
+                                    int read
+                                    long total = 0
+                                    while ((read = is.read(buffer)) != -1) {
+                                        fos.write(buffer, 0, read)
+                                        total += read
+                                    }
+                                    if (expectedSize > 0 && total != expectedSize) {
+                                        throw new IOException("Download corrupted for ${fileInfo.name}: expected ${expectedSize} but got ${total}")
+                                    }
+                                }
+                            }
+                            success = true
+                            println("Finished downloading ${fileInfo.name}")
+                        } else {
+                            throw new IOException("Server returned status ${conn.getResponseCode()}")
+                        }
+                    } catch (Exception e) {
+                        println("Error: ${e.message}")
+                        if (dest.exists()) dest.delete()
+                        if (attempt >= maxRetries) throw new GradleException("Failed to download ${fileInfo.name}", e)
+                        sleep(3000)
+                    }
+                }
+            }
+        }
+    }
+}
+
+tasks.register("prepareKotlinBuildScriptModel"){}
+downloadProton.dependsOn(downloadImageFS)
+preBuild.dependsOn(downloadProton)
+
+android {
+    namespace 'com.winlator.cmod'
+    // Keep compileSdk from your current config. If you want to match Termux-X11, you could set to 34.
+    compileSdk 34
+    buildToolsVersion "35.0.0"
+
+    defaultConfig {
+        applicationId "com.winlator.cmod"
+        minSdkVersion 26
+        // We’re preserving Winlator’s request to keep targetSdkVersion at 28
+        targetSdkVersion 28
+
+        versionCode 20
+        versionName "1.0 Bionic"
+
+        // External native build from Winlator
+        externalNativeBuild {
+            cmake {
+                cppFlags ''
+            }
+        }
+
+        // You originally only did arm64-v8a. If you want multi-ABI splits, see below.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+
+    // Java versions: Winlator uses Java 17, Termux-X11 used 1.9
+    // Using 17 is typically fine (covers 1.9 features).
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Keep Winlator’s buildTypes
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+
+    ndkVersion '29.0.14206865'
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+
+    // If you want to be sure modern JNI packaging is used:
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            pickFirsts += 'assets/dexopt/baseline.prof'
+            pickFirsts += 'assets/dexopt/baseline.profm'
+        }
+    }
+}
+
+dependencies {
+    // Winlator’s dependencies
+    implementation 'androidx.appcompat:appcompat:1.4.0'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
+    implementation 'org.tukaani:xz:1.7'
+    implementation 'org.apache.commons:commons-compress:1.20'
+    implementation 'androidx.activity:activity-ktx:1.4.0'
+    implementation 'androidx.fragment:fragment-ktx:1.4.0'
+    implementation files('libs/MidiSynth/MidiSynth.jar')
+    implementation 'androidx.recyclerview:recyclerview:1.2.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
+    implementation 'com.google.code.gson:gson:2.8.8'
+    implementation 'org.conscrypt:conscrypt-android:2.5.2'
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.68'
+    implementation 'org.openjsse:openjsse:1.1.7'
+    implementation 'androidx.core:core:1.0.1'
+    implementation 'androidx.palette:palette:1.0.0'
+    implementation 'com.github.bumptech.glide:glide:4.11.0'
+    implementation 'com.kohlschutter.junixsocket:junixsocket-common:2.6.0'
+    implementation 'com.kohlschutter.junixsocket:junixsocket-native-common:2.6.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
+}
+
+
+

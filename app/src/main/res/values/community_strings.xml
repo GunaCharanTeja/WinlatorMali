@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_game_info">Search Game Info</string>
+    <string name="no_internet_connection">No internet connection. Please check your network settings.</string>
+    <string name="community_search_instruction">Enter the <b>official full name</b> of the game for accurate community indexing.</string>
+</resources>

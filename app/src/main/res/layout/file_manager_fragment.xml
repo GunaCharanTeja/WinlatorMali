@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent">
+        <LinearLayout
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:background="?android:windowBackground"
+            android:paddingHorizontal="4.0dip"
+            android:layout_width="fill_parent"
+            android:layout_height="56.0dip">
+            <ImageButton
+                android:id="@+id/BTUpDir"
+                android:background="?selectableItemBackgroundBorderless"
+                android:layout_width="48.0dip"
+                android:layout_height="48.0dip"
+                android:padding="12.0dip"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_nav_back"
+                android:contentDescription="Up Directory"
+                app:tint="?android:textColorPrimary" />
+            <LinearLayout
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:id="@+id/LLDriveSelect"
+                android:background="?android:selectableItemBackground"
+                android:paddingHorizontal="8.0dip"
+                android:focusable="true"
+                android:clickable="true"
+                android:layout_width="wrap_content"
+                android:layout_height="40.0dip"
+                android:layout_marginStart="4.0dip">
+                <ImageView
+                    android:id="@+id/IVDriveIcon"
+                    android:layout_width="20.0dip"
+                    android:layout_height="20.0dip"
+                    android:src="@drawable/ic_drive_storage"
+                    app:tint="?colorAccent" />
+                <TextView
+                    android:textSize="13.0sp"
+                    android:textStyle="bold"
+                    android:textColor="?colorAccent"
+                    android:id="@+id/TVDriveName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Drive D:"
+                    android:layout_marginStart="6.0dip" />
+                <ImageView
+                    android:layout_width="14.0dip"
+                    android:layout_height="14.0dip"
+                    android:src="@drawable/ic_arrow_drop_down"
+                    android:layout_marginStart="2.0dip"
+                    app:tint="?android:textColorSecondary" />
+            </LinearLayout>
+            <TextView
+                android:textSize="12.0sp"
+                android:ellipsize="start"
+                android:id="@+id/TVCurrentPath"
+                android:layout_width="0.0dip"
+                android:layout_height="wrap_content"
+                android:text="/storage/emulated/0"
+                android:singleLine="true"
+                android:alpha="0.6"
+                android:paddingHorizontal="8.0dip"
+                android:layout_weight="1.0" />
+            <ImageButton
+                android:id="@+id/BTSearch"
+                android:background="?selectableItemBackgroundBorderless"
+                android:layout_width="48.0dip"
+                android:layout_height="48.0dip"
+                android:padding="12.0dip"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_nav_search"
+                android:contentDescription="@string/filter"
+                app:tint="?android:textColorPrimary" />
+            <ImageButton
+                android:id="@+id/BTInfo"
+                android:background="?selectableItemBackgroundBorderless"
+                android:layout_width="48.0dip"
+                android:layout_height="48.0dip"
+                android:padding="12.0dip"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_nav_info"
+                android:contentDescription="Help"
+                app:tint="?android:textColorPrimary" />
+            <ImageButton
+                android:id="@+id/BTNewFolder"
+                android:background="?selectableItemBackgroundBorderless"
+                android:layout_width="48.0dip"
+                android:layout_height="48.0dip"
+                android:padding="12.0dip"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_nav_add_folder"
+                android:contentDescription="@string/new_folder"
+                app:tint="?android:textColorPrimary" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/LLSearchArea"
+            android:layout_width="match_parent"
+            android:layout_height="56.0dip"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12.0dip"
+            android:visibility="gone"
+            android:background="?android:windowBackground">
+            <EditText
+                android:id="@+id/ETSearch"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/filter"
+                android:textSize="15sp"
+                android:maxLines="1"
+                android:background="@null"
+                android:inputType="text"
+                android:autofillHints="none" />
+            <ProgressBar
+                android:id="@+id/PBSearch"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginHorizontal="8dp"
+                android:visibility="gone" />
+            <ImageButton
+                android:id="@+id/BTCloseSearch"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12.0dip"
+                android:scaleType="centerInside"
+                android:background="?selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_nav_close"
+                app:tint="?android:textColorPrimary" />
+        </LinearLayout>
+        <View
+            android:background="?android:listDivider"
+            android:layout_width="fill_parent"
+            android:layout_height="1.0dip" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/RecyclerViewFiles"
+                android:layout_width="fill_parent"
+                android:layout_height="fill_parent" />
+            <TextView
+                android:id="@+id/TVNoItems"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/no_items_to_display"
+                android:alpha="0.5"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:layout_gravity="end|bottom|center"
+        android:id="@+id/fabPaste"
+        android:visibility="gone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16.0dip"
+        android:src="@android:drawable/ic_menu_save"
+        android:contentDescription="Paste" />
+</FrameLayout>

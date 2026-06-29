@@ -1,0 +1,42 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="none">
+        <!-- Existing menu items -->
+        <item
+            android:icon="@drawable/icon_keyboard"
+            android:id="@+id/main_menu_keyboard"
+            android:title="@string/keyboard" />
+        <item
+            android:icon="@drawable/icon_input_controls"
+            android:id="@+id/main_menu_input_controls"
+            android:title="@string/input_controls" />
+        <item
+            android:icon="@drawable/ic_mouse"
+            android:id="@+id/main_menu_mouse_settings"
+            android:title="@string/mouse_settings" />
+        <item
+            android:icon="@drawable/icon_task_manager"
+            android:id="@+id/main_menu_task_manager"
+            android:title="@string/task_manager" />
+        <item
+            android:icon="@drawable/ic_display_session"
+            android:id="@+id/main_menu_display_session"
+            android:title="@string/display_and_session" />
+        <item
+            android:icon="@drawable/ic_hud"
+            android:id="@+id/main_menu_hud"
+            android:title="HUD" />
+        <item
+            android:icon="@drawable/ic_graphics_enhancements"
+            android:id="@+id/main_menu_graphics_enhancements"
+            android:title="@string/graphics_enhancements" />
+        <item
+            android:icon="@drawable/icon_debug"
+            android:id="@+id/main_menu_logs"
+            android:title="@string/logs" />
+        <item
+            android:icon="@drawable/icon_exit"
+            android:id="@+id/main_menu_exit"
+            android:title="@string/exit" />
+
+    </group>
+</menu>
