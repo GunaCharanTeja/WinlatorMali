@@ -193,6 +193,7 @@ public class LSFGManager {
     }
 
     public boolean shouldRender() { return true; }
+    public int getRealFramesCaptured() { return realFramesCaptured; }
     public long getFrameDeltaMs() { return (long) (typicalDeltaNanos / 1000000.0f); }
     public long getTypicalDeltaNanos() { return (long) typicalDeltaNanos; }
     public int getActualRealFrameCount() { return actualRealFrameCount.get(); }

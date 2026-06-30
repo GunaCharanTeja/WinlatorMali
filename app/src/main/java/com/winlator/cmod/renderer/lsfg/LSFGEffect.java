@@ -90,7 +90,7 @@ public class LSFGEffect extends Effect {
             // since motion vectors have temporal stability.
             int currTex = frameBuffers[currentFrameIndex].getTextureId();
             int prevTex = frameBuffers[1 - currentFrameIndex].getTextureId();
-            if (prevTex > 0) {
+            if (prevTex > 0 && manager.getRealFramesCaptured() >= 2) {
                 runComputePass(currTex, prevTex, width, height);
             }
         }
@@ -149,12 +149,26 @@ public class LSFGEffect extends Effect {
         if (motionVectorTexture == 0) {
             int[] tex = new int[2];
             GLES20.glGenTextures(2, tex, 0);
+            
+            int[] fbo = new int[1];
+            GLES20.glGenFramebuffers(1, fbo, 0);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo[0]);
+            
             for (int i = 0; i < 2; i++) {
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[i]);
                 GLES31.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES31.GL_RGBA16F, width, height);
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+                
+                // Clear newly allocated textures to prevent temporal NaN/garbage propagation
+                GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, tex[i], 0);
+                GLES20.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
             }
+            
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            GLES20.glDeleteFramebuffers(1, fbo, 0);
+            
             motionVectorTexture = tex[0];
             mvHistoryTexture = tex[1];
             mvWidth = width;
