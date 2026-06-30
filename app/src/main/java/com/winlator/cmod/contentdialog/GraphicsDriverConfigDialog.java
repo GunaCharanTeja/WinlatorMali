@@ -313,6 +313,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                 selectedBCnEmulationType = sBCnEmulationType.getSelectedItem().toString();
+                updateTranscodeCheckboxes();
             }
 
             @Override
@@ -347,14 +348,44 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
 
         isASTCTranscode = astcTranscode;
         cbASTCTranscode.setChecked(isASTCTranscode.equals("1"));
-        cbASTCTranscode.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        cbASTCTranscode.setOnClickListener((v) -> {
+            boolean isSoftware = "software".equals(selectedBCnEmulationType);
+            if (isSoftware) {
+                cbASTCTranscode.setChecked(false);
+                AppUtils.showToast(v.getContext(), "Transcode options require BCN Emulation Type to be set to Compute");
+                return;
+            }
+
+            if (cbETC2Transcode.isChecked()) {
+                cbASTCTranscode.setChecked(false);
+                AppUtils.showToast(v.getContext(), "ASTC and ETC2 are mutually exclusive. Uncheck ETC2 first.");
+                return;
+            }
+
+            boolean isChecked = cbASTCTranscode.isChecked();
             isASTCTranscode = isChecked ? "1" : "0";
+            updateTranscodeCheckboxes();
         });
 
         isETC2Transcode = etc2Transcode;
         cbETC2Transcode.setChecked(isETC2Transcode.equals("1"));
-        cbETC2Transcode.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        cbETC2Transcode.setOnClickListener((v) -> {
+            boolean isSoftware = "software".equals(selectedBCnEmulationType);
+            if (isSoftware) {
+                cbETC2Transcode.setChecked(false);
+                AppUtils.showToast(v.getContext(), "Transcode options require BCN Emulation Type to be set to Compute");
+                return;
+            }
+
+            if (cbASTCTranscode.isChecked()) {
+                cbETC2Transcode.setChecked(false);
+                AppUtils.showToast(v.getContext(), "ASTC and ETC2 are mutually exclusive. Uncheck ASTC first.");
+                return;
+            }
+
+            boolean isChecked = cbETC2Transcode.isChecked();
             isETC2Transcode = isChecked ? "1" : "0";
+            updateTranscodeCheckboxes();
         });
 
         findViewById(R.id.IVTranscodeInfo).setOnClickListener(v -> showTranscodeInfo());
@@ -410,6 +441,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(sBCnEmulation, bcnEmulation);
         AppUtils.setSpinnerSelectionFromValue(sBCnEmulationType, bcnEmulationType);
         AppUtils.setSpinnerSelectionFromValue(sBCnEmulationCache, bcnEmulationCache);
+        updateTranscodeCheckboxes();
 
         // We can log the spinner values now
         Log.d(TAG, "Spinner selected position: " + sVersion.getSelectedItemPosition());
@@ -429,5 +461,37 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(spinner, GPUInformation.isDriverSupported(DefaultVersion.WRAPPER_ADRENO, getContext()) ? DefaultVersion.WRAPPER_ADRENO : DefaultVersion.WRAPPER);
     }
 
-}
+    private void updateTranscodeCheckboxes() {
+        boolean isSoftware = "software".equals(selectedBCnEmulationType);
 
+        if (isSoftware) {
+            cbASTCTranscode.setChecked(false);
+            isASTCTranscode = "0";
+            cbASTCTranscode.setAlpha(0.5f);
+
+            cbETC2Transcode.setChecked(false);
+            isETC2Transcode = "0";
+            cbETC2Transcode.setAlpha(0.5f);
+        } else {
+            // Compute mode: mutually exclusive
+            if (cbASTCTranscode.isChecked() && cbETC2Transcode.isChecked()) {
+                cbETC2Transcode.setChecked(false);
+                isETC2Transcode = "0";
+            }
+
+            boolean astcChecked = cbASTCTranscode.isChecked();
+            boolean etc2Checked = cbETC2Transcode.isChecked();
+
+            if (astcChecked) {
+                cbASTCTranscode.setAlpha(1.0f);
+                cbETC2Transcode.setAlpha(0.5f);
+            } else if (etc2Checked) {
+                cbASTCTranscode.setAlpha(0.5f);
+                cbETC2Transcode.setAlpha(1.0f);
+            } else {
+                cbASTCTranscode.setAlpha(1.0f);
+                cbETC2Transcode.setAlpha(1.0f);
+            }
+        }
+    }
+}
