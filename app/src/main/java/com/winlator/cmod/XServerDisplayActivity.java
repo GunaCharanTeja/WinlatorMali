@@ -2272,6 +2272,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (shortcut != null) {
             String execArgs = shortcut.getExtra("execArgs");
+            boolean gtaOpt = shortcut.getExtra("gtaOptimization", "0").equals("1");
+            String gtaArgs = " -fullscreen -DX10 -novsync -forcehighpriority -noprecache -noShaderCache -nopostfx -nomemrestrict -norestrictions -anisotropicQualityLevel 0 -shaderQuality 0 -postFX 0 -reflectionQuality 0 -grassQuality 0 -particleQuality 0 -noInGameDOF -cityDensity 0.2 -lodScale 0.0 -pedLodBias 0.0 -vehicleLodBias 0.0";
+            if (gtaOpt && !execArgs.contains("-nomemrestrict")) {
+                execArgs = execArgs + gtaArgs;
+            }
             execArgs = !execArgs.isEmpty() ? " " + execArgs : "";
 
             if (shortcut.path.endsWith(".lnk")) {

@@ -131,6 +131,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
 
+        findViewById(R.id.BTHelpGtaOptimization).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, "Applies graphics and CPU optimizations for GTA V to improve performance on low-end hardware."));
+
         final Spinner sAudioDriver = findViewById(R.id.SAudioDriver);
         AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, shortcut.getExtra("audioDriver", shortcut.container.getAudioDriver()));
         final Spinner sEmulator = findViewById(R.id.SEmulator);
@@ -204,6 +206,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final CheckBox cbFullscreenStretched =  findViewById(R.id.CBFullscreenStretched);
         boolean fullscreenStretched = shortcut.getExtra("fullscreenStretched", "0").equals("1");
         cbFullscreenStretched.setChecked(fullscreenStretched);
+
+        final CheckBox cbGtaOptimization = findViewById(R.id.CBGtaOptimization);
+        boolean gtaOptimization = shortcut.getExtra("gtaOptimization", "0").equals("1");
+        cbGtaOptimization.setChecked(gtaOptimization);
 
         final Spinner sControllerEmulation = findViewById(R.id.SControllerEmulation);
         try {
@@ -362,6 +368,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("lc_all", lc_all);
 
                 shortcut.putExtra("fullscreenStretched", cbFullscreenStretched.isChecked() ? "1" : null);
+                shortcut.putExtra("gtaOptimization", cbGtaOptimization.isChecked() ? "1" : null);
 
                 String wincomponents = containerDetailFragment.getWinComponents(getContentView());
                 shortcut.putExtra("wincomponents", wincomponents);

@@ -556,6 +556,27 @@
                         android:layout_height="wrap_content"
                         android:text="@string/fullscreen_stretched" />
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <CheckBox
+                            android:id="@+id/CBGtaOptimization"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Enable GTA V Optimization" />
+
+                        <ImageView
+                            android:id="@+id/BTHelpGtaOptimization"
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_marginLeft="4dp"
+                            android:src="@drawable/icon_help"
+                            app:tint="#e0e0e0" />
+                    </LinearLayout>
+
                 </LinearLayout>
 
                 <TextView
