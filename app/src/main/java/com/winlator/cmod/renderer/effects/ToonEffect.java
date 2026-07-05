@@ -27,15 +27,15 @@ public class ToonEffect extends Effect {
 
         @Override
         protected String getFragmentShader() {
-            // Using gl_FragCoord to get correct screen space coordinates for the entire viewport.
             return String.join("\n", new CharSequence[]{
                     "precision highp float;",
                     "uniform sampler2D screenTexture;",  // The screen texture
                     "uniform vec2 resolution;",          // Screen resolution uniform
+                    "varying vec2 vUV;",
 
                     "void main() {",
-                    // Texture coordinates from screen space
-                    "    vec2 uv = gl_FragCoord.xy / resolution;",
+                    // Texture coordinates from varying vUV to ensure correct mapping across viewports
+                    "    vec2 uv = vUV;",
 
                     // Sample colors at neighboring pixels for edge detection
                     "    float edgeThreshold = 0.2;", // Threshold to detect edges

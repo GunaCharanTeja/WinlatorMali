@@ -50,10 +50,8 @@ public class ContainerManager {
         return containers;
     }
 
-    // Load containers from the home directory
-    private void loadContainers() {
+    public void loadContainers() {
         containers.clear();
-        maxContainerId = 0;
 
         File[] files = homeDir.listFiles();
         if (files != null) {
@@ -62,7 +60,6 @@ public class ContainerManager {
                     int id = -1;
                     try {
                         id = Integer.parseInt(file.getName().replace(ImageFs.USER + "-", ""));
-                        maxContainerId = Math.max(maxContainerId, id);
 
                         Container container = new Container(id, this);
                         container.setRootDir(new File(homeDir, ImageFs.USER + "-" + container.id));
@@ -74,18 +71,19 @@ public class ContainerManager {
                                 JSONObject data = new JSONObject(configStr);
                                 container.loadData(data);
                                 containers.add(container);
-                            } else {
-                                Log.w("ContainerManager", "Container config is empty: " + configFile.getPath());
                             }
                         } else {
-                            Log.w("ContainerManager", "Container config does not exist: " + configFile.getPath());
+                            // Clean up directory if it's empty or has no config
+                            File[] contents = file.listFiles();
+                            if (contents == null || contents.length == 0) {
+                                file.delete();
+                            }
                         }
-                    } catch (Exception e) {
-                        Log.e("ContainerManager", "Error loading container " + file.getName(), e);
-                    }
+                    } catch (Exception e) {}
                 }
             }
         }
+        containers.sort(Comparator.comparingInt(c -> c.id));
     }
 
 
@@ -127,11 +125,15 @@ public class ContainerManager {
 
     private Container createContainer(JSONObject data, ContentsManager contentsManager) {
         try {
-            int id = maxContainerId + 1;
+            int id = getNextContainerId();
             data.put("id", id);
 
+            if (!data.has("name")) {
+                data.put("name", getNextDefaultContainerName());
+            }
+
             File containerDir = new File(homeDir, ImageFs.USER+"-"+id);
-            if (!containerDir.mkdirs()) return null;
+            if (!containerDir.exists() && !containerDir.mkdirs()) return null;
 
             Container container = new Container(id, this);
             container.setRootDir(containerDir);
@@ -152,8 +154,7 @@ public class ContainerManager {
 //            }
 
             container.saveData();
-            maxContainerId++;
-            containers.add(container);
+            loadContainers();
             return container;
         } catch (JSONException e) {
             e.printStackTrace();
@@ -163,10 +164,10 @@ public class ContainerManager {
 
 
     private void duplicateContainer(Container srcContainer) {
-        int id = maxContainerId + 1;
+        int id = getNextContainerId();
 
         File dstDir = new File(homeDir, ImageFs.USER + "-" + id);
-        if (!dstDir.mkdirs()) return;
+        if (!dstDir.exists() && !dstDir.mkdirs()) return;
 
         // Use the refactored copy method that doesn't require a Context for File operations
         if (!FileUtils.copy(srcContainer.getRootDir(), dstDir, file -> FileUtils.chmod(file, 0771))) {
@@ -194,13 +195,14 @@ public class ContainerManager {
         dstContainer.setWineVersion(srcContainer.getWineVersion());
         dstContainer.saveData();
 
-        maxContainerId++;
-        containers.add(dstContainer);
+        loadContainers();
     }
 
 
     private void removeContainer(Container container) {
-        if (FileUtils.delete(container.getRootDir())) containers.remove(container);
+        if (FileUtils.delete(container.getRootDir())) {
+            loadContainers();
+        }
     }
 
     public ArrayList<Shortcut> loadShortcuts() {
@@ -231,7 +233,35 @@ public class ContainerManager {
     }
 
     public int getNextContainerId() {
-        return maxContainerId + 1;
+        int id = 1;
+        while (true) {
+            File file = new File(homeDir, ImageFs.USER + "-" + id);
+            // Consider the ID available if the directory doesn't exist OR has no config
+            if (!file.exists()) return id;
+            if (file.isDirectory()) {
+                File configFile = new File(file, ".container");
+                if (!configFile.exists()) {
+                    return id;
+                }
+            }
+            id++;
+        }
+    }
+
+    public String getNextDefaultContainerName() {
+        int number = 1;
+        while (true) {
+            String name = "Container-" + number;
+            boolean exists = false;
+            for (Container c : containers) {
+                if (c.getName().equalsIgnoreCase(name)) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) return name;
+            number++;
+        }
     }
 
     public Container getContainerById(int id) {

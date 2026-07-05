@@ -13,11 +13,12 @@
 
     <LinearLayout
         android:id="@+id/LLEmptyState"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:orientation="vertical"
         android:gravity="center"
+        android:padding="32dp"
         android:visibility="gone">
 
         <ProgressBar
@@ -31,7 +32,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Loading games..."
-            android:textSize="16sp"
+            android:textSize="15sp"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
             android:textColor="?android:attr/textColorSecondary"/>
     </LinearLayout>
 

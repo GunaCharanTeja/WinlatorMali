@@ -9,62 +9,117 @@ import java.io.BufferedReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.concurrent.Executors;
 
 public class CommunityConfigManager {
     public static final String PROXY_URL = "https://win-mali-proxy.teja44951.workers.dev/";
 
-    public static void fetchGameList(Callback<JSONArray> callback) {
+    private static String getInternalId() {
+        byte[] a = {0x69, 0x6E, 0x73, 0x50, 0x49, 0x52, 0x49, 0x54, 0x6D, 0x4F, 0x44, 0x45, 0x12, 0x14};
+        byte[] b = new byte[a.length];
+        for (int i = 0; i < a.length; i++) b[i] = (byte) (a[i] ^ 32);
+        return new String(b, StandardCharsets.UTF_8);
+    }
+
+    private static String calculateHMAC(String data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((data + getInternalId()).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public interface ConfigListCallback {
+        void onResponse(JSONArray configs, String maintenanceMessage);
+    }
+
+    public static void fetchGameList(ConfigListCallback callback) {
         // Fetch through proxy to bypass GitHub Raw cache and avoid API rate limits
         String url = PROXY_URL + "?path=games.json";
         HttpUtils.download(url, data -> {
             try {
-                callback.call(data != null ? new JSONArray(data) : null);
+                if (data != null) {
+                    if (data.startsWith("{")) {
+                        JSONObject root = new JSONObject(data);
+                        if (root.optBoolean("maintenance", false)) {
+                            callback.onResponse(null, root.optString("message", "System under maintenance."));
+                            return;
+                        }
+                    }
+                    callback.onResponse(new JSONArray(data), null);
+                } else callback.onResponse(null, null);
             } catch (Exception e) {
-                callback.call(null);
+                callback.onResponse(null, null);
             }
         });
     }
 
-    public static void fetchConfigsForGame(String gameName, Callback<JSONArray> callback) {
+    public static void fetchConfigsForGame(String gameName, ConfigListCallback callback) {
         String url = PROXY_URL + "?path=index.json";
         HttpUtils.download(url, data -> {
             try {
                 if (data != null) {
-                    JSONObject index = new JSONObject(data);
-                    JSONArray files = index.optJSONArray(gameName);
-                    if (files != null) {
-                        JSONArray configs = new JSONArray();
-                        for (int i = 0; i < files.length(); i++) {
-                            Object item = files.get(i);
-                            JSONObject configRef;
-                            if (item instanceof JSONObject) {
-                                configRef = (JSONObject) item;
-                            } else {
-                                configRef = new JSONObject();
-                                configRef.put("filename", files.getString(i));
-                            }
-                            configRef.put("game", gameName);
-                            configs.put(configRef);
+                    if (data.startsWith("{")) {
+                        JSONObject root = new JSONObject(data);
+                        if (root.optBoolean("maintenance", false)) {
+                            callback.onResponse(null, root.optString("message", "System under maintenance."));
+                            return;
                         }
-                        callback.call(configs);
-                        return;
+
+                        JSONArray files = root.optJSONArray(gameName);
+                        if (files != null) {
+                            JSONArray configs = new JSONArray();
+                            for (int i = 0; i < files.length(); i++) {
+                                Object item = files.get(i);
+                                JSONObject configRef;
+                                if (item instanceof JSONObject) {
+                                    configRef = (JSONObject) item;
+                                } else {
+                                    configRef = new JSONObject();
+                                    configRef.put("filename", files.getString(i));
+                                }
+                                configRef.put("game", gameName);
+                                configs.put(configRef);
+                            }
+                            callback.onResponse(configs, null);
+                            return;
+                        }
                     }
                 }
-                callback.call(null);
+                callback.onResponse(null, null);
             } catch (Exception e) {
-                callback.call(null);
+                callback.onResponse(null, null);
             }
         });
     }
 
-    public static void downloadConfig(String gameName, String filename, Callback<JSONObject> callback) {
+    public interface ConfigCallback {
+        void onResponse(JSONObject config, String maintenanceMessage);
+    }
+
+    public static void downloadConfig(String gameName, String filename, ConfigCallback callback) {
         String url = PROXY_URL + "?path=configs/" + gameName + "/" + filename;
         HttpUtils.download(url, data -> {
             try {
-                callback.call(data != null ? new JSONObject(data) : null);
+                if (data != null) {
+                    JSONObject root = new JSONObject(data);
+                    if (root.optBoolean("maintenance", false)) {
+                        callback.onResponse(null, root.optString("message", "System under maintenance."));
+                    } else {
+                        callback.onResponse(root, null);
+                    }
+                } else callback.onResponse(null, null);
             } catch (Exception e) {
-                callback.call(null);
+                callback.onResponse(null, null);
             }
         });
     }
@@ -72,13 +127,18 @@ public class CommunityConfigManager {
     public static void uploadConfig(JSONObject config, Callback<String> callback) {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
+                String payload = config.toString();
+                String signature = calculateHMAC(payload);
+
                 HttpURLConnection conn = (HttpURLConnection) new URL(PROXY_URL).openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("X-App-Signature", signature);
+                conn.setRequestProperty("X-App-Version", "1.0-bionic");
                 conn.setDoOutput(true);
 
                 try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = config.toString().getBytes(StandardCharsets.UTF_8);
+                    byte[] input = payload.getBytes(StandardCharsets.UTF_8);
                     os.write(input, 0, input.length);
                 }
 

@@ -136,6 +136,8 @@ public class EffectComposer {
         isRendering = false;
     }
 
+    private int frameCount = 0;
+
     private void renderEffect(Effect effect) {
         ShaderMaterial material = effect.getMaterial();
         if (material == null) return;
@@ -144,6 +146,10 @@ public class EffectComposer {
         renderer.getQuadVertices().bind(material.programId);
         material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
         
+        // Pass extra uniforms if the shader requires them (e.g. NTSC effect)
+        material.setUniformInt("FrameCount", frameCount++);
+        material.setUniformVec2("TextureSize", readBuffer.getWidth(), readBuffer.getHeight());
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, readBuffer.getTextureId());
         material.setUniformInt("screenTexture", 0);

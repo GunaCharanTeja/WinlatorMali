@@ -110,7 +110,7 @@ public class CommunityConfigsFragment extends Fragment {
     private void loadGames() {
         if (!isNetworkAvailable()) {
             progressBar.setVisibility(View.GONE);
-            tvEmptyText.setText("No internet connection.\nPlease check your network settings and try again.");
+            tvEmptyText.setText("No internet connection.\nPlease check your network settings.");
             llEmptyState.setVisibility(View.VISIBLE);
             return;
         }
@@ -118,11 +118,16 @@ public class CommunityConfigsFragment extends Fragment {
         tvEmptyText.setText("Loading games...");
         llEmptyState.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-        CommunityConfigManager.fetchGameList(games -> {
+        CommunityConfigManager.fetchGameList((games, maintenance) -> {
             if (getActivity() == null) return;
             getActivity().runOnUiThread(() -> {
                 progressBar.setVisibility(View.GONE);
-                if (games != null && games.length() > 0) {
+                if (maintenance != null) {
+                    fullGameList = null;
+                    recyclerView.setAdapter(null);
+                    tvEmptyText.setText(maintenance);
+                    llEmptyState.setVisibility(View.VISIBLE);
+                } else if (games != null && games.length() > 0) {
                     fullGameList = games;
                     adapter = new GameAdapter(games);
                     recyclerView.setAdapter(adapter);
@@ -130,7 +135,7 @@ public class CommunityConfigsFragment extends Fragment {
                 } else {
                     fullGameList = null;
                     recyclerView.setAdapter(null);
-                    tvEmptyText.setText("Failed to retrieve games list. Please try again.");
+                    tvEmptyText.setText("Failed to retrieve games list.");
                     llEmptyState.setVisibility(View.VISIBLE);
                 }
             });
@@ -170,11 +175,13 @@ public class CommunityConfigsFragment extends Fragment {
     private void showConfigsForGame(String gameName) {
         final MainActivity activity = (MainActivity) getActivity();
         if (activity != null) activity.preloaderDialog.show("Fetching Configurations...");
-        CommunityConfigManager.fetchConfigsForGame(gameName, configs -> {
+        CommunityConfigManager.fetchConfigsForGame(gameName, (configs, maintenance) -> {
             if (activity == null) return;
             activity.runOnUiThread(() -> {
                 activity.preloaderDialog.close();
-                if (configs != null) {
+                if (maintenance != null) {
+                    ContentDialog.alert(getContext(), maintenance, null);
+                } else if (configs != null) {
                     if (configs.length() > 0) {
                         showConfigSelectionDialog(gameName, configs);
                     } else {
@@ -332,11 +339,13 @@ public class CommunityConfigsFragment extends Fragment {
     private void downloadAndImportConfig(String gameName, String filename, String notes) {
         final MainActivity activity = (MainActivity) getActivity();
         if (activity != null) activity.preloaderDialog.show("Downloading Configuration...");
-        CommunityConfigManager.downloadConfig(gameName, filename, root -> {
+        CommunityConfigManager.downloadConfig(gameName, filename, (root, maintenance) -> {
             if (activity == null) return;
             activity.runOnUiThread(() -> {
                 activity.preloaderDialog.close();
-                if (root != null) {
+                if (maintenance != null) {
+                    ContentDialog.alert(getContext(), maintenance, null);
+                } else if (root != null) {
                     String confirmMsg = "Import this configuration?";
                     if (notes != null && !notes.isEmpty()) {
                         confirmMsg += "\n\n" + notes;

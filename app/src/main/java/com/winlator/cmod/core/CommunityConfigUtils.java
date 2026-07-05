@@ -11,6 +11,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import java.io.File;
 import java.util.Iterator;
+import java.util.Locale;
 
 public class CommunityConfigUtils {
     public static JSONObject exportConfig(Context context, Shortcut shortcut) {
@@ -28,7 +29,7 @@ public class CommunityConfigUtils {
             JSONObject root = new JSONObject();
             JSONObject meta = new JSONObject();
             meta.put("version", "1.0");
-            meta.put("app_source", "winlator-mali");
+            meta.put("app_source", "winlator-mali-bionic");
             
             String gameName = overrideName != null ? overrideName : shortcut.name;
             meta.put("game_name", gameName);
@@ -77,14 +78,14 @@ public class CommunityConfigUtils {
             containerJson.put("emulator", c.getEmulator());
             containerJson.put("box64Version", c.getBox64Version());
             String box64Preset = c.getBox64Preset();
-            if (box64Preset != null && box64Preset.startsWith("custom")) {
+            if (box64Preset != null && box64Preset.toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
                 com.winlator.cmod.box64.Box64Preset preset = Box64PresetManager.getPreset("box64", context, box64Preset);
                 if (preset != null) {
-                    containerJson.put("box64Preset", "custom");
+                    containerJson.put("box64Preset", "CUSTOM");
                     containerJson.put("box64PresetName", preset.name);
                     containerJson.put("box64PresetVars", Box64PresetManager.getEnvVars("box64", context, box64Preset).toString());
                 } else {
-                    containerJson.put("box64Preset", "compatibility");
+                    containerJson.put("box64Preset", "COMPATIBILITY");
                 }
             } else {
                 containerJson.put("box64Preset", box64Preset);
@@ -92,14 +93,14 @@ public class CommunityConfigUtils {
 
             containerJson.put("fexcoreVersion", c.getFEXCoreVersion());
             String fexcorePreset = c.getFEXCorePreset();
-            if (fexcorePreset != null && fexcorePreset.startsWith("custom")) {
+            if (fexcorePreset != null && fexcorePreset.toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
                 com.winlator.cmod.fexcore.FEXCorePreset preset = FEXCorePresetManager.getPreset(context, fexcorePreset);
                 if (preset != null) {
-                    containerJson.put("fexcorePreset", "custom");
+                    containerJson.put("fexcorePreset", "CUSTOM");
                     containerJson.put("fexcorePresetName", preset.name);
                     containerJson.put("fexcorePresetVars", FEXCorePresetManager.getEnvVars(context, fexcorePreset).toString());
                 } else {
-                    containerJson.put("fexcorePreset", "compatibility");
+                    containerJson.put("fexcorePreset", "COMPATIBILITY");
                 }
             } else {
                 containerJson.put("fexcorePreset", fexcorePreset);
@@ -132,7 +133,12 @@ public class CommunityConfigUtils {
             while (keys.hasNext()) {
                 String key = keys.next();
                 if (!key.equals("uuid") && !key.equals("customCoverArtPath") && !key.equals("id") && !key.equals("wineVersion")) {
-                    shortcutExtra.put(key, originalExtra.get(key));
+                    Object value = originalExtra.get(key);
+                    if ((key.equals("box64Preset") || key.equals("fexcorePreset")) && value instanceof String && ((String)value).toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
+                        shortcutExtra.put(key, "CUSTOM");
+                    } else {
+                        shortcutExtra.put(key, value);
+                    }
                 }
             }
             shortcutJson.put("extraData", shortcutExtra);
@@ -149,9 +155,17 @@ public class CommunityConfigUtils {
 
     public static void importConfig(Context context, JSONObject root, ContainerManager containerManager, File exeFile, Callback<Boolean> callback) {
         try {
+            JSONObject meta = root.getJSONObject("meta");
+            if (!meta.optString("app_source", "").equals("winlator-mali-bionic")) {
+                callback.call(false);
+                return;
+            }
+
+            // Ensure container list is fresh to avoid name/ID collisions
+            containerManager.loadContainers();
+
             JSONObject containerJson = root.getJSONObject("container");
             JSONObject shortcutJson = root.getJSONObject("shortcut");
-            JSONObject meta = root.getJSONObject("meta");
             JSONObject shortcutExtra = shortcutJson.optJSONObject("extraData");
 
             ContentsManager contentsManager = new ContentsManager(context);
@@ -164,31 +178,31 @@ public class CommunityConfigUtils {
             containerJson.put("wineVersion", wineVersion);
 
             // Reconstruct custom Box64 preset if included
-            String box64Preset = containerJson.optString("box64Preset", "compatibility");
-            if (box64Preset.equals("custom")) {
-                String presetName = containerJson.optString("box64PresetName", "Imported Box64 Preset");
-                String presetVars = containerJson.optString("box64PresetVars", "");
+            String box64Preset = containerJson.optString("box64Preset", "COMPATIBILITY");
+            if (box64Preset.toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
+                String presetName = containerJson.optString("box64PresetName", "Imported Box64 Preset").replace("|", "").replace(",", "");
+                String presetVars = containerJson.optString("box64PresetVars", "").replace("|", "");
                 if (!presetVars.isEmpty()) {
                     int nextId = Box64PresetManager.getNextPresetId(context, "box64");
+                    box64Preset = "CUSTOM-" + nextId;
                     Box64PresetManager.editPreset("box64", context, null, presetName, new EnvVars(presetVars));
-                    box64Preset = "custom-" + nextId;
                 } else {
-                    box64Preset = "compatibility";
+                    box64Preset = "COMPATIBILITY";
                 }
             }
             containerJson.put("box64Preset", box64Preset);
 
             // Reconstruct custom FEXCore preset if included
-            String fexcorePreset = containerJson.optString("fexcorePreset", "compatibility");
-            if (fexcorePreset.equals("custom")) {
-                String presetName = containerJson.optString("fexcorePresetName", "Imported FEX Preset");
-                String presetVars = containerJson.optString("fexcorePresetVars", "");
+            String fexcorePreset = containerJson.optString("fexcorePreset", "COMPATIBILITY");
+            if (fexcorePreset.toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
+                String presetName = containerJson.optString("fexcorePresetName", "Imported FEX Preset").replace("|", "").replace(",", "");
+                String presetVars = containerJson.optString("fexcorePresetVars", "").replace("|", "");
                 if (!presetVars.isEmpty()) {
                     int nextId = FEXCorePresetManager.getNextPresetId(context);
+                    fexcorePreset = "CUSTOM-" + nextId;
                     FEXCorePresetManager.editPreset(context, null, presetName, new EnvVars(presetVars));
-                    fexcorePreset = "custom-" + nextId;
                 } else {
-                    fexcorePreset = "compatibility";
+                    fexcorePreset = "COMPATIBILITY";
                 }
             }
             containerJson.put("fexcorePreset", fexcorePreset);
@@ -200,11 +214,27 @@ public class CommunityConfigUtils {
             containerJson.put("envVars", containerEnvVars.toString());
 
             if (shortcutExtra != null) {
+                // Ensure steam_id and community_image are carried over from meta if not in shortcutExtra
+                if (meta.has("steam_id") && !shortcutExtra.has("steam_id")) {
+                    shortcutExtra.put("steam_id", meta.getString("steam_id"));
+                }
+                if (meta.has("community_image") && !shortcutExtra.has("community_image")) {
+                    shortcutExtra.put("community_image", meta.getString("community_image"));
+                }
+
+                if (shortcutExtra.has("box64Preset") && shortcutExtra.optString("box64Preset").toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
+                    shortcutExtra.put("box64Preset", box64Preset);
+                }
+                if (shortcutExtra.has("fexcorePreset") && shortcutExtra.optString("fexcorePreset").toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
+                    shortcutExtra.put("fexcorePreset", fexcorePreset);
+                }
+
                 Iterator<String> keys = shortcutExtra.keys();
                 while (keys.hasNext()) {
                     String key = keys.next();
                     // Merge shortcut overrides into the container creation data
-                    if (!key.equals("wineVersion") && !key.equals("id") && !key.equals("drives") && !key.equals("name")) {
+                    // Avoid overwriting wineVersion or critical IDs
+                    if (!key.equals("wineVersion") && !key.equals("id") && !key.equals("drives") && !key.equals("name") && !key.equals("uuid")) {
                         if (key.equals("envVars")) {
                             String shortcutEnvVarsStr = shortcutExtra.optString("envVars", "");
                             if (!shortcutEnvVarsStr.isEmpty()) {
@@ -212,13 +242,35 @@ public class CommunityConfigUtils {
                                 containerJson.put("envVars", containerEnvVars.toString());
                             }
                         } else {
-                            containerJson.put(key, shortcutExtra.get(key));
+                            // Don't overwrite presets in container if they were already set to custom during import
+                            if (key.equals("box64Preset") || key.equals("fexcorePreset")) {
+                                if (!containerJson.optString(key).toUpperCase(Locale.ENGLISH).startsWith("CUSTOM")) {
+                                    containerJson.put(key, shortcutExtra.get(key));
+                                }
+                            } else {
+                                containerJson.put(key, shortcutExtra.get(key));
+                            }
                         }
                     }
                 }
             }
 
-            containerJson.put("name", "[Community] " + meta.getString("game_name"));
+            String baseName = "[Community] " + meta.getString("game_name");
+            String containerName = baseName;
+            
+            boolean nameExists = true;
+            int counter = 1;
+            while (nameExists) {
+                nameExists = false;
+                for (com.winlator.cmod.container.Container existing : containerManager.getContainers()) {
+                    if (existing.getName().equalsIgnoreCase(containerName)) {
+                        nameExists = true;
+                        containerName = baseName + " (" + (counter++) + ")";
+                        break;
+                    }
+                }
+            }
+            containerJson.put("name", containerName);
             
             // Safety: Ensure we don't accidentally import drive paths from other users
             containerJson.remove("drives");
@@ -256,6 +308,9 @@ public class CommunityConfigUtils {
                     callback.call(false);
                 }
             });
-        } catch (Exception e) { callback.call(false); }
+        } catch (Exception e) {
+            e.printStackTrace();
+            callback.call(false);
+        }
     }
 }
