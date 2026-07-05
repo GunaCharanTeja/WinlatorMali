@@ -55,27 +55,36 @@ public class ContainerManager {
         containers.clear();
         maxContainerId = 0;
 
-        try {
-            File[] files = homeDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.isDirectory()) {
-                        if (file.getName().startsWith(ImageFs.USER + "-")) {
-                            Container container = new Container(
-                                    Integer.parseInt(file.getName().replace(ImageFs.USER + "-", "")), this
-                            );
+        File[] files = homeDir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory() && file.getName().startsWith(ImageFs.USER + "-")) {
+                    int id = -1;
+                    try {
+                        id = Integer.parseInt(file.getName().replace(ImageFs.USER + "-", ""));
+                        maxContainerId = Math.max(maxContainerId, id);
 
-                            container.setRootDir(new File(homeDir, ImageFs.USER + "-" + container.id));
-                            JSONObject data = new JSONObject(FileUtils.readString(container.getConfigFile()));
-                            container.loadData(data);
-                            containers.add(container);
-                            maxContainerId = Math.max(maxContainerId, container.id);
+                        Container container = new Container(id, this);
+                        container.setRootDir(new File(homeDir, ImageFs.USER + "-" + container.id));
+
+                        File configFile = container.getConfigFile();
+                        if (configFile.exists()) {
+                            String configStr = FileUtils.readString(configFile);
+                            if (configStr != null && !configStr.isEmpty()) {
+                                JSONObject data = new JSONObject(configStr);
+                                container.loadData(data);
+                                containers.add(container);
+                            } else {
+                                Log.w("ContainerManager", "Container config is empty: " + configFile.getPath());
+                            }
+                        } else {
+                            Log.w("ContainerManager", "Container config does not exist: " + configFile.getPath());
                         }
+                    } catch (Exception e) {
+                        Log.e("ContainerManager", "Error loading container " + file.getName(), e);
                     }
                 }
             }
-        } catch (JSONException | NullPointerException e) {
-            Log.e("ContainerManager", "Error loading containers", e);
         }
     }
 

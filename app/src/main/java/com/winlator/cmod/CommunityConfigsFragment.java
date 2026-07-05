@@ -98,7 +98,23 @@ public class CommunityConfigsFragment extends Fragment {
         return super.onOptionsItemSelected(item);
     }
 
+    private boolean isNetworkAvailable() {
+        Context context = getContext();
+        if (context == null) return false;
+        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        android.net.NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+        return activeNetwork != null && activeNetwork.isConnectedOrConnecting();
+    }
+
     private void loadGames() {
+        if (!isNetworkAvailable()) {
+            progressBar.setVisibility(View.GONE);
+            tvEmptyText.setText("No internet connection.\nPlease check your network settings and try again.");
+            llEmptyState.setVisibility(View.VISIBLE);
+            return;
+        }
+
         tvEmptyText.setText("Loading games...");
         llEmptyState.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
@@ -114,7 +130,7 @@ public class CommunityConfigsFragment extends Fragment {
                 } else {
                     fullGameList = null;
                     recyclerView.setAdapter(null);
-                    tvEmptyText.setText("No games found.");
+                    tvEmptyText.setText("Failed to retrieve games list. Please try again.");
                     llEmptyState.setVisibility(View.VISIBLE);
                 }
             });
@@ -124,6 +140,7 @@ public class CommunityConfigsFragment extends Fragment {
     private void filterGames(String query) {
         if (fullGameList == null) return;
         if (query.isEmpty()) {
+            llEmptyState.setVisibility(View.GONE);
             adapter.updateData(fullGameList);
             return;
         }
@@ -140,17 +157,33 @@ public class CommunityConfigsFragment extends Fragment {
                 }
             } catch (JSONException e) {}
         }
+
+        if (filtered.length() == 0) {
+            tvEmptyText.setText("No games found matching \"" + query + "\"");
+            llEmptyState.setVisibility(View.VISIBLE);
+        } else {
+            llEmptyState.setVisibility(View.GONE);
+        }
         adapter.updateData(filtered);
     }
 
     private void showConfigsForGame(String gameName) {
+        final MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) activity.preloaderDialog.show("Fetching Configurations...");
         CommunityConfigManager.fetchConfigsForGame(gameName, configs -> {
-            if (getActivity() == null) return;
-            if (configs != null && configs.length() > 0) {
-                getActivity().runOnUiThread(() -> showConfigSelectionDialog(gameName, configs));
-            } else {
-                getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "No configurations found.", Toast.LENGTH_SHORT).show());
-            }
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                activity.preloaderDialog.close();
+                if (configs != null) {
+                    if (configs.length() > 0) {
+                        showConfigSelectionDialog(gameName, configs);
+                    } else {
+                        Toast.makeText(getContext(), "No configurations found for this game.", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    ContentDialog.alert(getContext(), "Failed to fetch configurations. Please check your network connection.", null);
+                }
+            });
         });
     }
 
@@ -297,18 +330,20 @@ public class CommunityConfigsFragment extends Fragment {
     }
 
     private void downloadAndImportConfig(String gameName, String filename, String notes) {
+        final MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) activity.preloaderDialog.show("Downloading Configuration...");
         CommunityConfigManager.downloadConfig(gameName, filename, root -> {
-            if (getActivity() == null) return;
-            if (root != null) {
-                getActivity().runOnUiThread(() -> {
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                activity.preloaderDialog.close();
+                if (root != null) {
                     String confirmMsg = "Import this configuration?";
                     if (notes != null && !notes.isEmpty()) {
                         confirmMsg += "\n\n" + notes;
                     }
 
                     ContentDialog.confirm(getContext(), confirmMsg, () -> {
-                        MainActivity activity = (MainActivity) getActivity();
-                        activity.preloaderDialog.show(R.string.loading);
+                        activity.preloaderDialog.show("Importing Configuration...");
                         CommunityConfigUtils.importConfig(getContext(), root, activity.getContainerManager(), success -> {
                             activity.runOnUiThread(() -> {
                                 activity.preloaderDialog.close();
@@ -339,10 +374,10 @@ public class CommunityConfigsFragment extends Fragment {
                             });
                         });
                     });
-                });
-            } else {
-                getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "Error downloading config.", Toast.LENGTH_LONG).show());
-            }
+                } else {
+                    ContentDialog.alert(getContext(), "Failed to download configuration. Please check your internet connection.", null);
+                }
+            });
         });
     }
 

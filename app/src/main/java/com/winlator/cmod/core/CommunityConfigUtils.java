@@ -5,6 +5,8 @@ import android.os.Build;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.box64.Box64PresetManager;
+import com.winlator.cmod.fexcore.FEXCorePresetManager;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.io.File;
@@ -74,9 +76,35 @@ public class CommunityConfigUtils {
             containerJson.put("audioDriver", c.getAudioDriver());
             containerJson.put("emulator", c.getEmulator());
             containerJson.put("box64Version", c.getBox64Version());
-            containerJson.put("box64Preset", c.getBox64Preset());
+            String box64Preset = c.getBox64Preset();
+            if (box64Preset != null && box64Preset.startsWith("custom")) {
+                com.winlator.cmod.box64.Box64Preset preset = Box64PresetManager.getPreset("box64", context, box64Preset);
+                if (preset != null) {
+                    containerJson.put("box64Preset", "custom");
+                    containerJson.put("box64PresetName", preset.name);
+                    containerJson.put("box64PresetVars", Box64PresetManager.getEnvVars("box64", context, box64Preset).toString());
+                } else {
+                    containerJson.put("box64Preset", "compatibility");
+                }
+            } else {
+                containerJson.put("box64Preset", box64Preset);
+            }
+
             containerJson.put("fexcoreVersion", c.getFEXCoreVersion());
-            containerJson.put("fexcorePreset", c.getFEXCorePreset());
+            String fexcorePreset = c.getFEXCorePreset();
+            if (fexcorePreset != null && fexcorePreset.startsWith("custom")) {
+                com.winlator.cmod.fexcore.FEXCorePreset preset = FEXCorePresetManager.getPreset(context, fexcorePreset);
+                if (preset != null) {
+                    containerJson.put("fexcorePreset", "custom");
+                    containerJson.put("fexcorePresetName", preset.name);
+                    containerJson.put("fexcorePresetVars", FEXCorePresetManager.getEnvVars(context, fexcorePreset).toString());
+                } else {
+                    containerJson.put("fexcorePreset", "compatibility");
+                }
+            } else {
+                containerJson.put("fexcorePreset", fexcorePreset);
+            }
+
             containerJson.put("cpuList", c.getCPUList());
             containerJson.put("cpuListWoW64", c.getCPUListWoW64());
             containerJson.put("screenSize", c.getScreenSize());
@@ -86,9 +114,9 @@ public class CommunityConfigUtils {
             containerJson.put("startupSelection", c.getStartupSelection());
 
             // Only export envVars if different from default
-            String envVars = c.getEnvVars();
-            if (!envVars.equals(com.winlator.cmod.container.Container.DEFAULT_ENV_VARS)) {
-                containerJson.put("envVars", envVars);
+            String envVarsStr = c.getEnvVars();
+            if (!envVarsStr.equals(com.winlator.cmod.container.Container.DEFAULT_ENV_VARS)) {
+                containerJson.put("envVars", envVarsStr);
             }
 
             root.put("container", containerJson);
@@ -135,13 +163,57 @@ public class CommunityConfigUtils {
             }
             containerJson.put("wineVersion", wineVersion);
 
+            // Reconstruct custom Box64 preset if included
+            String box64Preset = containerJson.optString("box64Preset", "compatibility");
+            if (box64Preset.equals("custom")) {
+                String presetName = containerJson.optString("box64PresetName", "Imported Box64 Preset");
+                String presetVars = containerJson.optString("box64PresetVars", "");
+                if (!presetVars.isEmpty()) {
+                    int nextId = Box64PresetManager.getNextPresetId(context, "box64");
+                    Box64PresetManager.editPreset("box64", context, null, presetName, new EnvVars(presetVars));
+                    box64Preset = "custom-" + nextId;
+                } else {
+                    box64Preset = "compatibility";
+                }
+            }
+            containerJson.put("box64Preset", box64Preset);
+
+            // Reconstruct custom FEXCore preset if included
+            String fexcorePreset = containerJson.optString("fexcorePreset", "compatibility");
+            if (fexcorePreset.equals("custom")) {
+                String presetName = containerJson.optString("fexcorePresetName", "Imported FEX Preset");
+                String presetVars = containerJson.optString("fexcorePresetVars", "");
+                if (!presetVars.isEmpty()) {
+                    int nextId = FEXCorePresetManager.getNextPresetId(context);
+                    FEXCorePresetManager.editPreset(context, null, presetName, new EnvVars(presetVars));
+                    fexcorePreset = "custom-" + nextId;
+                } else {
+                    fexcorePreset = "compatibility";
+                }
+            }
+            containerJson.put("fexcorePreset", fexcorePreset);
+
+            // Replicate the exporter's exact environment variable state (including deletions)
+            // Fall back to local defaults only if the exporter used default configuration (empty envVars in JSON)
+            String importedEnvVars = containerJson.optString("envVars", "");
+            EnvVars containerEnvVars = new EnvVars(!importedEnvVars.isEmpty() ? importedEnvVars : com.winlator.cmod.container.Container.DEFAULT_ENV_VARS);
+            containerJson.put("envVars", containerEnvVars.toString());
+
             if (shortcutExtra != null) {
                 Iterator<String> keys = shortcutExtra.keys();
                 while (keys.hasNext()) {
                     String key = keys.next();
                     // Merge shortcut overrides into the container creation data
                     if (!key.equals("wineVersion") && !key.equals("id") && !key.equals("drives") && !key.equals("name")) {
-                        containerJson.put(key, shortcutExtra.get(key));
+                        if (key.equals("envVars")) {
+                            String shortcutEnvVarsStr = shortcutExtra.optString("envVars", "");
+                            if (!shortcutEnvVarsStr.isEmpty()) {
+                                containerEnvVars.putAll(new EnvVars(shortcutEnvVarsStr));
+                                containerJson.put("envVars", containerEnvVars.toString());
+                            }
+                        } else {
+                            containerJson.put(key, shortcutExtra.get(key));
+                        }
                     }
                 }
             }

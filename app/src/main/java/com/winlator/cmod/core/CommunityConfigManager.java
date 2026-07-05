@@ -3,6 +3,9 @@ package com.winlator.cmod.core;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.OutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -66,7 +69,7 @@ public class CommunityConfigManager {
         });
     }
 
-    public static void uploadConfig(JSONObject config, Callback<Boolean> callback) {
+    public static void uploadConfig(JSONObject config, Callback<String> callback) {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 HttpURLConnection conn = (HttpURLConnection) new URL(PROXY_URL).openConnection();
@@ -80,9 +83,24 @@ public class CommunityConfigManager {
                 }
 
                 int code = conn.getResponseCode();
-                callback.call(code >= 200 && code < 300);
+                if (code >= 200 && code < 300) {
+                    callback.call(null);
+                } else {
+                    String error = "HTTP Error " + code;
+                    try (InputStream is = conn.getErrorStream()) {
+                        if (is != null) {
+                            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                                StringBuilder sb = new StringBuilder();
+                                String line;
+                                while ((line = reader.readLine()) != null) sb.append(line).append("\n");
+                                if (sb.length() > 0) error = sb.toString().trim();
+                            }
+                        }
+                    } catch (Exception e) {}
+                    callback.call(error);
+                }
             } catch (Exception e) {
-                callback.call(false);
+                callback.call(e.getMessage() != null ? e.getMessage() : "Unknown network error");
             }
         });
     }

@@ -576,14 +576,16 @@ public class ShortcutsFragment extends Fragment {
             ContentDialog.confirm(context, "Share configuration for '" + gameName + "'?", () -> {
                 org.json.JSONObject config = CommunityConfigUtils.exportConfig(context, shortcut, gameName, steamId, communityImage, notes, configTitle);
                 if (config != null) {
-                    Toast.makeText(context, "Uploading...", Toast.LENGTH_SHORT).show();
-                    CommunityConfigManager.uploadConfig(config, success -> {
-                        if (getActivity() == null) return;
-                        getActivity().runOnUiThread(() -> {
-                            if (success) {
+                    final MainActivity activity = (MainActivity) getActivity();
+                    if (activity != null) activity.preloaderDialog.show("Uploading Configuration...");
+                    CommunityConfigManager.uploadConfig(config, error -> {
+                        if (activity == null) return;
+                        activity.runOnUiThread(() -> {
+                            activity.preloaderDialog.close();
+                            if (error == null) {
                                 Toast.makeText(context, "Uploaded successfully!", Toast.LENGTH_LONG).show();
                             } else {
-                                Toast.makeText(context, "Upload failed.", Toast.LENGTH_SHORT).show();
+                                ContentDialog.alert(context, "Upload failed:\n\n" + error, null);
                             }
                         });
                     });

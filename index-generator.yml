@@ -23,9 +23,20 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Generate JSON Index
+      - name: Generate Index and Sync
         run: |
-          python - <<EOF_PY
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          
+          # Retry loop to pull, compile, and push atomically
+          for i in {1..5}; do
+            echo "Sync attempt $i..."
+            
+            # 1. Pull the latest commits from remote main using rebase
+            git pull --rebase origin main
+            
+            # 2. Run the compiler script on the refreshed tree
+            python - <<EOF_PY
           import os
           import json
 
@@ -44,74 +55,84 @@ jobs:
                       steam_id = None
                       community_image = None
                       files_info = []
+                      adreno_count = 0
+                      mali_count = 0
                       
-                      # Deep scan each config to build a rich index
                       for filename in files:
                           try:
                               with open(os.path.join(game_path, filename), 'r', encoding='utf-8') as f:
                                   data = json.load(f)
                                   meta = data.get('meta', {})
                                   
-                                  # Update global game info if not already set
                                   display_name = meta.get('game_name', display_name)
                                   if not steam_id: steam_id = meta.get('steam_id', None)
                                   if not community_image: community_image = meta.get('community_image', None)
                                   
-                                  # Extract hardware metadata for the UI
                                   device = meta.get('device', {})
                                   mfr = str(device.get('manufacturer', '')).capitalize()
                                   model = str(device.get('model', ''))
                                   gpu = device.get('gpu', 'Unknown GPU')
+                                  ram = device.get('ram', '')
+                                  storage = device.get('storage', '')
+                                  notes = meta.get('notes', '')
+                                  config_title = meta.get('config_title', '')
+                                  
+                                  # Categories for UI Badges
+                                  gpu_lower = gpu.lower()
+                                  if 'adreno' in gpu_lower: adreno_count += 1
+                                  elif 'mali' in gpu_lower or 'immortalis' in gpu_lower: mali_count += 1
                                   
                                   files_info.append({
                                       "filename": filename,
                                       "device_model": f"{mfr} {model}".strip() or "Unknown Device",
                                       "gpu": gpu,
+                                      "ram": ram,
+                                      "storage": storage,
+                                      "notes": notes,
+                                      "config_title": config_title,
                                       "timestamp": meta.get('timestamp', 0)
                                   })
                           except:
-                              # Fallback for corrupted or old-schema files
                               files_info.append({"filename": filename})
 
                       games_list.append({
                           "id": game_id,
                           "name": display_name,
                           "steam_id": steam_id,
-                          "community_image": community_image
+                          "community_image": community_image,
+                          "config_count": len(files_info),
+                          "adreno_count": adreno_count,
+                          "mali_count": mali_count
                       })
                       
-                      # Sort configs inside each game: newest uploads first
                       index[game_id] = sorted(files_info, key=lambda x: x.get('timestamp', 0), reverse=True)
 
-          # Output structured rich index for the App
           with open('index.json', 'w', encoding='utf-8') as f:
               json.dump(index, f, indent=2)
 
           with open('games.json', 'w', encoding='utf-8') as f:
               json.dump(sorted(games_list, key=lambda x: x['name']), f, indent=2)
           EOF_PY
-
-      - name: Sync and Push
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          
-          git add games.json index.json
-          
-          if git diff --staged --quiet; then
-            echo "No changes needed."
-            exit 0
-          fi
-          
-          git commit -m "Auto-update Index [skip ci]"
-          
-          # Retry loop to beat race conditions during simultaneous uploads
-          for i in {1..5}; do
-            echo "Attempt $i to push index..."
-            if git pull --rebase origin main && git push origin main; then
-              echo "Push successful."
+            
+            # 3. Check if there are any changes
+            git add games.json index.json
+            if git diff --staged --quiet; then
+              echo "Index is already up to date."
               exit 0
             fi
+            
+            # 4. Commit and try to push
+            git commit -m "Update Index with Config Titles [skip ci]"
+            if git push origin main; then
+              echo "Push successful!"
+              exit 0
+            fi
+            
+            # 5. Push failed (race condition). Undo commit, clean generated files, and retry loop
+            echo "Push failed. Retrying..."
+            git reset --soft HEAD~1
+            git checkout HEAD -- games.json index.json
             sleep 5
           done
+          
           exit 1

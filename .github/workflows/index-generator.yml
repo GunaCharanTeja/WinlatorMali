@@ -23,9 +23,20 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Generate JSON Index
+      - name: Generate Index and Sync
         run: |
-          python - <<EOF_PY
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          
+          # Retry loop to pull, compile, and push atomically
+          for i in {1..5}; do
+            echo "Sync attempt $i..."
+            
+            # 1. Pull the latest commits from remote main using rebase
+            git pull --rebase origin main
+            
+            # 2. Run the compiler script on the refreshed tree
+            python - <<EOF_PY
           import os
           import json
 
@@ -102,20 +113,26 @@ jobs:
           with open('games.json', 'w', encoding='utf-8') as f:
               json.dump(sorted(games_list, key=lambda x: x['name']), f, indent=2)
           EOF_PY
-
-      - name: Sync and Push
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add games.json index.json
-          if git diff --staged --quiet; then
-            exit 0
-          fi
-          git commit -m "Update Index with Config Titles [skip ci]"
-          for i in {1..5}; do
-            if git pull --rebase origin main && git push origin main; then
+            
+            # 3. Check if there are any changes
+            git add games.json index.json
+            if git diff --staged --quiet; then
+              echo "Index is already up to date."
               exit 0
             fi
+            
+            # 4. Commit and try to push
+            git commit -m "Update Index with Config Titles [skip ci]"
+            if git push origin main; then
+              echo "Push successful!"
+              exit 0
+            fi
+            
+            # 5. Push failed (race condition). Undo commit, clean generated files, and retry loop
+            echo "Push failed. Retrying..."
+            git reset --soft HEAD~1
+            git checkout HEAD -- games.json index.json
             sleep 5
           done
+          
           exit 1
