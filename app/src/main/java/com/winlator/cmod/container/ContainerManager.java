@@ -3,7 +3,6 @@ package com.winlator.cmod.container;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.contents.ContentsManager;
@@ -27,7 +26,6 @@ import java.util.concurrent.Executors;
 
 public class ContainerManager {
     private final ArrayList<Container> containers = new ArrayList<>();
-    private int maxContainerId = 0;
     private final File homeDir;
     private final Context context;
 

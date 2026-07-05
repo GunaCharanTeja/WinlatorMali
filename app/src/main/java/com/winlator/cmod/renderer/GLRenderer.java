@@ -441,6 +441,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         xServerView.requestRender();
     }
 
+    public void setFullscreen(boolean fullscreen) {
+        this.fullscreen = fullscreen;
+        this.viewportNeedsUpdate = true;
+    }
+
     public boolean isFullscreen() {
         return fullscreen;
     }

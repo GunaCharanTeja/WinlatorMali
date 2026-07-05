@@ -88,11 +88,18 @@ public class EffectComposer {
         if (!isGenerated) {
             // Disable cursor rendering during off-screen game capture to avoid generator warping artifacts
             renderer.setRenderCursorEnabled(false);
+            
+            // Force viewport update to ensure capture pass respects current windowed/fullscreen state
+            renderer.viewportNeedsUpdate = true;
 
             // Draw game to readBuffer at surface resolution
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
+            
+            // Clear the WHOLE buffer first (for black bars)
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
             GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            
             renderer.drawFrame();
             
             // Restore cursor rendering
@@ -106,6 +113,7 @@ public class EffectComposer {
         }
 
         if (hasEffects()) {
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
             for (int i = 0; i < effects.size(); i++) {
                 Effect effect = effects.get(i);
                 boolean renderToScreen = (i == effects.size() - 1);
@@ -113,12 +121,16 @@ public class EffectComposer {
 
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
                 
-                // If rendering to screen, respect the renderer's intended viewport (Non-fullscreen support)
+                // Always use the full surface viewport to maintain 1:1 mapping with the captured buffer
+                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+                
                 if (renderToScreen && !renderer.isFullscreen()) {
-                    GLES20.glViewport(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY, 
-                                      renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
+                    // Use scissor to restrict the final DRAWING to the game area (clips cursor and prevents bleeding)
+                    GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+                    GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY, 
+                                     renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
                 } else {
-                    GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+                    GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
                 }
                 
                 GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
@@ -128,10 +140,12 @@ public class EffectComposer {
             }
         }
 
-        // Draw the cursor explicitly on the final screen buffer to ensure 100% responsive, lag-free mouse feel
-        if (lsfgEffect != null && lsfgEffect.getManager().isActive()) {
-            renderer.drawCursorExplicitly();
-        }
+        // Final pass: draw cursor (it will be clipped by the scissor set above)
+        renderer.drawCursorExplicitly();
+        
+        // Cleanup: ensure viewport and state are reset for next frame
+        renderer.viewportNeedsUpdate = true;
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
         isRendering = false;
     }
