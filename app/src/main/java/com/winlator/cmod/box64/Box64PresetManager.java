@@ -31,7 +31,7 @@ public abstract class Box64PresetManager {
         String ucPrefix = prefix.toUpperCase(Locale.ENGLISH);
         EnvVars envVars = new EnvVars();
 
-        if (id.equalsIgnoreCase(Box64Preset.STABILITY)) {
+        if (id.equals(Box64Preset.STABILITY)) {
             envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
             envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
@@ -47,7 +47,7 @@ public abstract class Box64PresetManager {
                 envVars.put("BOX64_MMAP32", "0");
             }
         }
-        else if (id.equalsIgnoreCase(Box64Preset.COMPATIBILITY)) {
+        else if (id.equals(Box64Preset.COMPATIBILITY)) {
             envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
             envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
@@ -63,7 +63,7 @@ public abstract class Box64PresetManager {
                 envVars.put("BOX64_MMAP32", "0");
             }
         }
-        else if (id.equalsIgnoreCase(Box64Preset.INTERMEDIATE)) {
+        else if (id.equals(Box64Preset.INTERMEDIATE)) {
             envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "1");
             envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
@@ -79,7 +79,7 @@ public abstract class Box64PresetManager {
                 envVars.put("BOX64_MMAP32", "1");
             }
         }
-        else if (id.equalsIgnoreCase(Box64Preset.PERFORMANCE)) {
+        else if (id.equals(Box64Preset.PERFORMANCE)) {
             envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "1");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "1");
             envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "1");
@@ -96,28 +96,43 @@ public abstract class Box64PresetManager {
 
             }
         }
-        else if (id.equalsIgnoreCase(Box64Preset.MAX_PERFORMANCE)) {
-            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "0");
+        else if (id.equals(Box64Preset.UNITY)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "1");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "1");
-            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "2");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "1");
             envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "0");
             envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "3");
-            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "0");
-            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "1024");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "512");
             envVars.put(ucPrefix+"_DYNAREC_CALLRET", "1");
-            envVars.put(ucPrefix+"_DYNAREC_WAIT", "1");
-            envVars.put(ucPrefix+"_DYNAREC_FASTFCODE", "1");
-            envVars.put(ucPrefix+"_DYNAREC_BLEEDING_EDGE", "1");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "0");
             if (ucPrefix.equals("BOX64")) {
                 envVars.put("BOX64_AVX", "2");
-                envVars.put("BOX64_SSE42", "1");
-                envVars.put("BOX64_SHA", "1");
-                envVars.put("BOX64_FUTEX_WAITV", "1");
                 envVars.put("BOX64_UNITYPLAYER", "0");
-                envVars.put("BOX64_MMAP32", "1");
+                envVars.put("BOX64_MMAP32", "0");
+                envVars.put("BOX64_DYNAREC_NATIVEFLAGS", "0");
+
             }
         }
-        else if (id.equalsIgnoreCase(Box64Preset.DENUVO)) {
+        else if (id.equals(Box64Preset.UNITY_MONO_BLEEDING_EDGE)) {
+            envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "1");
+            envVars.put(ucPrefix+"_DYNAREC_X87DOUBLE", "0");
+            envVars.put(ucPrefix+"_DYNAREC_BIGBLOCK", "0");
+            envVars.put(ucPrefix+"_DYNAREC_STRONGMEM", "1");
+            envVars.put(ucPrefix+"_DYNAREC_FORWARD", "512");
+            envVars.put(ucPrefix+"_DYNAREC_CALLRET", "1");
+            envVars.put(ucPrefix+"_DYNAREC_WAIT", "0");
+            if (ucPrefix.equals("BOX64")) {
+                envVars.put("BOX64_AVX", "0");
+                envVars.put("BOX64_UNITYPLAYER", "0");
+                envVars.put("BOX64_MMAP32", "0");
+                envVars.put("BOX64_DYNAREC_NATIVEFLAGS", "0");
+
+            }
+        }
+        else if (id.equals(Box64Preset.DENUVO)) {
             envVars.put(ucPrefix+"_DYNAREC_SAFEFLAGS", "2");
             envVars.put(ucPrefix+"_DYNAREC_FASTNAN", "0");
             envVars.put(ucPrefix+"_DYNAREC_FASTROUND", "0");
@@ -132,11 +147,12 @@ public abstract class Box64PresetManager {
                 envVars.put("BOX64_UNITYPLAYER", "1");
                 envVars.put("BOX64_MMAP32", "0");
                 envVars.put("BOX64_DYNAREC_NATIVEFLAGS", "0");
+
             }
         }
-        else if (id.toUpperCase(Locale.ENGLISH).startsWith(Box64Preset.CUSTOM)) {
+        else if (id.startsWith(Box64Preset.CUSTOM)) {
             for (String[] preset : customPresetsIterator(prefix, context)) {
-                if (preset[0].equalsIgnoreCase(id)) {
+                if (preset[0].equals(id)) {
                     if (preset.length > 2) envVars.putAll(preset[2]);
                     break;
                 }
@@ -152,14 +168,15 @@ public abstract class Box64PresetManager {
         presets.add(new Box64Preset(Box64Preset.COMPATIBILITY, context.getString(R.string.compatibility)));
         presets.add(new Box64Preset(Box64Preset.INTERMEDIATE, context.getString(R.string.intermediate)));
         presets.add(new Box64Preset(Box64Preset.PERFORMANCE, context.getString(R.string.performance)));
-        presets.add(new Box64Preset(Box64Preset.MAX_PERFORMANCE, context.getString(R.string.max_performance)));
+        presets.add(new Box64Preset(Box64Preset.UNITY, context.getString(R.string.unity)));
+        presets.add(new Box64Preset(Box64Preset.UNITY_MONO_BLEEDING_EDGE, context.getString(R.string.unity_mono_bleeding_edge)));
         presets.add(new Box64Preset(Box64Preset.DENUVO, context.getString(R.string.denuvo)));
         for (String[] preset : customPresetsIterator(prefix, context)) presets.add(new Box64Preset(preset[0], preset[1]));
         return presets;
     }
 
     public static Box64Preset getPreset(String prefix, Context context, String id) {
-        for (Box64Preset preset : getPresets(prefix, context)) if (preset.id.equalsIgnoreCase(id)) return preset;
+        for (Box64Preset preset : getPresets(prefix, context)) if (preset.id.equals(id)) return preset;
         return null;
     }
 
@@ -206,8 +223,8 @@ public abstract class Box64PresetManager {
             String[] customPresets = customPresetsStr.split(",");
             for (int i = 0; i < customPresets.length; i++) {
                 String[] preset = customPresets[i].split("\\|");
-                if (preset[0].equalsIgnoreCase(id)) {
-                    customPresets[i] = id.toUpperCase(Locale.ENGLISH)+"|"+sanitizedName+"|"+sanitizedEnvVars;
+                if (preset[0].equals(id)) {
+                    customPresets[i] = id+"|"+sanitizedName+"|"+sanitizedEnvVars;
                     break;
                 }
             }
@@ -224,7 +241,7 @@ public abstract class Box64PresetManager {
         ArrayList<Box64Preset> presets = getPresets(prefix, context);
         Box64Preset originPreset = null;
         for (Box64Preset preset : presets) {
-            if (preset.id.equalsIgnoreCase(id)) {
+            if (preset.id.equals(id)) {
                 originPreset = preset;
                 break;
             }
@@ -256,7 +273,7 @@ public abstract class Box64PresetManager {
         String[] customPresets = oldCustomPresetsStr.split(",");
         for (int i = 0; i < customPresets.length; i++) {
             String[] preset = customPresets[i].split("\\|");
-            if (!preset[0].equalsIgnoreCase(id)) newCustomPresetsStr += (!newCustomPresetsStr.isEmpty() ? "," : "")+customPresets[i];
+            if (!preset[0].equals(id)) newCustomPresetsStr += (!newCustomPresetsStr.isEmpty() ? "," : "")+customPresets[i];
         }
 
         preferences.edit().putString(key, newCustomPresetsStr).apply();
@@ -270,7 +287,7 @@ public abstract class Box64PresetManager {
 
         for (int i = 0; i < customPresets.length; i++) {
             String[] preset = customPresets[i].split("\\|");
-            if (preset[0].equalsIgnoreCase(id)) {;
+            if (preset[0].equals(id)) {;
                 String uriPath = preferences.getString("winlator_path_uri", null);
                 if (uriPath != null) {
                     Uri uri = Uri.parse(uriPath);
@@ -286,7 +303,7 @@ public abstract class Box64PresetManager {
                 try {
                     FileOutputStream fos = new FileOutputStream(presetFile);
                     PrintWriter pw = new PrintWriter(fos);
-                    pw.write("ID:" + preset[0].toUpperCase(Locale.ENGLISH) + "\n");
+                    pw.write("ID:" + preset[0] + "\n");
                     pw.write("Name:" + preset[1] + "\n");
                     pw.write("EnvVars:" + preset[2] + "\n");
                     pw.close();
@@ -343,7 +360,7 @@ public abstract class Box64PresetManager {
 
         int selectedPosition = 0;
         for (int i = 0; i < presets.size(); i++) {
-            if (presets.get(i).id.equalsIgnoreCase(selectedId)) {
+            if (presets.get(i).id.equals(selectedId)) {
                 selectedPosition = i;
                 break;
             }

@@ -30,7 +30,7 @@ public class FEXCorePresetManager {
     public static EnvVars getEnvVars(Context context, String id) {
         EnvVars envVars = new EnvVars();
 
-        if (id.equalsIgnoreCase(FEXCorePreset.STABILITY)) {
+        if (id.equals(FEXCorePreset.STABILITY)) {
             envVars.put("FEX_TSOENABLED", "1");
             envVars.put("FEX_VECTORTSOENABLED", "1");
             envVars.put("FEX_MEMCPYSETTSOENABLED", "1");
@@ -38,7 +38,7 @@ public class FEXCorePresetManager {
             envVars.put("FEX_X87REDUCEDPRECISION", "0");
             envVars.put("FEX_MULTIBLOCK", "0");
         }
-        else if (id.equalsIgnoreCase(FEXCorePreset.COMPATIBILITY)) {
+        else if (id.equals(FEXCorePreset.COMPATIBILITY)) {
             envVars.put("FEX_TSOENABLED", "1");
             envVars.put("FEX_VECTORTSOENABLED", "1");
             envVars.put("FEX_MEMCPYSETTSOENABLED", "1");
@@ -46,7 +46,7 @@ public class FEXCorePresetManager {
             envVars.put("FEX_X87REDUCEDPRECISION", "0");
             envVars.put("FEX_MULTIBLOCK", "1");
         }
-        else if (id.equalsIgnoreCase(FEXCorePreset.INTERMEDIATE)) {
+        else if (id.equals(FEXCorePreset.INTERMEDIATE)) {
             envVars.put("FEX_TSOENABLED", "1");
             envVars.put("FEX_VECTORTSOENABLED", "0");
             envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
@@ -54,7 +54,15 @@ public class FEXCorePresetManager {
             envVars.put("FEX_X87REDUCEDPRECISION", "0");
             envVars.put("FEX_MULTIBLOCK", "1");
         }
-        else if (id.equalsIgnoreCase(FEXCorePreset.PERFORMANCE)) {
+        else if (id.equals(FEXCorePreset.PERFORMANCE)) {
+            envVars.put("FEX_TSOENABLED", "0");
+            envVars.put("FEX_VECTORTSOENABLED", "0");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
+            envVars.put("FEX_X87REDUCEDPRECISION", "1");
+            envVars.put("FEX_MULTIBLOCK", "1");
+        }
+        else if (id.equals(FEXCorePreset.PERFORMANCE_X87_OFF)) {
             envVars.put("FEX_TSOENABLED", "0");
             envVars.put("FEX_VECTORTSOENABLED", "0");
             envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
@@ -62,18 +70,15 @@ public class FEXCorePresetManager {
             envVars.put("FEX_X87REDUCEDPRECISION", "0");
             envVars.put("FEX_MULTIBLOCK", "1");
         }
-        else if (id.equalsIgnoreCase(FEXCorePreset.MAX_PERFORMANCE)) {
-            envVars.put("FEX_TSOENABLED", "0");
+        else if (id.equals(FEXCorePreset.PERFORMANCE_TSO)) {
+            envVars.put("FEX_TSOENABLED", "1");
             envVars.put("FEX_VECTORTSOENABLED", "0");
             envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
             envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
             envVars.put("FEX_X87REDUCEDPRECISION", "1");
             envVars.put("FEX_MULTIBLOCK", "1");
-            envVars.put("FEX_ABI_REWRITE", "1");
-            envVars.put("FEX_POSIX_SHM", "1");
-            envVars.put("FEX_SMC_CHECKS", "none");
         }
-        else if (id.equalsIgnoreCase(FEXCorePreset.DENUVO)) {
+        else if (id.equals(FEXCorePreset.DENUVO)) {
             envVars.put("FEX_TSOENABLED", "0");
             envVars.put("FEX_VECTORTSOENABLED", "0");
             envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
@@ -83,9 +88,9 @@ public class FEXCorePresetManager {
             envVars.put("FEX_SMC_CHECKS", "full");
             envVars.put("FEX_HIDEHYPERVISORBIT", "1");
         }
-        else if (id.toUpperCase(Locale.ENGLISH).startsWith(FEXCorePreset.CUSTOM)) {
+        else if (id.startsWith(FEXCorePreset.CUSTOM)) {
             for (String[] preset : customPresetsIterator(context)) {
-                if (preset[0].equalsIgnoreCase(id)) {
+                if (preset[0].equals(id)) {
                     if (preset.length > 2) envVars.putAll(preset[2]);
                     break;
                 }
@@ -101,14 +106,15 @@ public class FEXCorePresetManager {
         presets.add(new FEXCorePreset(FEXCorePreset.COMPATIBILITY, context.getString(R.string.compatibility)));
         presets.add(new FEXCorePreset(FEXCorePreset.INTERMEDIATE, context.getString(R.string.intermediate)));
         presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE, context.getString(R.string.performance)));
-        presets.add(new FEXCorePreset(FEXCorePreset.MAX_PERFORMANCE, context.getString(R.string.max_performance)));
+        presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE_X87_OFF, context.getString(R.string.performance_x87_off)));
+        presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE_TSO, context.getString(R.string.performance_tso)));
         presets.add(new FEXCorePreset(FEXCorePreset.DENUVO, context.getString(R.string.denuvo)));
         for (String[] preset : customPresetsIterator(context)) presets.add(new FEXCorePreset(preset[0], preset[1]));
         return presets;
     }
 
     public static FEXCorePreset getPreset(Context context, String id) {
-        for (FEXCorePreset preset : getPresets(context)) if (preset.id.equalsIgnoreCase(id)) return preset;
+        for (FEXCorePreset preset : getPresets(context)) if (preset.id.equals(id)) return preset;
         return null;
     }
 
@@ -155,8 +161,8 @@ public class FEXCorePresetManager {
             String[] customPresets = customPresetsStr.split(",");
             for (int i = 0; i < customPresets.length; i++) {
                 String[] preset = customPresets[i].split("\\|");
-                if (preset[0].equalsIgnoreCase(id)) {
-                    customPresets[i] = id.toUpperCase(Locale.ENGLISH)+"|"+sanitizedName+"|"+sanitizedEnvVars;
+                if (preset[0].equals(id)) {
+                    customPresets[i] = id+"|"+sanitizedName+"|"+sanitizedEnvVars;
                     break;
                 }
             }
@@ -173,7 +179,7 @@ public class FEXCorePresetManager {
         ArrayList<FEXCorePreset> presets = getPresets(context);
         FEXCorePreset originPreset = null;
         for (FEXCorePreset preset : presets) {
-            if (preset.id.equalsIgnoreCase(id)) {
+            if (preset.id.equals(id)) {
                 originPreset = preset;
                 break;
             }
@@ -205,7 +211,7 @@ public class FEXCorePresetManager {
         String[] customPresets = oldCustomPresetsStr.split(",");
         for (int i = 0; i < customPresets.length; i++) {
             String[] preset = customPresets[i].split("\\|");
-            if (!preset[0].equalsIgnoreCase(id)) newCustomPresetsStr += (!newCustomPresetsStr.isEmpty() ? "," : "")+customPresets[i];
+            if (!preset[0].equals(id)) newCustomPresetsStr += (!newCustomPresetsStr.isEmpty() ? "," : "")+customPresets[i];
         }
 
         preferences.edit().putString(key, newCustomPresetsStr).apply();
@@ -219,7 +225,7 @@ public class FEXCorePresetManager {
 
         for (int i = 0; i < customPresets.length; i++) {
             String[] preset = customPresets[i].split("\\|");
-            if (preset[0].equalsIgnoreCase(id)) {;
+            if (preset[0].equals(id)) {;
                 String uriPath = preferences.getString("winlator_path_uri", null);
                 if (uriPath != null) {
                     Uri uri = Uri.parse(uriPath);
@@ -235,7 +241,7 @@ public class FEXCorePresetManager {
                 try {
                     FileOutputStream fos = new FileOutputStream(presetFile);
                     PrintWriter pw = new PrintWriter(fos);
-                    pw.write("ID:" + preset[0].toUpperCase(Locale.ENGLISH) + "\n");
+                    pw.write("ID:" + preset[0] + "\n");
                     pw.write("Name:" + preset[1] + "\n");
                     pw.write("EnvVars:" + preset[2] + "\n");
                     pw.close();
@@ -292,7 +298,7 @@ public class FEXCorePresetManager {
 
         int selectedPosition = 0;
         for (int i = 0; i < presets.size(); i++) {
-            if (presets.get(i).id.equalsIgnoreCase(selectedId)) {
+            if (presets.get(i).id.equals(selectedId)) {
                 selectedPosition = i;
                 break;
             }

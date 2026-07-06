@@ -199,6 +199,10 @@
     <string name="compatibility">Compatibility</string>
     <string name="intermediate">Intermediate</string>
     <string name="performance">Performance</string>
+    <string name="performance_x87_off">Performance (X86 REDUCED PRECISION OFF)</string>
+    <string name="performance_tso">Performance (TSO)</string>
+    <string name="unity">Unity</string>
+    <string name="unity_mono_bleeding_edge">Unity Mono Bleeding Edge</string>
     <string name="max_performance">Max Performance</string>
     <string name="denuvo">Denuvo</string>
     <string name="num_items">%1$d items</string>
