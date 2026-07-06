@@ -230,26 +230,11 @@ public class ContainerManager {
         return shortcuts;
     }
 
-    public int getNextContainerId() {
-        int id = 1;
-        while (true) {
-            File file = new File(homeDir, ImageFs.USER + "-" + id);
-            // Consider the ID available if the directory doesn't exist OR has no config
-            if (!file.exists()) return id;
-            if (file.isDirectory()) {
-                File configFile = new File(file, ".container");
-                if (!configFile.exists()) {
-                    return id;
-                }
-            }
-            id++;
-        }
-    }
-
     public String getNextDefaultContainerName() {
+        String baseName = context.getString(R.string.container) + "-";
         int number = 1;
         while (true) {
-            String name = "Container-" + number;
+            String name = baseName + number;
             boolean exists = false;
             for (Container c : containers) {
                 if (c.getName().equalsIgnoreCase(name)) {
@@ -259,6 +244,24 @@ public class ContainerManager {
             }
             if (!exists) return name;
             number++;
+        }
+    }
+
+    public int getNextContainerId() {
+        int id = 1;
+        while (true) {
+            File file = new File(homeDir, ImageFs.USER + "-" + id);
+            if (!file.exists()) return id;
+            
+            // Check if it's a "ghost" directory (exists but no config)
+            if (file.isDirectory()) {
+                File configFile = new File(file, ".container");
+                if (!configFile.exists()) {
+                    // Try to clean it up; if successful, we can reuse this ID
+                    if (FileUtils.delete(file)) return id;
+                }
+            }
+            id++;
         }
     }
 

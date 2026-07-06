@@ -303,7 +303,7 @@ public class ContainerDetailFragment extends Fragment {
         if (isEditMode()) {
             etName.setText(container.getName());
         } else {
-            etName.setText(getString(R.string.container) + "-" + manager.getNextContainerId());
+            etName.setText(manager.getNextDefaultContainerName());
         }
 
         final Spinner sBox64Version = view.findViewById(R.id.SBox64Version);

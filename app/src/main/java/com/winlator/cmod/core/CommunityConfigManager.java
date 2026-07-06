@@ -9,23 +9,25 @@ import java.io.BufferedReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.util.concurrent.Executors;
 
 public class CommunityConfigManager {
     public static final String PROXY_URL = "https://win-mali-proxy.teja44951.workers.dev/";
 
-    private static String getInternalId() {
+    private static byte[] getInternalId() {
         byte[] a = {0x69, 0x6E, 0x73, 0x50, 0x49, 0x52, 0x49, 0x54, 0x6D, 0x4F, 0x44, 0x45, 0x12, 0x14};
-        byte[] b = new byte[a.length];
-        for (int i = 0; i < a.length; i++) b[i] = (byte) (a[i] ^ 32);
-        return new String(b, StandardCharsets.UTF_8);
+        for (int i = 0; i < a.length; i++) a[i] = (byte) (a[i] ^ 32);
+        return a;
     }
 
     private static String calculateHMAC(String data) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((data + getInternalId()).getBytes(StandardCharsets.UTF_8));
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKey = new SecretKeySpec(getInternalId(), "HmacSHA256");
+            mac.init(secretKey);
+            byte[] hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
                 String hex = Integer.toHexString(0xff & b);
