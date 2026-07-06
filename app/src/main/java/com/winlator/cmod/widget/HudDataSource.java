@@ -31,12 +31,16 @@ public class HudDataSource {
     private String gpuPath = null;
     private boolean gpuFailed = false;
     private long prevGpuBusy = 0, prevGpuTotal = 0;
+    private long lastMaliGpuInfoMs = -1;
+    private long lastMaliGpuInfoWallMs = -1;
+    private java.util.List<String> discoveredCpuTempPaths = null;
 
     private static final String[] GPU_PATHS = {
         "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage",
         "/sys/class/kgsl/kgsl-3d0/devfreq/gpu_load",
         "/sys/class/kgsl/kgsl-3d0/devfreq/adrenoboost",
         "/sys/class/misc/mali0/device/utilisation",
+        "/sys/class/misc/mali0/device/gpuinfo",
         "/sys/devices/platform/mali/utilization",
         "/sys/devices/platform/13000000.mali/utilization",
         "/sys/module/mali_kbase/parameters/mali_gpu_utilization",
@@ -113,7 +117,7 @@ public class HudDataSource {
         if (gpuFailed) return;
 
         if (gpuPath != null) {
-            int v = gpuPath.equals(GPU_BUSY) ? readGpuBusy() : readPercent(gpuPath);
+            int v = gpuPath.equals(GPU_BUSY) ? readGpuBusy() : (gpuPath.endsWith("gpuinfo") ? readGpuInfo(gpuPath) : readPercent(gpuPath));
             if (v >= 0) { gpuLoad.set(v); return; }
             gpuPath = null;
         }
@@ -121,7 +125,7 @@ public class HudDataSource {
         String path = findGpuPath();
         if (path != null) {
             gpuPath = path;
-            int v = path.equals(GPU_BUSY) ? readGpuBusy() : readPercent(path);
+            int v = path.equals(GPU_BUSY) ? readGpuBusy() : (path.endsWith("gpuinfo") ? readGpuInfo(path) : readPercent(path));
             gpuLoad.set(v >= 0 ? v : 0);
             return;
         }
@@ -136,7 +140,10 @@ public class HudDataSource {
     private String findGpuPath() {
         for (String p : GPU_PATHS) {
             File f = new File(p);
-            if (f.exists() && f.canRead() && readPercent(p) >= 0) return p;
+            if (f.exists() && f.canRead()) {
+                if (p.endsWith("gpubusy") || p.endsWith("gpuinfo")) return p;
+                if (readPercent(p) >= 0) return p;
+            }
         }
 
         try {
@@ -146,10 +153,13 @@ public class HudDataSource {
                 if (subdirs != null) {
                     for (File dir : subdirs) {
                         if (dir.isDirectory()) {
-                            String[] candidates = {"gpu_load", "gpu_loading", "load", "percent", "utilisation", "utilization"};
+                            String[] candidates = {"gpu_load", "gpu_loading", "load", "percent", "utilisation", "utilization", "gpuinfo"};
                             for (String name : candidates) {
                                 File f = new File(dir, name);
-                                if (f.isFile() && f.canRead() && readPercent(f.getPath()) >= 0) return f.getPath();
+                                if (f.isFile() && f.canRead()) {
+                                    if (name.equals("gpuinfo")) return f.getPath();
+                                    if (readPercent(f.getPath()) >= 0) return f.getPath();
+                                }
                             }
                         }
                     }
@@ -165,10 +175,13 @@ public class HudDataSource {
                     for (File dir : subdirs) {
                         String nameLower = dir.getName().toLowerCase();
                         if (dir.isDirectory() && (nameLower.contains("mali") || nameLower.contains("gpu") || nameLower.contains("kgsl"))) {
-                            String[] candidates = {"utilization", "utilisation", "gpu_load", "gpu_loading", "load", "percent"};
+                            String[] candidates = {"utilization", "utilisation", "gpu_load", "gpu_loading", "load", "percent", "gpuinfo"};
                             for (String name : candidates) {
                                 File f = new File(dir, name);
-                                if (f.isFile() && f.canRead() && readPercent(f.getPath()) >= 0) return f.getPath();
+                                if (f.isFile() && f.canRead()) {
+                                    if (name.equals("gpuinfo")) return f.getPath();
+                                    if (readPercent(f.getPath()) >= 0) return f.getPath();
+                                }
                             }
                             
                             File[] subFiles = dir.listFiles();
@@ -177,7 +190,10 @@ public class HudDataSource {
                                     if (sub.isDirectory()) {
                                         for (String sname : candidates) {
                                             File f = new File(sub, sname);
-                                            if (f.isFile() && f.canRead() && readPercent(f.getPath()) >= 0) return f.getPath();
+                                            if (f.isFile() && f.canRead()) {
+                                                if (sname.equals("gpuinfo")) return f.getPath();
+                                                if (readPercent(f.getPath()) >= 0) return f.getPath();
+                                            }
                                         }
                                     }
                                 }
@@ -236,6 +252,19 @@ public class HudDataSource {
     }
 
     private void pollCpuTemp() {
+        for (String p : discoverCpuTempPaths()) {
+            int v = readInt(p);
+            if (v > 0) {
+                if (v > 5000) v /= 1000;
+                else if (v > 200) v /= 10;
+                
+                if (v > 0 && v < 120) {
+                    cpuTempC.set(v);
+                    return;
+                }
+            }
+        }
+
         for (String p : CPU_TEMP_PATHS) {
             int v = readInt(p);
             if (v > 0) {
@@ -331,5 +360,94 @@ public class HudDataSource {
             String l = r.readLine();
             return l != null ? Long.parseLong(l.trim()) : 0;
         } catch (Exception e) { return 0; }
+    }
+
+    private String readSysFsString(String path) {
+        try (BufferedReader r = new BufferedReader(new FileReader(path))) {
+            String l = r.readLine();
+            return l != null ? l : "";
+        } catch (Exception e) { return ""; }
+    }
+
+    private int readGpuInfo(String path) {
+        try (BufferedReader r = new BufferedReader(new FileReader(path))) {
+            r.readLine(); // skip line 0
+            String line = r.readLine(); // line 1
+            if (line == null) return -1;
+            String[] parts = line.trim().split("\\s+");
+            if (parts.length == 0) return -1;
+            long gpuMs = Long.parseLong(parts[parts.length - 1]);
+            long now = android.os.SystemClock.elapsedRealtime();
+            long prevMs = lastMaliGpuInfoMs;
+            long prevWall = lastMaliGpuInfoWallMs;
+            lastMaliGpuInfoMs = gpuMs;
+            lastMaliGpuInfoWallMs = now;
+            if (prevMs < 0 || prevWall <= 0) return -1;
+            long wallDelta = now - prevWall;
+            if (wallDelta <= 0) return -1;
+            long gpuDelta = gpuMs - prevMs;
+            if (gpuDelta < 0) gpuDelta = 0;
+            return (int) Math.min(100, (gpuDelta * 100L) / wallDelta);
+        } catch (Exception e) { return -1; }
+    }
+
+    private java.util.List<String> discoverCpuTempPaths() {
+        if (discoveredCpuTempPaths != null) return discoveredCpuTempPaths;
+        
+        java.util.List<CpuTempCandidate> candidates = new java.util.ArrayList<>();
+        String[] roots = {"/sys/class/thermal", "/sys/devices/virtual/thermal"};
+        
+        for (String root : roots) {
+            File dir = new File(root);
+            if (!dir.exists() || !dir.isDirectory()) continue;
+            File[] files = dir.listFiles();
+            if (files == null) continue;
+            for (File file : files) {
+                if (file.isDirectory() && file.getName().startsWith("thermal_zone")) {
+                    File typeFile = new File(file, "type");
+                    File tempFile = new File(file, "temp");
+                    if (typeFile.exists() && tempFile.exists() && tempFile.canRead()) {
+                        String type = readSysFsString(typeFile.getPath()).trim().toLowerCase(java.util.Locale.US);
+                        int rank = getCpuTempRank(type);
+                        if (rank >= 0) {
+                            candidates.add(new CpuTempCandidate(tempFile.getPath(), rank));
+                        }
+                    }
+                }
+            }
+        }
+        
+        java.util.Collections.sort(candidates, (c1, c2) -> Integer.compare(c1.rank, c2.rank));
+        
+        java.util.List<String> paths = new java.util.ArrayList<>();
+        for (CpuTempCandidate c : candidates) {
+            if (!paths.contains(c.path)) paths.add(c.path);
+        }
+        
+        discoveredCpuTempPaths = paths;
+        return paths;
+    }
+    
+    private int getCpuTempRank(String type) {
+        if (type.contains("gpu")) return -1;
+        if (type.contains("cpu-silicon")) return 0;
+        if (type.contains("cpu-0")) return 1;
+        if (type.contains("cpu")) return 2;
+        if (type.contains("soc")) return 3;
+        if (type.contains("s5p-tmu")) return 4;
+        if (type.contains("cputop")) return 5;
+        if (type.contains("tsens")) return 6;
+        if (type.contains("cluster")) return 7;
+        if (type.contains("big") || type.contains("little")) return 8;
+        return -1;
+    }
+    
+    private static class CpuTempCandidate {
+        final String path;
+        final int rank;
+        CpuTempCandidate(String path, int rank) {
+            this.path = path;
+            this.rank = rank;
+        }
     }
 }
