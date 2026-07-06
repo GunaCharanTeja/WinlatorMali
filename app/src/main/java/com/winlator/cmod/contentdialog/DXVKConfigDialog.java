@@ -43,7 +43,7 @@ public class DXVKConfigDialog extends ContentDialog {
     private final View llAsync;
     private final View llAsyncCache;
     private final Context context;
-    private static List<String> dxvkVersions;
+    private List<String> dxvkVersions;
     private static final Pattern SEMVER = Pattern.compile("(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
 
     private static Integer tryGetMajor(String s) {
@@ -176,15 +176,15 @@ public class DXVKConfigDialog extends ContentDialog {
         });
 
         setOnConfirmCallback(() -> {
-            config.put("version", sDXVKVersion.getSelectedItem().toString());
-            config.put("framerate", StringUtils.parseNumber(sFramerate.getSelectedItem()));
+            if (sDXVKVersion.getSelectedItem() != null) config.put("version", sDXVKVersion.getSelectedItem().toString());
+            if (sFramerate.getSelectedItem() != null) config.put("framerate", StringUtils.parseNumber(sFramerate.getSelectedItem()));
             config.put("async", ((swAsync.isChecked())&&(llAsync.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("asyncCache", ((swAsyncCache.isChecked())&&(llAsyncCache.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("dxvkConfig", swDXVKConfig.isChecked() ? "1" : "0");
             VKD3DVersionItem selectedItem = (VKD3DVersionItem) sVKD3DVersion.getSelectedItem();
-            config.put("vkd3dVersion", selectedItem.getIdentifier());
-            config.put("vkd3dLevel", sVKD3DFeatureLevel.getSelectedItem().toString());
-            config.put("ddrawrapper", StringUtils.parseIdentifier(sDDRAWrapper.getSelectedItem().toString()));
+            if (selectedItem != null) config.put("vkd3dVersion", selectedItem.getIdentifier());
+            if (sVKD3DFeatureLevel.getSelectedItem() != null) config.put("vkd3dLevel", sVKD3DFeatureLevel.getSelectedItem().toString());
+            if (sDDRAWrapper.getSelectedItem() != null) config.put("ddrawrapper", StringUtils.parseIdentifier(sDDRAWrapper.getSelectedItem().toString()));
             config.put("maxDeviceMemory", String.valueOf(sMaxDeviceMemory.getSelectedItemPosition()));
             anchor.setTag(config.toString());
         });
@@ -204,6 +204,7 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     private int getDXVKType(int pos) {
+        if (dxvkVersions == null || pos < 0 || pos >= dxvkVersions.size()) return DXVK_TYPE_NONE;
         final String v = dxvkVersions.get(pos);
         int dxvkType = DXVK_TYPE_NONE;
         if (v.contains("gplasync"))
@@ -332,8 +333,10 @@ public class DXVKConfigDialog extends ContentDialog {
         }
 
         for (int i = 0; i < itemList.size(); i++) {
-            if (itemList.get(i).contains("arm64ec") && !isARM64EC)
+            if (itemList.get(i).contains("arm64ec") && !isARM64EC) {
                 itemList.remove(i);
+                i--;
+            }
         }
 
         spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
