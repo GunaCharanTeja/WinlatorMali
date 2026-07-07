@@ -22,6 +22,7 @@
         <item>Wrapper</item>
         <item>Wrapper-leegao</item>
         <item>Wrapper-v2</item>
+        <item>Wrapper-gamenative</item>
     </string-array>
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>
@@ -47,11 +48,17 @@
         <item>None</item>
     </string-array>
     <string-array name="dxvk_version_entries">
+        <item>1.12.1-sarek</item>
         <item>1.11.1-sarek</item>
+        <item>1.10.3-async</item>
         <item>1.10.3</item>
+        <item>1.5.5-async</item>
         <item>1.5.5</item>
+        <item>1.7.3-async</item>
         <item>1.7.2</item>
+        <item>1.7-async</item>
         <item>1.9.3</item>
+        <item>v2.3.1-stripped</item>
     </string-array>
     <string-array name="dxvk_max_device_memory_entries">
         <item>0 (Default)</item>
@@ -139,6 +146,7 @@
         <item>0.3.7</item>
     </string-array>
     <string-array name="fexcore_version_entries">
+        <item>hybrid-x86</item>
         <item>2605</item>
         <item>2601</item>
         <item>2508</item>

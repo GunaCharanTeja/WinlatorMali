@@ -1915,6 +1915,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             driverFile = "graphics_driver/wrapper-leegao.tzst";
         } else if (graphicsDriverLower.startsWith("wrapper-v2")) {
             driverFile = "graphics_driver/wrapper-v2.tzst";
+        } else if (graphicsDriverLower.startsWith("wrapper-gamenative")) {
+            driverFile = "graphics_driver/wrapper-gamenative.tzst";
         }
 
         File internalDriverFile = new File(getFilesDir(), driverFile);
