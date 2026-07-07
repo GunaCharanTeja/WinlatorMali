@@ -257,8 +257,12 @@ public class ContainerManager {
             if (file.isDirectory()) {
                 File configFile = new File(file, ".container");
                 if (!configFile.exists()) {
-                    // Try to clean it up; if successful, we can reuse this ID
-                    if (FileUtils.delete(file)) return id;
+                    // Only delete if it's truly empty. If it has files, we skip it to be safe.
+                    File[] contents = file.listFiles();
+                    if (contents == null || contents.length == 0) {
+                        file.delete();
+                        return id;
+                    }
                 }
             }
             id++;
