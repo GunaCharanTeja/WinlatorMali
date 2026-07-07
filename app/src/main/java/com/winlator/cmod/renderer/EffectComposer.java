@@ -5,6 +5,8 @@ import android.util.Log;
 
 import com.winlator.cmod.renderer.effects.Effect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
+import com.winlator.cmod.renderer.effects.HDREffect;
+import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.renderer.lsfg.LSFGEffect;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
@@ -43,7 +45,11 @@ public class EffectComposer {
 
     public synchronized void addEffect(Effect effect) {
         if (!effects.contains(effect)) {
-            effects.add(effect);
+            if (effect instanceof LSFGEffect) {
+                effects.add(0, effect);
+            } else {
+                effects.add(effect);
+            }
         }
         renderer.xServerView.requestRender();
     }
@@ -222,5 +228,34 @@ public class EffectComposer {
                 Log.e(TAG, "GLES 3.1 not supported, cannot enable LSFG");
             }
         }
+    }
+
+    public synchronized void toggleHDREffect(boolean enabled) {
+        HDREffect hdrEffect = getEffect(HDREffect.class);
+        if (hdrEffect != null) {
+            if (!enabled) removeEffect(hdrEffect);
+        } else if (enabled) {
+            addEffect(new HDREffect());
+        }
+        renderer.xServerView.requestRender();
+    }
+
+    public synchronized void updateFSREffect(boolean enabled, int mode, float level) {
+        FSREffect fsrEffect = getEffect(FSREffect.class);
+        if (fsrEffect != null) {
+            if (!enabled) {
+                removeEffect(fsrEffect);
+                return;
+            }
+        } else if (enabled) {
+            fsrEffect = new FSREffect();
+            addEffect(fsrEffect);
+        }
+
+        if (fsrEffect != null) {
+            fsrEffect.setMode(mode);
+            fsrEffect.setLevel(level);
+        }
+        renderer.xServerView.requestRender();
     }
 }

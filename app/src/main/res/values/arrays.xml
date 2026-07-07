@@ -361,4 +361,8 @@
         <item>90 FPS</item>
         <item>120 FPS</item>
     </string-array>
+    <string-array name="sharpening_mode_entries">
+        <item>CAS (Pure)</item>
+        <item>DLS (CAS + Saturation)</item>
+    </string-array>
 </resources>

@@ -9,6 +9,8 @@ import com.winlator.cmod.R;
 import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.renderer.lsfg.LSFGEffect;
+import com.winlator.cmod.renderer.effects.HDREffect;
+import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.widget.SeekBar;
 
 public class GraphicsEnhancementsDialog extends ContentDialog {
@@ -18,6 +20,11 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private final Spinner sLSFGTargetFPS;
     private final LinearLayout llLSFGSettings;
     private final SeekBar sbLSFGMotionBlur;
+    private final CheckBox cbEnableHDR;
+    private final CheckBox cbEnableSharpen;
+    private final Spinner sSharpenMode;
+    private final LinearLayout llSharpenSettings;
+    private final SeekBar sbSharpenLevel;
 
     public GraphicsEnhancementsDialog(XServerDisplayActivity activity) {
         super(activity, R.layout.graphics_enhancements_dialog);
@@ -64,6 +71,47 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         findViewById(R.id.IVLSFGInfo).setOnClickListener(v -> showLSFGInfo());
 
+        cbEnableHDR = findViewById(R.id.CBEnableHDR);
+        cbEnableSharpen = findViewById(R.id.CBEnableSharpen);
+        sSharpenMode = findViewById(R.id.SSharpenMode);
+        llSharpenSettings = findViewById(R.id.LLSharpenSettings);
+        sbSharpenLevel = findViewById(R.id.SBSharpenLevel);
+
+        HDREffect hdrEffect = renderer.getEffectComposer().getEffect(HDREffect.class);
+        cbEnableHDR.setChecked(hdrEffect != null);
+
+        FSREffect fsrEffect = renderer.getEffectComposer().getEffect(FSREffect.class);
+        boolean sharpenEnabled = fsrEffect != null;
+        cbEnableSharpen.setChecked(sharpenEnabled);
+        llSharpenSettings.setVisibility(sharpenEnabled ? View.VISIBLE : View.GONE);
+
+        if (fsrEffect != null) {
+            sSharpenMode.setSelection(fsrEffect.getMode());
+            sbSharpenLevel.setValue(fsrEffect.getLevel());
+        } else {
+            sSharpenMode.setSelection(0);
+            sbSharpenLevel.setValue(3.0f);
+        }
+
+        cbEnableHDR.setOnCheckedChangeListener((buttonView, isChecked) -> applyEffects());
+
+        cbEnableSharpen.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            llSharpenSettings.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            applyEffects();
+        });
+
+        sSharpenMode.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                applyEffects();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        sbSharpenLevel.setOnValueChangeListener((seekBar, value) -> applyEffects());
+
         setOnConfirmCallback(this::applyEffects);
     }
 
@@ -107,6 +155,10 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             else if (targetFPSSelection == 6) targetFPS = 120;
             lsfgEffect.getManager().setTargetFPS(targetFPS);
         }
+
+        renderer.getEffectComposer().toggleHDREffect(cbEnableHDR.isChecked());
+        renderer.getEffectComposer().updateFSREffect(cbEnableSharpen.isChecked(), sSharpenMode.getSelectedItemPosition(), sbSharpenLevel.getValue());
+
         activity.getXServerView().requestRender();
     }
 }

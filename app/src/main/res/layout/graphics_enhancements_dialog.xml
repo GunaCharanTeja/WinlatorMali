@@ -80,5 +80,93 @@
                 app:sbMinValue="0.0"
                 app:sbStep="0.01" />
         </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#ff424242"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <CheckBox
+                android:id="@+id/CBEnableHDR"
+                android:layout_width="0.0dip"
+                android:layout_weight="1.0"
+                android:layout_height="wrap_content"
+                android:text="Enable Fake HDR" />
+        </LinearLayout>
+        <TextView
+            android:textSize="12.0sp"
+            android:textColor="#ff9e9e9e"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Applies a dual-radius bloom blur and contrast boost to simulate high dynamic range."
+            android:paddingStart="16.0dip"
+            android:paddingEnd="16.0dip" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#ff424242"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <CheckBox
+                android:id="@+id/CBEnableSharpen"
+                android:layout_width="0.0dip"
+                android:layout_weight="1.0"
+                android:layout_height="wrap_content"
+                android:text="Enable Sharpening (CAS)" />
+        </LinearLayout>
+        <TextView
+            android:textSize="12.0sp"
+            android:textColor="#ff9e9e9e"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Contrast Adaptive Sharpening (CAS) resolves blurriness and reconstructs fine details."
+            android:paddingStart="16.0dip"
+            android:paddingEnd="16.0dip" />
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:id="@+id/LLSharpenSettings"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16.0dip"
+            android:paddingEnd="16.0dip">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8.0dip"
+                android:text="Sharpening Mode" />
+            <Spinner
+                android:id="@+id/SSharpenMode"
+                android:entries="@array/sharpening_mode_entries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8.0dip"
+                android:text="Sharpening Level" />
+            <com.winlator.cmod.widget.SeekBar
+                android:id="@+id/SBSharpenLevel"
+                android:layout_width="match_parent"
+                android:layout_height="60.0dip"
+                app:sbMaxValue="5.0"
+                app:sbMinValue="1.0"
+                app:sbStep="1.0" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>
