@@ -7,6 +7,7 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.box64.Box64PresetManager;
 import com.winlator.cmod.fexcore.FEXCorePresetManager;
+import com.winlator.cmod.R;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.io.File;
@@ -172,7 +173,15 @@ public class CommunityConfigUtils {
             
             // Ensure wineVersion is present and installed
             String wineVersion = containerJson.optString("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
-            if (contentsManager.getProfileByEntryName(wineVersion) == null && !wineVersion.equals(WineInfo.MAIN_WINE_VERSION.identifier())) {
+            boolean isOfficial = false;
+            for (String v : context.getResources().getStringArray(R.array.wine_entries)) {
+                if (v.equals(wineVersion)) {
+                    isOfficial = true;
+                    break;
+                }
+            }
+
+            if (!isOfficial && contentsManager.getProfileByEntryName(wineVersion) == null) {
                 wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
             }
             containerJson.put("wineVersion", wineVersion);
