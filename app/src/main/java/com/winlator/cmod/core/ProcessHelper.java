@@ -50,6 +50,12 @@ public abstract class ProcessHelper {
         }
     }
 
+    public static void killAllWineProcesses() {
+        for (String process : listRunningWineProcesses()) {
+            killProcess(Integer.parseInt(process));
+        }
+    }
+
     public static void pauseAllWineProcesses() {
         for (String process : listRunningWineProcesses()) {
             suspendProcess(Integer.parseInt(process));
@@ -258,7 +264,7 @@ public abstract class ProcessHelper {
 
     public static ArrayList<String> listRunningWineProcesses(){
         File proc = new File("/proc");
-        String[] filters = {"wine", "exe"};
+        String[] filters = {"wine", "exe", "box86", "box64", "fex", "pulseaudio", "virgl", "wineserver", "Xvfb", "Xwayland"};
         String[] allPids;
         ArrayList<String> filteredPids = new ArrayList<String>();
         List<String> filterList = Arrays.asList(filters);
@@ -268,17 +274,22 @@ public abstract class ProcessHelper {
             }
         });
 
+        if (allPids == null) return filteredPids;
+
         for (int index = 0; index < allPids.length; index++){
             String data = "";
-            try {
-                FileInputStream fr = new FileInputStream(proc + "/" + allPids[index] + "/stat");
-                BufferedReader br = new BufferedReader(new InputStreamReader(fr));
+            try (FileInputStream fr = new FileInputStream(proc + "/" + allPids[index] + "/stat");
+                 BufferedReader br = new BufferedReader(new InputStreamReader(fr))) {
                 data = br.readLine();
             }
             catch (IOException e) {}
-            for (String filter : filterList) {
-                if (data.contains(filter))
-                    filteredPids.add(allPids[index]);
+            if (data != null) {
+                for (String filter : filterList) {
+                    if (data.contains(filter)) {
+                        filteredPids.add(allPids[index]);
+                        break;
+                    }
+                }
             }
         }
         return filteredPids;

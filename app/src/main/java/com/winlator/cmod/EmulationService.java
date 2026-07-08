@@ -100,5 +100,6 @@ public class EmulationService extends Service {
         if (environment != null) {
             environment.stopEnvironmentComponents();
         }
+        com.winlator.cmod.core.ProcessHelper.killAllWineProcesses();
     }
 }

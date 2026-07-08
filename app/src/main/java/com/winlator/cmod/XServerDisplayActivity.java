@@ -803,13 +803,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (isGyroEnabled) registerGyroscope();
 
-        if (environment != null) {
-            xServerView.onResume();
-            environment.onResume();
-        }
         startTime = System.currentTimeMillis();
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
-        ProcessHelper.resumeAllWineProcesses();
     }
 
     @Override
@@ -820,18 +815,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         unregisterGyroscope();
 
-        // Check if we are entering Picture-in-Picture mode
-        if (!isInPictureInPictureMode()) {
-            // Only pause environment and xServerView if not in PiP mode
-            if (environment != null) {
-                environment.onPause();
-                xServerView.onPause();
-            }
-        }
-
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
-        ProcessHelper.pauseAllWineProcesses();
     }
 
 
@@ -867,31 +852,35 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void exit() {
         preloaderDialog.showOnUiThread(R.string.shutdown);
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                savePlaytimeData(); // Save on destroy
-                handler.removeCallbacks(savePlaytimeRunnable);
-                if (midiHandler != null) midiHandler.stop();
-                // Unregister sensor listener to avoid memory leaks
-                if (environment != null) environment.stopEnvironmentComponents();
-                if (preloaderDialog != null && preloaderDialog.isShowing()) preloaderDialog.closeOnUiThread();
-                if (winHandler != null) winHandler.stop();
-                if (wineRequestHandler != null) wineRequestHandler.stop();
-                /* Gracefully terminate all running wine processes */
-                ProcessHelper.terminateAllWineProcesses();
-                /* Wait until all processes have gracefully terminated, forcefully killing them only after a certain amount of time */
-                long start = System.currentTimeMillis();
-                while (!ProcessHelper.listRunningWineProcesses().isEmpty()) {
-                    long elapsed = System.currentTimeMillis() - start;
-                    if (elapsed >= 1500) {
-                        break;
-                    }
+        Executors.newSingleThreadExecutor().execute(() -> {
+            savePlaytimeData();
+            handler.removeCallbacks(savePlaytimeRunnable);
+            if (midiHandler != null) midiHandler.stop();
+            if (environment != null) environment.stopEnvironmentComponents();
+            if (winHandler != null) winHandler.stop();
+            if (wineRequestHandler != null) wineRequestHandler.stop();
+
+            /* Gracefully terminate all running wine processes */
+            ProcessHelper.terminateAllWineProcesses();
+
+            /* Wait until all processes have gracefully terminated, forcefully killing them only after a certain amount of time */
+            long start = System.currentTimeMillis();
+            while (!ProcessHelper.listRunningWineProcesses().isEmpty()) {
+                long elapsed = System.currentTimeMillis() - start;
+                if (elapsed >= 2000) {
+                    ProcessHelper.killAllWineProcesses();
+                    break;
                 }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {}
+            }
+
+            runOnUiThread(() -> {
                 preloaderDialog.closeOnUiThread();
                 AppUtils.restartApplication(getApplicationContext());
-            }
-        }, 1000);
+            });
+        });
     }
 
     @Override
@@ -904,7 +893,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         try {
             unbindService(serviceConnection);
         } catch (Exception e) {}
-        stopService(new Intent(this, EmulationService.class));
+        if (isFinishing()) {
+            stopService(new Intent(this, EmulationService.class));
+        }
         super.onDestroy();
     }
 
