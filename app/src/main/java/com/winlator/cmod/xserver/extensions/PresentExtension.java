@@ -33,6 +33,7 @@ public class PresentExtension implements Extension {
     public enum Mode {COPY, FLIP, SKIP}
     private final SparseArray<Event> events = new SparseArray<>();
     private SyncExtension syncExtension;
+    private long nextFrameTime = 0;
 
     private static abstract class ClientOpcodes {
         private static final byte QUERY_VERSION = 0;
@@ -171,6 +172,33 @@ public class PresentExtension implements Extension {
         }
     }
 
+    private void enforceAbsoluteFramerate(com.winlator.cmod.renderer.GLRenderer renderer) {
+        if (renderer == null) return;
+
+        int targetFps = renderer.getFpsLimit();
+        if (targetFps <= 0) {
+            nextFrameTime = 0;
+            return;
+        }
+
+        long targetFrameTime = 1000000000L / targetFps;
+        long now = System.nanoTime();
+
+        if (nextFrameTime == 0 || now > nextFrameTime) nextFrameTime = now;
+
+        long sleepTime = nextFrameTime - now;
+        if (sleepTime > 0) {
+            long sleepMs = (sleepTime - 1500000L) / 1000000L;
+            if (sleepMs > 0) {
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException e) {}
+            }
+            while (System.nanoTime() < nextFrameTime);
+        }
+        nextFrameTime += targetFrameTime;
+    }
+
     @Override
     public void handleRequest(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int opcode = client.getRequestData();
@@ -184,6 +212,7 @@ public class PresentExtension implements Extension {
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.PIXMAP_MANAGER)) {
                     presentPixmap(client, inputStream, outputStream);
                 }
+                enforceAbsoluteFramerate(client.xServer.getRenderer());
                 break;
             case ClientOpcodes.SELECT_INPUT:
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {

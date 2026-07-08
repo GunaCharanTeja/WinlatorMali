@@ -15,6 +15,7 @@ import com.winlator.cmod.widget.SeekBar;
 
 public class GraphicsEnhancementsDialog extends ContentDialog {
     private final XServerDisplayActivity activity;
+    private final Spinner sFPSLimit;
     private final CheckBox cbEnableLSFG;
     private final Spinner sLSFGQuality;
     private final Spinner sLSFGTargetFPS;
@@ -32,13 +33,27 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         setIcon(R.drawable.ic_graphics_enhancements);
         setTitle(R.string.graphics_enhancements);
 
+        sFPSLimit = findViewById(R.id.SFPSLimit);
+
+        GLRenderer renderer = activity.getXServerView().getRenderer();
+
+        int currentFpsLimit = renderer.getFpsLimit();
+        int fpsSelection = 0;
+        if (currentFpsLimit == 30) fpsSelection = 1;
+        else if (currentFpsLimit == 45) fpsSelection = 2;
+        else if (currentFpsLimit == 60) fpsSelection = 3;
+        else if (currentFpsLimit == 90) fpsSelection = 4;
+        else if (currentFpsLimit == 120) fpsSelection = 5;
+        sFPSLimit.setSelection(fpsSelection);
+
+        findViewById(R.id.IVFPSLimitInfo).setOnClickListener(v -> showFPSLimitInfo());
+
         cbEnableLSFG = findViewById(R.id.CBEnableLSFG);
         sLSFGQuality = findViewById(R.id.SLSFGQuality);
         sLSFGTargetFPS = findViewById(R.id.SLSFGTargetFPS);
         llLSFGSettings = findViewById(R.id.LLLSFGSettings);
         sbLSFGMotionBlur = findViewById(R.id.SBLSFGMotionBlur);
 
-        GLRenderer renderer = activity.getXServerView().getRenderer();
         LSFGEffect lsfgEffect = renderer.getEffectComposer().getEffect(LSFGEffect.class);
         boolean lsfgEnabled = lsfgEffect != null && lsfgEffect.getManager().isActive();
 
@@ -112,6 +127,16 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         sbSharpenLevel.setOnValueChangeListener((seekBar, value) -> applyEffects());
 
+        sFPSLimit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                applyEffects();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
         setOnConfirmCallback(this::applyEffects);
     }
 
@@ -135,8 +160,38 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         dialog.show();
     }
 
+    private void showFPSLimitInfo() {
+        ContentDialog dialog = new ContentDialog(getContext(), R.layout.lsfg_info_dialog);
+        dialog.setTitle("Universal FPS Limiter");
+        dialog.setIcon(R.drawable.ic_driver_info);
+
+        TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
+        String message = "<b>Universal FPS Limiter</b><br/>" +
+                "A high-precision system-level limiter that throttles the game engine before it reaches the display.<br/><br/>" +
+                "<b>How it works:</b><br/>" +
+                "- It uses microsecond-precise thread sleeping and busy-waiting to ensure frames are presented at exact intervals.<br/>" +
+                "- Unlike driver-level limits (like DXVK), this works across all wrappers (DXVK, WineD3D, etc.) and reduces both CPU heat and input jitter.<br/><br/>" +
+                "<b>Interaction with Apex (LSFG):</b><br/>" +
+                "- <b>Power Saving:</b> Limit the game to 30 FPS to significantly reduce CPU/GPU load, then use Apex to generate frames for a smooth 60 FPS output.<br/>" +
+                "- <b>Consistency:</b> Provides a stable base framerate for Apex's interpolation. A steady 30 FPS base produces much better results than an uncapped framerate that fluctuates between 30 and 40.";
+        tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
+
+        dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+        dialog.show();
+    }
+
     private void applyEffects() {
         GLRenderer renderer = activity.getXServerView().getRenderer();
+
+        int fpsLimit = 0;
+        int fpsSelection = sFPSLimit.getSelectedItemPosition();
+        if (fpsSelection == 1) fpsLimit = 30;
+        else if (fpsSelection == 2) fpsLimit = 45;
+        else if (fpsSelection == 3) fpsLimit = 60;
+        else if (fpsSelection == 4) fpsLimit = 90;
+        else if (fpsSelection == 5) fpsLimit = 120;
+        renderer.setFpsLimit(fpsLimit);
+
         boolean lsfgEnabled = cbEnableLSFG.isChecked();
         renderer.getEffectComposer().toggleLSFGEffect(lsfgEnabled);
 

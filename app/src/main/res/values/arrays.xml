@@ -365,4 +365,12 @@
         <item>CAS (Pure)</item>
         <item>DLS (CAS + Saturation)</item>
     </string-array>
+    <string-array name="fps_limit_entries">
+        <item>Unlimited</item>
+        <item>30</item>
+        <item>45</item>
+        <item>60</item>
+        <item>90</item>
+        <item>120</item>
+    </string-array>
 </resources>

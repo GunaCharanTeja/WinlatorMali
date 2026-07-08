@@ -10,6 +10,54 @@
         android:layout_gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="8dp">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16.0dip"
+            android:paddingEnd="16.0dip">
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1.0"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8.0dip"
+                    android:text="Universal FPS Limiter" />
+                <ImageView
+                    android:id="@+id/IVFPSLimitInfo"
+                    android:layout_width="40.0dip"
+                    android:layout_height="40.0dip"
+                    android:padding="8.0dip"
+                    android:src="@drawable/ic_driver_info"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Info"
+                    app:tint="#ff9e9e9e" />
+            </LinearLayout>
+            <TextView
+                android:textSize="12.0sp"
+                android:textColor="#ff9e9e9e"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="High-precision throttling for consistent frame pacing and power saving." />
+            <Spinner
+                android:id="@+id/SFPSLimit"
+                android:entries="@array/fps_limit_entries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#ff424242"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
         <LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"

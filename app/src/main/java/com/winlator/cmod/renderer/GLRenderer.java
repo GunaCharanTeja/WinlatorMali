@@ -59,6 +59,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public int surfaceWidth;
     public int surfaceHeight;
     private long lastNanos = 0;
+    private int currentFpsLimit = 0;
     private final EffectComposer effectComposer;
     private final LSFGManager lsfgManager;
     private com.winlator.cmod.widget.WinlatorHUD winlatorHUD;
@@ -465,6 +466,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public int getSurfaceHeight() {
         return surfaceHeight;
+    }
+
+    public int getFpsLimit() {
+        return currentFpsLimit;
+    }
+
+    public void setFpsLimit(int fpsLimit) {
+        this.currentFpsLimit = fpsLimit;
     }
 
     public boolean isViewportNeedsUpdate() {

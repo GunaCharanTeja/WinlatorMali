@@ -86,7 +86,6 @@ public class DXVKConfigDialog extends ContentDialog {
 
         final Spinner sDXVKVersion = findViewById(R.id.SDXVKVersion);
         final Spinner sVKD3DVersion = findViewById(R.id.SVKD3DVersion);
-        final Spinner sFramerate = findViewById(R.id.SFramerate);
         final Spinner sVKD3DFeatureLevel = findViewById(R.id.SVKD3DFeatureLevel);
         final Spinner sDDRAWrapper = findViewById(R.id.SDDRAWrapper);
         final Spinner sMaxDeviceMemory = findViewById(R.id.SMaxDeviceMemory);
@@ -108,7 +107,6 @@ public class DXVKConfigDialog extends ContentDialog {
         sVKD3DFeatureLevel.setAdapter(adapter);
 
         setDXVKSpinner(sDXVKVersion, config, contentsManager, isARM64EC);
-        AppUtils.setSpinnerSelectionFromIdentifier(sFramerate, config.get("framerate"));
         AppUtils.setSpinnerSelectionFromIdentifier(sVKD3DVersion, config.get("vkd3dVersion"));
         AppUtils.setSpinnerSelectionFromIdentifier(sVKD3DFeatureLevel, config.get("vkd3dLevel"));
         AppUtils.setSpinnerSelectionFromIdentifier(sDDRAWrapper, config.get("ddrawrapper"));
@@ -177,7 +175,6 @@ public class DXVKConfigDialog extends ContentDialog {
 
         setOnConfirmCallback(() -> {
             if (sDXVKVersion.getSelectedItem() != null) config.put("version", sDXVKVersion.getSelectedItem().toString());
-            if (sFramerate.getSelectedItem() != null) config.put("framerate", StringUtils.parseNumber(sFramerate.getSelectedItem()));
             config.put("async", ((swAsync.isChecked())&&(llAsync.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("asyncCache", ((swAsyncCache.isChecked())&&(llAsyncCache.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("dxvkConfig", swDXVKConfig.isChecked() ? "1" : "0");
@@ -287,13 +284,6 @@ public class DXVKConfigDialog extends ContentDialog {
                 content += "d3d9.maxAvailableMemory = " + maxDeviceMemoryValue + "\n";
             }
 
-            String framerate = config.get("framerate");
-            if (!framerate.isEmpty() && !framerate.equals("0")) {
-                content += "dxgi.maxFrameRate = " + framerate + "\n";
-                content += "d3d9.maxFrameRate = " + framerate + "\n";
-                envVars.put("DXVK_FRAME_RATE", framerate);
-            }
-
             try {
                 configFile.getParentFile().mkdirs();
                 if (configFile.exists()) configFile.delete();
@@ -385,7 +375,7 @@ public class DXVKConfigDialog extends ContentDialog {
                 "• <b>d3d9.maxFrameLatency</b> = 1<br/>" +
                 "• <b>dxvk.deferSurfaceCreation</b> = True<br/>" +
                 "• <b>dxvk.maxFrameLatency</b> = 1<br/><br/>" +
-                "It also dynamically appends memory limits and framerate constraints based on your container configuration.";
+                "It also dynamically appends memory limits based on your container configuration.";
         tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
 
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
