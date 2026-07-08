@@ -48,16 +48,16 @@
         <item>None</item>
     </string-array>
     <string-array name="dxvk_version_entries">
-        <item>1.12.1-sarek</item>
-        <item>1.11.1-sarek</item>
-        <item>1.10.3-async</item>
-        <item>1.10.3</item>
-        <item>1.5.5-async</item>
         <item>1.5.5</item>
-        <item>1.7.3-async</item>
-        <item>1.7.2</item>
+        <item>1.5.5-async</item>
         <item>1.7-async</item>
+        <item>1.7.2</item>
+        <item>1.7.3-async</item>
         <item>1.9.3</item>
+        <item>1.10.3</item>
+        <item>1.10.3-async</item>
+        <item>1.11.1-sarek</item>
+        <item>1.12.1-sarek</item>
         <item>v2.3.1-stripped</item>
     </string-array>
     <string-array name="dxvk_max_device_memory_entries">
