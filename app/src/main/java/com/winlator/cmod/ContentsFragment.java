@@ -66,7 +66,7 @@ public class ContentsFragment extends Fragment {
 
         // Initialize isDarkMode based on shared preferences or theme
         isDarkMode = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getBoolean("dark_mode", false);
+                .getBoolean("dark_mode", true);
     }
 
     @Override

@@ -78,6 +78,14 @@ public class FEXCorePresetManager {
             envVars.put("FEX_X87REDUCEDPRECISION", "1");
             envVars.put("FEX_MULTIBLOCK", "1");
         }
+        else if (id.equals(FEXCorePreset.UNREAL_ENGINE_3)) {
+            envVars.put("FEX_TSOENABLED", "1");
+            envVars.put("FEX_VECTORTSOENABLED", "1");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "1");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "1");
+            envVars.put("FEX_X87REDUCEDPRECISION", "1");
+            envVars.put("FEX_MULTIBLOCK", "0");
+        }
         else if (id.equals(FEXCorePreset.DENUVO)) {
             envVars.put("FEX_TSOENABLED", "0");
             envVars.put("FEX_VECTORTSOENABLED", "0");
@@ -108,6 +116,7 @@ public class FEXCorePresetManager {
         presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE, context.getString(R.string.performance)));
         presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE_X87_OFF, context.getString(R.string.performance_x87_off)));
         presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE_TSO, context.getString(R.string.performance_tso)));
+        presets.add(new FEXCorePreset(FEXCorePreset.UNREAL_ENGINE_3, context.getString(R.string.unreal_engine_3)));
         presets.add(new FEXCorePreset(FEXCorePreset.DENUVO, context.getString(R.string.denuvo)));
         for (String[] preset : customPresetsIterator(context)) presets.add(new FEXCorePreset(preset[0], preset[1]));
         return presets;

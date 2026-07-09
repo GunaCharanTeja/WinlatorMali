@@ -24,6 +24,12 @@ public class PreloaderDialog {
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.preloader_dialog);
 
+        boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("dark_mode", true);
+        if (isDarkMode) {
+            dialog.findViewById(R.id.LLPreloaderBackground).setBackgroundResource(R.drawable.content_dialog_background_dark);
+            ((TextView)dialog.findViewById(R.id.TextView)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, R.color.colorAccent));
+        }
+
         Window window = dialog.getWindow();
         if (window != null) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);

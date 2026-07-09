@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         // Load the user's preferred theme
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        isDarkMode = sharedPreferences.getBoolean("dark_mode", true);
 
         // Apply the theme based on the preference
         if (isDarkMode) {

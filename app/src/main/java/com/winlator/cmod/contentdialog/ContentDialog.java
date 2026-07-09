@@ -44,7 +44,7 @@ public class ContentDialog extends Dialog {
 
 
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        isDarkMode = sharedPreferences.getBoolean("dark_mode", true);
 
 //        contentView.setBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark: R.drawable.content_dialog_background);
 
@@ -182,7 +182,7 @@ public class ContentDialog extends Dialog {
         final EditText editText = dialog.findViewById(R.id.EditText);
 
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        boolean isDarkMode = sharedPreferences.getBoolean("dark_mode", true);
         applyDarkThemeToEditText(editText, isDarkMode);
 
         editText.setHint(R.string.untitled);

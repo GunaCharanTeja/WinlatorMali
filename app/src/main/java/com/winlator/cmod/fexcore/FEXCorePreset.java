@@ -9,6 +9,7 @@ public class FEXCorePreset {
     public static final String PERFORMANCE = "PERFORMANCE";
     public static final String PERFORMANCE_X87_OFF = "PERFORMANCE_X87_OFF";
     public static final String PERFORMANCE_TSO = "PERFORMANCE_TSO";
+    public static final String UNREAL_ENGINE_3 = "UNREAL_ENGINE_3";
     public static final String DENUVO = "DENUVO";
     public static final String CUSTOM = "CUSTOM";
     public final String id;

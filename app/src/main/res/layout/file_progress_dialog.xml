@@ -8,6 +8,7 @@
     android:focusable="true">
 
     <LinearLayout
+        android:id="@+id/LLPreloaderBackground"
         android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"

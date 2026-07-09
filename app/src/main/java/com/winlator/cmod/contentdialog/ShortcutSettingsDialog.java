@@ -91,7 +91,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context, 0.85f, 0.7f);
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = prefs.getBoolean("dark_mode", true);
 
         applyDynamicStyles(findViewById(R.id.LLContent), isDarkMode);
 
@@ -600,7 +600,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         // Update the dark mode setting of the existing instance
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = prefs.getBoolean("dark_mode", true);
         envVarsView.setDarkMode(isDarkMode);
 
         // Set the environment variables in the existing EnvVarsView

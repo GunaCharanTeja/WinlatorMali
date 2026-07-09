@@ -201,6 +201,7 @@
     <string name="performance">Performance</string>
     <string name="performance_x87_off">Performance (X86 REDUCED PRECISION OFF)</string>
     <string name="performance_tso">Performance (TSO)</string>
+    <string name="unreal_engine_3">Unreal Engine 3</string>
     <string name="unity">Unity</string>
     <string name="unity_mono_bleeding_edge">Unity Mono Bleeding Edge</string>
     <string name="max_performance">Max Performance</string>

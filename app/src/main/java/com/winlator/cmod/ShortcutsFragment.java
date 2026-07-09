@@ -424,7 +424,7 @@ public class ShortcutsFragment extends Fragment {
             editText.setVisibility(View.VISIBLE);
             
             // Apply independent styling to ensure visibility in both light and dark themes
-            boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getBoolean("dark_mode", false);
+            boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getBoolean("dark_mode", true);
             if (isDarkMode) {
                 editText.setTextColor(android.graphics.Color.WHITE);
                 editText.setHintTextColor(android.graphics.Color.GRAY);
@@ -551,7 +551,7 @@ public class ShortcutsFragment extends Fragment {
             final android.widget.EditText etTitle = uploadDialog.findViewById(R.id.ETConfigTitle);
             final android.widget.EditText etNotes = uploadDialog.findViewById(R.id.ETConfigNotes);
             
-            boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getBoolean("dark_mode", false);
+            boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getBoolean("dark_mode", true);
             int textColor = isDarkMode ? android.graphics.Color.WHITE : android.graphics.Color.BLACK;
             int hintColor = android.graphics.Color.GRAY;
             int bgRes = isDarkMode ? R.drawable.edit_text_dark : R.drawable.edit_text;

@@ -336,7 +336,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cursorLock = preferences.getBoolean("cursor_lock", true);
 
         // Check for Dark Mode
-        isDarkMode = preferences.getBoolean("dark_mode", false);
+        isDarkMode = preferences.getBoolean("dark_mode", true);
 
         boolean isOpenWithAndroidBrowser = preferences.getBoolean("open_with_android_browser", false);
         boolean isShareAndroidClipboard = preferences.getBoolean("share_android_clipboard", false);
