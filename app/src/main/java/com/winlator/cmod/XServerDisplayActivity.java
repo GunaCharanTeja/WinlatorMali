@@ -1023,6 +1023,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbEnable.setOnCheckedChangeListener((v, isChecked) -> {
             if (isChecked) frameRating.enableByUser();
             else frameRating.disableByUser();
+            if (container != null && container.isShowFPS() != isChecked) {
+                container.setShowFPS(isChecked);
+                container.saveData();
+            }
         });
 
         cbFps.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(0, isChecked));

@@ -676,15 +676,21 @@ public class WinlatorHUD extends View {
 
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
-        hudAlpha = prefs.getInt(KEY_ALPHA, 100) / 100f;
+        hudAlpha = prefs.getInt(KEY_ALPHA, 55) / 100f;
         setAlpha(hudAlpha);
         vertical = prefs.getBoolean(KEY_VERT, false);
         float scale = prefs.getFloat(KEY_SCALE, 1f);
         setScaleX(scale); setScaleY(scale);
-        setX(prefs.getFloat(KEY_X, 16f));
-        setY(prefs.getFloat(KEY_Y, 16f));
-        userEnabled = false;
-        setVisibility(GONE);
+
+        if (prefs.contains(KEY_X)) {
+            setX(prefs.getFloat(KEY_X, 16f));
+            setY(prefs.getFloat(KEY_Y, 16f));
+        } else {
+            post(() -> setPositionPreset(1));
+        }
+
+        userEnabled = prefs.getBoolean(KEY_VIS, false);
+        setVisibility(userEnabled ? VISIBLE : GONE);
     }
 
     private boolean rendererActive = false;
@@ -840,18 +846,22 @@ public class WinlatorHUD extends View {
             showMask = SHOW_DEFAULT;
             vertical = false;
             layoutDirty = true;
-            setHudScale(1.0f);
-            setHudAlpha(1.0f);
-            setX(16f);
-            setY(16f);
+            
+            setScaleX(1.0f); setScaleY(1.0f);
+            hudAlpha = 0.55f;
+            setAlpha(hudAlpha);
 
             SharedPreferences.Editor ed = prefs.edit();
             ed.putBoolean(KEY_VIS, true);
             ed.putInt(KEY_SHOW, showMask);
             ed.putBoolean(KEY_VERT, vertical);
-            ed.putFloat(KEY_X, 16f);
-            ed.putFloat(KEY_Y, 16f);
+            ed.putFloat(KEY_SCALE, 1.0f);
+            ed.putInt(KEY_ALPHA, 55);
+            ed.remove(KEY_X);
+            ed.remove(KEY_Y);
             ed.apply();
+
+            post(() -> setPositionPreset(1));
 
             if (dataSource != null) dataSource.start();
             setVisibility(VISIBLE);
@@ -881,13 +891,24 @@ public class WinlatorHUD extends View {
     }
 
     public void setPositionPreset(int preset) {
-        post(() -> {
-            float w = getWidth() * getScaleX();
-            float h = getHeight() * getScaleY();
+        Runnable r = () -> {
+            if (getParent() == null) return;
             float parentW = ((View)getParent()).getWidth();
             float parentH = ((View)getParent()).getHeight();
-            float x = 16f, y = 16f;
+            if (parentW <= 0 || parentH <= 0) {
+                postDelayed(() -> setPositionPreset(preset), 100);
+                return;
+            }
 
+            float w = getMeasuredWidth() * getScaleX();
+            float h = getMeasuredHeight() * getScaleY();
+            if (w <= 0 || h <= 0) {
+                measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
+                w = getMeasuredWidth() * getScaleX();
+                h = getMeasuredHeight() * getScaleY();
+            }
+
+            float x = 16f, y = 16f;
             switch (preset) {
                 case 1: x = (parentW - w) / 2f; break;
                 case 2: x = parentW - w - 16f; break;
@@ -900,6 +921,9 @@ public class WinlatorHUD extends View {
             }
             setX(x); setY(y);
             savePosition();
-        });
+        };
+
+        if (Looper.myLooper() == Looper.getMainLooper()) r.run();
+        else post(r);
     }
 }
