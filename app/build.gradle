@@ -27,9 +27,7 @@ tasks.register("downloadAssets") {
         [name: "imagefs.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/imagefs.tzst"],
         [name: "proton-10-arm64ec.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-10-arm64ec.tzst"],
         [name: "proton-9.0-arm64ec.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-arm64ec.tzst"],
-        [name: "proton-9.0-x86_64.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-x86_64.tzst"],
-        [name: "proton-10-arm64ec_container_pattern.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-10-arm64ec/proton-10-arm64ec_container_pattern.tzst"],
-        [name: "proton-9.0-arm64ec_container_pattern.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-9-arm64ec/proton-9.0-arm64ec_container_pattern.tzst"]
+        [name: "proton-9.0-x86_64.tzst", url: "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-x86_64.tzst"]
     ]
 
     doLast {
