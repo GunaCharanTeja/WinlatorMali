@@ -40,28 +40,38 @@ public class LSFGComputeMaterial {
                 "    vec2 uv = (vec2(pixelPos) + 0.5) / vec2(imageSize);\n" +
                 "    vec2 ts = 1.0 / vec2(imageSize);\n" +
                 "    \n" +
-                "    // --- Ultra-Light Performance Kernel ---\n" +
-                "    // We only sample 2 points for luma to detect scene changes and motion\n" +
-                "    // which drastically recovers raw performance on Mali.\n" +
                 "    float l00 = getLuma(textureLod(currFrame, uv, 0.0).rgb);\n" +
                 "    float p00 = getLuma(textureLod(prevFrame, uv, 0.0).rgb);\n" +
                 "    \n" +
                 "    float diff = abs(l00 - p00);\n" +
-                "    float sceneCut = (diff > 0.88) ? 1.0 : 0.0;\n" +
                 "    \n" +
+                "    // --- Static HUD protection ---\n" +
+                "    if (diff < 0.01) {\n" +
+                "        imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 1.0, 1.0));\n" +
+                "        return;\n" +
+                "    }\n" +
+                "    \n" +
+                "    float sceneCut = (diff > 0.88) ? 1.0 : 0.0;\n" +
                 "    float bestSAD = diff;\n" +
                 "    vec2 bestMV = vec2(0.0);\n" +
                 "    \n" +
                 "    if (sceneCut < 0.5) {\n" +
-                "        // Highly optimized search iterations\n" +
-                "        int searchScale = (quality == 0) ? 4 : (quality == 1 ? 8 : 14);\n" +
-                "        int iterations = (quality == 2) ? 3 : 2;\n" +
+                "        // Coarse-to-Fine step search scaling down to 1-pixel precision\n" +
+                "        int iterations = (quality == 0) ? 2 : ((quality == 1) ? 3 : 4);\n" +
                 "        \n" +
                 "        for (int i = iterations; i >= 1; i--) {\n" +
-                "            float step = float(1 << (i-1)) * float(searchScale);\n" +
+                "            float stepVal = 1.0;\n" +
+                "            if (quality == 0) {\n" +
+                "                stepVal = (i == 2) ? 4.0 : 1.0;\n" +
+                "            } else if (quality == 1) {\n" +
+                "                stepVal = (i == 3) ? 8.0 : ((i == 2) ? 3.0 : 1.0);\n" +
+                "            } else {\n" +
+                "                stepVal = (i == 4) ? 16.0 : ((i == 3) ? 6.0 : ((i == 2) ? 3.0 : 1.0));\n" +
+                "            }\n" +
+                "            \n" +
                 "            vec2 offsets[4];\n" +
-                "            offsets[0] = vec2(step, 0);  offsets[1] = vec2(-step, 0);\n" +
-                "            offsets[2] = vec2(0, step);  offsets[3] = vec2(0, -step);\n" +
+                "            offsets[0] = vec2(stepVal, 0.0);  offsets[1] = vec2(-stepVal, 0.0);\n" +
+                "            offsets[2] = vec2(0.0, stepVal);  offsets[3] = vec2(0.0, -stepVal);\n" +
                 "            \n" +
                 "            for(int j=0; j < 4; j++) {\n" +
                 "                vec2 off = (bestMV + offsets[j] * ts);\n" +
@@ -74,7 +84,10 @@ public class LSFGComputeMaterial {
                 "        }\n" +
                 "    }\n" +
                 "\n" +
-                "    vec2 historyMV = textureLod(mvHistoryTexture, uv, 0.0).rg;\n" +
+                "    // --- Temporally Projected Motion Vector Smoothing ---\n" +
+                "    vec2 prevMV = textureLod(mvHistoryTexture, uv, 0.0).rg;\n" +
+                "    vec2 projectedUV = clamp(uv - prevMV, 0.0, 1.0);\n" +
+                "    vec2 historyMV = textureLod(mvHistoryTexture, projectedUV, 0.0).rg;\n" +
                 "    vec2 stabilizedMV = mix(historyMV * (1.0 - sceneCut), bestMV, 0.8);\n" +
                 "    \n" +
                 "    float confidence = 1.0 - clamp(bestSAD * 4.0, 0.0, 1.0);\n" +

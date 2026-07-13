@@ -60,8 +60,12 @@ public class LSFGMaterial extends ScreenMaterial {
                 "    \n" +
                 "    vec3 result = mix(warpedPrev, warpedCurr, interpolationFactor);\n" +
                 "    \n" +
-                "    // Ghosting fallback\n" +
+                "    // --- Disocclusion & Ghosting Fallback ---\n" +
+                "    float colorDiff = distance(warpedPrev, warpedCurr);\n" +
+                "    float disocclusionMask = smoothstep(0.15, 0.4, colorDiff);\n" +
                 "    float ghostFactor = clamp((0.1 - confidence) * 4.0, 0.0, 1.0);\n" +
+                "    ghostFactor = max(ghostFactor, disocclusionMask);\n" +
+                "    \n" +
                 "    if (ghostFactor > 0.0) result = mix(result, mix(prev, curr, interpolationFactor), ghostFactor);\n" +
                 "    \n" +
                 "    outColor = vec4(result, 1.0);\n" +
