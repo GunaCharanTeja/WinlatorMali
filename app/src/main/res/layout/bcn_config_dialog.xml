@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="200dp">
+
+    <LinearLayout
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bcn_layer_configuration"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+            <ImageView
+                android:id="@+id/IVTranscodeInfo"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_driver_info"
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                app:tint="?android:attr/textColorSecondary"
+                android:padding="4dp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_bcn_emulation"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingBottom="8dp" />
+
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/SGraphicsDriverBCnEmulation"
+            android:entries="@array/bcn_emulation_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_bcn_emulation_type"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingBottom="8dp" />
+
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/SGraphicsDriverBCnEmulationType"
+            android:entries="@array/bcn_emulation_type_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_bcn_emulation_cache"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingBottom="8dp" />
+
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/SGraphicsDriverBCnEmulationCache"
+            android:entries="@array/bcn_emulation_cache_entries"
+            android:spinnerMode="dialog" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="4dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/graphics_driver_bcn_quality_preset"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+            <ImageView
+                android:id="@+id/IVQualityPresetInfo"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_driver_info"
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                app:tint="?android:attr/textColorSecondary"
+                android:padding="4dp" />
+        </LinearLayout>
+
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/SGraphicsDriverBCnQualityPreset"
+            android:entries="@array/bcn_quality_preset_entries"
+            android:spinnerMode="dialog" />
+
+
+
+        <CheckBox
+            android:id="@+id/CBASTCTranscode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_astc_transcode" />
+
+        <CheckBox
+            android:id="@+id/CBETC2Transcode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_etc2_transcode" />
+    </LinearLayout>
+</ScrollView>

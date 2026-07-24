@@ -39,6 +39,7 @@ import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.inputcontrols.UnifiedInputState;
 import com.winlator.cmod.contentdialog.AddEnvVarDialog;
+import com.winlator.cmod.contentdialog.BCNConfigDialog;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
@@ -324,9 +325,15 @@ public class ContainerDetailFragment extends Fragment {
 
         loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig,
                 isEditMode() ? container.getGraphicsDriver() : Container.DEFAULT_GRAPHICS_DRIVER,
-                isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER);
+                isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER, null);
 
         view.findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
+
+        final View vBCNConfig = view.findViewById(R.id.BTBCNConfig);
+        vBCNConfig.setOnClickListener(v -> {
+            BCNConfigDialog dialog = new BCNConfigDialog(vGraphicsDriverConfig);
+            dialog.show();
+        });
 
         Spinner sAudioDriver = view.findViewById(R.id.SAudioDriver);
         AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, isEditMode() ? container.getAudioDriver() : Container.DEFAULT_AUDIO_DRIVER);
@@ -665,7 +672,7 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     // New method: Adds support for the GraphicsDriverConfigDialog
-    public void loadGraphicsDriverSpinner(final Spinner sGraphicsDriver, final Spinner sDXWrapper, final View vGraphicsDriverConfig, String selectedGraphicsDriver, String selectedDXWrapper) {
+    public void loadGraphicsDriverSpinner(final Spinner sGraphicsDriver, final Spinner sDXWrapper, final View vGraphicsDriverConfig, String selectedGraphicsDriver, String selectedDXWrapper, Runnable onConfigChanged) {
         final Context context = sGraphicsDriver.getContext();
 
         // Update the spinner with the available graphics driver options
@@ -683,7 +690,9 @@ public class ContainerDetailFragment extends Fragment {
             AppUtils.setSpinnerSelectionFromIdentifier(sDXWrapper, selectedDXWrapper);
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
-                new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver, null).show();
+                GraphicsDriverConfigDialog dialog = new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver, null);
+                if (onConfigChanged != null) dialog.setOnConfirmCallback(onConfigChanged);
+                dialog.show();
             });
             vGraphicsDriverConfig.setVisibility(View.VISIBLE);
         };

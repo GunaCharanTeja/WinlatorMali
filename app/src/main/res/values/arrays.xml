@@ -109,6 +109,18 @@
         <item>0</item>
         <item>1</item>
     </string-array>
+    <string-array name="bcn_quality_preset_entries">
+        <item>auto</item>
+        <item>fast</item>
+        <item>balanced</item>
+        <item>high</item>
+    </string-array>
+    <string-array name="bcn_texture_scale_entries">
+        <item>disabled</item>
+        <item>max_1024px</item>
+        <item>max_512px</item>
+        <item>max_256px</item>
+    </string-array>
     <string-array name="video_memory_size_entries">
         <item>32 MB</item>
         <item>64 MB</item>

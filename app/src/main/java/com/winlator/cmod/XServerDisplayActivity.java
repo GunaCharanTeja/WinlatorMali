@@ -2020,14 +2020,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             default -> envVars.put("WRAPPER_EMULATE_BCN", "1");
         }
 
-        String bcnEmulationCache = graphicsDriverConfig.get("bcnEmulationCache");
+        String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
         envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
+        if ("0".equals(bcnEmulationCache)) {
+            envVars.put("BCN_DISABLE_DISK_CACHE", "1");
+        } else {
+            envVars.put("BCN_DISABLE_DISK_CACHE", "0");
+        }
 
         if ("1".equals(astcTranscode))
             envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
 
         if ("1".equals(etc2Transcode))
             envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
+
+        String bcnQualityPreset = graphicsDriverConfig.getOrDefault("bcnQualityPreset", "auto");
+        if (!bcnQualityPreset.equals("auto")) {
+            envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
+        }
+
+
+
+
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");
