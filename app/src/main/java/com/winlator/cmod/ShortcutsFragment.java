@@ -646,34 +646,63 @@ public class ShortcutsFragment extends Fragment {
         }
 
         public static String formatWineVersionForDisplay(String raw) {
-            if (raw == null || raw.isEmpty()) return "";
+            if (raw == null || raw.trim().isEmpty()) return "";
             String s = raw.trim();
-            if (s.endsWith(".tzst")) s = s.substring(0, s.length() - 5);
-            if (s.endsWith(".tar.xz")) s = s.substring(0, s.length() - 7);
-            if (s.endsWith(".tar.zst")) s = s.substring(0, s.length() - 8);
 
-            String lower = s.toLowerCase();
-            if (lower.startsWith("proton") || lower.startsWith("wine")) {
-                boolean isProton = lower.startsWith("proton");
-                String prefix = isProton ? "Proton" : "Wine";
-                String rest = s.substring(prefix.length());
-                if (rest.startsWith("-") || rest.startsWith(" ")) rest = rest.substring(1).trim();
-
-                String arch = "";
-                if (rest.toLowerCase().endsWith("-arm64ec") || rest.toLowerCase().endsWith(" arm64ec")) {
-                    arch = " arm64ec";
-                    rest = rest.substring(0, rest.length() - 8).trim();
-                } else if (rest.toLowerCase().endsWith("-x86_64") || rest.toLowerCase().endsWith(" x86_64")) {
-                    arch = " x86_64";
-                    rest = rest.substring(0, rest.length() - 7).trim();
-                } else if (rest.toLowerCase().endsWith("-x86") || rest.toLowerCase().endsWith(" x86")) {
-                    arch = " x86";
-                    rest = rest.substring(0, rest.length() - 4).trim();
+            // Strip common archive and package extensions
+            for (String ext : new String[]{".tzst", ".tar.xz", ".tar.zst", ".tar.gz", ".wcp", ".zip"}) {
+                if (s.toLowerCase().endsWith(ext)) {
+                    s = s.substring(0, s.length() - ext.length()).trim();
                 }
-                if (rest.endsWith("-")) rest = rest.substring(0, rest.length() - 1);
-                return prefix + " " + rest + arch;
             }
-            return s;
+
+            // Strip trailing versionCode (e.g. "-1" in "Proton-11.0-1-arm64ec-1")
+            if (s.matches(".*-[0-9]+$")) {
+                int lastDash = s.lastIndexOf('-');
+                if (lastDash > 0) {
+                    String beforeDash = s.substring(0, lastDash);
+                    String lowerBefore = beforeDash.toLowerCase();
+                    if (lowerBefore.contains("arm64") || lowerBefore.contains("x86") || lowerBefore.contains("wine") || lowerBefore.contains("proton")) {
+                        s = beforeDash;
+                    }
+                }
+            }
+
+            // Detect architecture
+            String arch = "";
+            String lower = s.toLowerCase();
+            if (lower.contains("arm64ec")) {
+                arch = " arm64ec";
+            } else if (lower.contains("x86_64") || lower.contains("x86-64") || lower.contains("x64")) {
+                arch = " x86_64";
+            } else if (lower.contains("x86") || lower.contains("i386")) {
+                arch = " x86";
+            }
+
+            // Strip architecture tokens from core version string
+            String core = s;
+            core = core.replaceAll("(?i)[-_\\s]+arm64ec", "");
+            core = core.replaceAll("(?i)[-_\\s]+x86_64", "");
+            core = core.replaceAll("(?i)[-_\\s]+x86-64", "");
+            core = core.replaceAll("(?i)[-_\\s]+x86", "");
+            core = core.replaceAll("(?i)[-_\\s]+i386", "");
+
+            // Format prefix cleanly
+            if (core.toLowerCase().startsWith("ge-proton")) {
+                String rest = core.substring(9);
+                if (rest.startsWith("-") || rest.startsWith(" ")) rest = rest.substring(1).trim();
+                return "GE-Proton " + rest + arch;
+            } else if (core.toLowerCase().startsWith("proton")) {
+                String rest = core.substring(6);
+                if (rest.startsWith("-") || rest.startsWith(" ")) rest = rest.substring(1).trim();
+                return "Proton " + rest + arch;
+            } else if (core.toLowerCase().startsWith("wine")) {
+                String rest = core.substring(4);
+                if (rest.startsWith("-") || rest.startsWith(" ")) rest = rest.substring(1).trim();
+                return "Wine " + rest + arch;
+            }
+
+            return (core + arch).trim();
         }
 
         class ViewHolder extends RecyclerView.ViewHolder {

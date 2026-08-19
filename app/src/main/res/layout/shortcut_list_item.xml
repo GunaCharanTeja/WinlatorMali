@@ -93,7 +93,7 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <TextView
+                <androidx.appcompat.widget.AppCompatTextView
                     android:id="@+id/TVSubtitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -110,15 +110,15 @@
                     android:textColor="#E0E0E0"
                     android:textSize="10sp"
                     app:autoSizeMaxTextSize="10sp"
-                    app:autoSizeMinTextSize="7.5sp"
+                    app:autoSizeMinTextSize="6sp"
                     app:autoSizeStepGranularity="0.5sp"
                     app:autoSizeTextType="uniform" />
 
-                <TextView
+                <androidx.appcompat.widget.AppCompatTextView
                     android:id="@+id/TVVersion"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
+                    android:layout_marginStart="4dp"
                     android:background="@drawable/badge_version_bg"
                     android:ellipsize="end"
                     android:fontFamily="sans-serif-medium"
@@ -129,8 +129,12 @@
                     android:shadowDy="1.0"
                     android:shadowRadius="2.0"
                     android:textColor="#00E5FF"
-                    android:textSize="10.5sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
+                    app:autoSizeMaxTextSize="10sp"
+                    app:autoSizeMinTextSize="6sp"
+                    app:autoSizeStepGranularity="0.5sp"
+                    app:autoSizeTextType="uniform"
                     android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
