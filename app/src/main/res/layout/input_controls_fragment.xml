@@ -108,13 +108,29 @@
 
         <View style="@style/HorizontalLine" />
 
-        <Button
-            style="@style/ButtonPositive"
-            android:id="@+id/BTControlsEditor"
-            android:layout_width="240dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="@string/controls_editor" />
+            android:orientation="horizontal">
+
+            <Button
+                style="@style/ButtonPositive"
+                android:id="@+id/BTControlsEditor"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="@string/controls_editor" />
+
+            <Button
+                style="@style/ButtonNeutral"
+                android:id="@+id/BTRadialWheelSettings"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="Radial Wheels" />
+        </LinearLayout>
 
 
 

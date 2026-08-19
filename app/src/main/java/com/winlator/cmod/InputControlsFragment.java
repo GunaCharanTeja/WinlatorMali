@@ -257,6 +257,14 @@ public class InputControlsFragment extends Fragment {
             }
         });
 
+        view.findViewById(R.id.BTRadialWheelSettings).setOnClickListener((v) -> {
+            if (currentProfile != null) {
+                RadialWheelsDialog.show(context, currentProfile, null);
+            } else {
+                AppUtils.showToast(context, R.string.no_profile_selected);
+            }
+        });
+
         return view;
     }
 
