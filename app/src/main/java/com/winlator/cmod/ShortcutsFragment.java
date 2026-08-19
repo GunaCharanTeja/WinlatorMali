@@ -81,6 +81,13 @@ public class ShortcutsFragment extends Fragment {
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         updateGridLayout();
+        if (recyclerView != null && recyclerView.getAdapter() != null) {
+            recyclerView.post(() -> {
+                if (recyclerView != null && recyclerView.getAdapter() != null) {
+                    recyclerView.getAdapter().notifyDataSetChanged();
+                }
+            });
+        }
     }
 
     @Override
@@ -91,18 +98,19 @@ public class ShortcutsFragment extends Fragment {
 
     private void updateGridLayout() {
         if (recyclerView == null) return;
-        int columns = 2;
         Configuration config = getResources().getConfiguration();
+        int columns = config.orientation == Configuration.ORIENTATION_LANDSCAPE ? 5 : 2;
         float density = getResources().getDisplayMetrics().density;
         int padding = (int) (8 * density);
 
-        if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            columns = 5;
-        }
-
         recyclerView.setPadding(padding, 0, padding, 0);
         recyclerView.setClipToPadding(false);
-        recyclerView.setLayoutManager(new GridLayoutManager(getContext(), columns));
+        RecyclerView.LayoutManager lm = recyclerView.getLayoutManager();
+        if (lm instanceof GridLayoutManager) {
+            ((GridLayoutManager) lm).setSpanCount(columns);
+        } else {
+            recyclerView.setLayoutManager(new GridLayoutManager(getContext(), columns));
+        }
         recyclerView.invalidateItemDecorations();
     }
 
@@ -156,12 +164,16 @@ public class ShortcutsFragment extends Fragment {
             String rawWine = item.getExtra("wineVersion", item.container.getWineVersion());
             String displayWine = formatWineVersionForDisplay(rawWine);
             if (displayWine.isEmpty()) displayWine = item.container.getName();
-            holder.subtitle.setText(displayWine);
+            if (holder.subtitle != null) {
+                holder.subtitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10);
+                holder.subtitle.setText(displayWine);
+            }
 
             String gameVersion = item.getGameVersion();
             if (gameVersion != null && !gameVersion.isEmpty()) {
                 String formattedVer = gameVersion.startsWith("v") || gameVersion.startsWith("V") ? gameVersion : "v" + gameVersion;
                 if (holder.version != null) {
+                    holder.version.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10);
                     holder.version.setText(formattedVer);
                     holder.version.setVisibility(View.VISIBLE);
                 }
@@ -611,37 +623,83 @@ public class ShortcutsFragment extends Fragment {
         }
 
         private void showShortcutProperties(Shortcut shortcut) {
+            Context context = getContext();
+            if (context == null) return;
+
+            ContentDialog dialog = new ContentDialog(context, R.layout.shortcut_properties_dialog);
+            dialog.setTitle("Properties");
+            dialog.setIcon(R.drawable.ic_nav_info);
+
+            View cancelBtn = dialog.findViewById(R.id.BTCancel);
+            if (cancelBtn != null) cancelBtn.setVisibility(View.GONE);
+
+            android.content.SharedPreferences playtimePrefs = context.getSharedPreferences("playtime_stats", Context.MODE_PRIVATE);
+            String playtimeKey = shortcut.name + "_playtime";
+            String playCountKey = shortcut.name + "_play_count";
+
+            TextView tvPlayCount = dialog.findViewById(R.id.play_count);
+            TextView tvPlaytime = dialog.findViewById(R.id.playtime);
+            TextView tvDetails = dialog.findViewById(R.id.shortcut_details);
+            android.widget.Button btnReset = dialog.findViewById(R.id.reset_properties);
+
+            long totalMs = playtimePrefs.getLong(playtimeKey, 0L);
+            int playCount = playtimePrefs.getInt(playCountKey, 0);
+
+            long seconds = (totalMs / 1000) % 60;
+            long minutes = (totalMs / (1000 * 60)) % 60;
+            long hours = (totalMs / (1000 * 60 * 60)) % 24;
+            long days = (totalMs / (1000 * 60 * 60 * 24));
+            String formattedTime = String.format("%dd %02dh %02dm %02ds", days, hours, minutes, seconds);
+
+            if (tvPlayCount != null) tvPlayCount.setText("Number of times played: " + playCount);
+            if (tvPlaytime != null) tvPlaytime.setText("Playtime: " + formattedTime);
+
             StringBuilder sb = new StringBuilder();
-            sb.append("Name: ").append(shortcut.name).append("\n");
-            sb.append("Container: ").append(shortcut.container.getName()).append("\n");
-            String wineVer = shortcut.getExtra("wineVersion", shortcut.container.getWineVersion());
-            if (wineVer != null && !wineVer.isEmpty()) {
-                sb.append("Wine: ").append(wineVer).append("\n");
-            }
+            sb.append("<b>Name:</b> ").append(shortcut.name).append("<br/>");
+            sb.append("<b>Container:</b> ").append(shortcut.container.getName()).append("<br/>");
+
+            String rawWine = shortcut.getExtra("wineVersion", shortcut.container.getWineVersion());
+            String displayWine = formatWineVersionForDisplay(rawWine);
+            if (displayWine.isEmpty()) displayWine = shortcut.container.getName();
+            sb.append("<b>Wine:</b> ").append(displayWine).append("<br/>");
 
             String gv = shortcut.getGameVersion();
             if (gv != null && !gv.isEmpty()) {
-                sb.append("Game Version: ").append(gv).append("\n");
+                sb.append("<b>Game Version:</b> ").append(gv).append("<br/>");
             }
 
             com.winlator.cmod.win32.PEParser.FileVersionInfo fi = shortcut.getFileVersionInfo();
             if (fi != null) {
+                if (fi.ProductName != null && !fi.ProductName.isEmpty()) {
+                    sb.append("<b>Product:</b> ").append(fi.ProductName).append("<br/>");
+                }
                 if (fi.CompanyName != null && !fi.CompanyName.isEmpty()) {
-                    sb.append("Company: ").append(fi.CompanyName).append("\n");
+                    sb.append("<b>Company:</b> ").append(fi.CompanyName).append("<br/>");
                 }
                 if (fi.FileDescription != null && !fi.FileDescription.isEmpty()) {
-                    sb.append("Description: ").append(fi.FileDescription).append("\n");
+                    sb.append("<b>Description:</b> ").append(fi.FileDescription).append("<br/>");
                 }
                 if (fi.LegalCopyright != null && !fi.LegalCopyright.isEmpty()) {
-                    sb.append("Copyright: ").append(fi.LegalCopyright).append("\n");
+                    sb.append("<b>Copyright:</b> ").append(fi.LegalCopyright).append("<br/>");
                 }
             }
 
-            sb.append("Path: ").append(shortcut.path).append("\n");
-            sb.append("File: ").append(shortcut.file.getPath());
-            ContentDialog dialog = new ContentDialog(getContext());
-            dialog.setTitle("Shortcut Properties");
-            dialog.setMessage(sb.toString());
+            sb.append("<b>Path:</b> ").append(shortcut.path).append("<br/>");
+            sb.append("<b>File:</b> ").append(shortcut.file != null ? shortcut.file.getPath() : "");
+
+            if (tvDetails != null) {
+                tvDetails.setText(android.text.Html.fromHtml(sb.toString(), android.text.Html.FROM_HTML_MODE_LEGACY));
+            }
+
+            if (btnReset != null) {
+                btnReset.setOnClickListener(v -> {
+                    playtimePrefs.edit().remove(playtimeKey).remove(playCountKey).apply();
+                    if (tvPlayCount != null) tvPlayCount.setText("Number of times played: 0");
+                    if (tvPlaytime != null) tvPlaytime.setText("Playtime: 0d 00h 00m 00s");
+                    Toast.makeText(context, "Properties reset", Toast.LENGTH_SHORT).show();
+                });
+            }
+
             dialog.show();
         }
 
