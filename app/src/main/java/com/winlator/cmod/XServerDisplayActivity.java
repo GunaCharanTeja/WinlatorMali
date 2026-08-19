@@ -228,6 +228,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private String screenEffectProfile;
 
+    private InGameControlsEditor inGameControlsEditor;
     private GuestProgramLauncherComponent guestProgramLauncherComponent;
     private EnvVars overrideEnvVars;
 
@@ -908,6 +909,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public void onBackPressed() {
+        if (inGameControlsEditor != null && inGameControlsEditor.isOpen()) {
+            inGameControlsEditor.handleBack();
+            return;
+        }
         if (environment != null) {
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
                 drawerLayout.openDrawer(GravityCompat.START);
@@ -1718,16 +1723,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.findViewById(R.id.BTSettings).setOnClickListener((v) -> {
             int position = sProfile.getSelectedItemPosition();
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.putExtra("edit_input_controls", true);
-            intent.putExtra("selected_profile_id", position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0);
-            editInputControlsCallback = () -> {
-                hideInputControls();
-                inputControlsManager.loadProfiles(true);
-                loadProfileSpinner.run();
-                updateProfile.run();
-            };
-            controlsEditorActivityResultLauncher.launch(intent);
+            ControlsProfile profileToEdit = position > 0 ? inputControlsManager.getProfiles().get(position - 1) : null;
+            dialog.dismiss();
+            startInGameControlsEditor(profileToEdit);
         });
 
         dialog.setOnConfirmCallback(() -> {
@@ -1874,6 +1872,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         inputControlsView.invalidate();
         winHandler.sendGamepadState();
+    }
+
+    public void startInGameControlsEditor(ControlsProfile profile) {
+        if (inGameControlsEditor != null && inGameControlsEditor.isOpen()) return;
+        if (profile == null) profile = inputControlsView.getProfile();
+        if (profile == null) {
+            ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
+            if (!profiles.isEmpty()) profile = profiles.get(0);
+        }
+        if (profile == null) {
+            AppUtils.showToast(this, R.string.no_profile_selected);
+            return;
+        }
+
+        drawerLayout.closeDrawers();
+        showInputControls(profile);
+        FrameLayout container = findViewById(R.id.FLXServerDisplay);
+        final ControlsProfile finalProfile = profile;
+        inGameControlsEditor = new InGameControlsEditor(this, container, inputControlsView, finalProfile, () -> {
+            inGameControlsEditor = null;
+            showInputControls(finalProfile);
+        });
     }
 
     private void extractGraphicsDriverFiles() {
