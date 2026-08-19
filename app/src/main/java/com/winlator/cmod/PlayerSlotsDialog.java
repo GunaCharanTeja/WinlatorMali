@@ -2,14 +2,12 @@ package com.winlator.cmod;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.graphics.Color;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
-import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -18,194 +16,140 @@ import com.winlator.cmod.inputcontrols.ExternalController;
 import com.winlator.cmod.winhandler.WinHandler;
 
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Phase 2: 4-Player Multi-Controller Slots dialog.
+ *
  * Lets the user:
- *  1. See all connected physical gamepads
- *  2. Manually pin each controller to a specific XInput player slot (1–4)
- *  3. Set per-slot stick deadzone (left & right independently)
- *  4. Toggle vibration per slot
+ *  1. See all physically connected gamepads (from InputDevice, not just those that sent events)
+ *  2. Manually pin each controller to XInput slot Player 1–4 or Auto
+ *  3. Set per-slot independent L/R stick deadzone (0–30%)
+ *  4. Toggle per-slot vibration
  */
 public class PlayerSlotsDialog {
 
-    private static final String TAG = "PlayerSlotsDialog";
-
-    /** Player LED colors: P1=blue, P2=red, P3=green, P4=yellow */
-    private static final int[] PLAYER_COLORS = {
-        0xFF2196F3, // Player 1 – Blue
-        0xFFF44336, // Player 2 – Red
-        0xFF4CAF50, // Player 3 – Green
-        0xFFFFEB3B  // Player 4 – Yellow
-    };
+    /** XInput player LED colors (used for badges): P1=blue, P2=red, P3=green, P4=yellow */
+    static final int[] PLAYER_COLORS = { 0xFF2196F3, 0xFFF44336, 0xFF4CAF50, 0xFFFFEB3B };
 
     public static void show(Context context, WinHandler winHandler) {
         if (winHandler == null) return;
 
-        // Build the list of connected controllers
-        Map<Integer, ExternalController> controllerMap = winHandler.getControllers();
-        List<ExternalController> controllers = new ArrayList<>(controllerMap.values());
-        int maxSlots = winHandler.getMaxControllers();
+        View root = LayoutInflater.from(context).inflate(R.layout.player_slots_dialog, null);
 
-        // Build a root view containing rows for each connected controller
-        // plus a per-slot section for deadzone / vibration
-        View rootView = LayoutInflater.from(context).inflate(R.layout.player_slots_dialog, null);
-
-        // Populate slot rows
-        ViewGroup slotsContainer = rootView.findViewById(R.id.SlotsContainer);
-
-        // ---- Connected-controllers header ----
-        setupConnectedControllers(context, slotsContainer, controllers, winHandler, maxSlots);
-
-        // ---- Per-slot deadzone / vibration ----
-        setupSlotSettings(context, rootView, winHandler, maxSlots);
-
-        new AlertDialog.Builder(context)
-            .setTitle("Player Slots & Settings")
-            .setView(rootView)
-            .setPositiveButton("Done", (d, w) -> {
-                // Changes are applied live via WinHandler setters
-                Log.d(TAG, "PlayerSlotsDialog closed");
-            })
-            .show();
-    }
-
-    // -----------------------------------------------------------------------
-    // Connected Controllers Section
-    // -----------------------------------------------------------------------
-    private static void setupConnectedControllers(
-        Context context,
-        ViewGroup container,
-        List<ExternalController> controllers,
-        WinHandler winHandler,
-        int maxSlots
-    ) {
-        container.removeAllViews();
+        // --- Section 1: Connected Controllers ---
+        LinearLayout controllersSection = root.findViewById(R.id.ControllersSection);
+        ArrayList<ExternalController> controllers = ExternalController.getControllers();
 
         if (controllers.isEmpty()) {
-            TextView empty = new TextView(context);
-            empty.setText("No physical controllers connected.\nConnect a gamepad via USB or Bluetooth.");
-            empty.setPadding(16, 16, 16, 16);
-            empty.setTextColor(Color.LTGRAY);
-            container.addView(empty);
-            return;
+            TextView empty = root.findViewById(R.id.TVNoControllers);
+            if (empty != null) empty.setVisibility(View.VISIBLE);
+        } else {
+            TextView empty = root.findViewById(R.id.TVNoControllers);
+            if (empty != null) empty.setVisibility(View.GONE);
+
+            int maxSlots = winHandler.getMaxControllers();
+            String[] slotLabels = new String[maxSlots + 1];
+            slotLabels[0] = "Auto";
+            for (int i = 1; i <= maxSlots; i++) slotLabels[i] = "Player " + i;
+
+            for (ExternalController controller : controllers) {
+                int deviceId = controller.getDeviceId();
+                View row = LayoutInflater.from(context)
+                    .inflate(R.layout.player_slot_row, controllersSection, false);
+
+                // LED badge color
+                View badge = row.findViewById(R.id.LedDot);
+                int currentSlot = winHandler.getSlotForDevice(deviceId);
+                badge.setBackgroundColor(currentSlot >= 0 && currentSlot < PLAYER_COLORS.length
+                    ? PLAYER_COLORS[currentSlot] : 0xFF666666);
+
+                // Controller name
+                TextView tvName = row.findViewById(R.id.TVControllerName);
+                String name = controller.getName();
+                tvName.setText((name != null && !name.isEmpty()) ? name : "Gamepad");
+
+                // Slot spinner
+                Spinner spinner = row.findViewById(R.id.SlotSpinner);
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(context,
+                    android.R.layout.simple_spinner_item, slotLabels);
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                spinner.setAdapter(adapter);
+                int manual = winHandler.getManualSlotForDevice(deviceId);
+                spinner.setSelection(manual < 0 ? 0 : manual + 1, false);
+
+                spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                        int chosen = pos - 1; // -1 = auto
+                        winHandler.pinDeviceToSlot(deviceId, chosen);
+                        badge.setBackgroundColor(chosen >= 0 && chosen < PLAYER_COLORS.length
+                            ? PLAYER_COLORS[chosen] : 0xFF666666);
+                    }
+                    @Override public void onNothingSelected(AdapterView<?> p) {}
+                });
+
+                controllersSection.addView(row);
+            }
         }
 
-        String[] slotLabels = new String[maxSlots + 1];
-        slotLabels[0] = "Auto (FCFS)";
-        for (int i = 1; i <= maxSlots; i++) {
-            slotLabels[i] = "Player " + i;
-        }
-
-        for (ExternalController controller : controllers) {
-            int deviceId = controller.getDeviceId();
-            View row = LayoutInflater.from(context).inflate(R.layout.player_slot_row, container, false);
-
-            // LED color dot
-            View ledDot = row.findViewById(R.id.LedDot);
-            int currentSlot = winHandler.getSlotForDevice(deviceId);
-            int dotColor = (currentSlot >= 0 && currentSlot < PLAYER_COLORS.length)
-                ? PLAYER_COLORS[currentSlot] : Color.DKGRAY;
-            ledDot.setBackgroundColor(dotColor);
-
-            // Controller name
-            TextView tvName = row.findViewById(R.id.TVControllerName);
-            String name = controller.getName();
-            tvName.setText(name != null && !name.isEmpty() ? name : "Gamepad #" + deviceId);
-
-            // Slot spinner
-            Spinner slotSpinner = row.findViewById(R.id.SlotSpinner);
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(context,
-                android.R.layout.simple_spinner_item, slotLabels);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            slotSpinner.setAdapter(adapter);
-
-            // Set current selection
-            int manualSlot = winHandler.getManualSlotForDevice(deviceId);
-            slotSpinner.setSelection(manualSlot < 0 ? 0 : manualSlot + 1);
-
-            slotSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                    int chosen = position - 1; // -1 = auto
-                    winHandler.pinDeviceToSlot(deviceId, chosen);
-                    // Update LED color
-                    int color = (chosen >= 0 && chosen < PLAYER_COLORS.length)
-                        ? PLAYER_COLORS[chosen] : Color.DKGRAY;
-                    ledDot.setBackgroundColor(color);
-                }
-                @Override
-                public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-            });
-
-            container.addView(row);
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Per-Slot Settings Section (deadzone + vibration)
-    // -----------------------------------------------------------------------
-    private static void setupSlotSettings(
-        Context context,
-        View rootView,
-        WinHandler winHandler,
-        int maxSlots
-    ) {
-        ViewGroup settingsContainer = rootView.findViewById(R.id.SlotSettingsContainer);
-        if (settingsContainer == null) return;
-        settingsContainer.removeAllViews();
+        // --- Section 2: Per-Slot Settings ---
+        LinearLayout slotsSection = root.findViewById(R.id.SlotSettingsSection);
+        int maxSlots = winHandler.getMaxControllers();
+        String[] slotNames = {"Player 1", "Player 2", "Player 3", "Player 4"};
 
         for (int slot = 0; slot < maxSlots; slot++) {
             final int s = slot;
-            View row = LayoutInflater.from(context).inflate(R.layout.player_slot_settings_row, settingsContainer, false);
+            View row = LayoutInflater.from(context)
+                .inflate(R.layout.player_slot_settings_row, slotsSection, false);
 
             // Color badge
-            View badge = row.findViewById(R.id.SlotBadge);
-            badge.setBackgroundColor(PLAYER_COLORS[slot]);
+            row.findViewById(R.id.SlotBadge).setBackgroundColor(PLAYER_COLORS[slot]);
+            ((TextView) row.findViewById(R.id.TVSlotLabel)).setText(slotNames[slot]);
 
-            // Label "Player X"
-            TextView label = row.findViewById(R.id.TVSlotLabel);
-            label.setText("Player " + (slot + 1));
-
-            // Vibration toggle
-            CheckBox cbVibration = row.findViewById(R.id.CBVibration);
-            cbVibration.setChecked(winHandler.isVibrationEnabledForSlot(slot));
-            cbVibration.setOnCheckedChangeListener((btn, checked) ->
+            // Vibration
+            CheckBox cbVib = row.findViewById(R.id.CBVibration);
+            cbVib.setChecked(winHandler.isVibrationEnabledForSlot(slot));
+            cbVib.setOnCheckedChangeListener((btn, checked) ->
                 winHandler.setVibrationEnabledForSlot(s, checked));
 
-            // Left stick deadzone
-            SeekBar sbLeftDZ = row.findViewById(R.id.SBLeftDeadzone);
-            TextView tvLeftDZ = row.findViewById(R.id.TVLeftDeadzone);
-            int leftDZ = (int)(winHandler.getLeftDeadzoneForSlot(slot) * 100);
-            sbLeftDZ.setProgress(leftDZ);
-            tvLeftDZ.setText("L-Stick: " + leftDZ + "%");
-            sbLeftDZ.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            // Left deadzone
+            int leftPct  = Math.round(winHandler.getLeftDeadzoneForSlot(slot)  * 100);
+            int rightPct = Math.round(winHandler.getRightDeadzoneForSlot(slot) * 100);
+
+            TextView tvL = row.findViewById(R.id.TVLeftDeadzone);
+            SeekBar sbL  = row.findViewById(R.id.SBLeftDeadzone);
+            tvL.setText(leftPct + "%");
+            sbL.setProgress(leftPct);
+            sbL.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override public void onProgressChanged(SeekBar sb, int p, boolean user) {
-                    tvLeftDZ.setText("L-Stick: " + p + "%");
+                    tvL.setText(p + "%");
                     if (user) winHandler.setLeftDeadzoneForSlot(s, p / 100f);
                 }
                 @Override public void onStartTrackingTouch(SeekBar sb) {}
                 @Override public void onStopTrackingTouch(SeekBar sb) {}
             });
 
-            // Right stick deadzone
-            SeekBar sbRightDZ = row.findViewById(R.id.SBRightDeadzone);
-            TextView tvRightDZ = row.findViewById(R.id.TVRightDeadzone);
-            int rightDZ = (int)(winHandler.getRightDeadzoneForSlot(slot) * 100);
-            sbRightDZ.setProgress(rightDZ);
-            tvRightDZ.setText("R-Stick: " + rightDZ + "%");
-            sbRightDZ.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            // Right deadzone
+            TextView tvR = row.findViewById(R.id.TVRightDeadzone);
+            SeekBar sbR  = row.findViewById(R.id.SBRightDeadzone);
+            tvR.setText(rightPct + "%");
+            sbR.setProgress(rightPct);
+            sbR.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override public void onProgressChanged(SeekBar sb, int p, boolean user) {
-                    tvRightDZ.setText("R-Stick: " + p + "%");
+                    tvR.setText(p + "%");
                     if (user) winHandler.setRightDeadzoneForSlot(s, p / 100f);
                 }
                 @Override public void onStartTrackingTouch(SeekBar sb) {}
                 @Override public void onStopTrackingTouch(SeekBar sb) {}
             });
 
-            settingsContainer.addView(row);
+            slotsSection.addView(row);
         }
+
+        new AlertDialog.Builder(context)
+            .setTitle("Player Slots")
+            .setView(root)
+            .setPositiveButton("Done", null)
+            .show();
     }
 }

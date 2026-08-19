@@ -1727,7 +1727,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.findViewById(R.id.BTSettings).setOnClickListener((v) -> {
             int position = sProfile.getSelectedItemPosition();
-            ControlsProfile profileToEdit = position > 0 ? inputControlsManager.getProfiles().get(position - 1) : null;
+            if (position <= 0) {
+                AppUtils.showToast(this, R.string.no_profile_selected);
+                return;
+            }
+            ControlsProfile profileToEdit = inputControlsManager.getProfiles().get(position - 1);
             dialog.dismiss();
             startInGameControlsEditor(profileToEdit);
         });
@@ -1881,10 +1885,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public void startInGameControlsEditor(ControlsProfile profile) {
         if (inGameControlsEditor != null && inGameControlsEditor.isOpen()) return;
         if (profile == null) profile = inputControlsView.getProfile();
-        if (profile == null) {
-            ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
-            if (!profiles.isEmpty()) profile = profiles.get(0);
-        }
         if (profile == null) {
             AppUtils.showToast(this, R.string.no_profile_selected);
             return;

@@ -3,11 +3,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
-    android:layout_marginBottom="6dp"
-    android:background="#1AFFFFFF">
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
 
-    <!-- Header row: color badge + label + vibration toggle -->
+    <!-- Header: color badge + player label + vibration -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -16,8 +15,8 @@
 
         <View
             android:id="@+id/SlotBadge"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
             android:background="#888888" />
 
         <TextView
@@ -26,9 +25,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:textColor="@android:color/white"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:textSize="13sp" />
 
         <CheckBox
             android:id="@+id/CBVibration"
@@ -39,7 +37,7 @@
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- Left stick deadzone -->
+    <!-- L-Stick Deadzone -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -48,45 +46,63 @@
         android:layout_marginTop="6dp">
 
         <TextView
-            android:id="@+id/TVLeftDeadzone"
-            android:layout_width="90dp"
-            android:layout_height="wrap_content"
-            android:textColor="#CCCCCC"
-            android:textSize="11sp"
-            android:text="L-Stick: 10%" />
-
-        <SeekBar
-            android:id="@+id/SBLeftDeadzone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:max="30"
-            android:progress="10" />
+            android:text="Left Stick"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/TVLeftDeadzone"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="#AAAAAA"
+            android:gravity="end"
+            android:text="10%" />
     </LinearLayout>
 
-    <!-- Right stick deadzone -->
+    <SeekBar
+        android:id="@+id/SBLeftDeadzone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="30"
+        android:progress="10"
+        android:layout_marginTop="2dp" />
+
+    <!-- R-Stick Deadzone -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginTop="2dp">
+        android:layout_marginTop="6dp">
 
         <TextView
-            android:id="@+id/TVRightDeadzone"
-            android:layout_width="90dp"
-            android:layout_height="wrap_content"
-            android:textColor="#CCCCCC"
-            android:textSize="11sp"
-            android:text="R-Stick: 10%" />
-
-        <SeekBar
-            android:id="@+id/SBRightDeadzone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:max="30"
-            android:progress="10" />
+            android:text="Right Stick"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/TVRightDeadzone"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="#AAAAAA"
+            android:gravity="end"
+            android:text="10%" />
     </LinearLayout>
+
+    <SeekBar
+        android:id="@+id/SBRightDeadzone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="30"
+        android:progress="10"
+        android:layout_marginTop="2dp" />
 
 </LinearLayout>
