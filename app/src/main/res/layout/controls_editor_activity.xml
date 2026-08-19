@@ -54,5 +54,10 @@
             android:id="@+id/BTElementSettings"
             style="@style/ToolButton"
             android:src="@drawable/icon_settings"  />
+
+        <ImageButton
+            android:id="@+id/BTReset"
+            style="@style/ToolButton"
+            android:src="@drawable/icon_reset"  />
     </LinearLayout>
 </FrameLayout>

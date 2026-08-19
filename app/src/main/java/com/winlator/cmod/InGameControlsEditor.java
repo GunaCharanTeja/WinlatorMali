@@ -16,6 +16,7 @@ import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.UnitUtils;
@@ -64,6 +65,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
         root.findViewById(R.id.BTAddElement).setOnClickListener(this);
         root.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         root.findViewById(R.id.BTElementSettings).setOnClickListener(this);
+        root.findViewById(R.id.BTReset).setOnClickListener(this);
         root.findViewById(R.id.BTDone).setOnClickListener(this);
 
         inputControlsView.setDrawOpaqueBackground(false);
@@ -122,6 +124,17 @@ public final class InGameControlsEditor implements View.OnClickListener {
             } else {
                 AppUtils.showToast(activity, R.string.no_control_element_selected);
             }
+        } else if (id == R.id.BTReset) {
+            ContentDialog.confirm(activity, "Reset all controls to original positions?", () -> {
+                if (profile != null) {
+                    boolean resetDefault = profile.resetToDefaultTemplate(inputControlsView);
+                    if (!resetDefault) {
+                        profile.loadElements(inputControlsView);
+                    }
+                    inputControlsView.invalidate();
+                    AppUtils.showToast(activity, "Controls reset to original layout");
+                }
+            });
         } else if (id == R.id.BTDone) {
             dispose();
             if (onDone != null) onDone.run();

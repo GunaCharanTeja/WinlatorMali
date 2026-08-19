@@ -249,4 +249,27 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             e.printStackTrace();
         }
     }
+
+    public boolean resetToDefaultTemplate(InputControlsView inputControlsView) {
+        try {
+            android.content.res.AssetManager assetManager = context.getAssets();
+            String[] assetFiles = assetManager.list("inputcontrols/profiles");
+            if (assetFiles != null) {
+                for (String assetFile : assetFiles) {
+                    String assetPath = "inputcontrols/profiles/" + assetFile;
+                    ControlsProfile originProfile = InputControlsManager.loadProfile(context, assetManager.open(assetPath));
+                    if (originProfile.getName().equalsIgnoreCase(this.getName()) || originProfile.id == this.id) {
+                        File targetFile = getProfileFile(context, id);
+                        FileUtils.copy(context, assetPath, targetFile);
+                        loadElements(inputControlsView);
+                        return true;
+                    }
+                }
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 }
