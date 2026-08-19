@@ -690,6 +690,10 @@ public class InputControlsView extends View {
             }
         }
 
+        if (radialWheelManager != null && radialWheelManager.isOpen()) {
+            return true;
+        }
+
         if (profile != null && event.getRepeatCount() == 0) {
             ExternalController controller = profile.getController(event.getDeviceId());
             if (controller != null) {

@@ -71,6 +71,10 @@ public class RadialWheelManager {
      */
     public boolean onBindingHeld(Binding binding, float x, float y) {
         if (binding == null || binding == Binding.NONE) return false;
+        // If the wheel is ALREADY open for this trigger binding, preserve selection and do not reset!
+        if (isOpen() && activeConfig != null && activeConfig.triggerBinding == binding) {
+            return true;
+        }
         for (RadialWheelConfig cfg : configs) {
             if (cfg.triggerBinding == binding) {
                 return openWheel(cfg);
@@ -84,6 +88,9 @@ public class RadialWheelManager {
      */
     public boolean openWheel(RadialWheelConfig config) {
         if (config == null) return false;
+        if (isOpen() && this.activeConfig == config) {
+            return true; // Already open, preserve selection
+        }
         this.activeConfig = config;
         updateCenterCoordinates();
         this.selectedSlice = -1;
