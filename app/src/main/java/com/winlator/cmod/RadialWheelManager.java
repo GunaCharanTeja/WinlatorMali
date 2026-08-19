@@ -17,8 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * High-performance, self-contained manager and canvas renderer for Radial Action Wheels.
- * Supports both touch-drag interaction and physical gamepad stick navigation.
+ * High-performance, screen-centered manager and canvas renderer for Radial Action Wheels.
+ * Always renders in the center of the viewport (Steam Deck / console style).
  */
 public class RadialWheelManager {
     private final InputControlsView inputControlsView;
@@ -33,12 +33,13 @@ public class RadialWheelManager {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
 
-    private static final float INNER_RADIUS_DP = 42f;
-    private static final float OUTER_RADIUS_DP = 120f;
-    private static final int COLOR_SLICE_IDLE = 0x881A2030;
+    private static final float INNER_RADIUS_DP = 48f;
+    private static final float OUTER_RADIUS_DP = 140f;
+    private static final int COLOR_DIM_BACKGROUND = 0x77000000;
+    private static final int COLOR_SLICE_IDLE = 0x99182232;
     private static final int COLOR_SLICE_SELECTED = 0xEE0288D1;
-    private static final int COLOR_CENTER_IDLE = 0xAA0F141C;
-    private static final int COLOR_CENTER_SELECTED = 0xDD0F141C;
+    private static final int COLOR_CENTER_IDLE = 0xBB0D131C;
+    private static final int COLOR_CENTER_SELECTED = 0xEE0D131C;
 
     public RadialWheelManager(InputControlsView icv, List<RadialWheelConfig> configs) {
         this.inputControlsView = icv;
@@ -70,28 +71,44 @@ public class RadialWheelManager {
         if (binding == null || binding == Binding.NONE) return false;
         for (RadialWheelConfig cfg : configs) {
             if (cfg.triggerBinding == binding) {
-                return openWheel(cfg, x, y);
+                return openWheel(cfg);
             }
         }
         return false;
     }
 
     /**
-     * Open a specific wheel at the given screen coordinates.
+     * Open a specific wheel centered on screen.
      */
-    public boolean openWheel(RadialWheelConfig config, float x, float y) {
+    public boolean openWheel(RadialWheelConfig config) {
         if (config == null) return false;
         this.activeConfig = config;
-        this.centerX = x > 0 ? x : inputControlsView.getWidth() / 2f;
-        this.centerY = y > 0 ? y : inputControlsView.getHeight() / 2f;
+        updateCenterCoordinates();
         this.selectedSlice = -1;
         this.open = true;
-        inputControlsView.invalidate();
+        if (inputControlsView != null) {
+            inputControlsView.invalidate();
+        }
         return true;
     }
 
+    public boolean openWheel(RadialWheelConfig config, float x, float y) {
+        return openWheel(config);
+    }
+
+    private void updateCenterCoordinates() {
+        if (inputControlsView != null) {
+            int vw = inputControlsView.getWidth();
+            int vh = inputControlsView.getHeight();
+            if (vw > 0 && vh > 0) {
+                this.centerX = vw / 2.0f;
+                this.centerY = vh / 2.0f;
+            }
+        }
+    }
+
     /**
-     * Called when the trigger binding is released (e.g. key up or controller button released).
+     * Called when the trigger binding is released.
      */
     public boolean onBindingReleased(Binding binding) {
         if (!isOpen()) return false;
@@ -120,7 +137,9 @@ public class RadialWheelManager {
                 if (selectedSlice >= sliceCount) selectedSlice = sliceCount - 1;
             }
         }
-        inputControlsView.invalidate();
+        if (inputControlsView != null) {
+            inputControlsView.invalidate();
+        }
     }
 
     /**
@@ -129,13 +148,17 @@ public class RadialWheelManager {
     public boolean handleTouchEvent(MotionEvent event) {
         if (!isOpen() || activeConfig == null) return false;
 
+        updateCenterCoordinates();
         float density = inputControlsView.getContext().getResources().getDisplayMetrics().density;
         float innerRadius = INNER_RADIUS_DP * density;
 
         switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
             case MotionEvent.ACTION_MOVE: {
-                float x = event.getX();
-                float y = event.getY();
+                int actionIndex = event.getActionIndex();
+                float x = event.getX(actionIndex);
+                float y = event.getY(actionIndex);
                 float dx = x - centerX;
                 float dy = y - centerY;
                 float dist = (float) Math.sqrt(dx * dx + dy * dy);
@@ -152,7 +175,9 @@ public class RadialWheelManager {
                         if (selectedSlice >= sliceCount) selectedSlice = sliceCount - 1;
                     }
                 }
-                inputControlsView.invalidate();
+                if (inputControlsView != null) {
+                    inputControlsView.invalidate();
+                }
                 return true;
             }
             case MotionEvent.ACTION_UP:
@@ -189,25 +214,28 @@ public class RadialWheelManager {
     }
 
     /**
-     * Draw the radial wheel overlay directly onto the InputControlsView canvas.
+     * Draw the screen-centered radial wheel overlay.
      */
     public void draw(Canvas canvas, int viewWidth, int viewHeight, float opacity) {
         if (!isOpen() || activeConfig == null) return;
+
+        this.centerX = viewWidth / 2.0f;
+        this.centerY = viewHeight / 2.0f;
 
         float density = inputControlsView.getContext().getResources().getDisplayMetrics().density;
         float innerRadius = INNER_RADIUS_DP * density;
         float outerRadius = OUTER_RADIUS_DP * density;
 
-        // Dim background outside the wheel
+        // Dim full screen background behind the wheel
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0x66000000);
+        paint.setColor(COLOR_DIM_BACKGROUND);
         canvas.drawRect(0, 0, viewWidth, viewHeight, paint);
 
         int sliceCount = activeConfig.slices.size();
         if (sliceCount == 0) return;
 
         float sliceAngleDeg = 360f / sliceCount;
-        float startOffset = -90f; // Top is 12 o'clock
+        float startOffset = -90f; // Slice 0 is at 12 o''clock (top)
 
         // Draw Slices
         for (int i = 0; i < sliceCount; i++) {
@@ -232,17 +260,17 @@ public class RadialWheelManager {
             paint.setColor(i == selectedSlice ? COLOR_SLICE_SELECTED : COLOR_SLICE_IDLE);
             canvas.drawPath(path, paint);
 
-            // Slice border
+            // Slice boundary stroke
             paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(i == selectedSlice ? 0xFF81D4FA : 0x40FFFFFF);
+            paint.setColor(i == selectedSlice ? 0xFF81D4FA : 0x33FFFFFF);
             paint.setStrokeWidth(1.5f * density);
             canvas.drawPath(path, paint);
         }
 
-        // Draw Outer Rim Glow
+        // Draw Outer Ring
         paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(0x80FFFFFF);
-        paint.setStrokeWidth(2f * density);
+        paint.setColor(0x88FFFFFF);
+        paint.setStrokeWidth(2.5f * density);
         canvas.drawCircle(centerX, centerY, outerRadius, paint);
 
         // Draw Center Cancel Circle
@@ -251,31 +279,29 @@ public class RadialWheelManager {
         canvas.drawCircle(centerX, centerY, innerRadius, paint);
 
         paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(selectedSlice == -1 ? 0xFFFF5252 : 0x60FFFFFF);
-        paint.setStrokeWidth(1.5f * density);
+        paint.setColor(selectedSlice == -1 ? 0xFFFF5252 : 0x55FFFFFF);
+        paint.setStrokeWidth(2f * density);
         canvas.drawCircle(centerX, centerY, innerRadius, paint);
 
         // Center Cancel '✕'
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(selectedSlice == -1 ? 0xFFFF5252 : 0xAAFFFFFF);
+        paint.setColor(selectedSlice == -1 ? 0xFFFF5252 : 0x99FFFFFF);
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(18f * density);
+        paint.setTextSize(20f * density);
         paint.setTypeface(Typeface.DEFAULT_BOLD);
         canvas.drawText("\u2715", centerX, centerY + (paint.getTextSize() / 3.2f), paint);
 
-        // Draw Wheel Name Header above wheel
+        // Wheel Title Header
         if (activeConfig.name != null && !activeConfig.name.isEmpty()) {
             paint.setColor(0xFF81D4FA);
-            paint.setTextSize(13f * density);
+            paint.setTextSize(14f * density);
             paint.setTextAlign(Paint.Align.CENTER);
             paint.setTypeface(Typeface.DEFAULT_BOLD);
-            canvas.drawText(activeConfig.name.toUpperCase(), centerX, centerY - outerRadius - (12f * density), paint);
+            canvas.drawText(activeConfig.name.toUpperCase(), centerX, centerY - outerRadius - (14f * density), paint);
         }
 
         // Draw Slice Labels
-        paint.setColor(Color.WHITE);
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(12f * density);
         paint.setTypeface(Typeface.DEFAULT_BOLD);
         paint.setStyle(Paint.Style.FILL);
 
@@ -293,10 +319,10 @@ public class RadialWheelManager {
 
             if (i == selectedSlice) {
                 paint.setColor(0xFFFFFFFF);
-                paint.setTextSize(13.5f * density);
+                paint.setTextSize(14f * density);
             } else {
                 paint.setColor(0xDDFFFFFF);
-                paint.setTextSize(11.5f * density);
+                paint.setTextSize(12f * density);
             }
             canvas.drawText(label, lx, ly, paint);
         }
