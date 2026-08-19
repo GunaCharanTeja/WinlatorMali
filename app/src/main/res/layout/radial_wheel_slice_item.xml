@@ -21,14 +21,14 @@
 
     <!-- Slice Label Input -->
     <EditText
+        style="@style/EditText"
         android:id="@+id/ETSliceLabel"
-        android:layout_width="70dp"
+        android:layout_width="80dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="6dp"
         android:hint="Label"
         android:singleLine="true"
-        android:textSize="12sp"
-        android:textColor="@android:color/white" />
+        android:textSize="12sp" />
 
     <!-- Slice Binding Action -->
     <Spinner

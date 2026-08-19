@@ -283,7 +283,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
     public ArrayList<RadialWheelConfig> loadWheels() {
         wheels.clear();
-        wheelsLoaded = false;
+        wheelsLoaded = true;
 
         File file = getProfileFile(context, id);
         if (!file.isFile()) return wheels;
@@ -297,7 +297,6 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 RadialWheelConfig wheel = RadialWheelConfig.fromJSON(wheelJSONObject);
                 if (wheel != null) wheels.add(wheel);
             }
-            wheelsLoaded = true;
         }
         catch (JSONException e) {
             e.printStackTrace();

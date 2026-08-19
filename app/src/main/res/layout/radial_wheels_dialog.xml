@@ -83,14 +83,14 @@
                         android:textStyle="bold" />
 
                     <EditText
+                        style="@style/EditText"
                         android:id="@+id/ETWheelName"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:inputType="text"
                         android:hint="e.g. Weapons, Spells, Hotkeys"
-                        android:textSize="13sp"
-                        android:textColor="@android:color/white" />
+                        android:textSize="13sp" />
 
                     <TextView
                         android:layout_width="wrap_content"

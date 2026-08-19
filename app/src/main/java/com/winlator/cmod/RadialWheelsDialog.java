@@ -2,8 +2,6 @@ package com.winlator.cmod;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
@@ -48,7 +46,7 @@ public class RadialWheelsDialog {
         Spinner spTriggerBinding = root.findViewById(R.id.SPTriggerBinding);
         LinearLayout llSlicesContainer = root.findViewById(R.id.LLSlicesContainer);
 
-        // Binding names list
+        // Binding list
         Binding[] allBindings = Binding.values();
         String[] bindingNames = new String[allBindings.length];
         for (int i = 0; i < allBindings.length; i++) {
@@ -60,6 +58,37 @@ public class RadialWheelsDialog {
         spTriggerBinding.setAdapter(triggerAdapter);
 
         final int[] currentWheelIndex = {0};
+        final boolean[] isPopulating = {false};
+
+        // Method to save current UI state into the active wheel config
+        final Runnable saveCurrentWheelFromUI = () -> {
+            if (currentWheelIndex[0] < 0 || currentWheelIndex[0] >= wheels.size()) return;
+            RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
+            cfg.name = etWheelName.getText().toString().trim();
+
+            int trigPos = spTriggerBinding.getSelectedItemPosition();
+            if (trigPos >= 0 && trigPos < allBindings.length) {
+                cfg.triggerBinding = allBindings[trigPos];
+            }
+
+            int childCount = llSlicesContainer.getChildCount();
+            for (int i = 0; i < childCount && i < cfg.slices.size(); i++) {
+                View sliceView = llSlicesContainer.getChildAt(i);
+                EditText etLabel = sliceView.findViewById(R.id.ETSliceLabel);
+                Spinner spBinding = sliceView.findViewById(R.id.SPSliceBinding);
+                RadialWheelSlice slice = cfg.slices.get(i);
+
+                if (etLabel != null) {
+                    slice.label = etLabel.getText().toString().trim();
+                }
+                if (spBinding != null) {
+                    int bPos = spBinding.getSelectedItemPosition();
+                    if (bPos >= 0 && bPos < allBindings.length) {
+                        slice.binding = allBindings[bPos];
+                    }
+                }
+            }
+        };
 
         final Runnable updateWheelSelector = () -> {
             List<String> wheelLabels = new ArrayList<>();
@@ -75,15 +104,15 @@ public class RadialWheelsDialog {
             }
         };
 
-        final Runnable[] populateCurrentWheel = new Runnable[1];
-        populateCurrentWheel[0] = () -> {
+        final Runnable populateCurrentWheel = () -> {
             if (currentWheelIndex[0] >= wheels.size()) currentWheelIndex[0] = 0;
             if (wheels.isEmpty()) return;
 
+            isPopulating[0] = true;
             RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
             etWheelName.setText(cfg.name != null ? cfg.name : "");
 
-            // Set trigger binding
+            // Set trigger binding selection
             int triggerIdx = 0;
             if (cfg.triggerBinding != null) {
                 for (int i = 0; i < allBindings.length; i++) {
@@ -98,7 +127,6 @@ public class RadialWheelsDialog {
             // Populate slices
             llSlicesContainer.removeAllViews();
             for (int i = 0; i < RadialWheelConfig.MAX_SLICES; i++) {
-                final int sliceIdx = i;
                 RadialWheelSlice slice = cfg.slices.get(i);
                 View sliceView = LayoutInflater.from(context).inflate(R.layout.radial_wheel_slice_item, llSlicesContainer, false);
 
@@ -124,51 +152,19 @@ public class RadialWheelsDialog {
                 }
                 spBinding.setSelection(bIdx);
 
-                etLabel.addTextChangedListener(new TextWatcher() {
-                    @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                    @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                        slice.label = s.toString();
-                    }
-                    @Override public void afterTextChanged(Editable s) {}
-                });
-
-                spBinding.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                        slice.binding = allBindings[position];
-                    }
-                    @Override public void onNothingSelected(AdapterView<?> parent) {}
-                });
-
                 llSlicesContainer.addView(sliceView);
             }
+            isPopulating[0] = false;
         };
-
-        etWheelName.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (currentWheelIndex[0] < wheels.size()) {
-                    wheels.get(currentWheelIndex[0]).name = s.toString();
-                }
-            }
-            @Override public void afterTextChanged(Editable s) {}
-        });
-
-        spTriggerBinding.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (currentWheelIndex[0] < wheels.size()) {
-                    wheels.get(currentWheelIndex[0]).triggerBinding = allBindings[position];
-                }
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
 
         spWheelSelect.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                currentWheelIndex[0] = position;
-                populateCurrentWheel[0].run();
+                if (position != currentWheelIndex[0]) {
+                    saveCurrentWheelFromUI.run();
+                    currentWheelIndex[0] = position;
+                    populateCurrentWheel.run();
+                }
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -178,12 +174,13 @@ public class RadialWheelsDialog {
                 AppUtils.showToast(context, "Maximum 4 radial wheels per profile");
                 return;
             }
+            saveCurrentWheelFromUI.run();
             RadialWheelConfig newWheel = new RadialWheelConfig(wheels.size() + 1);
             newWheel.name = "Wheel " + (wheels.size() + 1);
             wheels.add(newWheel);
             currentWheelIndex[0] = wheels.size() - 1;
             updateWheelSelector.run();
-            populateCurrentWheel[0].run();
+            populateCurrentWheel.run();
         });
 
         btRemoveWheel.setOnClickListener(v -> {
@@ -194,16 +191,17 @@ public class RadialWheelsDialog {
             wheels.remove(currentWheelIndex[0]);
             if (currentWheelIndex[0] >= wheels.size()) currentWheelIndex[0] = wheels.size() - 1;
             updateWheelSelector.run();
-            populateCurrentWheel[0].run();
+            populateCurrentWheel.run();
         });
 
         updateWheelSelector.run();
-        populateCurrentWheel[0].run();
+        populateCurrentWheel.run();
 
         new AlertDialog.Builder(context)
                 .setTitle("Radial Action Wheels")
                 .setView(root)
                 .setPositiveButton("Save", (dialog, which) -> {
+                    saveCurrentWheelFromUI.run();
                     profile.save();
                     AppUtils.showToast(context, "Radial Wheels Saved");
                     if (onSaveCallback != null) onSaveCallback.run();
