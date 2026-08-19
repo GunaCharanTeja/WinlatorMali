@@ -101,14 +101,14 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                 else AppUtils.showToast(this, R.string.no_control_element_selected);
                 break;
             case R.id.BTReset:
-                ContentDialog.confirm(this, "Reset all controls to original positions?", () -> {
+                ContentDialog.confirm(this, "Reset all buttons to original positions?", () -> {
                     if (profile != null) {
                         boolean resetDefault = profile.resetToDefaultTemplate(inputControlsView);
                         if (!resetDefault) {
                             profile.loadElements(inputControlsView);
                         }
                         inputControlsView.invalidate();
-                        AppUtils.showToast(this, "Controls reset to original layout");
+                        AppUtils.showToast(this, "Buttons reset to original layout");
                     }
                 });
                 break;

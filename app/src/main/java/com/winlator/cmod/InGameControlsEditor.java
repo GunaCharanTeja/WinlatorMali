@@ -125,14 +125,14 @@ public final class InGameControlsEditor implements View.OnClickListener {
                 AppUtils.showToast(activity, R.string.no_control_element_selected);
             }
         } else if (id == R.id.BTReset) {
-            ContentDialog.confirm(activity, "Reset all controls to original positions?", () -> {
+            ContentDialog.confirm(activity, "Reset all buttons to original positions?", () -> {
                 if (profile != null) {
                     boolean resetDefault = profile.resetToDefaultTemplate(inputControlsView);
                     if (!resetDefault) {
                         profile.loadElements(inputControlsView);
                     }
                     inputControlsView.invalidate();
-                    AppUtils.showToast(activity, "Controls reset to original layout");
+                    AppUtils.showToast(activity, "Buttons reset to original layout");
                 }
             });
         } else if (id == R.id.BTDone) {
