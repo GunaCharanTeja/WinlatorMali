@@ -1,9 +1,11 @@
 package com.winlator.cmod;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.view.MotionEvent;
@@ -18,7 +20,7 @@ import java.util.List;
 
 /**
  * High-performance, screen-centered manager and canvas renderer for Radial Action Wheels.
- * Always renders in the center of the viewport (Steam Deck / console style).
+ * Supports multi-touch dual-finger interaction, icon rendering, and physical gamepad stick navigation.
  */
 public class RadialWheelManager {
     private final InputControlsView inputControlsView;
@@ -143,7 +145,8 @@ public class RadialWheelManager {
     }
 
     /**
-     * Handle touch events when wheel is active.
+     * Multi-touch aware touch handler for the radial wheel.
+     * Evaluates all active touch pointers so holding with one finger and selecting with another works seamlessly!
      */
     public boolean handleTouchEvent(MotionEvent event) {
         if (!isOpen() || activeConfig == null) return false;
@@ -152,36 +155,50 @@ public class RadialWheelManager {
         float density = inputControlsView.getContext().getResources().getDisplayMetrics().density;
         float innerRadius = INNER_RADIUS_DP * density;
 
-        switch (event.getActionMasked()) {
+        int actionMasked = event.getActionMasked();
+
+        switch (actionMasked) {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
             case MotionEvent.ACTION_MOVE: {
-                int actionIndex = event.getActionIndex();
-                float x = event.getX(actionIndex);
-                float y = event.getY(actionIndex);
-                float dx = x - centerX;
-                float dy = y - centerY;
-                float dist = (float) Math.sqrt(dx * dx + dy * dy);
+                boolean foundSlice = false;
+                // Check all active fingers across the screen
+                for (int i = 0; i < event.getPointerCount(); i++) {
+                    float px = event.getX(i);
+                    float py = event.getY(i);
+                    float dx = px - centerX;
+                    float dy = py - centerY;
+                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
 
-                if (dist < innerRadius) {
-                    selectedSlice = -1;
-                } else {
-                    int sliceCount = activeConfig.slices.size();
-                    if (sliceCount > 0) {
-                        double angleDeg = Math.toDegrees(Math.atan2(dy, dx));
-                        angleDeg = (angleDeg + 90 + 360) % 360;
-                        double sliceAngle = 360.0 / sliceCount;
-                        selectedSlice = (int) (angleDeg / sliceAngle);
-                        if (selectedSlice >= sliceCount) selectedSlice = sliceCount - 1;
+                    if (dist >= innerRadius) {
+                        int sliceCount = activeConfig.slices.size();
+                        if (sliceCount > 0) {
+                            double angleDeg = Math.toDegrees(Math.atan2(dy, dx));
+                            angleDeg = (angleDeg + 90 + 360) % 360;
+                            double sliceAngle = 360.0 / sliceCount;
+                            selectedSlice = (int) (angleDeg / sliceAngle);
+                            if (selectedSlice >= sliceCount) selectedSlice = sliceCount - 1;
+                            foundSlice = true;
+                        }
                     }
+                }
+                if (!foundSlice) {
+                    selectedSlice = -1;
                 }
                 if (inputControlsView != null) {
                     inputControlsView.invalidate();
                 }
                 return true;
             }
-            case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP: {
+                // If a secondary finger lifted while selecting a slice, fire immediately
+                if (selectedSlice >= 0) {
+                    fireSelectedAndClose();
+                    return true;
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_UP: {
                 fireSelectedAndClose();
                 return true;
             }
@@ -226,7 +243,7 @@ public class RadialWheelManager {
         float innerRadius = INNER_RADIUS_DP * density;
         float outerRadius = OUTER_RADIUS_DP * density;
 
-        // Dim full screen background behind the wheel
+        // Dim background
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(COLOR_DIM_BACKGROUND);
         canvas.drawRect(0, 0, viewWidth, viewHeight, paint);
@@ -235,7 +252,7 @@ public class RadialWheelManager {
         if (sliceCount == 0) return;
 
         float sliceAngleDeg = 360f / sliceCount;
-        float startOffset = -90f; // Slice 0 is at 12 o''clock (top)
+        float startOffset = -90f; // 12 o'clock
 
         // Draw Slices
         for (int i = 0; i < sliceCount; i++) {
@@ -255,12 +272,12 @@ public class RadialWheelManager {
             path.arcTo(innerRect, startAngle + sweepAngle, -sweepAngle);
             path.close();
 
-            // Fill slice
+            // Fill
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(i == selectedSlice ? COLOR_SLICE_SELECTED : COLOR_SLICE_IDLE);
             canvas.drawPath(path, paint);
 
-            // Slice boundary stroke
+            // Border
             paint.setStyle(Paint.Style.STROKE);
             paint.setColor(i == selectedSlice ? 0xFF81D4FA : 0x33FFFFFF);
             paint.setStrokeWidth(1.5f * density);
@@ -300,22 +317,32 @@ public class RadialWheelManager {
             canvas.drawText(activeConfig.name.toUpperCase(), centerX, centerY - outerRadius - (14f * density), paint);
         }
 
-        // Draw Slice Labels
+        // Draw Slice Content (Icon or Label)
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setTypeface(Typeface.DEFAULT_BOLD);
         paint.setStyle(Paint.Style.FILL);
 
-        float labelRadius = outerRadius * 0.72f;
+        float contentRadius = outerRadius * 0.72f;
         for (int i = 0; i < sliceCount; i++) {
             RadialWheelSlice slice = activeConfig.slices.get(i);
+            float midAngle = startOffset + i * sliceAngleDeg + sliceAngleDeg / 2f;
+            double midRad = Math.toRadians(midAngle);
+            float cx = centerX + (float)(Math.cos(midRad) * contentRadius);
+            float cy = centerY + (float)(Math.sin(midRad) * contentRadius);
+
+            if (slice.iconId > 0) {
+                Bitmap iconBmp = inputControlsView.getIcon((byte) slice.iconId);
+                if (iconBmp != null) {
+                    float iconSize = 26f * density;
+                    Rect dst = new Rect((int)(cx - iconSize / 2), (int)(cy - iconSize / 2), (int)(cx + iconSize / 2), (int)(cy + iconSize / 2));
+                    canvas.drawBitmap(iconBmp, null, dst, null);
+                    continue;
+                }
+            }
+
             String label = (slice.label != null && !slice.label.isEmpty())
                     ? slice.label : (slice.binding != null && slice.binding != Binding.NONE ? slice.binding.toString() : "");
             if (label.isEmpty()) continue;
-
-            float midAngle = startOffset + i * sliceAngleDeg + sliceAngleDeg / 2f;
-            double midRad = Math.toRadians(midAngle);
-            float lx = centerX + (float)(Math.cos(midRad) * labelRadius);
-            float ly = centerY + (float)(Math.sin(midRad) * labelRadius) + (paint.getTextSize() / 3f);
 
             if (i == selectedSlice) {
                 paint.setColor(0xFFFFFFFF);
@@ -324,7 +351,7 @@ public class RadialWheelManager {
                 paint.setColor(0xDDFFFFFF);
                 paint.setTextSize(12f * density);
             }
-            canvas.drawText(label, lx, ly, paint);
+            canvas.drawText(label, cx, cy + (paint.getTextSize() / 3f), paint);
         }
     }
 }

@@ -1,28 +1,39 @@
 package com.winlator.cmod;
 
-import android.app.AlertDialog;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.UnitUtils;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
 import com.winlator.cmod.inputcontrols.RadialWheelConfig;
 import com.winlator.cmod.inputcontrols.RadialWheelSlice;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Phase 3: Steam Deck-Style Radial Action Wheels configuration dialog.
+ * Styled with native Winlator ContentDialog theme and custom icon support.
  */
 public class RadialWheelsDialog {
     private static final int MAX_WHEELS = 4;
@@ -38,13 +49,16 @@ public class RadialWheelsDialog {
             wheels.add(defaultWheel);
         }
 
-        View root = LayoutInflater.from(context).inflate(R.layout.radial_wheels_dialog, null);
-        Spinner spWheelSelect = root.findViewById(R.id.SPWheelSelect);
-        Button btAddWheel = root.findViewById(R.id.BTAddWheel);
-        Button btRemoveWheel = root.findViewById(R.id.BTRemoveWheel);
-        EditText etWheelName = root.findViewById(R.id.ETWheelName);
-        Spinner spTriggerBinding = root.findViewById(R.id.SPTriggerBinding);
-        LinearLayout llSlicesContainer = root.findViewById(R.id.LLSlicesContainer);
+        ContentDialog dialog = new ContentDialog(context, R.layout.radial_wheels_dialog);
+        dialog.setTitle("Radial Action Wheels");
+        dialog.setIcon(R.drawable.icon_radial_wheel);
+
+        Spinner spWheelSelect = dialog.findViewById(R.id.SPWheelSelect);
+        Button btAddWheel = dialog.findViewById(R.id.BTAddWheel);
+        Button btRemoveWheel = dialog.findViewById(R.id.BTRemoveWheel);
+        EditText etWheelName = dialog.findViewById(R.id.ETWheelName);
+        Spinner spTriggerBinding = dialog.findViewById(R.id.SPTriggerBinding);
+        LinearLayout llSlicesContainer = dialog.findViewById(R.id.LLSlicesContainer);
 
         // Binding list
         Binding[] allBindings = Binding.values();
@@ -58,7 +72,6 @@ public class RadialWheelsDialog {
         spTriggerBinding.setAdapter(triggerAdapter);
 
         final int[] currentWheelIndex = {0};
-        final boolean[] isPopulating = {false};
 
         // Method to save current UI state into the active wheel config
         final Runnable saveCurrentWheelFromUI = () -> {
@@ -108,7 +121,6 @@ public class RadialWheelsDialog {
             if (currentWheelIndex[0] >= wheels.size()) currentWheelIndex[0] = 0;
             if (wheels.isEmpty()) return;
 
-            isPopulating[0] = true;
             RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
             etWheelName.setText(cfg.name != null ? cfg.name : "");
 
@@ -131,11 +143,15 @@ public class RadialWheelsDialog {
                 View sliceView = LayoutInflater.from(context).inflate(R.layout.radial_wheel_slice_item, llSlicesContainer, false);
 
                 TextView tvIndex = sliceView.findViewById(R.id.TVSliceIndex);
+                ImageView ivIcon = sliceView.findViewById(R.id.IVSliceIcon);
                 EditText etLabel = sliceView.findViewById(R.id.ETSliceLabel);
                 Spinner spBinding = sliceView.findViewById(R.id.SPSliceBinding);
 
                 tvIndex.setText(String.valueOf(i + 1));
                 etLabel.setText(slice.label != null ? slice.label : "");
+
+                updateSliceIconView(context, ivIcon, slice.iconId);
+                ivIcon.setOnClickListener(v -> showIconPickerDialog(context, slice, () -> updateSliceIconView(context, ivIcon, slice.iconId)));
 
                 ArrayAdapter<String> sliceBindingAdapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, bindingNames);
                 sliceBindingAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -154,7 +170,6 @@ public class RadialWheelsDialog {
 
                 llSlicesContainer.addView(sliceView);
             }
-            isPopulating[0] = false;
         };
 
         spWheelSelect.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -197,16 +212,109 @@ public class RadialWheelsDialog {
         updateWheelSelector.run();
         populateCurrentWheel.run();
 
-        new AlertDialog.Builder(context)
-                .setTitle("Radial Action Wheels")
-                .setView(root)
-                .setPositiveButton("Save", (dialog, which) -> {
-                    saveCurrentWheelFromUI.run();
-                    profile.save();
-                    AppUtils.showToast(context, "Radial Wheels Saved");
-                    if (onSaveCallback != null) onSaveCallback.run();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+        dialog.setOnConfirmCallback(() -> {
+            saveCurrentWheelFromUI.run();
+            profile.save();
+            AppUtils.showToast(context, "Radial Wheels Saved");
+            if (onSaveCallback != null) onSaveCallback.run();
+        });
+
+        dialog.show();
+    }
+
+    private static void updateSliceIconView(Context context, ImageView iv, int iconId) {
+        if (iv == null) return;
+        if (iconId > 0) {
+            try (InputStream is = context.getAssets().open("inputcontrols/icons/" + iconId + ".png")) {
+                Bitmap bmp = BitmapFactory.decodeStream(is);
+                iv.setImageBitmap(bmp);
+            } catch (IOException e) {
+                iv.setImageResource(R.drawable.icon_radial_wheel);
+            }
+        } else {
+            iv.setImageResource(R.drawable.icon_radial_wheel);
+        }
+    }
+
+    private static void showIconPickerDialog(Context context, RadialWheelSlice slice, Runnable onSelected) {
+        byte[] iconIds = new byte[0];
+        try {
+            String[] filenames = context.getAssets().list("inputcontrols/icons/");
+            if (filenames != null) {
+                iconIds = new byte[filenames.length];
+                for (int i = 0; i < filenames.length; i++) {
+                    iconIds[i] = Byte.parseByte(FileUtils.getBasename(filenames[i]));
+                }
+            }
+        } catch (Exception e) {}
+        Arrays.sort(iconIds);
+
+        ContentDialog iconDialog = new ContentDialog(context);
+        iconDialog.setTitle("Select Slice Icon");
+        iconDialog.setIcon(R.drawable.icon_radial_wheel);
+
+        FrameLayout frameLayout = iconDialog.findViewById(R.id.FrameLayout);
+        if (frameLayout == null) return;
+        frameLayout.setVisibility(View.VISIBLE);
+
+        ScrollView scrollView = new ScrollView(context);
+        LinearLayout llList = new LinearLayout(context);
+        llList.setOrientation(LinearLayout.VERTICAL);
+        llList.setPadding(16, 16, 16, 16);
+        scrollView.addView(llList);
+        frameLayout.addView(scrollView);
+
+        int size = (int) UnitUtils.dpToPx(44);
+        int margin = (int) UnitUtils.dpToPx(4);
+        int padding = (int) UnitUtils.dpToPx(6);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+        params.setMargins(margin, margin, margin, margin);
+
+        // "No Icon (Text Only)" button
+        Button btNoIcon = new Button(context);
+        btNoIcon.setText("None (Text / Emoji Only)");
+        btNoIcon.setTextSize(12);
+        btNoIcon.setOnClickListener(v -> {
+            slice.iconId = 0;
+            if (onSelected != null) onSelected.run();
+            iconDialog.dismiss();
+        });
+        llList.addView(btNoIcon);
+
+        // Grid rows of icons
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        int count = 0;
+        for (final byte id : iconIds) {
+            ImageView iv = new ImageView(context);
+            iv.setLayoutParams(params);
+            iv.setPadding(padding, padding, padding, padding);
+            iv.setBackgroundResource(R.drawable.icon_background);
+            iv.setSelected(slice.iconId == id);
+
+            try (InputStream is = context.getAssets().open("inputcontrols/icons/" + id + ".png")) {
+                iv.setImageBitmap(BitmapFactory.decodeStream(is));
+            } catch (IOException e) {}
+
+            iv.setOnClickListener(v -> {
+                slice.iconId = id;
+                if (onSelected != null) onSelected.run();
+                iconDialog.dismiss();
+            });
+
+            row.addView(iv);
+            count++;
+            if (count % 5 == 0) {
+                llList.addView(row);
+                row = new LinearLayout(context);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+            }
+        }
+        if (row.getChildCount() > 0) {
+            llList.addView(row);
+        }
+
+        iconDialog.show();
     }
 }

@@ -1,6 +1,5 @@
 package com.winlator.cmod;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,39 +11,34 @@ import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.inputcontrols.ExternalController;
 import com.winlator.cmod.winhandler.WinHandler;
 
 import java.util.ArrayList;
 
 /**
- * Phase 2: 4-Player Multi-Controller Slots dialog.
- *
- * Lets the user:
- *  1. See all physically connected gamepads (from InputDevice, not just those that sent events)
- *  2. Manually pin each controller to XInput slot Player 1–4 or Auto
- *  3. Set per-slot independent L/R stick deadzone (0–30%)
- *  4. Toggle per-slot vibration
+ * Phase 2: 4-Player Multi-Controller Slots dialog (Styled with ContentDialog).
  */
 public class PlayerSlotsDialog {
-
-    /** XInput player LED colors (used for badges): P1=blue, P2=red, P3=green, P4=yellow */
     static final int[] PLAYER_COLORS = { 0xFF2196F3, 0xFFF44336, 0xFF4CAF50, 0xFFFFEB3B };
 
     public static void show(Context context, WinHandler winHandler) {
         if (winHandler == null) return;
 
-        View root = LayoutInflater.from(context).inflate(R.layout.player_slots_dialog, null);
+        ContentDialog dialog = new ContentDialog(context, R.layout.player_slots_dialog);
+        dialog.setTitle("Player Slots (XInput 1–4)");
+        dialog.setIcon(R.drawable.icon_controller);
 
         // --- Section 1: Connected Controllers ---
-        LinearLayout controllersSection = root.findViewById(R.id.ControllersSection);
+        LinearLayout controllersSection = dialog.findViewById(R.id.ControllersSection);
         ArrayList<ExternalController> controllers = ExternalController.getControllers();
 
         if (controllers.isEmpty()) {
-            TextView empty = root.findViewById(R.id.TVNoControllers);
+            TextView empty = dialog.findViewById(R.id.TVNoControllers);
             if (empty != null) empty.setVisibility(View.VISIBLE);
         } else {
-            TextView empty = root.findViewById(R.id.TVNoControllers);
+            TextView empty = dialog.findViewById(R.id.TVNoControllers);
             if (empty != null) empty.setVisibility(View.GONE);
 
             int maxSlots = winHandler.getMaxControllers();
@@ -93,7 +87,7 @@ public class PlayerSlotsDialog {
         }
 
         // --- Section 2: Per-Slot Settings ---
-        LinearLayout slotsSection = root.findViewById(R.id.SlotSettingsSection);
+        LinearLayout slotsSection = dialog.findViewById(R.id.SlotSettingsSection);
         int maxSlots = winHandler.getMaxControllers();
         String[] slotNames = {"Player 1", "Player 2", "Player 3", "Player 4"};
 
@@ -146,10 +140,6 @@ public class PlayerSlotsDialog {
             slotsSection.addView(row);
         }
 
-        new AlertDialog.Builder(context)
-            .setTitle("Player Slots")
-            .setView(root)
-            .setPositiveButton("Done", null)
-            .show();
+        dialog.show();
     }
 }

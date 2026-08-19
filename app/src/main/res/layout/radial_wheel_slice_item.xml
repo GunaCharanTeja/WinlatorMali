@@ -10,22 +10,33 @@
     <!-- Slice Index Badge -->
     <TextView
         android:id="@+id/TVSliceIndex"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
         android:background="@drawable/rounded_circle_bg"
         android:gravity="center"
         android:textColor="@android:color/white"
-        android:textSize="11sp"
+        android:textSize="10sp"
         android:textStyle="bold"
         android:text="1" />
+
+    <!-- Slice Icon Preview Button -->
+    <ImageView
+        android:id="@+id/IVSliceIcon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="4dp"
+        android:padding="3dp"
+        android:background="@drawable/button_neutral"
+        android:contentDescription="Slice Icon"
+        android:scaleType="fitCenter" />
 
     <!-- Slice Label Input -->
     <EditText
         style="@style/EditText"
         android:id="@+id/ETSliceLabel"
-        android:layout_width="80dp"
+        android:layout_width="65dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="6dp"
+        android:layout_marginStart="4dp"
         android:hint="Label"
         android:singleLine="true"
         android:textSize="12sp" />
@@ -36,7 +47,7 @@
         style="@style/ComboBox"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="6dp"
+        android:layout_marginStart="4dp"
         android:layout_weight="1"
         android:spinnerMode="dropdown" />
 

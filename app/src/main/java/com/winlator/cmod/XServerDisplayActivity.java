@@ -1689,8 +1689,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        dialog.findViewById(R.id.BTVibration).setOnClickListener(v -> showVibrationDialog());
-
         dialog.findViewById(R.id.BTPlayerSlots).setOnClickListener(v ->
             PlayerSlotsDialog.show(this, winHandler));
 
