@@ -175,6 +175,11 @@ public class InputControlsView extends View {
                 element.draw(canvas);
             }
         }
+
+        if (radialWheelManager != null && radialWheelManager.isOpen()) {
+            radialWheelManager.draw(canvas, width, height, overlayOpacity);
+        }
+
         super.onDraw(canvas);
     }
 
@@ -300,8 +305,16 @@ public class InputControlsView extends View {
         if (profile != null) {
             this.profile = profile;
             deselectAllElements();
+            if (radialWheelManager != null) {
+                radialWheelManager.updateConfigs(profile.getWheels());
+            }
         }
-        else this.profile = null;
+        else {
+            this.profile = null;
+            if (radialWheelManager != null) {
+                radialWheelManager.dismissAll();
+            }
+        }
     }
 
     public boolean isShowTouchscreenControls() {
@@ -487,11 +500,24 @@ public class InputControlsView extends View {
                 }
             }
         }
+        if (radialWheelManager != null && radialWheelManager.isOpen()) {
+            radialWheelManager.onStickMoved(valX, valY);
+        }
     }
 
     private void processTriggerInput(ExternalController controller, float value, int keyCode, boolean sendUpdate) {
         ExternalControllerBinding binding = controller.getControllerBinding(keyCode);
-        if (binding != null) handleInputEvent(controller, binding.getBinding(), value > ControlElement.STICK_DEAD_ZONE, value, sendUpdate);
+        if (binding != null) {
+            Binding b = binding.getBinding();
+            if (radialWheelManager != null) {
+                if (value > 0.5f) {
+                    radialWheelManager.onBindingHeld(b, getWidth() / 2f, getHeight() / 2f);
+                } else if (value < 0.2f && radialWheelManager.isOpen()) {
+                    radialWheelManager.onBindingReleased(b);
+                }
+            }
+            handleInputEvent(controller, b, value > ControlElement.STICK_DEAD_ZONE, value, sendUpdate);
+        }
     }
 
     @Override
@@ -534,8 +560,8 @@ public class InputControlsView extends View {
                     float x = event.getX(actionIndex), y = event.getY(actionIndex);
                     touchpadView.setPointerButtonLeftEnabled(true);
                     for (ControlElement element : profile.getElements()) {
-                        if (radialWheelManager != null && element.containsPoint(x, y)) {
-                            if (radialWheelManager.onBindingHeld(element.getBindingAt(0), x, y)) {
+                        if (element.containsPoint(x, y)) {
+                            if (radialWheelManager != null && radialWheelManager.onBindingHeld(element.getBindingAt(0), x, y)) {
                                 handled = true;
                                 break;
                             }
@@ -553,6 +579,11 @@ public class InputControlsView extends View {
                     invalidate();
                 }
                 case MotionEvent.ACTION_MOVE -> {
+                    if (radialWheelManager != null && radialWheelManager.isOpen()) {
+                        radialWheelManager.handleTouchEvent(event);
+                        invalidate();
+                        return true;
+                    }
                     for (byte i = 0; i < event.getPointerCount(); i++) {
                         handled = false;
                         for (ControlElement element : profile.getElements()) if (element.handleTouchMove(event.getPointerId(i), event.getX(i), event.getY(i))) handled = true;
@@ -561,10 +592,12 @@ public class InputControlsView extends View {
                     invalidate();
                 }
                 case MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (radialWheelManager != null && radialWheelManager.isOpen()) {
+                        radialWheelManager.handleTouchEvent(event);
+                        invalidate();
+                        return true;
+                    }
                     for (ControlElement element : profile.getElements()) {
-                        if (radialWheelManager != null) {
-                            radialWheelManager.onBindingReleased(element.getBindingAt(0));
-                        }
                         if (element.handleTouchUp(pointerId)) handled = true;
                     }
                     if (!handled) touchpadView.onTouchEvent(event);
@@ -588,7 +621,19 @@ public class InputControlsView extends View {
             if (controller != null) {
                 ExternalControllerBinding cb = controller.getControllerBinding(event.getKeyCode());
                 if (cb != null) {
-                    handleInputEvent(controller, cb.getBinding(), event.getAction() == KeyEvent.ACTION_DOWN);
+                    Binding b = cb.getBinding();
+                    if (radialWheelManager != null) {
+                        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                            if (radialWheelManager.onBindingHeld(b, getWidth() / 2f, getHeight() / 2f)) {
+                                return true;
+                            }
+                        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                            if (radialWheelManager.onBindingReleased(b)) {
+                                return true;
+                            }
+                        }
+                    }
+                    handleInputEvent(controller, b, event.getAction() == KeyEvent.ACTION_DOWN);
                     return true;
                 }
             }

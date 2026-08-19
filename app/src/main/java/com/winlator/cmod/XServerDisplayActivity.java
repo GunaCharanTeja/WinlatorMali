@@ -1879,9 +1879,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
 
-        FrameLayout container = findViewById(R.id.FLXServerDisplay);
         if (radialWheelManager == null) {
-            radialWheelManager = new RadialWheelManager(container, inputControlsView, profile != null ? profile.getWheels() : null);
+            radialWheelManager = new RadialWheelManager(inputControlsView, profile != null ? profile.getWheels() : null);
             inputControlsView.setRadialWheelManager(radialWheelManager);
         } else {
             radialWheelManager.updateConfigs(profile != null ? profile.getWheels() : null);
