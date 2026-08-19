@@ -34,16 +34,16 @@ import java.util.List;
 
 /**
  * Phase 3: Steam Deck-Style Radial Action Wheels configuration dialog.
- * Styled with native Winlator ContentDialog theme, light/dark mode support,
- * and adaptive gamepad binding filtering when external controllers are connected.
+ * Supports standalone external controller mode when no touchscreen profile is selected.
  */
 public class RadialWheelsDialog {
     private static final int MAX_WHEELS = 4;
 
     public static void show(Context context, ControlsProfile profile, Runnable onSaveCallback) {
-        if (profile == null) return;
+        ArrayList<RadialWheelConfig> wheels = (profile != null)
+                ? profile.getWheels()
+                : RadialWheelConfig.loadGlobal(context);
 
-        ArrayList<RadialWheelConfig> wheels = profile.getWheels();
         if (wheels.isEmpty()) {
             RadialWheelConfig defaultWheel = new RadialWheelConfig(1);
             defaultWheel.name = "Weapon Wheel";
@@ -52,7 +52,7 @@ public class RadialWheelsDialog {
         }
 
         ContentDialog dialog = new ContentDialog(context, R.layout.radial_wheels_dialog);
-        dialog.setTitle("Radial Action Wheels");
+        dialog.setTitle(profile != null ? "Radial Wheels (" + profile.getName() + ")" : "Radial Wheels (Controller)");
         dialog.setIcon(R.drawable.icon_radial_wheel);
 
         Spinner spWheelSelect = dialog.findViewById(R.id.SPWheelSelect);
@@ -64,7 +64,7 @@ public class RadialWheelsDialog {
 
         // Detect if external controller is connected to show only gamepad buttons
         ArrayList<ExternalController> controllers = ExternalController.getControllers();
-        boolean hasExternalController = !controllers.isEmpty();
+        boolean hasExternalController = !controllers.isEmpty() || profile == null;
 
         List<Binding> availableBindingsList = new ArrayList<>();
         availableBindingsList.add(Binding.NONE);
@@ -229,7 +229,11 @@ public class RadialWheelsDialog {
 
         dialog.setOnConfirmCallback(() -> {
             saveCurrentWheelFromUI.run();
-            profile.save();
+            if (profile != null) {
+                profile.save();
+            } else {
+                RadialWheelConfig.saveGlobal(context, wheels);
+            }
             AppUtils.showToast(context, "Radial Wheels Saved");
             if (onSaveCallback != null) onSaveCallback.run();
         });

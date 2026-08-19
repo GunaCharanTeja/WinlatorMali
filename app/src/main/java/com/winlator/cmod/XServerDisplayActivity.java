@@ -90,6 +90,8 @@ import com.winlator.cmod.core.WineStartMenuCreator;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.core.WineUtils;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
+import com.winlator.cmod.inputcontrols.RadialWheelConfig;
+import java.util.List;
 import com.winlator.cmod.PlayerSlotsDialog;
 import com.winlator.cmod.RadialWheelManager;
 import com.winlator.cmod.RadialWheelsDialog;
@@ -1398,7 +1400,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.setOverlayOpacity(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY));
         inputControlsView.setTouchpadView(touchpadView);
         inputControlsView.setXServer(xServer);
-        inputControlsView.setVisibility(View.GONE);
+        inputControlsView.setVisibility(View.VISIBLE);
+        radialWheelManager = new RadialWheelManager(inputControlsView, RadialWheelConfig.loadGlobal(this));
+        inputControlsView.setRadialWheelManager(radialWheelManager);
         rootView.addView(inputControlsView);
 
 
@@ -1694,14 +1698,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.findViewById(R.id.BTRadialWheel).setOnClickListener(v -> {
             int position = sProfile.getSelectedItemPosition();
-            if (position <= 0) {
-                AppUtils.showToast(this, R.string.no_profile_selected);
-                return;
-            }
-            ControlsProfile selectedProfile = inputControlsManager.getProfiles().get(position - 1);
+            ControlsProfile selectedProfile = (position > 0) ? inputControlsManager.getProfiles().get(position - 1) : null;
             RadialWheelsDialog.show(this, selectedProfile, () -> {
                 if (radialWheelManager != null) {
-                    radialWheelManager.updateConfigs(selectedProfile.getWheels());
+                    List<RadialWheelConfig> configs = (selectedProfile != null)
+                            ? selectedProfile.getWheels()
+                            : RadialWheelConfig.loadGlobal(this);
+                    radialWheelManager.updateConfigs(configs);
                 }
             });
         });
@@ -1877,11 +1880,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
 
+        List<RadialWheelConfig> wheels = (profile != null && !profile.getWheels().isEmpty())
+                ? profile.getWheels()
+                : RadialWheelConfig.loadGlobal(this);
+
         if (radialWheelManager == null) {
-            radialWheelManager = new RadialWheelManager(inputControlsView, profile != null ? profile.getWheels() : null);
+            radialWheelManager = new RadialWheelManager(inputControlsView, wheels);
             inputControlsView.setRadialWheelManager(radialWheelManager);
         } else {
-            radialWheelManager.updateConfigs(profile != null ? profile.getWheels() : null);
+            radialWheelManager.updateConfigs(wheels);
         }
 
         touchpadView.setSensitivity(profile.getCursorSpeed() * globalCursorSpeed);
@@ -1892,11 +1899,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void hideInputControls() {
+        List<RadialWheelConfig> globalWheels = RadialWheelConfig.loadGlobal(this);
         if (radialWheelManager != null) {
             radialWheelManager.dismissAll();
+            radialWheelManager.updateConfigs(globalWheels);
+        } else {
+            radialWheelManager = new RadialWheelManager(inputControlsView, globalWheels);
+            inputControlsView.setRadialWheelManager(radialWheelManager);
         }
-        inputControlsView.setShowTouchscreenControls(true);
-        inputControlsView.setVisibility(View.GONE);
+        inputControlsView.setShowTouchscreenControls(false);
+        inputControlsView.setVisibility(View.VISIBLE);
         inputControlsView.setProfile(null);
 
         touchpadView.setSensitivity(globalCursorSpeed);

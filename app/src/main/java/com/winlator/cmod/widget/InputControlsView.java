@@ -730,32 +730,48 @@ public class InputControlsView extends View {
     public void handleInputEvent(ExternalController controller, Binding binding, boolean isActionDown, float offset, boolean sendUpdate) {
         WinHandler winHandler = xServer != null ? xServer.getWinHandler() : null;
         if (binding.isGamepad()) {
-            GamepadState state = (controller != null) ? controller.remappedState : profile.getGamepadState();
-            int buttonIdx = binding.ordinal() - Binding.GAMEPAD_BUTTON_A.ordinal();
-            if (buttonIdx <= ExternalController.IDX_BUTTON_R2) {
-                if (buttonIdx == ExternalController.IDX_BUTTON_L2) state.triggerL = isActionDown ? (offset != 0 ? offset : 1.0f) : 0f;
-                else if (buttonIdx == ExternalController.IDX_BUTTON_R2) state.triggerR = isActionDown ? (offset != 0 ? offset : 1.0f) : 0f;
-                else state.setPressed(buttonIdx, isActionDown);
+            GamepadState state = (controller != null) ? controller.remappedState : (profile != null ? profile.getGamepadState() : null);
+            if (state == null) {
+                for (ExternalController ec : ExternalController.getControllers()) {
+                    state = ec.remappedState != null ? ec.remappedState : ec.state;
+                    break;
+                }
             }
-            else if (binding.name().contains("THUMB")) {
-                float val = (isActionDown && offset == 0) ? 1.0f : Math.abs(offset);
-                if (binding.name().contains("LEFT_THUMB_U")) state.thumbLY = isActionDown ? -val : 0;
-                else if (binding.name().contains("LEFT_THUMB_D")) state.thumbLY = isActionDown ? val : 0;
-                else if (binding.name().contains("LEFT_THUMB_L")) state.thumbLX = isActionDown ? -val : 0;
-                else if (binding.name().contains("LEFT_THUMB_R")) state.thumbLX = isActionDown ? val : 0;
-                else if (binding.name().contains("RIGHT_THUMB_U")) state.thumbRY = isActionDown ? -val : 0;
-                else if (binding.name().contains("RIGHT_THUMB_D")) state.thumbRY = isActionDown ? val : 0;
-                else if (binding.name().contains("RIGHT_THUMB_L")) state.thumbRX = isActionDown ? -val : 0;
-                else if (binding.name().contains("RIGHT_THUMB_R")) state.thumbRX = isActionDown ? val : 0;
-            }
-            else if (binding.name().contains("DPAD")) {
-                if (binding == Binding.GAMEPAD_DPAD_UP) state.dpad[0] = isActionDown;
-                else if (binding == Binding.GAMEPAD_DPAD_RIGHT) state.dpad[1] = isActionDown;
-                else if (binding == Binding.GAMEPAD_DPAD_DOWN) state.dpad[2] = isActionDown;
-                else if (binding == Binding.GAMEPAD_DPAD_LEFT) state.dpad[3] = isActionDown;
+            if (state != null) {
+                int buttonIdx = binding.ordinal() - Binding.GAMEPAD_BUTTON_A.ordinal();
+                if (buttonIdx <= ExternalController.IDX_BUTTON_R2) {
+                    if (buttonIdx == ExternalController.IDX_BUTTON_L2) state.triggerL = isActionDown ? (offset != 0 ? offset : 1.0f) : 0f;
+                    else if (buttonIdx == ExternalController.IDX_BUTTON_R2) state.triggerR = isActionDown ? (offset != 0 ? offset : 1.0f) : 0f;
+                    else state.setPressed(buttonIdx, isActionDown);
+                }
+                else if (binding.name().contains("THUMB")) {
+                    float val = (isActionDown && offset == 0) ? 1.0f : Math.abs(offset);
+                    if (binding.name().contains("LEFT_THUMB_U")) state.thumbLY = isActionDown ? -val : 0;
+                    else if (binding.name().contains("LEFT_THUMB_D")) state.thumbLY = isActionDown ? val : 0;
+                    else if (binding.name().contains("LEFT_THUMB_L")) state.thumbLX = isActionDown ? -val : 0;
+                    else if (binding.name().contains("LEFT_THUMB_R")) state.thumbLX = isActionDown ? val : 0;
+                    else if (binding.name().contains("RIGHT_THUMB_U")) state.thumbRY = isActionDown ? -val : 0;
+                    else if (binding.name().contains("RIGHT_THUMB_D")) state.thumbRY = isActionDown ? val : 0;
+                    else if (binding.name().contains("RIGHT_THUMB_L")) state.thumbRX = isActionDown ? -val : 0;
+                    else if (binding.name().contains("RIGHT_THUMB_R")) state.thumbRX = isActionDown ? val : 0;
+                }
+                else if (binding.name().contains("DPAD")) {
+                    if (binding == Binding.GAMEPAD_DPAD_UP) state.dpad[0] = isActionDown;
+                    else if (binding == Binding.GAMEPAD_DPAD_RIGHT) state.dpad[1] = isActionDown;
+                    else if (binding == Binding.GAMEPAD_DPAD_DOWN) state.dpad[2] = isActionDown;
+                    else if (binding == Binding.GAMEPAD_DPAD_LEFT) state.dpad[3] = isActionDown;
+                }
             }
 
-            if (winHandler != null && sendUpdate) { if (controller != null) winHandler.sendGamepadState(controller); else winHandler.sendGamepadState(); }
+            if (winHandler != null && sendUpdate) {
+                if (controller != null) winHandler.sendGamepadState(controller);
+                else {
+                    for (ExternalController ec : ExternalController.getControllers()) {
+                        winHandler.sendGamepadState(ec);
+                    }
+                    winHandler.sendGamepadState();
+                }
+            }
         }
         else {
             if (binding.name().startsWith("MOUSE_MOVE")) {

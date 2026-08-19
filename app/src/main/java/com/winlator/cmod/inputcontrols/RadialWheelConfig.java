@@ -1,5 +1,9 @@
 package com.winlator.cmod.inputcontrols;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+import androidx.preference.PreferenceManager;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -73,5 +77,39 @@ public class RadialWheelConfig {
             // use defaults
         }
         return cfg;
+    }
+
+    public static ArrayList<RadialWheelConfig> loadGlobal(Context context) {
+        ArrayList<RadialWheelConfig> list = new ArrayList<>();
+        if (context == null) return list;
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(context);
+        String json = sp.getString("global_radial_wheels", null);
+        if (json != null && !json.isEmpty()) {
+            try {
+                JSONArray arr = new JSONArray(json);
+                for (int i = 0; i < arr.length(); i++) {
+                    RadialWheelConfig cfg = fromJSON(arr.getJSONObject(i));
+                    if (cfg != null) list.add(cfg);
+                }
+            } catch (Exception e) {}
+        }
+        if (list.isEmpty()) {
+            RadialWheelConfig defaultWheel = new RadialWheelConfig(1);
+            defaultWheel.name = "Quick Actions";
+            defaultWheel.triggerBinding = Binding.GAMEPAD_BUTTON_L2;
+            list.add(defaultWheel);
+        }
+        return list;
+    }
+
+    public static void saveGlobal(Context context, List<RadialWheelConfig> wheels) {
+        if (context == null || wheels == null) return;
+        JSONArray arr = new JSONArray();
+        for (RadialWheelConfig cfg : wheels) {
+            JSONObject obj = cfg.toJSONObject();
+            if (obj != null) arr.put(obj);
+        }
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(context);
+        sp.edit().putString("global_radial_wheels", arr.toString()).apply();
     }
 }
