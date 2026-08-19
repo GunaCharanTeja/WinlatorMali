@@ -748,13 +748,6 @@ public void setVibrationEnabledForSlot(int slot, boolean enabled) {
 
         // Handle virtual gamepad (on-screen controls)
         if (useVirtualGamepad) {
-            // Software Exclusivity: If virtual gamepad is active, 
-            // we "mute" physical controllers by releasing their slots.
-            // This prevents "Double Input" without needing Registry hacks.
-            for (Integer deviceId : deviceToSlot.keySet()) {
-                if (deviceId != OSC_DEVICE_ID) releaseSlot(deviceId);
-            }
-
             int slot = assignSlot(OSC_DEVICE_ID);
             if (slot >= 0 && writers[slot] != null) {
                 writers[slot].writeGamepadState(gamepadState);

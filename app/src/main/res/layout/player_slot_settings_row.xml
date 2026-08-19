@@ -58,7 +58,7 @@
             android:layout_width="32dp"
             android:layout_height="wrap_content"
             android:textSize="11sp"
-            android:textColor="#AAAAAA"
+            android:textColor="?android:attr/textColorSecondary"
             android:gravity="end"
             android:text="10%" />
     </LinearLayout>
@@ -92,7 +92,7 @@
             android:layout_width="32dp"
             android:layout_height="wrap_content"
             android:textSize="11sp"
-            android:textColor="#AAAAAA"
+            android:textColor="?android:attr/textColorSecondary"
             android:gravity="end"
             android:text="10%" />
     </LinearLayout>

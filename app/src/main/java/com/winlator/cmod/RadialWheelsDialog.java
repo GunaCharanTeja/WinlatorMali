@@ -22,6 +22,7 @@ import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.UnitUtils;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
+import com.winlator.cmod.inputcontrols.ExternalController;
 import com.winlator.cmod.inputcontrols.RadialWheelConfig;
 import com.winlator.cmod.inputcontrols.RadialWheelSlice;
 
@@ -33,7 +34,8 @@ import java.util.List;
 
 /**
  * Phase 3: Steam Deck-Style Radial Action Wheels configuration dialog.
- * Styled with native Winlator ContentDialog theme and custom icon support.
+ * Styled with native Winlator ContentDialog theme, light/dark mode support,
+ * and adaptive gamepad binding filtering when external controllers are connected.
  */
 public class RadialWheelsDialog {
     private static final int MAX_WHEELS = 4;
@@ -60,8 +62,21 @@ public class RadialWheelsDialog {
         Spinner spTriggerBinding = dialog.findViewById(R.id.SPTriggerBinding);
         LinearLayout llSlicesContainer = dialog.findViewById(R.id.LLSlicesContainer);
 
-        // Binding list
-        Binding[] allBindings = Binding.values();
+        // Detect if external controller is connected to show only gamepad buttons
+        ArrayList<ExternalController> controllers = ExternalController.getControllers();
+        boolean hasExternalController = !controllers.isEmpty();
+
+        List<Binding> availableBindingsList = new ArrayList<>();
+        availableBindingsList.add(Binding.NONE);
+        for (Binding b : Binding.values()) {
+            if (b == Binding.NONE) continue;
+            if (hasExternalController) {
+                if (b.isGamepad()) availableBindingsList.add(b);
+            } else {
+                availableBindingsList.add(b);
+            }
+        }
+        Binding[] allBindings = availableBindingsList.toArray(new Binding[0]);
         String[] bindingNames = new String[allBindings.length];
         for (int i = 0; i < allBindings.length; i++) {
             bindingNames[i] = allBindings[i].toString();
