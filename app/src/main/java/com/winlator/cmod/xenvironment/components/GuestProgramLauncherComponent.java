@@ -136,7 +136,59 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             container.putExtra("fexcoreVersion", fexcoreVersion);
             containerDataChanged = true;
         }
+
+        // Re-stamp the shared FEX unixlib .so slot to match the effective FEXCore version
+        reconcileFexUnixlib(fexcoreVersion);
+
         if (containerDataChanged) container.saveData();
+    }
+
+    private static final String[] FEX_UNIXLIB_SO_NAMES = {
+            "libarm64ecfex.so", "libwow64fex.so", "libarm64ecfe.so", "libwow64fe.so"
+    };
+
+    /**
+     * Materialize the effective FEXCore version's native unixlib: the shared
+     * <imagefs>/usr/lib/wine/aarch64-unix/ slot must match that version's .so,
+     * or be empty when the version is DLL-only. Wine's ntdll loader auto-searches that dir.
+     */
+    private void reconcileFexUnixlib(String fexcoreVersion) {
+        Context context = environment.getContext();
+        File soDir = new File(environment.getImageFs().getLibDir(), "wine/aarch64-unix");
+        try {
+            if (!soDir.exists()) soDir.mkdirs();
+
+            // 1) Strip stale fex unixlibs first (never touch real wine unixlibs like ntdll.so, bcrypt.so, etc.).
+            for (String name : FEX_UNIXLIB_SO_NAMES) {
+                File stale = new File(soDir, name);
+                if (stale.exists()) stale.delete();
+            }
+
+            // 2) If the effective version is a unixlib component, copy its retained .so in.
+            //    Bundled/DLL-only FEX leaves the slot empty.
+            boolean copied = false;
+            ContentProfile profile = contentsManager.getProfileByEntryName("fexcore-" + fexcoreVersion);
+            if (profile != null && profile.fileList != null) {
+                File installDir = ContentsManager.getInstallDir(context, profile);
+                for (ContentProfile.ContentFile cf : profile.fileList) {
+                    String base = new File(cf.target).getName();
+                    if (base.equals("libarm64ecfex.so") || base.equals("libwow64fex.so")) {
+                        File src = new File(installDir, cf.source);
+                        if (src.exists()) {
+                            File dst = new File(soDir, base);
+                            FileUtils.copy(src, dst);
+                            FileUtils.chmod(dst, 0755);
+                            copied = true;
+                        }
+                    }
+                }
+            }
+
+            Log.d("GuestProgramLauncherComponent", "FEX unixlib reconcile: " + fexcoreVersion
+                    + " -> " + (copied ? "copied .so" : "DLL-only, cleared"));
+        } catch (Exception e) {
+            Log.e("GuestProgramLauncherComponent", "FEX unixlib reconcile failed: " + e.getMessage());
+        }
     }
 
     public GuestProgramLauncherComponent(ContentsManager contentsManager, ContentProfile wineProfile, Shortcut shortcut) {

@@ -32,7 +32,10 @@ public class ContentsManager {
             "${syswow64}/d3d12core.dll", "${syswow64}/d3d12.dll"};
     public static final String[] BOX64_TRUST_FILES = {"${bindir}/box64"};
     public static final String[] WOWBOX64_TRUST_FILES = {"${system32}/wowbox64.dll"};
-    public static final String[] FEXCORE_TRUST_FILES = {"${system32}/libwow64fex.dll", "${system32}/libarm64ecfex.dll"};
+    public static final String[] FEXCORE_TRUST_FILES = {
+            "${system32}/libwow64fex.dll", "${system32}/libarm64ecfex.dll",
+            "${libdir}/wine/aarch64-unix/libwow64fex.so", "${libdir}/wine/aarch64-unix/libarm64ecfex.so"
+    };
     private Map<String, String> dirTemplateMap;
     private Map<ContentProfile.ContentType, List<String>> trustedFilesMap;
 
@@ -234,6 +237,7 @@ public class ContentsManager {
 
         if (!getTmpDir(context).renameTo(installPath)) {
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+            return;
         }
 
         callback.onSucceed(profile);
@@ -367,6 +371,13 @@ public class ContentsManager {
 
     public void removeContent(ContentProfile profile) {
         if (profilesMap.get(profile.type).contains(profile)) {
+            if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE) {
+                File soDir = new File(context.getFilesDir(), "imagefs/usr/lib/wine/aarch64-unix");
+                for (String name : new String[]{"libarm64ecfex.so", "libwow64fex.so", "libarm64ecfe.so", "libwow64fe.so"}) {
+                    File f = new File(soDir, name);
+                    if (f.exists()) f.delete();
+                }
+            }
             FileUtils.delete(getInstallDir(context, profile));
             profilesMap.get(profile.type).remove(profile);
             syncContents();
