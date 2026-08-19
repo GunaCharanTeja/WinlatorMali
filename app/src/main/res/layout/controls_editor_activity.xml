@@ -58,11 +58,15 @@
         <ImageButton
             android:id="@+id/BTReset"
             style="@style/ToolButton"
+            android:contentDescription="Reset Layout"
             android:src="@drawable/icon_reset"  />
+
+        <View style="@style/VerticalLine" />
 
         <ImageButton
             android:id="@+id/BTRadialWheel"
             style="@style/ToolButton"
+            android:contentDescription="Radial Action Wheels"
             android:src="@drawable/icon_radial_wheel"  />
     </LinearLayout>
 </FrameLayout>

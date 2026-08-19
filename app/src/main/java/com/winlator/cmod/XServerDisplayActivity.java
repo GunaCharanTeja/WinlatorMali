@@ -234,10 +234,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Runnable hideControlsRunnable;
 
     private boolean isDarkMode;
-
     private String screenEffectProfile;
 
     private InGameControlsEditor inGameControlsEditor;
+    private final ActivityResultLauncher<String> inGameIconPickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.GetContent(),
+            uri -> {
+                if (uri != null && inGameControlsEditor != null) {
+                    inGameControlsEditor.addCustomIcon(uri);
+                }
+            }
+    );
     private RadialWheelManager radialWheelManager;
     private GuestProgramLauncherComponent guestProgramLauncherComponent;
     private EnvVars overrideEnvVars;
@@ -1986,6 +1993,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             inGameControlsEditor = null;
             showInputControls(finalProfile);
         });
+    }
+
+    public void launchInGameIconPicker() {
+        if (inGameIconPickerLauncher != null) {
+            inGameIconPickerLauncher.launch("image/*");
+        }
     }
 
     private void extractGraphicsDriverFiles() {

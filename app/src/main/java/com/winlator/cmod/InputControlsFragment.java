@@ -108,21 +108,21 @@ public class InputControlsFragment extends Fragment {
                 String filename = FileUtils.getUriFileName(getContext(), uri);
                 String fallbackName = (filename != null && !filename.isEmpty()) ? FileUtils.getBasename(filename) : "Imported Profile";
 
-                // Check if user selected an .icpx icon pack
-                if (filename != null && filename.toLowerCase().endsWith(".icpx")) {
-                    int imported = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(getContext()).importIconPack(uri);
-                    AppUtils.showToast(getContext(), "Imported " + imported + " custom icons!");
-                    importProfileCallback = null;
-                    return;
-                }
+                com.winlator.cmod.inputcontrols.CustomIconManager.ImportResult res =
+                        com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(getContext()).importUniversalPackage(uri, fallbackName);
 
-                String content = FileUtils.readString(getContext(), uri);
-                JSONObject profileJSONObject = com.winlator.cmod.inputcontrols.InputBridgeProfileParser.parseProfile(getContext(), content, fallbackName);
-
-                if (profileJSONObject != null) {
-                    ControlsProfile importedProfile = manager.importProfile(profileJSONObject);
+                if (res.profileJSON != null) {
+                    ControlsProfile importedProfile = manager.importProfile(res.profileJSON);
                     if (importProfileCallback != null) importProfileCallback.call(importedProfile);
-                    AppUtils.showToast(getContext(), "Profile imported successfully!");
+                    String msg = "Imported profile '" + importedProfile.getName() + "'";
+                    if (res.importedIconsCount > 0) {
+                        msg += " with " + res.importedIconsCount + " custom icons!";
+                    } else {
+                        msg += " successfully!";
+                    }
+                    AppUtils.showToast(getContext(), msg);
+                } else if (res.importedIconsCount > 0) {
+                    AppUtils.showToast(getContext(), "Imported " + res.importedIconsCount + " custom icons from icon pack!");
                 } else {
                     AppUtils.showToast(getContext(), R.string.unable_to_import_profile);
                 }

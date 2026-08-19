@@ -258,18 +258,37 @@ public class CustomIconManager {
     }
 
     /**
-     * Decode a Base64 PNG string and save as a custom icon if not already present.
+     * Decode a Base64 PNG string and save as a custom icon with optional preferred ID.
      */
-    public int decodeAndSaveBase64(String base64Str) {
+    public int decodeAndSaveBase64(String base64Str, int preferredId) {
         if (base64Str == null || base64Str.isEmpty()) return 0;
         try {
             byte[] bytes = Base64.decode(base64Str, Base64.DEFAULT);
             Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-            return importCustomIcon(bmp);
+            if (bmp == null) return 0;
+            Bitmap normalized = normalizeBitmap(bmp);
+            bmp.recycle();
+            if (normalized == null) return 0;
+
+            int targetId = (preferredId >= CUSTOM_ICON_START_ID) ? preferredId : getNextAvailableCustomId();
+            File file = new File(customIconsDir, targetId + ".png");
+
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                normalized.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                fos.flush();
+                synchronized (memoryCache) {
+                    memoryCache.put(targetId, normalized);
+                }
+                return targetId;
+            }
         } catch (Exception e) {
             Log.e(TAG, "Failed to decode base64 icon", e);
             return 0;
         }
+    }
+
+    public int decodeAndSaveBase64(String base64Str) {
+        return decodeAndSaveBase64(base64Str, -1);
     }
 
     // -----------------------------------------------------------------------
@@ -318,39 +337,100 @@ public class CustomIconManager {
         }
     }
 
+    public static class ImportResult {
+        public int importedIconsCount = 0;
+        public JSONObject profileJSON = null;
+        public String profileName = null;
+    }
+
+    /**
+     * Universal importer for .icpx (Bannerlator / Winlator ZIP packs & JSON layouts), .ibp, and .icp files.
+     */
+    public ImportResult importUniversalPackage(Uri uri, String fallbackName) {
+        ImportResult result = new ImportResult();
+        if (uri == null) return result;
+
+        byte[] fileBytes;
+        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null) return result;
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] data = new byte[8192];
+            int nRead;
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            fileBytes = buffer.toByteArray();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to read URI bytes: " + uri, e);
+            return result;
+        }
+
+        if (fileBytes.length == 0) return result;
+
+        // Check if file is a ZIP archive (starts with PK / 0x50, 0x4B)
+        boolean isZip = fileBytes.length >= 4 && fileBytes[0] == 0x50 && fileBytes[1] == 0x4B;
+
+        if (isZip) {
+            try (ZipInputStream zis = new ZipInputStream(new java.io.ByteArrayInputStream(fileBytes))) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    String name = entry.getName();
+                    if (entry.isDirectory()) {
+                        zis.closeEntry();
+                        continue;
+                    }
+
+                    ByteArrayOutputStream entryBaos = new ByteArrayOutputStream();
+                    byte[] buf = new byte[4096];
+                    int len;
+                    while ((len = zis.read(buf)) > 0) {
+                        entryBaos.write(buf, 0, len);
+                    }
+                    byte[] entryBytes = entryBaos.toByteArray();
+
+                    String lowerName = name.toLowerCase();
+                    if (lowerName.endsWith(".png") || lowerName.endsWith(".webp") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) {
+                        Bitmap bmp = BitmapFactory.decodeByteArray(entryBytes, 0, entryBytes.length);
+                        if (bmp != null) {
+                            int newId = importCustomIcon(bmp);
+                            if (newId > 0) result.importedIconsCount++;
+                        }
+                    } else if (lowerName.endsWith(".icp") || lowerName.endsWith(".json") || lowerName.endsWith(".ibp") || lowerName.contains("profile") || lowerName.contains("control")) {
+                        String jsonStr = new String(entryBytes, java.nio.charset.StandardCharsets.UTF_8);
+                        JSONObject parsed = InputBridgeProfileParser.parseProfile(context, jsonStr, fallbackName);
+                        if (parsed != null) {
+                            result.profileJSON = parsed;
+                            result.profileName = parsed.optString("name", fallbackName);
+                        }
+                    }
+                    zis.closeEntry();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error unpacking ZIP package", e);
+            }
+        } else {
+            // Plain text / JSON file (.icp, .ibp, or JSON-formatted .icpx)
+            try {
+                String content = new String(fileBytes, java.nio.charset.StandardCharsets.UTF_8);
+                JSONObject parsed = InputBridgeProfileParser.parseProfile(context, content, fallbackName);
+                if (parsed != null) {
+                    result.profileJSON = parsed;
+                    result.profileName = parsed.optString("name", fallbackName);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing plain JSON profile", e);
+            }
+        }
+
+        return result;
+    }
+
     /**
      * Import an .icpx archive and register all contained PNGs as custom icons.
      * @return count of successfully imported icons
      */
     public int importIconPack(Uri uri) {
-        if (uri == null) return 0;
-        int importedCount = 0;
-        try (InputStream is = context.getContentResolver().openInputStream(uri);
-             ZipInputStream zis = new ZipInputStream(is)) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                String name = entry.getName();
-                if (!entry.isDirectory() && name.toLowerCase().endsWith(".png") && !name.equals("manifest.json")) {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] buffer = new byte[4096];
-                    int len;
-                    while ((len = zis.read(buffer)) > 0) {
-                        baos.write(buffer, 0, len);
-                    }
-                    byte[] pngBytes = baos.toByteArray();
-                    Bitmap bmp = BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.length);
-                    if (bmp != null) {
-                        int newId = importCustomIcon(bmp);
-                        if (newId > 0) importedCount++;
-                    }
-                }
-                zis.closeEntry();
-            }
-            Log.d(TAG, "Imported " + importedCount + " icons from .icpx");
-            return importedCount;
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to import .icpx icon pack", e);
-            return 0;
-        }
+        ImportResult res = importUniversalPackage(uri, "IconPack");
+        return res.importedIconsCount;
     }
 }

@@ -226,23 +226,34 @@ public class InputControlsView extends View {
             canvas.drawColor(Color.BLACK);
             paint.setAntiAlias(false);
             paint.setColor(0xff303030);
+            int width = getMaxWidth();
+            int height = getMaxHeight();
+            for (int i = 0; i < width; i += snappingSize) canvas.drawLine(i, 0, i, height, paint);
+            for (int i = 0; i < height; i += snappingSize) canvas.drawLine(0, i, width, i, paint);
+
+            float cx = Mathf.roundTo(width * 0.5f, snappingSize);
+            float cy = Mathf.roundTo(height * 0.5f, snappingSize);
+            paint.setColor(0xff424242);
+            for (int i = 0; i < height; i += snappingSize * 2) canvas.drawLine(cx, i, cx, i + snappingSize, paint);
+            for (int i = 0; i < width; i += snappingSize * 2) canvas.drawLine(i, cy, i + snappingSize, cy, paint);
         } else {
+            // Live container view overlay: gentle translucent tint over running game with delicate alignment guides
+            canvas.drawColor(0x44000000);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(snappingSize * 0.0625f);
+            paint.setStrokeWidth(snappingSize * 0.04f);
             paint.setAntiAlias(false);
-            paint.setColor(0x25FFFFFF);
+            paint.setColor(0x14FFFFFF);
+            int width = getMaxWidth();
+            int height = getMaxHeight();
+            for (int i = 0; i < width; i += snappingSize) canvas.drawLine(i, 0, i, height, paint);
+            for (int i = 0; i < height; i += snappingSize) canvas.drawLine(0, i, width, i, paint);
+
+            float cx = Mathf.roundTo(width * 0.5f, snappingSize);
+            float cy = Mathf.roundTo(height * 0.5f, snappingSize);
+            paint.setColor(0x2800E5FF);
+            for (int i = 0; i < height; i += snappingSize * 2) canvas.drawLine(cx, i, cx, i + snappingSize, paint);
+            for (int i = 0; i < width; i += snappingSize * 2) canvas.drawLine(i, cy, i + snappingSize, cy, paint);
         }
-
-        int width = getMaxWidth();
-        int height = getMaxHeight();
-        for (int i = 0; i < width; i += snappingSize) canvas.drawLine(i, 0, i, height, paint);
-        for (int i = 0; i < height; i += snappingSize) canvas.drawLine(0, i, width, i, paint);
-
-        float cx = Mathf.roundTo(width * 0.5f, snappingSize);
-        float cy = Mathf.roundTo(height * 0.5f, snappingSize);
-        paint.setColor(drawOpaqueBackground ? 0xff424242 : 0x4000E5FF);
-        for (int i = 0; i < height; i += snappingSize * 2) canvas.drawLine(cx, i, cx, i + snappingSize, paint);
-        for (int i = 0; i < width; i += snappingSize * 2) canvas.drawLine(i, cy, i + snappingSize, cy, paint);
         paint.setAntiAlias(true);
     }
 

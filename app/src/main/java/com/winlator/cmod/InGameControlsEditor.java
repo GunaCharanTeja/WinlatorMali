@@ -300,7 +300,25 @@ public final class InGameControlsEditor implements View.OnClickListener {
         });
     }
 
+    public void addCustomIcon(android.net.Uri uri) {
+        int newId = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(activity).importCustomIcon(uri);
+        if (newId > 0) {
+            ControlElement el = inputControlsView.getSelectedElement();
+            if (el != null) {
+                el.setIconId(newId);
+                save();
+                inputControlsView.invalidate();
+                AppUtils.showToast(activity, "Custom icon imported and applied!");
+            }
+        }
+    }
+
+    public void pickCustomIcon() {
+        activity.launchInGameIconPicker();
+    }
+
     private void loadIcons(final LinearLayout parent, byte selectedId) {
+        parent.removeAllViews();
         com.winlator.cmod.inputcontrols.CustomIconManager iconManager = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(activity);
         List<Integer> iconIds = iconManager.getAllIconIds();
 
@@ -309,6 +327,16 @@ public final class InGameControlsEditor implements View.OnClickListener {
         int padding = (int) UnitUtils.dpToPx(4);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
         params.setMargins(margin, 0, margin, 0);
+
+        // 1. Add [+] Add from Gallery button
+        ImageView addImageView = new ImageView(activity);
+        addImageView.setLayoutParams(params);
+        addImageView.setPadding(padding, padding, padding, padding);
+        addImageView.setBackgroundResource(R.drawable.icon_background);
+        addImageView.setImageResource(R.drawable.icon_add);
+        addImageView.setColorFilter(activity.getResources().getColor(R.color.colorAccent));
+        addImageView.setOnClickListener((v) -> pickCustomIcon());
+        parent.addView(addImageView);
 
         for (final int id : iconIds) {
             ImageView imageView = new ImageView(activity);

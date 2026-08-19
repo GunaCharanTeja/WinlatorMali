@@ -44,12 +44,28 @@ import java.util.Arrays;
 public class ControlsEditorActivity extends AppCompatActivity implements View.OnClickListener {
     private InputControlsView inputControlsView;
     private ControlsProfile profile;
+    private androidx.activity.result.ActivityResultLauncher<String> iconPickerLauncher;
 
     @Override
     public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
         AppUtils.hideSystemUI(this);
         setContentView(R.layout.controls_editor_activity);
+
+        iconPickerLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(), uri -> {
+            if (uri != null) {
+                int newId = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(this).importCustomIcon(uri);
+                if (newId > 0) {
+                    ControlElement el = inputControlsView.getSelectedElement();
+                    if (el != null) {
+                        el.setIconId(newId);
+                        profile.save();
+                        inputControlsView.invalidate();
+                        AppUtils.showToast(this, "Custom icon imported and applied!");
+                    }
+                }
+            }
+        });
 
         inputControlsView = new InputControlsView(this);
         inputControlsView.setEditMode(true);
@@ -367,6 +383,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
     }
 
     private void loadIcons(final LinearLayout parent, byte selectedId) {
+        parent.removeAllViews();
         com.winlator.cmod.inputcontrols.CustomIconManager iconManager = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(this);
         List<Integer> iconIds = iconManager.getAllIconIds();
 
@@ -375,6 +392,20 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         int padding = (int)UnitUtils.dpToPx(4);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
         params.setMargins(margin, 0, margin, 0);
+
+        // 1. Add [+] Gallery image picker button
+        ImageView addImageView = new ImageView(this);
+        addImageView.setLayoutParams(params);
+        addImageView.setPadding(padding, padding, padding, padding);
+        addImageView.setBackgroundResource(R.drawable.icon_background);
+        addImageView.setImageResource(R.drawable.icon_add);
+        addImageView.setColorFilter(getResources().getColor(R.color.colorAccent));
+        addImageView.setOnClickListener((v) -> {
+            if (iconPickerLauncher != null) {
+                iconPickerLauncher.launch("image/*");
+            }
+        });
+        parent.addView(addImageView);
 
         for (final int id : iconIds) {
             ImageView imageView = new ImageView(this);

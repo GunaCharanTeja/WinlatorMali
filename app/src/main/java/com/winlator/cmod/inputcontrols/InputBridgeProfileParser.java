@@ -240,20 +240,62 @@ public class InputBridgeProfileParser {
     }
 
     /**
-     * Extract any custom icons embedded as Base64 in the profile JSON.
+     * Extract and remap custom icons embedded as Base64 in Bannerlator (.icpx) or Winlator (.icp) profile JSON.
      */
     private static void extractEmbeddedIcons(Context context, JSONObject profileJSON) {
-        if (!profileJSON.has("embeddedIcons")) return;
         CustomIconManager iconManager = CustomIconManager.getInstance(context);
-        try {
-            JSONArray icons = profileJSON.getJSONArray("embeddedIcons");
-            for (int i = 0; i < icons.length(); i++) {
-                String base64 = icons.getString(i);
-                iconManager.decodeAndSaveBase64(base64);
+
+        // 1. Handle Bannerlator "customIcons" array of { "id": X, "png": "<base64>" }
+        if (profileJSON.has("customIcons")) {
+            try {
+                JSONArray customIcons = profileJSON.getJSONArray("customIcons");
+                Map<Integer, Integer> idMapping = new HashMap<>();
+
+                for (int i = 0; i < customIcons.length(); i++) {
+                    JSONObject obj = customIcons.optJSONObject(i);
+                    if (obj != null) {
+                        int sourceId = obj.optInt("id", 0);
+                        String pngBase64 = obj.optString("png", null);
+                        if (pngBase64 != null && !pngBase64.isEmpty()) {
+                            int newId = iconManager.decodeAndSaveBase64(pngBase64, sourceId);
+                            if (newId > 0 && sourceId > 0) {
+                                idMapping.put(sourceId, newId);
+                            }
+                        }
+                    }
+                }
+
+                // Remap iconId in elements if needed
+                if (!idMapping.isEmpty() && profileJSON.has("elements")) {
+                    JSONArray elements = profileJSON.getJSONArray("elements");
+                    for (int i = 0; i < elements.length(); i++) {
+                        JSONObject el = elements.optJSONObject(i);
+                        if (el != null && el.has("iconId")) {
+                            int oldId = el.getInt("iconId");
+                            if (idMapping.containsKey(oldId)) {
+                                el.put("iconId", idMapping.get(oldId));
+                            }
+                        }
+                    }
+                }
+                Log.d(TAG, "Extracted and mapped " + idMapping.size() + " Bannerlator custom icons");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to extract Bannerlator customIcons", e);
             }
-            Log.d(TAG, "Extracted " + icons.length() + " embedded icons from profile");
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to extract embedded icons", e);
+        }
+
+        // 2. Handle Winlator "embeddedIcons" array of "<base64>" strings
+        if (profileJSON.has("embeddedIcons")) {
+            try {
+                JSONArray icons = profileJSON.getJSONArray("embeddedIcons");
+                for (int i = 0; i < icons.length(); i++) {
+                    String base64 = icons.getString(i);
+                    iconManager.decodeAndSaveBase64(base64);
+                }
+                Log.d(TAG, "Extracted " + icons.length() + " embedded icons from profile");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to extract embedded icons", e);
+            }
         }
     }
 }
