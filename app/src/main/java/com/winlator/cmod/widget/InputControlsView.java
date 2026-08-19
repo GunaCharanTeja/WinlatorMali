@@ -80,6 +80,8 @@ public class InputControlsView extends View {
     private ControlElement stickElement;
     private boolean focusOnStick = false;
     private RadialWheelManager radialWheelManager;
+    private boolean l2TriggerHeld = false;
+    private boolean r2TriggerHeld = false;
 
     public RadialWheelManager getRadialWheelManager() {
         return radialWheelManager;
@@ -530,14 +532,22 @@ public class InputControlsView extends View {
             if (r2 == 0f) r2 = event.getAxisValue(MotionEvent.AXIS_GAS);
 
             if (l2 > 0.4f) {
-                radialWheelManager.onBindingHeld(Binding.GAMEPAD_BUTTON_L2, getWidth() / 2f, getHeight() / 2f);
-            } else if (l2 < 0.2f && radialWheelManager.isOpen()) {
+                if (!l2TriggerHeld) {
+                    l2TriggerHeld = true;
+                    radialWheelManager.onBindingHeld(Binding.GAMEPAD_BUTTON_L2, getWidth() / 2f, getHeight() / 2f);
+                }
+            } else if (l2 < 0.2f && l2TriggerHeld) {
+                l2TriggerHeld = false;
                 radialWheelManager.onBindingReleased(Binding.GAMEPAD_BUTTON_L2);
             }
 
             if (r2 > 0.4f) {
-                radialWheelManager.onBindingHeld(Binding.GAMEPAD_BUTTON_R2, getWidth() / 2f, getHeight() / 2f);
-            } else if (r2 < 0.2f && radialWheelManager.isOpen()) {
+                if (!r2TriggerHeld) {
+                    r2TriggerHeld = true;
+                    radialWheelManager.onBindingHeld(Binding.GAMEPAD_BUTTON_R2, getWidth() / 2f, getHeight() / 2f);
+                }
+            } else if (r2 < 0.2f && r2TriggerHeld) {
+                r2TriggerHeld = false;
                 radialWheelManager.onBindingReleased(Binding.GAMEPAD_BUTTON_R2);
             }
 

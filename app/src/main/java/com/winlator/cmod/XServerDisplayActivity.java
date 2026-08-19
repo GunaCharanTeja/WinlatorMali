@@ -2163,39 +2163,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        boolean handledByWinHandler = false;
-        boolean handledByTouchpadView = false;
+        if (inputControlsView != null) {
+            boolean handled = inputControlsView.onGenericMotionEvent(event);
+            if (handled) return true;
+        }
 
-        // Let winHandler process the event if available
+        boolean handledByWinHandler = false;
         if (winHandler != null) {
             handledByWinHandler = winHandler.onGenericMotionEvent(event);
-            if (handledByWinHandler) {
-                //Log.d("XServerDisplayActivity", "Event handled by winHandler");
-            }
+            if (handledByWinHandler) return true;
         }
 
-        // Let touchpadView process the event if available
+        boolean handledByTouchpadView = false;
         if (touchpadView != null) {
             handledByTouchpadView = touchpadView.onExternalMouseEvent(event);
-            if (handledByTouchpadView) {
-                //Log.d("XServerDisplayActivity", "Event handled by touchpadView");
-            }
+            if (handledByTouchpadView) return true;
         }
 
-        // Pass the event to the super method to ensure system-level handling
-        boolean handledByControls = false;
-        if (inputControlsView != null) {
-            handledByControls = inputControlsView.onGenericMotionEvent(event);
-        }
-
-        // Pass the event to the super method to ensure system-level handling
-        boolean handledBySuper = super.dispatchGenericMotionEvent(event);
-        if (!handledBySuper) {
-            //Log.d("XServerDisplayActivity", "Event not handled by super");
-        }
-
-        // Combine the results: any handler consuming the event indicates it was handled
-        return handledByControls || handledByWinHandler || handledByTouchpadView || handledBySuper;
+        return super.dispatchGenericMotionEvent(event);
     }
 
 

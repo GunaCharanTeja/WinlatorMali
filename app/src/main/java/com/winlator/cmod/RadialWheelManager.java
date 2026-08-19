@@ -154,6 +154,8 @@ public class RadialWheelManager {
         updateCenterCoordinates();
         float density = inputControlsView.getContext().getResources().getDisplayMetrics().density;
         float innerRadius = INNER_RADIUS_DP * density;
+        float outerRadius = OUTER_RADIUS_DP * density;
+        float maxInteractiveRadius = outerRadius * 1.6f;
 
         int actionMasked = event.getActionMasked();
 
@@ -161,8 +163,10 @@ public class RadialWheelManager {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
             case MotionEvent.ACTION_MOVE: {
-                boolean foundSlice = false;
-                // Check all active fingers across the screen
+                int targetPointerIndex = -1;
+                float minDistanceToCenter = Float.MAX_VALUE;
+
+                // Find the finger that is specifically interacting with the radial wheel
                 for (int i = 0; i < event.getPointerCount(); i++) {
                     float px = event.getX(i);
                     float py = event.getY(i);
@@ -170,7 +174,25 @@ public class RadialWheelManager {
                     float dy = py - centerY;
                     float dist = (float) Math.sqrt(dx * dx + dy * dy);
 
-                    if (dist >= innerRadius) {
+                    if (dist <= maxInteractiveRadius) {
+                        if (dist < minDistanceToCenter) {
+                            minDistanceToCenter = dist;
+                            targetPointerIndex = i;
+                        }
+                    }
+                }
+
+                if (targetPointerIndex >= 0) {
+                    float px = event.getX(targetPointerIndex);
+                    float py = event.getY(targetPointerIndex);
+                    float dx = px - centerX;
+                    float dy = py - centerY;
+                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < innerRadius) {
+                        // Explicitly in the center cancel zone
+                        selectedSlice = -1;
+                    } else {
                         int sliceCount = activeConfig.slices.size();
                         if (sliceCount > 0) {
                             double angleDeg = Math.toDegrees(Math.atan2(dy, dx));
@@ -178,22 +200,32 @@ public class RadialWheelManager {
                             double sliceAngle = 360.0 / sliceCount;
                             selectedSlice = (int) (angleDeg / sliceAngle);
                             if (selectedSlice >= sliceCount) selectedSlice = sliceCount - 1;
-                            foundSlice = true;
                         }
                     }
-                }
-                if (!foundSlice) {
+                } else {
+                    // No finger is touching the wheel area
                     selectedSlice = -1;
                 }
+
                 if (inputControlsView != null) {
                     inputControlsView.invalidate();
                 }
                 return true;
             }
             case MotionEvent.ACTION_POINTER_UP: {
-                // If a secondary finger lifted while selecting a slice, fire immediately
-                if (selectedSlice >= 0) {
-                    fireSelectedAndClose();
+                int pointerIndex = event.getActionIndex();
+                float px = event.getX(pointerIndex);
+                float py = event.getY(pointerIndex);
+                float dx = px - centerX;
+                float dy = py - centerY;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy);
+
+                if (dist <= maxInteractiveRadius) {
+                    if (selectedSlice >= 0) {
+                        fireSelectedAndClose();
+                    } else {
+                        dismissAll();
+                    }
                     return true;
                 }
                 return true;
