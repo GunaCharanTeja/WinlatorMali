@@ -205,9 +205,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private boolean isMouseDisabled = false;
 
     private boolean isGyroEnabled = false;
-    private float gyroSensitivity = 1.0f;
+    private float gyroSensitivityX = 1.0f;
+    private float gyroSensitivityY = 1.0f;
+    private boolean gyroInvertX = false;
+    private boolean gyroInvertY = false;
+    private int gyroCurve = 0; // 0 = Linear, 1 = Enhanced (Exponential), 2 = Sigmoid (S-Curve)
     private int gyroActivationMode = 0;
-    private int gyroTarget = 0;
+    private int gyroTarget = 0; // 0 = Mouse, 1 = Right Stick, 2 = Left Stick, 3 = Arrows
     private float gyroSmoothing = 0.5f;
     private float gyroDeadzone = 0.05f;
     private float gyroBiasX = 0;
@@ -359,7 +363,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Initialize SensorManager
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         isGyroEnabled = preferences.getBoolean("gyro_enabled", false);
-        gyroSensitivity = preferences.getFloat("gyro_sensitivity", 1.0f);
+        float legacySens = preferences.getFloat("gyro_sensitivity", 1.0f);
+        gyroSensitivityX = preferences.getFloat("gyro_sensitivity_x", legacySens);
+        gyroSensitivityY = preferences.getFloat("gyro_sensitivity_y", legacySens);
+        gyroInvertX = preferences.getBoolean("gyro_invert_x", false);
+        gyroInvertY = preferences.getBoolean("gyro_invert_y", false);
+        gyroCurve = preferences.getInt("gyro_curve", 0);
         gyroActivationMode = preferences.getInt("gyro_activation_mode", 0);
         gyroTarget = preferences.getInt("gyro_target", 0);
         gyroSmoothing = preferences.getFloat("gyro_smoothing", 0.5f);
@@ -1640,20 +1649,36 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final CheckBox cbGyroView = dialog.findViewById(R.id.CBGyroView);
         cbGyroView.setChecked(isGyroEnabled);
 
+        final CheckBox cbInvertGyroX = dialog.findViewById(R.id.CBInvertGyroX);
+        cbInvertGyroX.setChecked(gyroInvertX);
+
+        final CheckBox cbInvertGyroY = dialog.findViewById(R.id.CBInvertGyroY);
+        cbInvertGyroY.setChecked(gyroInvertY);
+
         final Spinner sGyroActivationMode = dialog.findViewById(R.id.SGyroActivationMode);
-        String[] activationModes = {"Always", "Touchpad", "LT"};
+        String[] activationModes = {"Always", "Touch Screen / Touchpad", "Left Trigger (LT / ADS)", "Right Trigger (RT)", "Right Stick (RS)"};
         sGyroActivationMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, activationModes));
-        sGyroActivationMode.setSelection(gyroActivationMode);
+        sGyroActivationMode.setSelection(Math.min(gyroActivationMode, activationModes.length - 1));
 
         final Spinner sGyroTarget = dialog.findViewById(R.id.SGyroTarget);
-        String[] gyroTargets = {"Mouse", "Right Stick", "Arrows"};
+        String[] gyroTargets = {"Mouse Look", "Right Stick (Camera)", "Left Stick (Steering)", "Arrow Keys"};
         sGyroTarget.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, gyroTargets));
-        sGyroTarget.setSelection(gyroTarget);
+        sGyroTarget.setSelection(Math.min(gyroTarget, gyroTargets.length - 1));
 
-        final TextView tvGyroSensitivity = dialog.findViewById(R.id.TVGyroSensitivity);
-        final SeekBar sbGyroSensitivity = dialog.findViewById(R.id.SBGyroSensitivity);
-        sbGyroSensitivity.setProgress((int)(gyroSensitivity * 50));
-        tvGyroSensitivity.setText(String.format(Locale.US, "Gyro Sensitivity: %.1fx", gyroSensitivity));
+        final Spinner sGyroCurve = dialog.findViewById(R.id.SGyroCurve);
+        String[] gyroCurves = {"Linear (1:1)", "Enhanced (Exponential)", "Sigmoid (S-Curve)"};
+        sGyroCurve.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, gyroCurves));
+        sGyroCurve.setSelection(Math.min(gyroCurve, gyroCurves.length - 1));
+
+        final TextView tvGyroSensitivityX = dialog.findViewById(R.id.TVGyroSensitivityX);
+        final SeekBar sbGyroSensitivityX = dialog.findViewById(R.id.SBGyroSensitivityX);
+        sbGyroSensitivityX.setProgress((int)(gyroSensitivityX * 50));
+        tvGyroSensitivityX.setText(String.format(Locale.US, "Sensitivity X (Yaw): %.1fx", gyroSensitivityX));
+
+        final TextView tvGyroSensitivityY = dialog.findViewById(R.id.TVGyroSensitivityY);
+        final SeekBar sbGyroSensitivityY = dialog.findViewById(R.id.SBGyroSensitivityY);
+        sbGyroSensitivityY.setProgress((int)(gyroSensitivityY * 50));
+        tvGyroSensitivityY.setText(String.format(Locale.US, "Sensitivity Y (Pitch): %.1fx", gyroSensitivityY));
 
         final TextView tvGyroSmoothing = dialog.findViewById(R.id.TVGyroSmoothing);
         final SeekBar sbGyroSmoothing = dialog.findViewById(R.id.SBGyroSmoothing);
@@ -1665,11 +1690,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sbGyroDeadzone.setProgress((int)(gyroDeadzone * 200));
         tvGyroDeadzone.setText(String.format(Locale.US, "Gyro Deadzone: %d%%", (int)(gyroDeadzone * 100)));
 
-        sbGyroSensitivity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+        sbGyroSensitivityX.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                float val = progress / 50.0f;
-                tvGyroSensitivity.setText(String.format(Locale.US, "Gyro Sensitivity: %.1fx", val));
+                float val = Math.max(0.1f, progress / 50.0f);
+                tvGyroSensitivityX.setText(String.format(Locale.US, "Sensitivity X (Yaw): %.1fx", val));
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        sbGyroSensitivityY.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                float val = Math.max(0.1f, progress / 50.0f);
+                tvGyroSensitivityY.setText(String.format(Locale.US, "Sensitivity Y (Pitch): %.1fx", val));
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -1725,9 +1760,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.findViewById(R.id.BTGyroReset).setOnClickListener(v -> {
             cbGyroView.setChecked(false);
+            cbInvertGyroX.setChecked(false);
+            cbInvertGyroY.setChecked(false);
             sGyroActivationMode.setSelection(0);
             sGyroTarget.setSelection(0);
-            sbGyroSensitivity.setProgress(50);
+            sGyroCurve.setSelection(0);
+            sbGyroSensitivityX.setProgress(50);
+            sbGyroSensitivityY.setProgress(50);
             sbGyroSmoothing.setProgress(50);
             sbGyroDeadzone.setProgress(10);
             gyroBiasX = 0;
@@ -1764,9 +1803,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             boolean isHapticsEnabled = cbEnableHaptics.isChecked();
 
             isGyroEnabled = cbGyroView.isChecked();
+            gyroInvertX = cbInvertGyroX.isChecked();
+            gyroInvertY = cbInvertGyroY.isChecked();
             gyroActivationMode = sGyroActivationMode.getSelectedItemPosition();
             gyroTarget = sGyroTarget.getSelectedItemPosition();
-            gyroSensitivity = sbGyroSensitivity.getProgress() / 50.0f;
+            gyroCurve = sGyroCurve.getSelectedItemPosition();
+            gyroSensitivityX = Math.max(0.1f, sbGyroSensitivityX.getProgress() / 50.0f);
+            gyroSensitivityY = Math.max(0.1f, sbGyroSensitivityY.getProgress() / 50.0f);
             gyroSmoothing = sbGyroSmoothing.getProgress() / 100.0f;
             gyroDeadzone = sbGyroDeadzone.getProgress() / 200.0f;
 
@@ -1774,9 +1817,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
             editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
             editor.putBoolean("gyro_enabled", isGyroEnabled);
+            editor.putBoolean("gyro_invert_x", gyroInvertX);
+            editor.putBoolean("gyro_invert_y", gyroInvertY);
             editor.putInt("gyro_activation_mode", gyroActivationMode);
             editor.putInt("gyro_target", gyroTarget);
-            editor.putFloat("gyro_sensitivity", gyroSensitivity);
+            editor.putInt("gyro_curve", gyroCurve);
+            editor.putFloat("gyro_sensitivity_x", gyroSensitivityX);
+            editor.putFloat("gyro_sensitivity_y", gyroSensitivityY);
             editor.putFloat("gyro_smoothing", gyroSmoothing);
             editor.putFloat("gyro_deadzone", gyroDeadzone);
             editor.apply();
@@ -2517,7 +2564,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
             if (winHandler != null) {
-                winHandler.setGyroStick(0, 0);
+                winHandler.setGyroRightStick(0, 0);
+                winHandler.setGyroLeftStick(0, 0);
                 xServer.keyboard.setKeyRelease(Binding.KEY_UP.keycode.id);
                 xServer.keyboard.setKeyRelease(Binding.KEY_DOWN.keycode.id);
                 xServer.keyboard.setKeyRelease(Binding.KEY_LEFT.keycode.id);
@@ -2531,18 +2579,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE && isGyroEnabled) {
             if (winHandler == null) return;
 
-            if (gyroActivationMode == 1) { // Touchpad
-                if (touchpadView != null && !touchpadView.isFingerDown()) {
-                    if (gyroTarget == 1) winHandler.setGyroStick(0, 0);
-                    return;
-                }
-            } else if (gyroActivationMode == 2) { // LT
+            // Activation Mode Checking
+            // 0: Always
+            // 1: Touch Screen / Touchpad
+            // 2: Left Trigger (LT / ADS)
+            // 3: Right Trigger (RT)
+            // 4: Right Stick (RS)
+            boolean active = true;
+            if (gyroActivationMode == 1) { // Touch Screen / Touchpad
+                active = touchpadView != null && touchpadView.isFingerDown();
+            } else if (gyroActivationMode == 2) { // Left Trigger (LT / ADS)
                 boolean ltPressed = false;
                 if (inputControlsView != null && inputControlsView.getProfile() != null) {
                     GamepadState vState = inputControlsView.getProfile().getGamepadState();
                     if (vState.triggerL >= 0.5f || vState.isPressed((int)ExternalController.IDX_BUTTON_L2)) ltPressed = true;
                 }
-                
                 if (!ltPressed) {
                     for (ExternalController controller : winHandler.getControllers().values()) {
                         if (controller.state.triggerL >= 0.5f || controller.state.isPressed((int)ExternalController.IDX_BUTTON_L2) ||
@@ -2552,11 +2603,39 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         }
                     }
                 }
-
-                if (!ltPressed) {
-                    if (gyroTarget == 1) winHandler.setGyroStick(0, 0);
-                    return;
+                active = ltPressed;
+            } else if (gyroActivationMode == 3) { // Right Trigger (RT)
+                boolean rtPressed = false;
+                if (inputControlsView != null && inputControlsView.getProfile() != null) {
+                    GamepadState vState = inputControlsView.getProfile().getGamepadState();
+                    if (vState.triggerR >= 0.5f || vState.isPressed((int)ExternalController.IDX_BUTTON_R2)) rtPressed = true;
                 }
+                if (!rtPressed) {
+                    for (ExternalController controller : winHandler.getControllers().values()) {
+                        if (controller.state.triggerR >= 0.5f || controller.state.isPressed((int)ExternalController.IDX_BUTTON_R2) ||
+                            controller.remappedState.triggerR >= 0.5f || controller.remappedState.isPressed((int)ExternalController.IDX_BUTTON_R2)) {
+                            rtPressed = true;
+                            break;
+                        }
+                    }
+                }
+                active = rtPressed;
+            } else if (gyroActivationMode == 4) { // Right Stick / RS
+                boolean rsActive = false;
+                for (ExternalController controller : winHandler.getControllers().values()) {
+                    if (Math.abs(controller.state.thumbRX) > 0.2f || Math.abs(controller.state.thumbRY) > 0.2f ||
+                        controller.state.isPressed((int)ExternalController.IDX_BUTTON_R3)) {
+                        rsActive = true;
+                        break;
+                    }
+                }
+                active = rsActive;
+            }
+
+            if (!active) {
+                if (gyroTarget == 1) winHandler.setGyroRightStick(0, 0);
+                else if (gyroTarget == 2) winHandler.setGyroLeftStick(0, 0);
+                return;
             }
 
             float axisX = event.values[0] - gyroBiasX;
@@ -2574,9 +2653,31 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             filteredGyroX = filteredGyroX * (1.0f - alpha) + axisX * alpha;
             filteredGyroY = filteredGyroY * (1.0f - alpha) + axisY * alpha;
 
-            if (gyroTarget == 0) { // Mouse
-                int dx = (int) (-filteredGyroX * gyroSensitivity * 30);
-                int dy = (int) (filteredGyroY * gyroSensitivity * 30);
+            // Apply Inversion
+            float procX = gyroInvertX ? -filteredGyroX : filteredGyroX;
+            float procY = gyroInvertY ? -filteredGyroY : filteredGyroY;
+
+            // Apply Dynamic Acceleration Curves
+            float rawSpeed = (float) Math.sqrt(procX * procX + procY * procY);
+            float accelFactor = 1.0f;
+            if (gyroCurve == 1) { // Enhanced (Exponential)
+                accelFactor = 0.6f + 1.8f * (rawSpeed / (rawSpeed + 1.2f));
+            } else if (gyroCurve == 2) { // Sigmoid S-Curve
+                float sig = 1.0f / (1.0f + (float) Math.exp(-2.5f * (rawSpeed - 0.8f)));
+                accelFactor = Math.max(0.4f, sig * 1.8f);
+            }
+
+            float finalX = procX * gyroSensitivityX * accelFactor;
+            float finalY = procY * gyroSensitivityY * accelFactor;
+
+            // Target Dispatch:
+            // 0: Mouse Look
+            // 1: Right Stick (Camera)
+            // 2: Left Stick (Steering)
+            // 3: Arrow Keys
+            if (gyroTarget == 0) { // Mouse Look
+                int dx = (int) (-finalX * 30);
+                int dy = (int) (finalY * 30);
 
                 if (dx != 0 || dy != 0) {
                     if (xServer.isRelativeMouseMovement()) {
@@ -2585,21 +2686,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         xServer.injectPointerMoveDelta(dx, dy);
                     }
                 }
-            } else if (gyroTarget == 1) { // Right Stick
-                float rx = -filteredGyroX * gyroSensitivity * 1.5f;
-                float ry = filteredGyroY * gyroSensitivity * 1.5f;
-                if (winHandler != null) winHandler.setGyroStick(rx, ry);
-            } else if (gyroTarget == 2) { // Arrows
-                float threshold = 0.3f / Math.max(gyroSensitivity, 0.1f);
-                if (-filteredGyroX > threshold) xServer.keyboard.setKeyPress(Binding.KEY_RIGHT.keycode.id, 0);
-                else if (-filteredGyroX < -threshold) xServer.keyboard.setKeyPress(Binding.KEY_LEFT.keycode.id, 0);
+            } else if (gyroTarget == 1) { // Right Stick (Camera)
+                float rx = -finalX * 1.5f;
+                float ry = finalY * 1.5f;
+                if (winHandler != null) winHandler.setGyroRightStick(rx, ry);
+            } else if (gyroTarget == 2) { // Left Stick (Steering)
+                float lx = -finalX * 1.5f;
+                float ly = finalY * 1.5f;
+                if (winHandler != null) winHandler.setGyroLeftStick(lx, ly);
+            } else if (gyroTarget == 3) { // Arrow Keys
+                float threshold = 0.3f / Math.max(gyroSensitivityX, 0.1f);
+                if (-finalX > threshold) xServer.keyboard.setKeyPress(Binding.KEY_RIGHT.keycode.id, 0);
+                else if (-finalX < -threshold) xServer.keyboard.setKeyPress(Binding.KEY_LEFT.keycode.id, 0);
                 else {
                     xServer.keyboard.setKeyRelease(Binding.KEY_LEFT.keycode.id);
                     xServer.keyboard.setKeyRelease(Binding.KEY_RIGHT.keycode.id);
                 }
 
-                if (filteredGyroY > threshold) xServer.keyboard.setKeyPress(Binding.KEY_DOWN.keycode.id, 0);
-                else if (filteredGyroY < -threshold) xServer.keyboard.setKeyPress(Binding.KEY_UP.keycode.id, 0);
+                if (finalY > threshold) xServer.keyboard.setKeyPress(Binding.KEY_DOWN.keycode.id, 0);
+                else if (finalY < -threshold) xServer.keyboard.setKeyPress(Binding.KEY_UP.keycode.id, 0);
                 else {
                     xServer.keyboard.setKeyRelease(Binding.KEY_UP.keycode.id);
                     xServer.keyboard.setKeyRelease(Binding.KEY_DOWN.keycode.id);

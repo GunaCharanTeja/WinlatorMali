@@ -69,6 +69,8 @@ public class WinHandler {
     private final List<Integer> gamepadClients = new CopyOnWriteArrayList<>();
     private SharedPreferences preferences;
     private final UnifiedInputState unifiedInputState = new UnifiedInputState();
+    private float gyroLX = 0;
+    private float gyroLY = 0;
     private float gyroRX = 0;
     private float gyroRY = 0;
 
@@ -735,11 +737,17 @@ public void setVibrationEnabledForSlot(int slot, boolean enabled) {
         }
 
         GamepadState gamepadState = profile.getGamepadState();
-        if (gyroRX != 0 || gyroRY != 0) {
+        if (gyroRX != 0 || gyroRY != 0 || gyroLX != 0 || gyroLY != 0) {
             GamepadState newState = new GamepadState();
             newState.copy(gamepadState);
-            newState.thumbRX = Mathf.clamp(newState.thumbRX + gyroRX, -1.0f, 1.0f);
-            newState.thumbRY = Mathf.clamp(newState.thumbRY + gyroRY, -1.0f, 1.0f);
+            if (gyroRX != 0 || gyroRY != 0) {
+                newState.thumbRX = Mathf.clamp(newState.thumbRX + gyroRX, -1.0f, 1.0f);
+                newState.thumbRY = Mathf.clamp(newState.thumbRY + gyroRY, -1.0f, 1.0f);
+            }
+            if (gyroLX != 0 || gyroLY != 0) {
+                newState.thumbLX = Mathf.clamp(newState.thumbLX + gyroLX, -1.0f, 1.0f);
+                newState.thumbLY = Mathf.clamp(newState.thumbLY + gyroLY, -1.0f, 1.0f);
+            }
             gamepadState = newState;
         }
 
@@ -770,11 +778,17 @@ public void setVibrationEnabledForSlot(int slot, boolean enabled) {
             }
         }
 
-        if (gyroRX != 0 || gyroRY != 0) {
+        if (gyroRX != 0 || gyroRY != 0 || gyroLX != 0 || gyroLY != 0) {
             GamepadState newState = new GamepadState();
             newState.copy(gamepadState);
-            newState.thumbRX = Mathf.clamp(newState.thumbRX + gyroRX, -1.0f, 1.0f);
-            newState.thumbRY = Mathf.clamp(newState.thumbRY + gyroRY, -1.0f, 1.0f);
+            if (gyroRX != 0 || gyroRY != 0) {
+                newState.thumbRX = Mathf.clamp(newState.thumbRX + gyroRX, -1.0f, 1.0f);
+                newState.thumbRY = Mathf.clamp(newState.thumbRY + gyroRY, -1.0f, 1.0f);
+            }
+            if (gyroLX != 0 || gyroLY != 0) {
+                newState.thumbLX = Mathf.clamp(newState.thumbLX + gyroLX, -1.0f, 1.0f);
+                newState.thumbLY = Mathf.clamp(newState.thumbLY + gyroLY, -1.0f, 1.0f);
+            }
             gamepadState = newState;
         }
 
@@ -848,8 +862,25 @@ public void setVibrationEnabledForSlot(int slot, boolean enabled) {
     }
 
     public void setGyroStick(float rx, float ry) {
+        setGyroRightStick(rx, ry);
+    }
+
+    public void setGyroRightStick(float rx, float ry) {
         this.gyroRX = rx;
         this.gyroRY = ry;
+        this.gyroLX = 0;
+        this.gyroLY = 0;
+        sendGamepadState();
+        for (ExternalController controller : controllers.values()) {
+            sendGamepadState(controller);
+        }
+    }
+
+    public void setGyroLeftStick(float lx, float ly) {
+        this.gyroLX = lx;
+        this.gyroLY = ly;
+        this.gyroRX = 0;
+        this.gyroRY = 0;
         sendGamepadState();
         for (ExternalController controller : controllers.values()) {
             sendGamepadState(controller);

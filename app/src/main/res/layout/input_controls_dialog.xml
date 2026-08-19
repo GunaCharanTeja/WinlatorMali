@@ -132,17 +132,73 @@
             android:layout_height="wrap_content"
             android:spinnerMode="dropdown" />
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <CheckBox
+                android:id="@+id/CBInvertGyroX"
+                style="@style/CheckBox"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Invert Yaw (X)"
+                android:textSize="12sp" />
+
+            <CheckBox
+                android:id="@+id/CBInvertGyroY"
+                style="@style/CheckBox"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Invert Pitch (Y)"
+                android:textSize="12sp" />
+        </LinearLayout>
+
         <TextView
-            android:id="@+id/TVGyroSensitivity"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="12dp"
             android:paddingTop="8dp"
-            android:text="Gyro Sensitivity: 1.0x"
+            android:text="Acceleration Curve"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/SGyroCurve"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dropdown" />
+
+        <TextView
+            android:id="@+id/TVGyroSensitivityX"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:text="Sensitivity X (Yaw): 1.0x"
             android:textSize="14sp" />
 
         <SeekBar
-            android:id="@+id/SBGyroSensitivity"
+            android:id="@+id/SBGyroSensitivityX"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100"
+            android:progress="50" />
+
+        <TextView
+            android:id="@+id/TVGyroSensitivityY"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:text="Sensitivity Y (Pitch): 1.0x"
+            android:textSize="14sp" />
+
+        <SeekBar
+            android:id="@+id/SBGyroSensitivityY"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:max="100"
