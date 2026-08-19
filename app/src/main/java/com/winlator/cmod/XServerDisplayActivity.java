@@ -91,6 +91,8 @@ import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.core.WineUtils;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
 import com.winlator.cmod.PlayerSlotsDialog;
+import com.winlator.cmod.RadialWheelManager;
+import com.winlator.cmod.RadialWheelsDialog;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ExternalController;
 import com.winlator.cmod.inputcontrols.GamepadState;
@@ -230,6 +232,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private String screenEffectProfile;
 
     private InGameControlsEditor inGameControlsEditor;
+    private RadialWheelManager radialWheelManager;
     private GuestProgramLauncherComponent guestProgramLauncherComponent;
     private EnvVars overrideEnvVars;
 
@@ -1691,6 +1694,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.findViewById(R.id.BTPlayerSlots).setOnClickListener(v ->
             PlayerSlotsDialog.show(this, winHandler));
 
+        dialog.findViewById(R.id.BTRadialWheel).setOnClickListener(v -> {
+            int position = sProfile.getSelectedItemPosition();
+            if (position <= 0) {
+                AppUtils.showToast(this, R.string.no_profile_selected);
+                return;
+            }
+            ControlsProfile selectedProfile = inputControlsManager.getProfiles().get(position - 1);
+            RadialWheelsDialog.show(this, selectedProfile, () -> {
+                if (radialWheelManager != null) {
+                    radialWheelManager.updateConfigs(selectedProfile.getWheels());
+                }
+            });
+        });
+
         dialog.findViewById(R.id.BTGyroCalibrate).setOnClickListener(v -> {
             gyroBiasX += filteredGyroX;
             gyroBiasY += filteredGyroY;
@@ -1862,6 +1879,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
 
+        FrameLayout container = findViewById(R.id.FLXServerDisplay);
+        if (radialWheelManager == null) {
+            radialWheelManager = new RadialWheelManager(container, inputControlsView, profile != null ? profile.getWheels() : null);
+            inputControlsView.setRadialWheelManager(radialWheelManager);
+        } else {
+            radialWheelManager.updateConfigs(profile != null ? profile.getWheels() : null);
+        }
+
         touchpadView.setSensitivity(profile.getCursorSpeed() * globalCursorSpeed);
         touchpadView.setPointerButtonRightEnabled(false);
 
@@ -1870,6 +1895,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void hideInputControls() {
+        if (radialWheelManager != null) {
+            radialWheelManager.dismissAll();
+        }
         inputControlsView.setShowTouchscreenControls(true);
         inputControlsView.setVisibility(View.GONE);
         inputControlsView.setProfile(null);

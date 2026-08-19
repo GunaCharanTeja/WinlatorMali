@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="340dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbarStyle="outsideOverlay">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- ── Wheel Selection ── -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    style="@style/FieldSet"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <Spinner
+                            android:id="@+id/SPWheelSelect"
+                            style="@style/ComboBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:spinnerMode="dropdown" />
+
+                        <Button
+                            android:id="@+id/BTAddWheel"
+                            android:layout_width="40dp"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="6dp"
+                            android:text="+"
+                            android:textStyle="bold"
+                            style="@style/ButtonNeutral" />
+
+                        <Button
+                            android:id="@+id/BTRemoveWheel"
+                            android:layout_width="40dp"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="4dp"
+                            android:text="-"
+                            android:textStyle="bold"
+                            style="@style/ButtonNeutral" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    style="@style/FieldSetLabel"
+                    android:text="Radial Wheel" />
+            </FrameLayout>
+
+            <!-- ── Wheel Properties ── -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    style="@style/FieldSet"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Wheel Name"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/ETWheelName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:inputType="text"
+                        android:hint="e.g. Weapons, Spells, Hotkeys"
+                        android:textSize="13sp"
+                        android:textColor="@android:color/white" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Hold Trigger Button"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/SPTriggerBinding"
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:spinnerMode="dropdown" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/FieldSetLabel"
+                    android:text="Properties" />
+            </FrameLayout>
+
+            <!-- ── Wheel Slices ── -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    style="@style/FieldSet"
+                    android:id="@+id/LLSlicesContainer"
+                    android:orientation="vertical" />
+
+                <TextView
+                    style="@style/FieldSetLabel"
+                    android:text="Wheel Slices (Top Clockwise)" />
+            </FrameLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

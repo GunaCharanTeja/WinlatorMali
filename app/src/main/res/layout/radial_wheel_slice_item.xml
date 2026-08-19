@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- Slice Index Badge -->
+    <TextView
+        android:id="@+id/TVSliceIndex"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:background="@drawable/rounded_circle_bg"
+        android:gravity="center"
+        android:textColor="@android:color/white"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:text="1" />
+
+    <!-- Slice Label Input -->
+    <EditText
+        android:id="@+id/ETSliceLabel"
+        android:layout_width="70dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:hint="Label"
+        android:singleLine="true"
+        android:textSize="12sp"
+        android:textColor="@android:color/white" />
+
+    <!-- Slice Binding Action -->
+    <Spinner
+        android:id="@+id/SPSliceBinding"
+        style="@style/ComboBox"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_weight="1"
+        android:spinnerMode="dropdown" />
+
+</LinearLayout>

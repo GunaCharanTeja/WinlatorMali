@@ -29,6 +29,7 @@ import android.widget.FrameLayout;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.RadialWheelManager;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ControlElement;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
@@ -78,6 +79,15 @@ public class InputControlsView extends View {
     private SharedPreferences preferences;
     private ControlElement stickElement;
     private boolean focusOnStick = false;
+    private RadialWheelManager radialWheelManager;
+
+    public RadialWheelManager getRadialWheelManager() {
+        return radialWheelManager;
+    }
+
+    public void setRadialWheelManager(RadialWheelManager radialWheelManager) {
+        this.radialWheelManager = radialWheelManager;
+    }
 
     public boolean isFocusedOnStick() {
         return focusOnStick;
@@ -499,6 +509,10 @@ public class InputControlsView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         resetTouchscreenTimeout();
+        if (!editMode && radialWheelManager != null && radialWheelManager.hasActiveWheel()) {
+            if (radialWheelManager.handleTouchEvent(event)) return true;
+        }
+
         if (editMode && readyToDraw) {
             float x = event.getX(), y = event.getY();
             switch (event.getAction()) {
@@ -520,6 +534,12 @@ public class InputControlsView extends View {
                     float x = event.getX(actionIndex), y = event.getY(actionIndex);
                     touchpadView.setPointerButtonLeftEnabled(true);
                     for (ControlElement element : profile.getElements()) {
+                        if (radialWheelManager != null && element.containsPoint(x, y)) {
+                            if (radialWheelManager.onBindingHeld(element.getBindingAt(0), x, y)) {
+                                handled = true;
+                                break;
+                            }
+                        }
                         if (element.handleTouchDown(pointerId, x, y)) {
                             handled = true;
                             if (preferences.getBoolean("touchscreen_haptics_enabled", true)) {
@@ -541,7 +561,12 @@ public class InputControlsView extends View {
                     invalidate();
                 }
                 case MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
-                    for (ControlElement element : profile.getElements()) if (element.handleTouchUp(pointerId)) handled = true;
+                    for (ControlElement element : profile.getElements()) {
+                        if (radialWheelManager != null) {
+                            radialWheelManager.onBindingReleased(element.getBindingAt(0));
+                        }
+                        if (element.handleTouchUp(pointerId)) handled = true;
+                    }
                     if (!handled) touchpadView.onTouchEvent(event);
                     invalidate();
                 }

@@ -64,6 +64,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         container.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         container.findViewById(R.id.BTElementSettings).setOnClickListener(this);
         container.findViewById(R.id.BTReset).setOnClickListener(this);
+        container.findViewById(R.id.BTRadialWheel).setOnClickListener(this);
     }
 
     @Override
@@ -111,6 +112,13 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                         AppUtils.showToast(this, "Buttons reset to original layout");
                     }
                 });
+                break;
+            case R.id.BTRadialWheel:
+                if (profile != null) {
+                    RadialWheelsDialog.show(this, profile, () -> {
+                        inputControlsView.invalidate();
+                    });
+                }
                 break;
         }
     }

@@ -66,6 +66,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
         root.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         root.findViewById(R.id.BTElementSettings).setOnClickListener(this);
         root.findViewById(R.id.BTReset).setOnClickListener(this);
+        root.findViewById(R.id.BTRadialWheel).setOnClickListener(this);
         root.findViewById(R.id.BTDone).setOnClickListener(this);
 
         inputControlsView.setDrawOpaqueBackground(false);
@@ -135,6 +136,12 @@ public final class InGameControlsEditor implements View.OnClickListener {
                     AppUtils.showToast(activity, "Buttons reset to original layout");
                 }
             });
+        } else if (id == R.id.BTRadialWheel) {
+            if (profile != null) {
+                RadialWheelsDialog.show(activity, profile, () -> {
+                    inputControlsView.invalidate();
+                });
+            }
         } else if (id == R.id.BTDone) {
             dispose();
             if (onDone != null) onDone.run();

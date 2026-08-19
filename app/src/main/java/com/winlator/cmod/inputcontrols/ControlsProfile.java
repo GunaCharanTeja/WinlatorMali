@@ -23,9 +23,11 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     private float cursorSpeed = 1.0f;
     private final ArrayList<ControlElement> elements = new ArrayList<>();
     private final ArrayList<ExternalController> controllers = new ArrayList<>();
+    private final ArrayList<RadialWheelConfig> wheels = new ArrayList<>();
     private final List<ControlElement> immutableElements = Collections.unmodifiableList(elements);
     private boolean elementsLoaded = false;
     private boolean controllersLoaded = false;
+    private boolean wheelsLoaded = false;
     private boolean virtualGamepad = false;
     private final Context context;
     private GamepadState gamepadState;
@@ -144,9 +146,37 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             }
             if (controllersJSONArray.length() > 0) data.put("controllers", controllersJSONArray);
 
+            JSONArray wheelsJSONArray = new JSONArray();
+            if (!wheelsLoaded && file.isFile()) {
+                JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+                if (profileJSONObject.has("wheels")) wheelsJSONArray = profileJSONObject.getJSONArray("wheels");
+            }
+            else {
+                for (RadialWheelConfig wheel : wheels) {
+                    JSONObject wheelJSONObject = wheel.toJSONObject();
+                    if (wheelJSONObject != null) wheelsJSONArray.put(wheelJSONObject);
+                }
+            }
+            if (wheelsJSONArray.length() > 0) data.put("wheels", wheelsJSONArray);
+
             FileUtils.writeString(file, data.toString());
         }
         catch (JSONException e) {}
+    }
+
+    public ArrayList<RadialWheelConfig> getWheels() {
+        if (!wheelsLoaded) loadWheels();
+        return wheels;
+    }
+
+    public void addWheel(RadialWheelConfig wheel) {
+        wheels.add(wheel);
+        wheelsLoaded = true;
+    }
+
+    public void removeWheel(RadialWheelConfig wheel) {
+        if (!wheelsLoaded) loadWheels();
+        wheels.remove(wheel);
     }
 
     public static File getProfileFile(Context context, int id) {
@@ -244,10 +274,35 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 elements.add(element);
             }
             elementsLoaded = true;
+            loadWheels();
         }
         catch (JSONException e) {
             e.printStackTrace();
         }
+    }
+
+    public ArrayList<RadialWheelConfig> loadWheels() {
+        wheels.clear();
+        wheelsLoaded = false;
+
+        File file = getProfileFile(context, id);
+        if (!file.isFile()) return wheels;
+
+        try {
+            JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+            if (!profileJSONObject.has("wheels")) return wheels;
+            JSONArray wheelsJSONArray = profileJSONObject.getJSONArray("wheels");
+            for (int i = 0; i < wheelsJSONArray.length(); i++) {
+                JSONObject wheelJSONObject = wheelsJSONArray.getJSONObject(i);
+                RadialWheelConfig wheel = RadialWheelConfig.fromJSON(wheelJSONObject);
+                if (wheel != null) wheels.add(wheel);
+            }
+            wheelsLoaded = true;
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return wheels;
     }
 
     public boolean resetToDefaultTemplate(InputControlsView inputControlsView) {

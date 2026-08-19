@@ -48,6 +48,17 @@
                 app:tint="@color/colorAccent" />
 
             <ImageView
+                android:id="@+id/BTRadialWheel"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="8dp"
+                android:src="@drawable/icon_radial_wheel"
+                android:padding="4dp"
+                android:contentDescription="Radial Wheels"
+                android:background="?selectableItemBackgroundBorderless"
+                app:tint="@color/colorAccent" />
+
+            <ImageView
                 android:id="@+id/BTSettings"
                 android:layout_width="32dp"
                 android:layout_height="32dp"

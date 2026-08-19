@@ -59,5 +59,10 @@
             android:id="@+id/BTReset"
             style="@style/ToolButton"
             android:src="@drawable/icon_reset"  />
+
+        <ImageButton
+            android:id="@+id/BTRadialWheel"
+            style="@style/ToolButton"
+            android:src="@drawable/icon_radial_wheel"  />
     </LinearLayout>
 </FrameLayout>
