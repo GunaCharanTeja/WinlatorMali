@@ -56,8 +56,8 @@ public class RadialWheelsDialog {
         dialog.setIcon(R.drawable.icon_radial_wheel);
 
         Spinner spWheelSelect = dialog.findViewById(R.id.SPWheelSelect);
-        Button btAddWheel = dialog.findViewById(R.id.BTAddWheel);
-        Button btRemoveWheel = dialog.findViewById(R.id.BTRemoveWheel);
+        View btAddWheel = dialog.findViewById(R.id.BTAddWheel);
+        View btRemoveWheel = dialog.findViewById(R.id.BTRemoveWheel);
         EditText etWheelName = dialog.findViewById(R.id.ETWheelName);
         Spinner spTriggerBinding = dialog.findViewById(R.id.SPTriggerBinding);
         LinearLayout llSlicesContainer = dialog.findViewById(R.id.LLSlicesContainer);
