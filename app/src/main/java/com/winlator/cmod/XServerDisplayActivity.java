@@ -90,6 +90,7 @@ import com.winlator.cmod.core.WineStartMenuCreator;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.core.WineUtils;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
+import com.winlator.cmod.PlayerSlotsDialog;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ExternalController;
 import com.winlator.cmod.inputcontrols.GamepadState;
@@ -1686,6 +1687,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         });
 
         dialog.findViewById(R.id.BTVibration).setOnClickListener(v -> showVibrationDialog());
+
+        dialog.findViewById(R.id.BTPlayerSlots).setOnClickListener(v ->
+            PlayerSlotsDialog.show(this, winHandler));
 
         dialog.findViewById(R.id.BTGyroCalibrate).setOnClickListener(v -> {
             gyroBiasX += filteredGyroX;

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:layout_marginBottom="6dp"
+    android:background="#1AFFFFFF">
+
+    <!-- Header row: color badge + label + vibration toggle -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <View
+            android:id="@+id/SlotBadge"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:background="#888888" />
+
+        <TextView
+            android:id="@+id/TVSlotLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <CheckBox
+            android:id="@+id/CBVibration"
+            style="@style/CheckBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Vibration"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Left stick deadzone -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="6dp">
+
+        <TextView
+            android:id="@+id/TVLeftDeadzone"
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:textColor="#CCCCCC"
+            android:textSize="11sp"
+            android:text="L-Stick: 10%" />
+
+        <SeekBar
+            android:id="@+id/SBLeftDeadzone"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="30"
+            android:progress="10" />
+    </LinearLayout>
+
+    <!-- Right stick deadzone -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="2dp">
+
+        <TextView
+            android:id="@+id/TVRightDeadzone"
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:textColor="#CCCCCC"
+            android:textSize="11sp"
+            android:text="R-Stick: 10%" />
+
+        <SeekBar
+            android:id="@+id/SBRightDeadzone"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="30"
+            android:progress="10" />
+    </LinearLayout>
+
+</LinearLayout>
