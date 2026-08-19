@@ -1699,6 +1699,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.findViewById(R.id.BTRadialWheel).setOnClickListener(v -> {
             int position = sProfile.getSelectedItemPosition();
             ControlsProfile selectedProfile = (position > 0) ? inputControlsManager.getProfiles().get(position - 1) : null;
+            if (selectedProfile == null && ExternalController.getControllers().isEmpty()) {
+                AppUtils.showToast(this, "Please select a profile or connect a controller");
+                return;
+            }
             RadialWheelsDialog.show(this, selectedProfile, () -> {
                 if (radialWheelManager != null) {
                     List<RadialWheelConfig> configs = (selectedProfile != null)
