@@ -52,6 +52,7 @@ public class InputControlsView extends View {
     public static final float DEFAULT_OVERLAY_OPACITY = 0.4f;
     public static final byte MOUSE_WHEEL_DELTA = 120;
     private boolean editMode = false;
+    private boolean drawOpaqueBackground = true;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private final ColorFilter colorFilter = new PorterDuffColorFilter(0xffffffff, PorterDuff.Mode.SRC_IN);
@@ -192,17 +193,29 @@ public class InputControlsView extends View {
         }
     }
 
-    public ControlElement getStickElement() {
-        return stickElement;
+    public boolean isDrawOpaqueBackground() {
+        return drawOpaqueBackground;
+    }
+
+    public void setDrawOpaqueBackground(boolean drawOpaqueBackground) {
+        this.drawOpaqueBackground = drawOpaqueBackground;
+        invalidate();
     }
 
     private void drawGrid(Canvas canvas) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setStrokeWidth(snappingSize * 0.0625f);
-        paint.setColor(0xff000000);
-        canvas.drawColor(Color.BLACK);
-        paint.setAntiAlias(false);
-        paint.setColor(0xff303030);
+        if (drawOpaqueBackground) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setStrokeWidth(snappingSize * 0.0625f);
+            paint.setColor(0xff000000);
+            canvas.drawColor(Color.BLACK);
+            paint.setAntiAlias(false);
+            paint.setColor(0xff303030);
+        } else {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(snappingSize * 0.0625f);
+            paint.setAntiAlias(false);
+            paint.setColor(0x25FFFFFF);
+        }
 
         int width = getMaxWidth();
         int height = getMaxHeight();
@@ -211,7 +224,7 @@ public class InputControlsView extends View {
 
         float cx = Mathf.roundTo(width * 0.5f, snappingSize);
         float cy = Mathf.roundTo(height * 0.5f, snappingSize);
-        paint.setColor(0xff424242);
+        paint.setColor(drawOpaqueBackground ? 0xff424242 : 0x4000E5FF);
         for (int i = 0; i < height; i += snappingSize * 2) canvas.drawLine(cx, i, cx, i + snappingSize, paint);
         for (int i = 0; i < width; i += snappingSize * 2) canvas.drawLine(i, cy, i + snappingSize, cy, paint);
         paint.setAntiAlias(true);

@@ -66,6 +66,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
         root.findViewById(R.id.BTElementSettings).setOnClickListener(this);
         root.findViewById(R.id.BTDone).setOnClickListener(this);
 
+        inputControlsView.setDrawOpaqueBackground(false);
         inputControlsView.setEditMode(true);
         inputControlsView.invalidate();
     }
@@ -84,6 +85,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
             currentPopup = null;
         }
         save();
+        inputControlsView.setDrawOpaqueBackground(true);
         inputControlsView.setEditMode(false);
         inputControlsView.invalidate();
         if (root.getParent() instanceof FrameLayout) {
