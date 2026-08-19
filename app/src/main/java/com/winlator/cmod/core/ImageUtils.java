@@ -120,4 +120,15 @@ public abstract class ImageUtils {
         }
         return false;
     }
+
+    public static boolean isPNGData(java.nio.ByteBuffer data) {
+        int position = data.position();
+        if (Byte.toUnsignedInt(data.get(position + 0)) != 137 || 
+            data.get(position + 1) != 80 || 
+            data.get(position + 2) != 78 || 
+            data.get(position + 3) != 71) {
+            return false;
+        }
+        return true;
+    }
 }

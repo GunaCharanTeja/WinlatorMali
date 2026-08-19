@@ -584,6 +584,8 @@ public class Shortcut {
         return "";
     }
 
+    private static final java.util.concurrent.ConcurrentHashMap<String, com.winlator.cmod.win32.PEParser.FileVersionInfo> VERSION_INFO_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
     public String getExecutable() {
         String exe = "";
         try {
@@ -612,5 +614,53 @@ public class Shortcut {
             Log.e("Shortcut", "Error reading shortcut file", e);
         }
         return exe;
+    }
+
+    public com.winlator.cmod.win32.PEParser.FileVersionInfo getFileVersionInfo() {
+        String key = (this.file != null) ? this.file.getAbsolutePath() : this.name;
+        com.winlator.cmod.win32.PEParser.FileVersionInfo cached = VERSION_INFO_CACHE.get(key);
+        if (cached != null) return cached;
+
+        try {
+            File exe = resolveExeFile();
+            if (exe != null && exe.isFile()) {
+                com.winlator.cmod.win32.PEParser.FileVersionInfo info = com.winlator.cmod.win32.PEParser.getFileVersionInfo(exe);
+                if (info != null) {
+                    VERSION_INFO_CACHE.put(key, info);
+                    return info;
+                }
+            }
+        } catch (Throwable t) {
+            Log.d("Shortcut", "Could not parse version info for " + name + ": " + t.getMessage());
+        }
+        return null;
+    }
+
+    public String getGameVersion() {
+        com.winlator.cmod.win32.PEParser.FileVersionInfo info = getFileVersionInfo();
+        if (info != null) {
+            String rawVer = null;
+            if (info.FileVersion != null && !info.FileVersion.trim().isEmpty()) {
+                rawVer = info.FileVersion.trim();
+            } else if (info.ProductVersion != null && !info.ProductVersion.trim().isEmpty()) {
+                rawVer = info.ProductVersion.trim();
+            }
+
+            if (rawVer != null) {
+                // Normalize commas and spaces: e.g. "1, 0, 4, 0" -> "1.0.4.0"
+                String cleaned = rawVer.replace(',', '.').replaceAll("\\s+", "");
+                while (cleaned.contains("..")) {
+                    cleaned = cleaned.replace("..", ".");
+                }
+                while (cleaned.endsWith(".")) {
+                    cleaned = cleaned.substring(0, cleaned.length() - 1);
+                }
+                while (cleaned.startsWith(".")) {
+                    cleaned = cleaned.substring(1);
+                }
+                return cleaned.isEmpty() ? null : cleaned;
+            }
+        }
+        return null;
     }
 }

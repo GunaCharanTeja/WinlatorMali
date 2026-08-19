@@ -34,7 +34,7 @@
             android:background="@drawable/card_bottom_gradient"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHeight_percent="0.45"
+            app:layout_constraintHeight_percent="0.52"
             app:layout_constraintStart_toStartOf="parent" />
 
         <androidx.constraintlayout.widget.Guideline
@@ -71,38 +71,68 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:lineSpacingMultiplier="0.9"
+                android:fontFamily="sans-serif-medium"
+                android:lineSpacingMultiplier="0.95"
                 android:maxLines="2"
-                android:shadowColor="#cc000000"
+                android:shadowColor="#FF000000"
                 android:shadowDx="0.0"
                 android:shadowDy="2.0"
-                android:shadowRadius="6.0"
+                android:shadowRadius="6.5"
                 android:textColor="@color/white"
-                android:textSize="17sp"
+                android:textSize="15.5sp"
                 android:textStyle="bold"
-                app:autoSizeMaxTextSize="17sp"
-                app:autoSizeMinTextSize="12sp"
-                app:autoSizeStepGranularity="1sp"
+                app:autoSizeMaxTextSize="15.5sp"
+                app:autoSizeMinTextSize="11sp"
+                app:autoSizeStepGranularity="0.5sp"
                 app:autoSizeTextType="uniform" />
 
-            <TextView
-                android:id="@+id/TVSubtitle"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:alpha="0.85"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:shadowColor="#cc000000"
-                android:shadowDx="0.0"
-                android:shadowDy="1.0"
-                android:shadowRadius="3.0"
-                android:textColor="?gamingCardSubtitleColor"
-                android:textSize="12sp"
-                app:autoSizeMaxTextSize="12sp"
-                app:autoSizeMinTextSize="10sp"
-                app:autoSizeStepGranularity="1sp"
-                app:autoSizeTextType="uniform" />
+                android:layout_marginTop="5dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/TVSubtitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/badge_wine_bg"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:shadowColor="#cc000000"
+                    android:shadowDx="0.0"
+                    android:shadowDy="1.0"
+                    android:shadowRadius="2.0"
+                    android:textColor="#E0E0E0"
+                    android:textSize="10sp"
+                    app:autoSizeMaxTextSize="10sp"
+                    app:autoSizeMinTextSize="7.5sp"
+                    app:autoSizeStepGranularity="0.5sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/TVVersion"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:background="@drawable/badge_version_bg"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:shadowColor="#cc000000"
+                    android:shadowDx="0.0"
+                    android:shadowDy="1.0"
+                    android:shadowRadius="2.0"
+                    android:textColor="#00E5FF"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
 
         <ImageButton
@@ -110,7 +140,7 @@
             style="@style/ListMenuButton"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:layout_margin="12dp"
+            android:layout_margin="10dp"
             android:background="@drawable/glass_menu_button"
             android:padding="8dp"
             android:scaleType="fitCenter"

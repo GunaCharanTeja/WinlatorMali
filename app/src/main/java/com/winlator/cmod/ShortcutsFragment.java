@@ -152,7 +152,22 @@ public class ShortcutsFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             Shortcut item = data.get(position);
             holder.title.setText(item.name);
-            holder.subtitle.setText(item.container.getName());
+
+            String rawWine = item.getExtra("wineVersion", item.container.getWineVersion());
+            String displayWine = formatWineVersionForDisplay(rawWine);
+            if (displayWine.isEmpty()) displayWine = item.container.getName();
+            holder.subtitle.setText(displayWine);
+
+            String gameVersion = item.getGameVersion();
+            if (gameVersion != null && !gameVersion.isEmpty()) {
+                String formattedVer = gameVersion.startsWith("v") || gameVersion.startsWith("V") ? gameVersion : "v" + gameVersion;
+                if (holder.version != null) {
+                    holder.version.setText(formattedVer);
+                    holder.version.setVisibility(View.VISIBLE);
+                }
+            } else if (holder.version != null) {
+                holder.version.setVisibility(View.GONE);
+            }
 
             String remoteUrl = item.getCoverArtUrl();
             if (item.getCustomCoverArtPath().isEmpty() && remoteUrl != null) {
@@ -599,6 +614,29 @@ public class ShortcutsFragment extends Fragment {
             StringBuilder sb = new StringBuilder();
             sb.append("Name: ").append(shortcut.name).append("\n");
             sb.append("Container: ").append(shortcut.container.getName()).append("\n");
+            String wineVer = shortcut.getExtra("wineVersion", shortcut.container.getWineVersion());
+            if (wineVer != null && !wineVer.isEmpty()) {
+                sb.append("Wine: ").append(wineVer).append("\n");
+            }
+
+            String gv = shortcut.getGameVersion();
+            if (gv != null && !gv.isEmpty()) {
+                sb.append("Game Version: ").append(gv).append("\n");
+            }
+
+            com.winlator.cmod.win32.PEParser.FileVersionInfo fi = shortcut.getFileVersionInfo();
+            if (fi != null) {
+                if (fi.CompanyName != null && !fi.CompanyName.isEmpty()) {
+                    sb.append("Company: ").append(fi.CompanyName).append("\n");
+                }
+                if (fi.FileDescription != null && !fi.FileDescription.isEmpty()) {
+                    sb.append("Description: ").append(fi.FileDescription).append("\n");
+                }
+                if (fi.LegalCopyright != null && !fi.LegalCopyright.isEmpty()) {
+                    sb.append("Copyright: ").append(fi.LegalCopyright).append("\n");
+                }
+            }
+
             sb.append("Path: ").append(shortcut.path).append("\n");
             sb.append("File: ").append(shortcut.file.getPath());
             ContentDialog dialog = new ContentDialog(getContext());
@@ -607,10 +645,42 @@ public class ShortcutsFragment extends Fragment {
             dialog.show();
         }
 
+        public static String formatWineVersionForDisplay(String raw) {
+            if (raw == null || raw.isEmpty()) return "";
+            String s = raw.trim();
+            if (s.endsWith(".tzst")) s = s.substring(0, s.length() - 5);
+            if (s.endsWith(".tar.xz")) s = s.substring(0, s.length() - 7);
+            if (s.endsWith(".tar.zst")) s = s.substring(0, s.length() - 8);
+
+            String lower = s.toLowerCase();
+            if (lower.startsWith("proton") || lower.startsWith("wine")) {
+                boolean isProton = lower.startsWith("proton");
+                String prefix = isProton ? "Proton" : "Wine";
+                String rest = s.substring(prefix.length());
+                if (rest.startsWith("-") || rest.startsWith(" ")) rest = rest.substring(1).trim();
+
+                String arch = "";
+                if (rest.toLowerCase().endsWith("-arm64ec") || rest.toLowerCase().endsWith(" arm64ec")) {
+                    arch = " arm64ec";
+                    rest = rest.substring(0, rest.length() - 8).trim();
+                } else if (rest.toLowerCase().endsWith("-x86_64") || rest.toLowerCase().endsWith(" x86_64")) {
+                    arch = " x86_64";
+                    rest = rest.substring(0, rest.length() - 7).trim();
+                } else if (rest.toLowerCase().endsWith("-x86") || rest.toLowerCase().endsWith(" x86")) {
+                    arch = " x86";
+                    rest = rest.substring(0, rest.length() - 4).trim();
+                }
+                if (rest.endsWith("-")) rest = rest.substring(0, rest.length() - 1);
+                return prefix + " " + rest + arch;
+            }
+            return s;
+        }
+
         class ViewHolder extends RecyclerView.ViewHolder {
             private final ImageView coverArt;
             private final TextView title;
             private final TextView subtitle;
+            private final TextView version;
             private final ImageButton menuButton;
             private final View innerArea;
 
@@ -619,6 +689,7 @@ public class ShortcutsFragment extends Fragment {
                 coverArt = view.findViewById(R.id.ImageView);
                 title = view.findViewById(R.id.TVTitle);
                 subtitle = view.findViewById(R.id.TVSubtitle);
+                version = view.findViewById(R.id.TVVersion);
                 menuButton = view.findViewById(R.id.BTMenu);
                 innerArea = view.findViewById(R.id.LLInnerArea);
             }

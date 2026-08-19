@@ -8,6 +8,23 @@ import java.io.OutputStream;
 public class StreamUtils {
     public static final int BUFFER_SIZE = 64 * 1024;
 
+    public static int skip(InputStream inStream, int bytesToSkip) {
+        try {
+            int bytesSkipped = (int) inStream.skip(bytesToSkip);
+            if (bytesSkipped > 0 && bytesSkipped != bytesToSkip) {
+                byte[] skipBuffer = new byte[1024];
+                while (bytesSkipped != bytesToSkip) {
+                    int bytesRead = inStream.read(skipBuffer, 0, Math.min(skipBuffer.length, bytesToSkip - bytesSkipped));
+                    if (bytesRead == -1) break;
+                    bytesSkipped += bytesRead;
+                }
+            }
+            return bytesSkipped;
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
     public static byte[] copyToByteArray(InputStream inStream) {
         if (inStream == null) return new byte[0];
 
