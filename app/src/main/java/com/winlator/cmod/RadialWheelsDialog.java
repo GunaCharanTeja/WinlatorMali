@@ -244,10 +244,10 @@ public class RadialWheelsDialog {
     private static void updateSliceIconView(Context context, ImageView iv, int iconId) {
         if (iv == null) return;
         if (iconId > 0) {
-            try (InputStream is = context.getAssets().open("inputcontrols/icons/" + iconId + ".png")) {
-                Bitmap bmp = BitmapFactory.decodeStream(is);
+            Bitmap bmp = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(context).getIcon(iconId);
+            if (bmp != null) {
                 iv.setImageBitmap(bmp);
-            } catch (IOException e) {
+            } else {
                 iv.setImageResource(R.drawable.icon_radial_wheel);
             }
         } else {
@@ -256,84 +256,9 @@ public class RadialWheelsDialog {
     }
 
     private static void showIconPickerDialog(Context context, RadialWheelSlice slice, Runnable onSelected) {
-        byte[] iconIds = new byte[0];
-        try {
-            String[] filenames = context.getAssets().list("inputcontrols/icons/");
-            if (filenames != null) {
-                iconIds = new byte[filenames.length];
-                for (int i = 0; i < filenames.length; i++) {
-                    iconIds[i] = Byte.parseByte(FileUtils.getBasename(filenames[i]));
-                }
-            }
-        } catch (Exception e) {}
-        Arrays.sort(iconIds);
-
-        ContentDialog iconDialog = new ContentDialog(context);
-        iconDialog.setTitle("Select Slice Icon");
-        iconDialog.setIcon(R.drawable.icon_radial_wheel);
-
-        FrameLayout frameLayout = iconDialog.findViewById(R.id.FrameLayout);
-        if (frameLayout == null) return;
-        frameLayout.setVisibility(View.VISIBLE);
-
-        ScrollView scrollView = new ScrollView(context);
-        LinearLayout llList = new LinearLayout(context);
-        llList.setOrientation(LinearLayout.VERTICAL);
-        llList.setPadding(16, 16, 16, 16);
-        scrollView.addView(llList);
-        frameLayout.addView(scrollView);
-
-        int size = (int) UnitUtils.dpToPx(44);
-        int margin = (int) UnitUtils.dpToPx(4);
-        int padding = (int) UnitUtils.dpToPx(6);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
-        params.setMargins(margin, margin, margin, margin);
-
-        // "No Icon (Text Only)" button
-        Button btNoIcon = new Button(context);
-        btNoIcon.setText("None (Text / Emoji Only)");
-        btNoIcon.setTextSize(12);
-        btNoIcon.setOnClickListener(v -> {
-            slice.iconId = 0;
+        com.winlator.cmod.inputcontrols.IconPickerDialog.show(context, slice.iconId, (newIconId) -> {
+            slice.iconId = newIconId;
             if (onSelected != null) onSelected.run();
-            iconDialog.dismiss();
         });
-        llList.addView(btNoIcon);
-
-        // Grid rows of icons
-        LinearLayout row = new LinearLayout(context);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-
-        int count = 0;
-        for (final byte id : iconIds) {
-            ImageView iv = new ImageView(context);
-            iv.setLayoutParams(params);
-            iv.setPadding(padding, padding, padding, padding);
-            iv.setBackgroundResource(R.drawable.icon_background);
-            iv.setSelected(slice.iconId == id);
-
-            try (InputStream is = context.getAssets().open("inputcontrols/icons/" + id + ".png")) {
-                iv.setImageBitmap(BitmapFactory.decodeStream(is));
-            } catch (IOException e) {}
-
-            iv.setOnClickListener(v -> {
-                slice.iconId = id;
-                if (onSelected != null) onSelected.run();
-                iconDialog.dismiss();
-            });
-
-            row.addView(iv);
-            count++;
-            if (count % 5 == 0) {
-                llList.addView(row);
-                row = new LinearLayout(context);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-            }
-        }
-        if (row.getChildCount() > 0) {
-            llList.addView(row);
-        }
-
-        iconDialog.show();
     }
 }

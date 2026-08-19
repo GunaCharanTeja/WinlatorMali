@@ -68,7 +68,6 @@ public class InputControlsView extends View {
     private float overlayOpacity = DEFAULT_OVERLAY_OPACITY;
     private TouchpadView touchpadView;
     private XServer xServer;
-    private final Bitmap[] icons = new Bitmap[17];
     private Timer mouseMoveTimer;
     private final PointF mouseMoveOffset = new PointF();
     private final Map<Binding, Float> keyPressures = new HashMap<>();
@@ -823,10 +822,11 @@ public class InputControlsView extends View {
     }
 
     public Bitmap getIcon(byte id) {
-        if (icons[id] == null) {
-            try (InputStream is = getContext().getAssets().open("inputcontrols/icons/"+id+".png")) { icons[id] = BitmapFactory.decodeStream(is); }
-            catch (IOException e) {}
-        }
-        return icons[id];
+        return getIcon((int)(id & 0xFF));
+    }
+
+    public Bitmap getIcon(int id) {
+        if (id <= 0) return null;
+        return com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(getContext()).getIcon(id);
     }
 }

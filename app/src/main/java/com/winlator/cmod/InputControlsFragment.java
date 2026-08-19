@@ -11,6 +11,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -101,19 +102,27 @@ public class InputControlsFragment extends Fragment {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+        if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
             try {
-                String content = FileUtils.readString(getContext(), data.getData());
-                JSONObject profileJSONObject = null;
-                
-                // Try parsing as JSON (standard Winlator profile)
-                try {
-                    profileJSONObject = new JSONObject(content);
-                } catch (JSONException e) {}
+                Uri uri = data.getData();
+                String filename = FileUtils.getUriFileName(getContext(), uri);
+                String fallbackName = (filename != null && !filename.isEmpty()) ? FileUtils.getBasename(filename) : "Imported Profile";
+
+                // Check if user selected an .icpx icon pack
+                if (filename != null && filename.toLowerCase().endsWith(".icpx")) {
+                    int imported = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(getContext()).importIconPack(uri);
+                    AppUtils.showToast(getContext(), "Imported " + imported + " custom icons!");
+                    importProfileCallback = null;
+                    return;
+                }
+
+                String content = FileUtils.readString(getContext(), uri);
+                JSONObject profileJSONObject = com.winlator.cmod.inputcontrols.InputBridgeProfileParser.parseProfile(getContext(), content, fallbackName);
 
                 if (profileJSONObject != null) {
                     ControlsProfile importedProfile = manager.importProfile(profileJSONObject);
                     if (importProfileCallback != null) importProfileCallback.call(importedProfile);
+                    AppUtils.showToast(getContext(), "Profile imported successfully!");
                 } else {
                     AppUtils.showToast(getContext(), R.string.unable_to_import_profile);
                 }

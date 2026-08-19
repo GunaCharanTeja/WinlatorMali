@@ -159,6 +159,25 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             }
             if (wheelsJSONArray.length() > 0) data.put("wheels", wheelsJSONArray);
 
+            // Embed custom icons for 100% portable sharing
+            CustomIconManager iconManager = CustomIconManager.getInstance(context);
+            JSONArray embeddedIcons = new JSONArray();
+            java.util.Set<Integer> customIds = new java.util.HashSet<>();
+            for (ControlElement element : elements) {
+                int iId = element.getIconId() & 0xFF;
+                if (iId > CustomIconManager.BUILTIN_ICON_MAX) customIds.add(iId);
+            }
+            for (RadialWheelConfig wheel : wheels) {
+                for (RadialWheelSlice slice : wheel.slices) {
+                    if (slice.iconId > CustomIconManager.BUILTIN_ICON_MAX) customIds.add(slice.iconId);
+                }
+            }
+            for (int cid : customIds) {
+                String b64 = iconManager.encodeIconBase64(cid);
+                if (b64 != null) embeddedIcons.put(b64);
+            }
+            if (embeddedIcons.length() > 0) data.put("embeddedIcons", embeddedIcons);
+
             FileUtils.writeString(file, data.toString());
         }
         catch (JSONException e) {}
@@ -247,6 +266,13 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+            if (profileJSONObject.has("embeddedIcons")) {
+                CustomIconManager iconManager = CustomIconManager.getInstance(context);
+                JSONArray embeddedIcons = profileJSONObject.getJSONArray("embeddedIcons");
+                for (int ei = 0; ei < embeddedIcons.length(); ei++) {
+                    iconManager.decodeAndSaveBase64(embeddedIcons.getString(ei));
+                }
+            }
             JSONArray elementsJSONArray = profileJSONObject.getJSONArray("elements");
             for (int i = 0; i < elementsJSONArray.length(); i++) {
                 JSONObject elementJSONObject = elementsJSONArray.getJSONObject(i);

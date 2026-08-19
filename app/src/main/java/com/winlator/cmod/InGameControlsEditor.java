@@ -1,5 +1,6 @@
 package com.winlator.cmod;
 
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -30,6 +31,7 @@ import com.winlator.cmod.widget.NumberPicker;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.List;
 
 public final class InGameControlsEditor implements View.OnClickListener {
     private final XServerDisplayActivity activity;
@@ -299,18 +301,8 @@ public final class InGameControlsEditor implements View.OnClickListener {
     }
 
     private void loadIcons(final LinearLayout parent, byte selectedId) {
-        byte[] iconIds = new byte[0];
-        try {
-            String[] filenames = activity.getAssets().list("inputcontrols/icons/");
-            if (filenames != null) {
-                iconIds = new byte[filenames.length];
-                for (int i = 0; i < filenames.length; i++) {
-                    iconIds[i] = Byte.parseByte(FileUtils.getBasename(filenames[i]));
-                }
-            }
-        } catch (IOException e) {}
-
-        Arrays.sort(iconIds);
+        com.winlator.cmod.inputcontrols.CustomIconManager iconManager = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(activity);
+        List<Integer> iconIds = iconManager.getAllIconIds();
 
         int size = (int) UnitUtils.dpToPx(40);
         int margin = (int) UnitUtils.dpToPx(2);
@@ -318,21 +310,21 @@ public final class InGameControlsEditor implements View.OnClickListener {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
         params.setMargins(margin, 0, margin, 0);
 
-        for (final byte id : iconIds) {
+        for (final int id : iconIds) {
             ImageView imageView = new ImageView(activity);
             imageView.setLayoutParams(params);
             imageView.setPadding(padding, padding, padding, padding);
             imageView.setBackgroundResource(R.drawable.icon_background);
-            imageView.setTag(id);
-            imageView.setSelected(id == selectedId);
+            imageView.setTag((byte) id);
+            imageView.setSelected(id == (selectedId & 0xFF));
             imageView.setOnClickListener((v) -> {
                 for (int i = 0; i < parent.getChildCount(); i++) parent.getChildAt(i).setSelected(false);
                 imageView.setSelected(true);
             });
 
-            try (InputStream is = activity.getAssets().open("inputcontrols/icons/" + id + ".png")) {
-                imageView.setImageBitmap(BitmapFactory.decodeStream(is));
-            } catch (IOException e) {}
+            Bitmap bmp = iconManager.getIcon(id);
+            if (bmp != null) imageView.setImageBitmap(bmp);
+
             parent.addView(imageView);
         }
     }
