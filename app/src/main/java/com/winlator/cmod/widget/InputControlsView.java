@@ -522,6 +522,42 @@ public class InputControlsView extends View {
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
+        if (radialWheelManager != null) {
+            // Check triggers for wheel activation
+            float l2 = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
+            if (l2 == 0f) l2 = event.getAxisValue(MotionEvent.AXIS_BRAKE);
+            float r2 = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
+            if (r2 == 0f) r2 = event.getAxisValue(MotionEvent.AXIS_GAS);
+
+            if (l2 > 0.4f) {
+                radialWheelManager.onBindingHeld(Binding.GAMEPAD_BUTTON_L2, getWidth() / 2f, getHeight() / 2f);
+            } else if (l2 < 0.2f && radialWheelManager.isOpen()) {
+                radialWheelManager.onBindingReleased(Binding.GAMEPAD_BUTTON_L2);
+            }
+
+            if (r2 > 0.4f) {
+                radialWheelManager.onBindingHeld(Binding.GAMEPAD_BUTTON_R2, getWidth() / 2f, getHeight() / 2f);
+            } else if (r2 < 0.2f && radialWheelManager.isOpen()) {
+                radialWheelManager.onBindingReleased(Binding.GAMEPAD_BUTTON_R2);
+            }
+
+            // If wheel is open, thumbsticks navigate slices!
+            if (radialWheelManager.isOpen()) {
+                float rx = event.getAxisValue(MotionEvent.AXIS_Z);
+                float ry = event.getAxisValue(MotionEvent.AXIS_RZ);
+                if (Math.abs(rx) > 0.2f || Math.abs(ry) > 0.2f) {
+                    radialWheelManager.onStickMoved(rx, ry);
+                } else {
+                    float lx = event.getAxisValue(MotionEvent.AXIS_X);
+                    float ly = event.getAxisValue(MotionEvent.AXIS_Y);
+                    if (Math.abs(lx) > 0.2f || Math.abs(ly) > 0.2f) {
+                        radialWheelManager.onStickMoved(lx, ly);
+                    }
+                }
+                return true;
+            }
+        }
+
         if (!editMode && profile != null) {
             ExternalController controller = profile.getController(event.getDeviceId());
             if (controller != null && controller.updateStateFromMotionEvent(event)) {
@@ -561,10 +597,14 @@ public class InputControlsView extends View {
                     touchpadView.setPointerButtonLeftEnabled(true);
                     for (ControlElement element : profile.getElements()) {
                         if (element.containsPoint(x, y)) {
-                            if (radialWheelManager != null && radialWheelManager.onBindingHeld(element.getBindingAt(0), x, y)) {
-                                handled = true;
-                                break;
+                            for (int b = 0; b < element.getBindingCount(); b++) {
+                                Binding binding = element.getBindingAt(b);
+                                if (radialWheelManager != null && radialWheelManager.onBindingHeld(binding, x, y)) {
+                                    handled = true;
+                                    break;
+                                }
                             }
+                            if (handled) break;
                         }
                         if (element.handleTouchDown(pointerId, x, y)) {
                             handled = true;
@@ -616,24 +656,36 @@ public class InputControlsView extends View {
     }
 
     public boolean onKeyEvent(KeyEvent event) {
+        Binding b = null;
+        if (profile != null) {
+            ExternalController controller = profile.getController(event.getDeviceId());
+            if (controller != null) {
+                ExternalControllerBinding cb = controller.getControllerBinding(event.getKeyCode());
+                if (cb != null) b = cb.getBinding();
+            }
+        }
+        if (b == null) {
+            b = ExternalController.getGamepadBindingForKeyCode(event.getKeyCode());
+        }
+
+        if (radialWheelManager != null && b != null) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (radialWheelManager.onBindingHeld(b, getWidth() / 2f, getHeight() / 2f)) {
+                    return true;
+                }
+            } else if (event.getAction() == KeyEvent.ACTION_UP) {
+                if (radialWheelManager.onBindingReleased(b)) {
+                    return true;
+                }
+            }
+        }
+
         if (profile != null && event.getRepeatCount() == 0) {
             ExternalController controller = profile.getController(event.getDeviceId());
             if (controller != null) {
                 ExternalControllerBinding cb = controller.getControllerBinding(event.getKeyCode());
                 if (cb != null) {
-                    Binding b = cb.getBinding();
-                    if (radialWheelManager != null) {
-                        if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                            if (radialWheelManager.onBindingHeld(b, getWidth() / 2f, getHeight() / 2f)) {
-                                return true;
-                            }
-                        } else if (event.getAction() == KeyEvent.ACTION_UP) {
-                            if (radialWheelManager.onBindingReleased(b)) {
-                                return true;
-                            }
-                        }
-                    }
-                    handleInputEvent(controller, b, event.getAction() == KeyEvent.ACTION_DOWN);
+                    handleInputEvent(controller, cb.getBinding(), event.getAction() == KeyEvent.ACTION_DOWN);
                     return true;
                 }
             }

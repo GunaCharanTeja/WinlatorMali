@@ -575,4 +575,21 @@ public class ExternalController {
         }
     }
 
+    public static Binding getGamepadBindingForKeyCode(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BUTTON_A: return Binding.GAMEPAD_BUTTON_A;
+            case KeyEvent.KEYCODE_BUTTON_B: return Binding.GAMEPAD_BUTTON_B;
+            case KeyEvent.KEYCODE_BUTTON_X: return Binding.GAMEPAD_BUTTON_X;
+            case KeyEvent.KEYCODE_BUTTON_Y: return Binding.GAMEPAD_BUTTON_Y;
+            case KeyEvent.KEYCODE_BUTTON_L1: return Binding.GAMEPAD_BUTTON_L1;
+            case KeyEvent.KEYCODE_BUTTON_R1: return Binding.GAMEPAD_BUTTON_R1;
+            case KeyEvent.KEYCODE_BUTTON_L2: return Binding.GAMEPAD_BUTTON_L2;
+            case KeyEvent.KEYCODE_BUTTON_R2: return Binding.GAMEPAD_BUTTON_R2;
+            case KeyEvent.KEYCODE_BUTTON_SELECT: return Binding.GAMEPAD_BUTTON_SELECT;
+            case KeyEvent.KEYCODE_BUTTON_START: return Binding.GAMEPAD_BUTTON_START;
+            case KeyEvent.KEYCODE_BUTTON_THUMBL: return Binding.GAMEPAD_BUTTON_L3;
+            case KeyEvent.KEYCODE_BUTTON_THUMBR: return Binding.GAMEPAD_BUTTON_R3;
+            default: return null;
+        }
+    }
 }

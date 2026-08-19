@@ -2122,13 +2122,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         // Pass the event to the super method to ensure system-level handling
+        boolean handledByControls = false;
+        if (inputControlsView != null) {
+            handledByControls = inputControlsView.onGenericMotionEvent(event);
+        }
+
+        // Pass the event to the super method to ensure system-level handling
         boolean handledBySuper = super.dispatchGenericMotionEvent(event);
         if (!handledBySuper) {
             //Log.d("XServerDisplayActivity", "Event not handled by super");
         }
 
         // Combine the results: any handler consuming the event indicates it was handled
-        return handledByWinHandler || handledByTouchpadView || handledBySuper;
+        return handledByControls || handledByWinHandler || handledByTouchpadView || handledBySuper;
     }
 
 
@@ -2136,17 +2142,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (inputControlsView != null && inputControlsView.onKeyEvent(event)) {
+            return true;
+        }
 
         // Handle the PlayStation or Xbox Home button to open the drawer
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             if (event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_MODE || event.getKeyCode() == KeyEvent.KEYCODE_HOME || event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_SELECT) {
-                boolean handled = inputControlsView.onKeyEvent(event) || (winHandler != null && winHandler.onKeyEvent(event)) && (xServer != null && xServer.keyboard.onKeyEvent(event));
+                boolean handled = (winHandler != null && winHandler.onKeyEvent(event)) && (xServer != null && xServer.keyboard.onKeyEvent(event));
                 return true;
             }
         }
 
         // Fallback to existing input handling
-        return (!inputControlsView.onKeyEvent(event) && !winHandler.onKeyEvent(event) && xServer.keyboard.onKeyEvent(event)) ||
+        return (!winHandler.onKeyEvent(event) && xServer.keyboard.onKeyEvent(event)) ||
                 (!ExternalController.isGameController(event.getDevice()) && super.dispatchKeyEvent(event));
     }
 
