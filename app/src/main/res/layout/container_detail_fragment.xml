@@ -644,33 +644,6 @@
                         android:text="@string/system" />
                 </FrameLayout>
 
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp">
-
-                    <LinearLayout style="@style/FieldSet">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Unified Control System Emulation"
-                            android:layout_marginTop="8dp" />
-
-                        <Spinner
-                            style="@style/ComboBox"
-                            android:id="@+id/SControllerEmulation"
-                            android:layout_width="match_parent"
-                            android:entries="@array/controller_emulation_entries" />
-
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/TVUnifiedSystem"
-                        style="@style/FieldSetLabel"
-                        android:text="@string/game_controller" />
-                </FrameLayout>
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

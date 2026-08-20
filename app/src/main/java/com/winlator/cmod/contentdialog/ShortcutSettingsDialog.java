@@ -211,13 +211,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
         boolean gtaOptimization = shortcut.getExtra("gtaOptimization", "0").equals("1");
         cbGtaOptimization.setChecked(gtaOptimization);
 
-        final Spinner sControllerEmulation = findViewById(R.id.SControllerEmulation);
-        try {
-            sControllerEmulation.setSelection(UnifiedInputState.EmulationMode.valueOf(shortcut.getExtra("emulationMode", shortcut.container.getEmulationMode().name())).ordinal());
-        } catch (IllegalArgumentException e) {
-            sControllerEmulation.setSelection(UnifiedInputState.EmulationMode.GAME_CONTROLLER.ordinal());
-        }
-
         final Spinner sBox64Preset = findViewById(R.id.SBox64Preset);
         Box64PresetManager.loadSpinner("box64", sBox64Preset, shortcut.getExtra("box64Preset", shortcut.container.getBox64Preset()));
 
@@ -345,9 +338,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String lc_all = etLC_ALL.getText().toString();
                 String midiSoundFont = sMIDISoundFont.getSelectedItemPosition() == 0 ? "" : sMIDISoundFont.getSelectedItem().toString();
                 String screenSize = containerDetailFragment.getScreenSize(getContentView());
-
-                UnifiedInputState.EmulationMode emulationMode = UnifiedInputState.EmulationMode.values()[sControllerEmulation.getSelectedItemPosition()];
-                shortcut.putExtra("emulationMode", emulationMode.name());
 
                 boolean disabledXInput = cbDisabledXInput.isChecked();
                 shortcut.putExtra("disableXinput", disabledXInput ? "1" : null);
@@ -488,8 +478,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
         Spinner sFEXCoreVersion = view.findViewById(R.id.SFEXCoreVersion);
         Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
         Spinner sStartupSelection = findViewById(R.id.SStartupSelection);
-        Spinner sControllerEmulation = view.findViewById(R.id.SControllerEmulation);
-        
 
         // Set dark or light mode background for spinners
         sGraphicsDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
@@ -503,7 +491,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
         sFEXCorePreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sFEXCoreVersion.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sStartupSelection.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        sControllerEmulation.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
 //        EditText etLC_ALL = view.findViewById(R.id.ETlcall);
         EditText etExecArgs = view.findViewById(R.id.ETExecArgs);

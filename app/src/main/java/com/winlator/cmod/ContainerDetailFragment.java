@@ -258,10 +258,6 @@ public class ContainerDetailFragment extends Fragment {
 
         TextView systemLabel = view.findViewById(R.id.TVSystem);
         applyFieldSetLabelStyle(systemLabel, isDarkMode);  // Apply the dark or light mode styles
-
-        TextView gameControllerLabel = view.findViewById(R.id.TVUnifiedSystem);
-        applyFieldSetLabelStyle(gameControllerLabel, isDarkMode);  // Apply the dark or light mode styles
-
     }
 
     public boolean isEditMode() {
@@ -350,11 +346,6 @@ public class ContainerDetailFragment extends Fragment {
 
         final CheckBox cbFullscreenStretched = view.findViewById(R.id.CBFullscreenStretched);
         cbFullscreenStretched.setChecked(isEditMode() && container.isFullscreenStretched());
-
-        final Spinner sControllerEmulation = view.findViewById(R.id.SControllerEmulation);
-        if (isEditMode()) sControllerEmulation.setSelection(container.getEmulationMode().ordinal());
-
-
 
         final EditText etLC_ALL = view.findViewById(R.id.ETlcall);
         Locale systemLocal = Locale.getDefault();
@@ -462,8 +453,6 @@ public class ContainerDetailFragment extends Fragment {
                 int primaryController = sPrimaryController.getSelectedItemPosition();
                 String controllerMapping = getControllerMapping(view);
 
-                UnifiedInputState.EmulationMode emulationMode = UnifiedInputState.EmulationMode.values()[sControllerEmulation.getSelectedItemPosition()];
-
                 if (isEditMode()) {
                     // Update existing container properties
                     container.setName(name);
@@ -480,7 +469,6 @@ public class ContainerDetailFragment extends Fragment {
                     container.setWinComponents(wincomponents);
                     container.setDrives(drives);
                     container.setShowFPS(showFPS);
-                    container.setEmulationMode(emulationMode);
                     container.setStartupSelection(startupSelection);
                     container.setBox64Version(box64Version);
                     container.setBox64Preset(box64Preset);
@@ -512,7 +500,6 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("drives", drives);
                     data.put("showFPS", showFPS);
                     data.put("fullscreenStretched", fullscreenStretched);
-                    data.put("emulationMode", emulationMode.name());
                     data.put("startupSelection", startupSelection);
                     data.put("box64Version", box64Version);
                     data.put("box64Preset", box64Preset);

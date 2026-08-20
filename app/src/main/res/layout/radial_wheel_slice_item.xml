@@ -40,9 +40,13 @@
         <EditText
             style="@style/EditText"
             android:id="@+id/ETSliceLabel"
-            android:layout_width="60dp"
-            android:layout_height="wrap_content"
+            android:layout_width="65dp"
+            android:layout_height="36dp"
             android:layout_marginStart="4dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
             android:hint="Label"
             android:singleLine="true"
             android:textSize="12sp" />

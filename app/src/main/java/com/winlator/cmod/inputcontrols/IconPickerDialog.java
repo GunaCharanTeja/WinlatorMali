@@ -54,9 +54,13 @@ public class IconPickerDialog {
         toolbar.setOrientation(LinearLayout.HORIZONTAL);
         toolbar.setPadding(0, 0, 0, 12);
 
+        android.content.SharedPreferences preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
+        boolean isDarkMode = preferences.getBoolean("dark_mode", true);
+
         Button btNoIcon = new Button(context);
         btNoIcon.setText("None (Text Only)");
         btNoIcon.setTextSize(11);
+        btNoIcon.setTextColor(isDarkMode ? android.graphics.Color.WHITE : android.graphics.Color.BLACK);
         LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
         btnParams.setMargins(0, 0, 4, 0);
         btNoIcon.setLayoutParams(btnParams);
