@@ -432,7 +432,7 @@ public class ControlElement {
         float cy = boundingBox.centerY();
 
         canvas.save();
-        if (pressed) canvas.scale(0.96f, 0.96f, cx, cy);
+        if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
         float shadowRadius = snappingSize * (pressed ? 0.4f : 0.2f) * scale;
         paint.setShadowLayer(shadowRadius, 0, 0, shadowColor);
 
@@ -445,6 +445,20 @@ public class ControlElement {
                 if (imageAsButton) {
                     paint.clearShadowLayer();
                     iconDrawn = drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, true);
+                    if (iconDrawn) {
+                        float cornerRadius = Math.max(6f, snappingSize * 0.4f * scale);
+                        if (pressed) {
+                            paint.setStyle(Paint.Style.FILL);
+                            paint.setColor(0x40FFFFFF);
+                            canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, cornerRadius, cornerRadius, paint);
+                        }
+                        if (selected) {
+                            paint.setStyle(Paint.Style.STROKE);
+                            paint.setColor(inputControlsView.getSecondaryColor());
+                            paint.setStrokeWidth(Math.max(4f, snappingSize * 0.12f * scale));
+                            canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, cornerRadius, cornerRadius, paint);
+                        }
+                    }
                 }
 
                 if (!imageAsButton || !iconDrawn) {
