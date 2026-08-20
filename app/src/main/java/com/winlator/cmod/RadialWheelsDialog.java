@@ -78,6 +78,8 @@ public class RadialWheelsDialog {
         View btAddWheel = dialog.findViewById(R.id.BTAddWheel);
         View btRemoveWheel = dialog.findViewById(R.id.BTRemoveWheel);
 
+        android.widget.CheckBox cbEnableWheel = dialog.findViewById(R.id.CBEnableWheel);
+
         EditText etWheelName = dialog.findViewById(R.id.ETWheelName);
         etWheelName.setBackgroundResource(editBgRes);
         etWheelName.setTextColor(textColor);
@@ -134,6 +136,7 @@ public class RadialWheelsDialog {
         final Runnable saveCurrentWheelFromUI = () -> {
             if (currentWheelIndex[0] < 0 || currentWheelIndex[0] >= wheels.size()) return;
             RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
+            if (cbEnableWheel != null) cfg.enabled = cbEnableWheel.isChecked();
             cfg.name = etWheelName.getText().toString().trim();
             cfg.iconScale = sbWheelIconScale.getProgress() / 100.0f;
 
@@ -198,6 +201,7 @@ public class RadialWheelsDialog {
             if (wheels.isEmpty()) return;
 
             RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
+            if (cbEnableWheel != null) cbEnableWheel.setChecked(cfg.enabled);
             etWheelName.setText(cfg.name != null ? cfg.name : "");
 
             int scalePct = (int)((cfg.iconScale > 0 ? cfg.iconScale : 1.0f) * 100);

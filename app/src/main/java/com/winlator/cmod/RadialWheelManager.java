@@ -89,6 +89,7 @@ public class RadialWheelManager {
 
         // Check for 2-button combo triggers first, then single triggers
         for (RadialWheelConfig cfg : configs) {
+            if (!cfg.enabled) continue;
             if (cfg.triggerBinding != null && cfg.triggerBinding != Binding.NONE && cfg.triggerBinding2 != null && cfg.triggerBinding2 != Binding.NONE) {
                 if (heldBindings.contains(cfg.triggerBinding) && heldBindings.contains(cfg.triggerBinding2)) {
                     return openWheel(cfg);
@@ -96,6 +97,7 @@ public class RadialWheelManager {
             }
         }
         for (RadialWheelConfig cfg : configs) {
+            if (!cfg.enabled) continue;
             if (cfg.triggerBinding != null && cfg.triggerBinding != Binding.NONE && (cfg.triggerBinding2 == null || cfg.triggerBinding2 == Binding.NONE)) {
                 if (heldBindings.contains(cfg.triggerBinding)) {
                     return openWheel(cfg);

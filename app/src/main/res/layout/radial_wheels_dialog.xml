@@ -81,9 +81,17 @@
                     style="@style/FieldSet"
                     android:orientation="vertical">
 
+                    <CheckBox
+                        android:id="@+id/CBEnableWheel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Enable This Radial Wheel"
+                        android:checked="true" />
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
                         android:text="Wheel Name"
                         android:textSize="12sp"
                         android:textStyle="bold" />

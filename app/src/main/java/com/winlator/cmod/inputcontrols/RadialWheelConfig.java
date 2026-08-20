@@ -15,6 +15,7 @@ public class RadialWheelConfig {
     public static final int MAX_SLICES = 8;
 
     public int id;
+    public boolean enabled = true;
     public String name;
     public Binding triggerBinding;
     public Binding triggerBinding2;
@@ -22,6 +23,7 @@ public class RadialWheelConfig {
     public List<RadialWheelSlice> slices;
 
     public RadialWheelConfig() {
+        this.enabled = true;
         this.name = "Wheel";
         this.triggerBinding = Binding.NONE;
         this.triggerBinding2 = Binding.NONE;
@@ -41,6 +43,7 @@ public class RadialWheelConfig {
         try {
             JSONObject obj = new JSONObject();
             obj.put("id", id);
+            obj.put("enabled", enabled);
             obj.put("name", name != null ? name : "Wheel");
             obj.put("triggerBinding", triggerBinding != null ? triggerBinding.name() : Binding.NONE.name());
             if (triggerBinding2 != null && triggerBinding2 != Binding.NONE) obj.put("triggerBinding2", triggerBinding2.name());
@@ -61,6 +64,7 @@ public class RadialWheelConfig {
         RadialWheelConfig cfg = new RadialWheelConfig();
         try {
             cfg.id = obj.optInt("id", 0);
+            cfg.enabled = obj.optBoolean("enabled", true);
             cfg.name = obj.optString("name", "Wheel");
             cfg.iconScale = (float) obj.optDouble("iconScale", 1.0);
             
