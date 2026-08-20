@@ -266,6 +266,20 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+            if (profileJSONObject.has("customIcons")) {
+                CustomIconManager iconManager = CustomIconManager.getInstance(context);
+                JSONArray customIcons = profileJSONObject.getJSONArray("customIcons");
+                for (int ci = 0; ci < customIcons.length(); ci++) {
+                    JSONObject obj = customIcons.optJSONObject(ci);
+                    if (obj != null) {
+                        int sourceId = obj.optInt("id", 0);
+                        String pngBase64 = obj.optString("png", null);
+                        if (pngBase64 != null && !pngBase64.isEmpty()) {
+                            iconManager.decodeAndSaveBase64(pngBase64, sourceId);
+                        }
+                    }
+                }
+            }
             if (profileJSONObject.has("embeddedIcons")) {
                 CustomIconManager iconManager = CustomIconManager.getInstance(context);
                 JSONArray embeddedIcons = profileJSONObject.getJSONArray("embeddedIcons");
@@ -277,23 +291,25 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             for (int i = 0; i < elementsJSONArray.length(); i++) {
                 JSONObject elementJSONObject = elementsJSONArray.getJSONObject(i);
                 ControlElement element = new ControlElement(inputControlsView);
-                element.setType(ControlElement.Type.valueOf(elementJSONObject.getString("type")));
-                element.setShape(ControlElement.Shape.valueOf(elementJSONObject.getString("shape")));
-                element.setToggleSwitch(elementJSONObject.getBoolean("toggleSwitch"));
-                element.setX((int)(elementJSONObject.getDouble("x") * inputControlsView.getMaxWidth()));
-                element.setY((int)(elementJSONObject.getDouble("y") * inputControlsView.getMaxHeight()));
-                element.setScale((float)elementJSONObject.getDouble("scale"));
-                element.setText(elementJSONObject.getString("text"));
-                element.setIconId(elementJSONObject.getInt("iconId"));
-                if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.valueOf(elementJSONObject.getString("range")));
-                if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.getInt("orientation"));
+                element.setType(ControlElement.Type.parse(elementJSONObject.optString("type", "BUTTON")));
+                element.setShape(ControlElement.Shape.parse(elementJSONObject.optString("shape", "CIRCLE")));
+                element.setToggleSwitch(elementJSONObject.optBoolean("toggleSwitch", false));
+                element.setX((int)(elementJSONObject.optDouble("x", 0.5) * inputControlsView.getMaxWidth()));
+                element.setY((int)(elementJSONObject.optDouble("y", 0.5) * inputControlsView.getMaxHeight()));
+                element.setScale((float)elementJSONObject.optDouble("scale", 1.0));
+                element.setText(elementJSONObject.optString("text", ""));
+                element.setIconId(elementJSONObject.optInt("iconId", 0));
+                if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.parse(elementJSONObject.optString("range", "FROM_A_TO_Z")));
+                if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.optInt("orientation", 0));
 
                 boolean hasGamepadBinding = true;
-                JSONArray bindingsJSONArray = elementJSONObject.getJSONArray("bindings");
-                for (int j = 0; j < bindingsJSONArray.length(); j++) {
-                    Binding binding = Binding.fromString(bindingsJSONArray.getString(j));
-                    element.setBindingAt(j, Binding.fromString(bindingsJSONArray.getString(j)));
-                    if (!binding.isGamepad()) hasGamepadBinding = false;
+                JSONArray bindingsJSONArray = elementJSONObject.optJSONArray("bindings");
+                if (bindingsJSONArray != null) {
+                    for (int j = 0; j < bindingsJSONArray.length(); j++) {
+                        Binding binding = Binding.fromString(bindingsJSONArray.getString(j));
+                        element.setBindingAt(j, binding);
+                        if (!binding.isGamepad()) hasGamepadBinding = false;
+                    }
                 }
 
                 if (!virtualGamepad && hasGamepadBinding) virtualGamepad = true;

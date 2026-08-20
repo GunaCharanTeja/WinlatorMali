@@ -32,13 +32,29 @@ public class ControlElement {
     public static final byte TRACKPAD_ACCELERATION_THRESHOLD = 4;
     public static final short BUTTON_MIN_TIME_TO_KEEP_PRESSED = 300;
     public enum Type {
-        BUTTON, D_PAD, RANGE_BUTTON, STICK, TRACKPAD;
+        BUTTON, D_PAD, RANGE_BUTTON, STICK, TRACKPAD, DYNAMIC_STICK, MOUSE_AREA, BUTTON_GRID, EXPANDABLE_BUTTON;
 
         public static String[] names() {
             Type[] types = values();
             String[] names = new String[types.length];
             for (int i = 0; i < types.length; i++) names[i] = types[i].name().replace("_", "-");
             return names;
+        }
+
+        public static Type parse(String name) {
+            if (name == null || name.isEmpty()) return BUTTON;
+            try {
+                return valueOf(name.trim().toUpperCase().replace("-", "_"));
+            } catch (IllegalArgumentException e) {
+                String upper = name.trim().toUpperCase();
+                if (upper.contains("DYNAMIC") || upper.contains("STICK")) return DYNAMIC_STICK;
+                if (upper.contains("MOUSE") || upper.contains("TRACK")) return TRACKPAD;
+                if (upper.contains("PAD") || upper.contains("DPAD")) return D_PAD;
+                if (upper.contains("RANGE")) return RANGE_BUTTON;
+                if (upper.contains("GRID")) return BUTTON_GRID;
+                if (upper.contains("EXPAND")) return EXPANDABLE_BUTTON;
+                return BUTTON;
+            }
         }
     }
     public enum Shape {
@@ -49,6 +65,15 @@ public class ControlElement {
             String[] names = new String[shapes.length];
             for (int i = 0; i < shapes.length; i++) names[i] = shapes[i].name().replace("_", " ");
             return names;
+        }
+
+        public static Shape parse(String name) {
+            if (name == null || name.isEmpty()) return CIRCLE;
+            try {
+                return valueOf(name.trim().toUpperCase().replace(" ", "_").replace("-", "_"));
+            } catch (IllegalArgumentException e) {
+                return CIRCLE;
+            }
         }
     }
     public enum Range {
@@ -64,6 +89,15 @@ public class ControlElement {
             String[] names = new String[ranges.length];
             for (int i = 0; i < ranges.length; i++) names[i] = ranges[i].name().replace("_", " ");
             return names;
+        }
+
+        public static Range parse(String name) {
+            if (name == null || name.isEmpty()) return FROM_A_TO_Z;
+            try {
+                return valueOf(name.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return FROM_A_TO_Z;
+            }
         }
     }
     private final InputControlsView inputControlsView;
@@ -96,19 +130,19 @@ public class ControlElement {
         setBinding(Binding.NONE);
         scroller = null;
 
-        if (type == Type.STICK) {
+        if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
             bindings[0] = Binding.KEY_W;
             bindings[1] = Binding.KEY_D;
             bindings[2] = Binding.KEY_S;
             bindings[3] = Binding.KEY_A;
         }
-        else if(type == Type.D_PAD){
+        else if (type == Type.D_PAD) {
             bindings[0] = Binding.GAMEPAD_DPAD_UP;
             bindings[1] = Binding.GAMEPAD_DPAD_RIGHT;
             bindings[2] = Binding.GAMEPAD_DPAD_DOWN;
             bindings[3] = Binding.GAMEPAD_DPAD_LEFT;
         }
-        else if (type == Type.TRACKPAD) {
+        else if (type == Type.TRACKPAD || type == Type.MOUSE_AREA) {
             bindings[0] = Binding.GAMEPAD_RIGHT_THUMB_UP;
             bindings[1] = Binding.GAMEPAD_RIGHT_THUMB_RIGHT;
             bindings[2] = Binding.GAMEPAD_RIGHT_THUMB_DOWN;
@@ -260,6 +294,8 @@ public class ControlElement {
 
         switch (type) {
             case BUTTON:
+            case EXPANDABLE_BUTTON:
+            case BUTTON_GRID:
                 switch (shape) {
                     case RECT:
                     case ROUND_RECT:
@@ -282,7 +318,9 @@ public class ControlElement {
                 break;
             }
             case TRACKPAD:
-            case STICK: {
+            case MOUSE_AREA:
+            case STICK:
+            case DYNAMIC_STICK: {
                 halfWidth = snappingSize * 6;
                 halfHeight = snappingSize * 6;
                 break;
@@ -390,7 +428,9 @@ public class ControlElement {
         paint.setShadowLayer(shadowRadius, 0, 0, shadowColor);
 
         switch (type) {
-            case BUTTON: {
+            case BUTTON:
+            case EXPANDABLE_BUTTON:
+            case BUTTON_GRID: {
                 if (getDisplayText().matches("(?i)L[12]|R[12]|LT|RT|LB|RB")) {
                     float radius = boundingBox.height() * 0.5f;
                     paint.setStyle(Paint.Style.FILL);
@@ -538,7 +578,8 @@ public class ControlElement {
                 canvas.restore();
                 break;
             }
-            case STICK: {
+            case STICK:
+            case DYNAMIC_STICK: {
                 float outerRadius = boundingBox.height() * 0.5f;
                 paint.setShadowLayer(0, 0, 0, 0);
                 paint.setStyle(Paint.Style.FILL);
@@ -563,7 +604,8 @@ public class ControlElement {
                 canvas.drawCircle(thumbstickX, thumbstickY, thumbRadius, paint);
                 break;
             }
-            case TRACKPAD: {
+            case TRACKPAD:
+            case MOUSE_AREA: {
                 float radius = boundingBox.height() * 0.15f;
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(backgroundColor);
@@ -653,7 +695,7 @@ public class ControlElement {
     public boolean handleTouchDown(int pointerId, float x, float y) {
         if (currentPointerId == -1 && containsPoint(x, y)) {
             currentPointerId = pointerId;
-            if (type == Type.BUTTON) {
+            if (type == Type.BUTTON || type == Type.EXPANDABLE_BUTTON || type == Type.BUTTON_GRID) {
                 states[0] = true;
                 if (isKeepButtonPressedAfterMinTime()) touchTime = System.currentTimeMillis();
                 if (!toggleSwitch || !selected) {
@@ -668,7 +710,7 @@ public class ControlElement {
                 return true;
             }
             else {
-                if (type == Type.TRACKPAD) {
+                if (type == Type.TRACKPAD || type == Type.MOUSE_AREA) {
                     if (currentPosition == null) currentPosition = new PointF();
                     currentPosition.set(x, y);
                 }
@@ -679,13 +721,13 @@ public class ControlElement {
     }
 
     public boolean handleTouchMove(int pointerId, float x, float y) {
-        if (pointerId == currentPointerId && (type == Type.D_PAD || type == Type.STICK || type == Type.TRACKPAD)) {
+        if (pointerId == currentPointerId && (type == Type.D_PAD || type == Type.STICK || type == Type.DYNAMIC_STICK || type == Type.TRACKPAD || type == Type.MOUSE_AREA)) {
             float deltaX, deltaY;
             Rect boundingBox = getBoundingBox();
             float radius = boundingBox.width() * 0.5f;
             TouchpadView touchpadView =  inputControlsView.getTouchpadView();
 
-            if (type == Type.TRACKPAD) {
+            if (type == Type.TRACKPAD || type == Type.MOUSE_AREA) {
                 if (currentPosition == null) currentPosition = new PointF();
                 float[] deltaPoint = touchpadView.computeDeltaPoint(currentPosition.x, currentPosition.y, x, y);
                 deltaX = deltaPoint[0];
@@ -709,7 +751,7 @@ public class ControlElement {
                 deltaY = Mathf.clamp(offsetY / radius, -1, 1);
             }
 
-            if (type == Type.STICK) {
+            if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
                 if (currentPosition == null) currentPosition = new PointF();
                 currentPosition.x = boundingBox.left + deltaX * radius + radius;
                 currentPosition.y = boundingBox.top + deltaY * radius + radius;
@@ -861,7 +903,7 @@ public class ControlElement {
 
     public boolean handleTouchUp(int pointerId) {
         if (pointerId == currentPointerId) {
-            if (type == Type.BUTTON) {
+            if (type == Type.BUTTON || type == Type.EXPANDABLE_BUTTON || type == Type.BUTTON_GRID) {
                 states[0] = false;
                 if (isKeepButtonPressedAfterMinTime() && touchTime != null) {
                     selected = (System.currentTimeMillis() - (long)touchTime) > BUTTON_MIN_TIME_TO_KEEP_PRESSED;
@@ -882,7 +924,7 @@ public class ControlElement {
                     inputControlsView.invalidate();
                 }
             }
-            else if (type == Type.RANGE_BUTTON || type == Type.D_PAD || type == Type.STICK || type == Type.TRACKPAD) {
+            else if (type == Type.RANGE_BUTTON || type == Type.D_PAD || type == Type.STICK || type == Type.DYNAMIC_STICK || type == Type.TRACKPAD || type == Type.MOUSE_AREA) {
                 for (byte i = 0; i < states.length; i++) {
                     if (states[i]) inputControlsView.handleInputEvent(getBindingAt(i), false);
                     states[i] = false;
@@ -891,7 +933,7 @@ public class ControlElement {
                 if (type == Type.RANGE_BUTTON) {
                     scroller.handleTouchUp();
                 }
-                else if (type == Type.STICK) {
+                else if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
                     inputControlsView.invalidate();
                 }
 
