@@ -92,6 +92,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         container.findViewById(R.id.BTAddElement).setOnClickListener(this);
         container.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         container.findViewById(R.id.BTElementSettings).setOnClickListener(this);
+        container.findViewById(R.id.BTStylePreset).setOnClickListener(this);
         container.findViewById(R.id.BTReset).setOnClickListener(this);
     }
 
@@ -129,6 +130,9 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                 }
                 else AppUtils.showToast(this, R.string.no_control_element_selected);
                 break;
+            case R.id.BTStylePreset:
+                showStylePresetDialog();
+                break;
             case R.id.BTReset:
                 ContentDialog.confirm(this, "Reset all buttons to original positions?", () -> {
                     if (profile != null) {
@@ -147,6 +151,20 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                 });
                 break;
         }
+    }
+
+    private void showStylePresetDialog() {
+        if (profile == null) return;
+        final com.winlator.cmod.inputcontrols.ControlStylePreset[] presets = com.winlator.cmod.inputcontrols.ControlStylePreset.values();
+        String[] presetTitles = com.winlator.cmod.inputcontrols.ControlStylePreset.titles();
+
+        ContentDialog.showSingleChoiceList(this, "Control Style Presets", presetTitles, (position) -> {
+            if (position >= 0 && position < presets.length) {
+                com.winlator.cmod.inputcontrols.ControlStylePreset selected = presets[position];
+                profile.applyStylePreset(selected, inputControlsView);
+                AppUtils.showToast(this, "Applied " + selected.title);
+            }
+        });
     }
 
     private void showControlElementSettings(View anchorView) {

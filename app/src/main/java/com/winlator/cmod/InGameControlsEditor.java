@@ -76,6 +76,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
         root.findViewById(R.id.BTAddElement).setOnClickListener(this);
         root.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         root.findViewById(R.id.BTElementSettings).setOnClickListener(this);
+        root.findViewById(R.id.BTStylePreset).setOnClickListener(this);
         root.findViewById(R.id.BTReset).setOnClickListener(this);
         root.findViewById(R.id.BTRadialWheel).setOnClickListener(this);
         root.findViewById(R.id.BTDone).setOnClickListener(this);
@@ -136,6 +137,8 @@ public final class InGameControlsEditor implements View.OnClickListener {
             } else {
                 AppUtils.showToast(activity, R.string.no_control_element_selected);
             }
+        } else if (id == R.id.BTStylePreset) {
+            showStylePresetDialog();
         } else if (id == R.id.BTReset) {
             ContentDialog.confirm(activity, "Reset all buttons to original positions?", () -> {
                 if (profile != null) {
@@ -162,6 +165,20 @@ public final class InGameControlsEditor implements View.OnClickListener {
             dispose();
             if (onDone != null) onDone.run();
         }
+    }
+
+    private void showStylePresetDialog() {
+        if (profile == null) return;
+        final com.winlator.cmod.inputcontrols.ControlStylePreset[] presets = com.winlator.cmod.inputcontrols.ControlStylePreset.values();
+        String[] presetTitles = com.winlator.cmod.inputcontrols.ControlStylePreset.titles();
+
+        ContentDialog.showSingleChoiceList(activity, "Control Style Presets", presetTitles, (position) -> {
+            if (position >= 0 && position < presets.length) {
+                com.winlator.cmod.inputcontrols.ControlStylePreset selected = presets[position];
+                profile.applyStylePreset(selected, inputControlsView);
+                AppUtils.showToast(activity, "Applied " + selected.title);
+            }
+        });
     }
 
     private void showControlElementSettings(View anchorView) {

@@ -432,7 +432,7 @@ public class ControlElement {
 
 
 
-    private String getDisplayText() {
+    public String getDisplayText() {
         if (text != null && !text.isEmpty()) {
             return text;
         }
@@ -488,14 +488,142 @@ public class ControlElement {
         }
 
         float alpha = overlayOpacity * 255.0f;
-        int backgroundColor = ColorUtils.setAlphaComponent(0xFF000000, (int)(alpha * (pressed ? 0.80f : 0.45f)));
 
-        int baseColor = Color.argb(255, 230, 230, 230);
-        int primaryColor = selected ? inputControlsView.getSecondaryColor() : baseColor;
+        ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
+        if (inputControlsView != null && inputControlsView.getProfile() != null) {
+            stylePreset = inputControlsView.getProfile().getStylePreset();
+        }
+
+        int customBg = 0xFF000000;
+        int customStroke = 0xFFE6E6E6;
+        int customContent = Color.WHITE;
+        int customShadow = Color.WHITE;
+
+        Binding b0 = getBindingAt(0);
+        String label = getDisplayText().toUpperCase();
+
+        switch (stylePreset) {
+            case XBOX: {
+                if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A")) {
+                    customStroke = 0xFF00E676; // Emerald Green
+                    customBg = 0xFF003814;
+                    customContent = 0xFF00E676;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B")) {
+                    customStroke = 0xFFFF1744; // Crimson Red
+                    customBg = 0xFF3E000A;
+                    customContent = 0xFFFF1744;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X")) {
+                    customStroke = 0xFF2979FF; // Royal Blue
+                    customBg = 0xFF00194A;
+                    customContent = 0xFF2979FF;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y")) {
+                    customStroke = 0xFFFFEA00; // Amber Yellow
+                    customBg = 0xFF383300;
+                    customContent = 0xFFFFEA00;
+                } else if (b0.isGamepad() && (b0.name().contains("THUMB") || b0.name().contains("DPAD"))) {
+                    customStroke = 0xFF42A5F5;
+                    customBg = 0xFF0D1B2A;
+                    customContent = 0xFFE0E0E0;
+                } else {
+                    customStroke = 0xFFB0BEC5;
+                    customBg = 0xFF1C242B;
+                    customContent = 0xFFECEFF1;
+                }
+                customShadow = customStroke;
+                break;
+            }
+            case PLAYSTATION: {
+                if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A") || label.equals("✕") || label.equals("X")) {
+                    customStroke = 0xFF00B0FF; // Electric Blue (Cross)
+                    customBg = 0xFF001F33;
+                    customContent = 0xFF00B0FF;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B") || label.equals("◯") || label.equals("O")) {
+                    customStroke = 0xFFFF3D00; // Crimson Red (Circle)
+                    customBg = 0xFF380D00;
+                    customContent = 0xFFFF3D00;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X") || label.equals("▢") || label.equals("SQ")) {
+                    customStroke = 0xFFF50057; // Neon Pink (Square)
+                    customBg = 0xFF380014;
+                    customContent = 0xFFF50057;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y") || label.equals("△") || label.equals("TRI")) {
+                    customStroke = 0xFF00E676; // Mint Green (Triangle)
+                    customBg = 0xFF003814;
+                    customContent = 0xFF00E676;
+                } else {
+                    customStroke = 0xFF78909C;
+                    customBg = 0xFF0B0E14;
+                    customContent = 0xFFECEFF1;
+                }
+                customShadow = customStroke;
+                break;
+            }
+            case CYBERPUNK: {
+                if (label.matches("(?i)L[12]|R[12]|LT|RT|LB|RB") || b0 == Binding.GAMEPAD_BUTTON_Y || b0 == Binding.GAMEPAD_BUTTON_B) {
+                    customStroke = 0xFFFF007F; // Neon Magenta
+                    customBg = 0xFF2A0015;
+                    customContent = 0xFFFF007F;
+                } else {
+                    customStroke = 0xFF00E5FF; // Electric Cyan
+                    customBg = 0xFF001F24;
+                    customContent = 0xFF00E5FF;
+                }
+                customShadow = customStroke;
+                break;
+            }
+            case RETRO_ARCADE: {
+                if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A") || label.equals("1")) {
+                    customStroke = 0xFFE53935; // Arcade Red
+                    customBg = 0xFFB71C1C;
+                    customContent = Color.WHITE;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B") || label.equals("2")) {
+                    customStroke = 0xFF1E88E5; // Arcade Blue
+                    customBg = 0xFF0D47A1;
+                    customContent = Color.WHITE;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X") || label.equals("3")) {
+                    customStroke = 0xFFFDD835; // Arcade Yellow
+                    customBg = 0xFFF57F17;
+                    customContent = 0xFF212121;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y") || label.equals("4")) {
+                    customStroke = 0xFF43A047; // Arcade Green
+                    customBg = 0xFF1B5E20;
+                    customContent = Color.WHITE;
+                } else {
+                    customStroke = 0xFFEEEEEE;
+                    customBg = 0xFF37474F;
+                    customContent = Color.WHITE;
+                }
+                customShadow = customStroke;
+                break;
+            }
+            case STEALTH: {
+                customBg = 0x00000000;
+                customStroke = 0xFFFFFFFF;
+                customContent = 0xFFFFFFFF;
+                customShadow = 0x00000000;
+                break;
+            }
+            case WINLATOR_MALI:
+            default: {
+                customBg = 0xFF000000;
+                customStroke = selected ? inputControlsView.getSecondaryColor() : 0xFFE6E6E6;
+                customContent = Color.WHITE;
+                customShadow = Color.WHITE;
+                break;
+            }
+        }
+
+        int backgroundColor;
+        if (stylePreset == ControlStylePreset.STEALTH) {
+            backgroundColor = pressed ? ColorUtils.setAlphaComponent(0xFFFFFFFF, (int)(alpha * 0.25f)) : 0x00000000;
+        } else {
+            backgroundColor = ColorUtils.setAlphaComponent(customBg, (int)(alpha * (pressed ? 0.85f : 0.45f)));
+        }
+
+        int primaryColor = selected ? inputControlsView.getSecondaryColor() : customStroke;
         int strokeColor = ColorUtils.setAlphaComponent(primaryColor, (int)(alpha * (pressed ? 1.0f : 0.8f)));
 
-        int contentColor = ColorUtils.setAlphaComponent(Color.WHITE, (int)(alpha * 0.95f));
-        int shadowColor = ColorUtils.setAlphaComponent(Color.WHITE, (int)(alpha * (pressed ? 0.2f : 0.1f)));
+        int contentColor = ColorUtils.setAlphaComponent(customContent, (int)(alpha * 0.95f));
+        int shadowColor = ColorUtils.setAlphaComponent(customShadow, (int)(alpha * (pressed ? 0.35f : 0.15f)));
 
         paint.setAntiAlias(true);
         float strokeWidth = snappingSize * 0.08f * scale;
@@ -688,7 +816,7 @@ public class ControlElement {
                 canvas.drawCircle(cx, cy, outerRadius, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setColor(ColorUtils.setAlphaComponent(baseColor, (int) (alpha * 0.75f)));
+                paint.setColor(ColorUtils.setAlphaComponent(customStroke, (int) (alpha * 0.75f)));
                 canvas.drawCircle(cx, cy, outerRadius, paint);
 
                 float thumbstickX = getCurrentPosition().x;

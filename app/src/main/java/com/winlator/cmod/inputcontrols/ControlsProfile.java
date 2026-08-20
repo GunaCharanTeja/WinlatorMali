@@ -29,12 +29,58 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     private boolean controllersLoaded = false;
     private boolean wheelsLoaded = false;
     private boolean virtualGamepad = false;
+    private ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
     private final Context context;
     private GamepadState gamepadState;
 
     public ControlsProfile(Context context, int id) {
         this.context = context;
         this.id = id;
+    }
+
+    public ControlStylePreset getStylePreset() {
+        return stylePreset != null ? stylePreset : ControlStylePreset.WINLATOR_MALI;
+    }
+
+    public void setStylePreset(ControlStylePreset stylePreset) {
+        this.stylePreset = (stylePreset != null) ? stylePreset : ControlStylePreset.WINLATOR_MALI;
+    }
+
+    public void applyStylePreset(ControlStylePreset preset, InputControlsView inputControlsView) {
+        this.stylePreset = (preset != null) ? preset : ControlStylePreset.WINLATOR_MALI;
+        if (!elementsLoaded && inputControlsView != null) loadElements(inputControlsView);
+        for (ControlElement el : elements) {
+            ControlElement.Type t = el.getType();
+            if (t == ControlElement.Type.BUTTON || t == ControlElement.Type.EXPANDABLE_BUTTON || t == ControlElement.Type.BUTTON_GRID) {
+                String text = el.getDisplayText();
+                boolean isTrigger = text.matches("(?i)L[12]|R[12]|LT|RT|LB|RB");
+                boolean isStartSelect = text.equalsIgnoreCase("START") || text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("MENU") || text.equalsIgnoreCase("BACK");
+
+                switch (this.stylePreset) {
+                    case CYBERPUNK:
+                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.OCTAGON);
+                        else el.setShape(ControlElement.Shape.HEXAGON);
+                        break;
+                    case RETRO_ARCADE:
+                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.RECT);
+                        else el.setShape(ControlElement.Shape.SQUARE);
+                        break;
+                    case STEALTH:
+                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.CAPSULE);
+                        else el.setShape(ControlElement.Shape.OVAL);
+                        break;
+                    case XBOX:
+                    case PLAYSTATION:
+                    case WINLATOR_MALI:
+                    default:
+                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.CAPSULE);
+                        else el.setShape(ControlElement.Shape.CIRCLE);
+                        break;
+                }
+            }
+        }
+        save();
+        if (inputControlsView != null) inputControlsView.invalidate();
     }
 
     public String getName() {
@@ -124,6 +170,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             data.put("id", id);
             data.put("name", name);
             data.put("cursorSpeed", Float.valueOf(cursorSpeed));
+            data.put("stylePreset", getStylePreset().name());
 
             JSONArray elementsJSONArray = new JSONArray();
             if (!elementsLoaded && file.isFile()) {
@@ -274,6 +321,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+            this.stylePreset = ControlStylePreset.parse(profileJSONObject.optString("stylePreset", "WINLATOR_MALI"));
             if (profileJSONObject.has("customIcons")) {
                 CustomIconManager iconManager = CustomIconManager.getInstance(context);
                 JSONArray customIcons = profileJSONObject.getJSONArray("customIcons");

@@ -56,6 +56,12 @@
             android:src="@drawable/icon_settings"  />
 
         <ImageButton
+            android:id="@+id/BTStylePreset"
+            style="@style/ToolButton"
+            android:contentDescription="Style Preset"
+            android:src="@drawable/icon_palette"  />
+
+        <ImageButton
             android:id="@+id/BTReset"
             style="@style/ToolButton"
             android:contentDescription="Reset Layout"
