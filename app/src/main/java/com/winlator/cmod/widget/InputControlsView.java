@@ -661,6 +661,18 @@ public class InputControlsView extends View {
                         invalidate();
                         return true;
                     }
+                    if (actionMasked == MotionEvent.ACTION_CANCEL) {
+                        for (ControlElement element : profile.getElements()) {
+                            int pid = element.getCurrentPointerId();
+                            if (pid != -1) {
+                                element.handleTouchUp(pid);
+                            }
+                        }
+                        handleMouseMovement(0, 0);
+                        if (touchpadView != null) touchpadView.onTouchEvent(event);
+                        invalidate();
+                        return true;
+                    }
                     for (ControlElement element : profile.getElements()) {
                         if (element.getCurrentPointerId() == pointerId) {
                             for (int b = 0; b < element.getBindingCount(); b++) {

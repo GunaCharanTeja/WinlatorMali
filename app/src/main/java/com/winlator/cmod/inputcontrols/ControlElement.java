@@ -1402,6 +1402,18 @@ public class ControlElement {
                     states[i] = false;
                 }
 
+                Binding firstBinding = getBindingAt(0);
+                if (firstBinding != null && firstBinding.isGamepad()) {
+                    inputControlsView.handleStickInput(null, firstBinding, 0, 0);
+                }
+                for (byte i = 0; i < 4; i++) {
+                    Binding b = getBindingAt(i);
+                    if (b != null && b.isMouseMove()) {
+                        inputControlsView.handleMouseMovement(0, 0);
+                        break;
+                    }
+                }
+
                 if (type == Type.RANGE_BUTTON) {
                     scroller.handleTouchUp();
                 }
