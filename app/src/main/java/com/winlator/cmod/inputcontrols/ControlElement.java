@@ -739,6 +739,7 @@ public class ControlElement {
         if (icon == null || icon.getWidth() <= 0 || icon.getHeight() <= 0) return false;
 
         Paint paint = inputControlsView.getPaint();
+        paint.setFlags(paint.getFlags() | Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         boolean isCustom = iconId > CustomIconManager.BUILTIN_ICON_MAX;
         if (isCustom) {
             paint.setColorFilter(null);

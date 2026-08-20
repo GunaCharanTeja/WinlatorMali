@@ -409,6 +409,7 @@ public class RadialWheelManager {
                     float effectiveScale = (slice.iconScale > 0 ? slice.iconScale : 1.0f) * (activeConfig.iconScale > 0 ? activeConfig.iconScale : 1.0f);
                     float iconSize = baseIconSize * effectiveScale;
 
+                    paint.setFlags(paint.getFlags() | Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
                     if (slice.iconId <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
                         paint.setColorFilter(new android.graphics.PorterDuffColorFilter(i == selectedSlice ? 0xFFFFFFFF : 0xFF81D4FA, android.graphics.PorterDuff.Mode.SRC_IN));
                     } else {

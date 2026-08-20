@@ -37,7 +37,7 @@ public class CustomIconManager {
     private static final String TAG = "CustomIconManager";
     public static final int BUILTIN_ICON_MAX = 16;
     public static final int CUSTOM_ICON_START_ID = 17;
-    public static final int ICON_RESOLUTION = 128; // Standardized icon render resolution (128x128 px)
+    public static final int ICON_RESOLUTION = 512; // Ultra-HD 512x512 standardized resolution for razor-sharp rendering at up to 600% scale
 
     private static CustomIconManager instance;
     private final Context context;
@@ -51,9 +51,9 @@ public class CustomIconManager {
             customIconsDir.mkdirs();
         }
 
-        // Cache up to 100 icons in memory (~2-4 MB RAM)
+        // Cache up to 150 icons in memory (~6-8 MB RAM)
         final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
-        final int cacheSize = Math.min(maxMemory / 16, 100);
+        final int cacheSize = Math.min(maxMemory / 12, 150);
         this.memoryCache = new LruCache<Integer, Bitmap>(cacheSize) {
             @Override
             protected int sizeOf(Integer key, Bitmap bitmap) {
@@ -111,23 +111,28 @@ public class CustomIconManager {
     }
 
     /**
-     * Rescales and centers any bitmap to 128x128 square with transparent background.
+     * Rescales and centers any bitmap to ultra-sharp square with transparent background.
      */
     public Bitmap normalizeBitmap(Bitmap src) {
         if (src == null) return null;
-        Bitmap output = Bitmap.createBitmap(ICON_RESOLUTION, ICON_RESOLUTION, Bitmap.Config.ARGB_8888);
+        int srcW = src.getWidth();
+        int srcH = src.getHeight();
+        if (srcW <= 0 || srcH <= 0) return null;
+
+        int targetDim = Math.min(ICON_RESOLUTION, Math.max(srcW, srcH));
+        if (targetDim < 128) targetDim = Math.max(srcW, srcH);
+
+        Bitmap output = Bitmap.createBitmap(targetDim, targetDim, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(output);
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
         paint.setAlpha(255);
         paint.setColorFilter(null);
 
-        int srcW = src.getWidth();
-        int srcH = src.getHeight();
-        float scale = Math.min((float) ICON_RESOLUTION / srcW, (float) ICON_RESOLUTION / srcH);
+        float scale = Math.min((float) targetDim / srcW, (float) targetDim / srcH);
         int destW = (int) (srcW * scale);
         int destH = (int) (srcH * scale);
-        int left = (ICON_RESOLUTION - destW) / 2;
-        int top = (ICON_RESOLUTION - destH) / 2;
+        int left = (targetDim - destW) / 2;
+        int top = (targetDim - destH) / 2;
 
         Rect srcRect = new Rect(0, 0, srcW, srcH);
         Rect destRect = new Rect(left, top, left + destW, top + destH);
@@ -185,11 +190,17 @@ public class CustomIconManager {
             if (!validHeight && validViewBox) {
                 height = validWidth ? width * viewBox.height() / viewBox.width() : viewBox.height();
             }
-            if (width <= 0 || Float.isInfinite(width) || Float.isNaN(width)) width = 128;
-            if (height <= 0 || Float.isInfinite(height) || Float.isNaN(height)) height = 128;
+            if (width <= 0 || Float.isInfinite(width) || Float.isNaN(width)) width = 512;
+            if (height <= 0 || Float.isInfinite(height) || Float.isNaN(height)) height = 512;
 
-            int bitmapWidth = Math.min(512, Math.max(32, (int)Math.ceil(width)));
-            int bitmapHeight = Math.min(512, Math.max(32, (int)Math.ceil(height)));
+            int bitmapWidth = 512;
+            int bitmapHeight = 512;
+            if (width > 0 && height > 0) {
+                float maxD = Math.max(width, height);
+                float svgScale = 512f / maxD;
+                bitmapWidth = Math.max(32, Math.min(1024, (int)(width * svgScale)));
+                bitmapHeight = Math.max(32, Math.min(1024, (int)(height * svgScale)));
+            }
 
             Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
             svg.setDocumentWidth(bitmapWidth);
