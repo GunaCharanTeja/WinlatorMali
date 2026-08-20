@@ -1821,6 +1821,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             gyroDeadzone = sbGyroDeadzone.getProgress() / 200.0f;
 
             SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean("show_touchscreen_controls_enabled", cbShowTouchscreenControls.isChecked());
             editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
             editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
             editor.putBoolean("gyro_enabled", isGyroEnabled);
@@ -1935,10 +1936,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void showInputControls(ControlsProfile profile) {
         inputControlsView.setVisibility(View.VISIBLE);
+        inputControlsView.setShowTouchscreenControls(true);
+        preferences.edit().putBoolean("show_touchscreen_controls_enabled", true).apply();
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
 
-        List<RadialWheelConfig> wheels = (profile != null && !profile.getWheels().isEmpty())
+        List<RadialWheelConfig> wheels = (profile != null)
                 ? profile.getWheels()
                 : RadialWheelConfig.loadGlobal(this);
 

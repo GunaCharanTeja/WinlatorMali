@@ -267,6 +267,10 @@ public class ControlElement {
         return selected;
     }
 
+    public int getCurrentPointerId() {
+        return currentPointerId;
+    }
+
     public void setSelected(boolean selected) {
         this.selected = selected;
     }

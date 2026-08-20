@@ -67,16 +67,20 @@ public class RadialWheelManager {
         return isOpen();
     }
 
+    public List<RadialWheelConfig> getConfigs() {
+        return configs;
+    }
+
     /**
      * Check if a binding press/hold should activate a wheel (single trigger or 2-button combo).
      */
     public boolean onBindingHeld(Binding binding, float x, float y) {
-        if (binding == null || binding == Binding.NONE) return false;
+        if (binding == null || binding == Binding.NONE || configs.isEmpty()) return false;
         heldBindings.add(binding);
 
         // If the wheel is ALREADY open, check if held bindings still satisfy its trigger
         if (isOpen() && activeConfig != null) {
-            boolean hasTrigger1 = heldBindings.contains(activeConfig.triggerBinding);
+            boolean hasTrigger1 = activeConfig.triggerBinding != null && activeConfig.triggerBinding != Binding.NONE && heldBindings.contains(activeConfig.triggerBinding);
             boolean hasTrigger2 = activeConfig.triggerBinding2 == null || activeConfig.triggerBinding2 == Binding.NONE || heldBindings.contains(activeConfig.triggerBinding2);
             if (hasTrigger1 && hasTrigger2) {
                 return true; // Preserve active wheel and selection
@@ -85,14 +89,14 @@ public class RadialWheelManager {
 
         // Check for 2-button combo triggers first, then single triggers
         for (RadialWheelConfig cfg : configs) {
-            if (cfg.triggerBinding2 != null && cfg.triggerBinding2 != Binding.NONE) {
+            if (cfg.triggerBinding != null && cfg.triggerBinding != Binding.NONE && cfg.triggerBinding2 != null && cfg.triggerBinding2 != Binding.NONE) {
                 if (heldBindings.contains(cfg.triggerBinding) && heldBindings.contains(cfg.triggerBinding2)) {
                     return openWheel(cfg);
                 }
             }
         }
         for (RadialWheelConfig cfg : configs) {
-            if (cfg.triggerBinding2 == null || cfg.triggerBinding2 == Binding.NONE) {
+            if (cfg.triggerBinding != null && cfg.triggerBinding != Binding.NONE && (cfg.triggerBinding2 == null || cfg.triggerBinding2 == Binding.NONE)) {
                 if (heldBindings.contains(cfg.triggerBinding)) {
                     return openWheel(cfg);
                 }
@@ -292,6 +296,7 @@ public class RadialWheelManager {
         open = false;
         activeConfig = null;
         selectedSlice = -1;
+        heldBindings.clear();
         if (inputControlsView != null) {
             inputControlsView.invalidate();
         }

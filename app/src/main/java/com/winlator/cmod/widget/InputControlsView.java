@@ -602,10 +602,11 @@ public class InputControlsView extends View {
                     float x = event.getX(actionIndex), y = event.getY(actionIndex);
                     touchpadView.setPointerButtonLeftEnabled(true);
                     for (ControlElement element : profile.getElements()) {
-                        if (element.containsPoint(x, y)) {
+                        boolean contains = element.containsPoint(x, y);
+                        if (contains && radialWheelManager != null && !radialWheelManager.getConfigs().isEmpty()) {
                             for (int b = 0; b < element.getBindingCount(); b++) {
                                 Binding binding = element.getBindingAt(b);
-                                if (radialWheelManager != null && radialWheelManager.onBindingHeld(binding, x, y)) {
+                                if (binding != null && binding != Binding.NONE && radialWheelManager.onBindingHeld(binding, x, y)) {
                                     handled = true;
                                     break;
                                 }
@@ -644,6 +645,14 @@ public class InputControlsView extends View {
                         return true;
                     }
                     for (ControlElement element : profile.getElements()) {
+                        if (element.getCurrentPointerId() == pointerId) {
+                            for (int b = 0; b < element.getBindingCount(); b++) {
+                                Binding binding = element.getBindingAt(b);
+                                if (radialWheelManager != null && binding != null && binding != Binding.NONE) {
+                                    radialWheelManager.onBindingReleased(binding);
+                                }
+                            }
+                        }
                         if (element.handleTouchUp(pointerId)) handled = true;
                     }
                     if (!handled) touchpadView.onTouchEvent(event);
