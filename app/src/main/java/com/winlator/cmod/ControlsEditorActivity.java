@@ -45,6 +45,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
     private InputControlsView inputControlsView;
     private ControlsProfile profile;
     private androidx.activity.result.ActivityResultLauncher<String> iconPickerLauncher;
+    private LinearLayout currentIconListLayout;
 
     @Override
     public void onCreate(Bundle bundle) {
@@ -61,6 +62,9 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                         el.setIconId(newId);
                         profile.save();
                         inputControlsView.invalidate();
+                        if (currentIconListLayout != null) {
+                            loadIcons(currentIconListLayout, newId);
+                        }
                         AppUtils.showToast(this, "Custom icon imported and applied!");
                     }
                 }
@@ -209,18 +213,20 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         final EditText etCustomText = view.findViewById(R.id.ETCustomText);
         etCustomText.setText(element.getText());
         final LinearLayout llIconList = view.findViewById(R.id.LLIconList);
+        currentIconListLayout = llIconList;
         loadIcons(llIconList, element.getIconId());
 
         updateLayout.run();
 
         PopupWindow popupWindow = AppUtils.showPopupWindow(anchorView, view, 340, 0);
         popupWindow.setOnDismissListener(() -> {
+            currentIconListLayout = null;
             String text = etCustomText.getText().toString().trim();
-            byte iconId = 0;
+            int iconId = 0;
             for (int i = 0; i < llIconList.getChildCount(); i++) {
                 View child = llIconList.getChildAt(i);
-                if (child.isSelected()) {
-                    iconId = (byte)child.getTag();
+                if (child.isSelected() && child.getTag() instanceof Integer) {
+                    iconId = (Integer)child.getTag();
                     break;
                 }
             }
@@ -374,7 +380,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         });
     }
 
-    private void loadIcons(final LinearLayout parent, byte selectedId) {
+    private void loadIcons(final LinearLayout parent, int selectedId) {
         parent.removeAllViews();
         com.winlator.cmod.inputcontrols.CustomIconManager iconManager = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(this);
         List<Integer> iconIds = iconManager.getAllIconIds();
@@ -404,8 +410,13 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             imageView.setLayoutParams(params);
             imageView.setPadding(padding, padding, padding, padding);
             imageView.setBackgroundResource(R.drawable.icon_background);
-            imageView.setTag((byte)id);
-            imageView.setSelected(id == (selectedId & 0xFF));
+            imageView.setTag(Integer.valueOf(id));
+            imageView.setSelected(id == selectedId);
+            if (id <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
+                imageView.setColorFilter(getResources().getColor(R.color.colorAccent));
+            } else {
+                imageView.setColorFilter(null);
+            }
             imageView.setOnClickListener((v) -> {
                 for (int i = 0; i < parent.getChildCount(); i++) parent.getChildAt(i).setSelected(false);
                 imageView.setSelected(true);

@@ -158,13 +158,62 @@ public class CustomIconManager {
         }
     }
 
+    public static Bitmap decodeIcon(byte[] data) {
+        if (data == null || data.length == 0) return null;
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+        if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+            return BitmapFactory.decodeByteArray(data, 0, data.length);
+        }
+
+        try {
+            if (data.length >= 2 && (data[0] & 0xff) == 0x1f && (data[1] & 0xff) == 0x8b) return null;
+            com.caverock.androidsvg.SVG.setInternalEntitiesEnabled(false);
+            com.caverock.androidsvg.SVG svg = com.caverock.androidsvg.SVG.getFromInputStream(new java.io.ByteArrayInputStream(data));
+            android.graphics.RectF viewBox = svg.getDocumentViewBox();
+            float width = svg.getDocumentWidth();
+            float height = svg.getDocumentHeight();
+            boolean validViewBox = viewBox != null && viewBox.width() > 0 && viewBox.height() > 0;
+            boolean validWidth = width > 0 && !Float.isInfinite(width) && !Float.isNaN(width);
+            boolean validHeight = height > 0 && !Float.isInfinite(height) && !Float.isNaN(height);
+            if (!validWidth && validViewBox) {
+                width = validHeight ? height * viewBox.width() / viewBox.height() : viewBox.width();
+            }
+            if (!validHeight && validViewBox) {
+                height = validWidth ? width * viewBox.height() / viewBox.width() : viewBox.height();
+            }
+            if (width <= 0 || Float.isInfinite(width) || Float.isNaN(width)) width = 128;
+            if (height <= 0 || Float.isInfinite(height) || Float.isNaN(height)) height = 128;
+
+            int bitmapWidth = Math.min(512, Math.max(32, (int)Math.ceil(width)));
+            int bitmapHeight = Math.min(512, Math.max(32, (int)Math.ceil(height)));
+
+            Bitmap bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888);
+            svg.setDocumentWidth(bitmapWidth);
+            svg.setDocumentHeight(bitmapHeight);
+            svg.renderToCanvas(new Canvas(bitmap));
+            return bitmap;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
     /**
      * Import a custom icon from a content URI (Gallery, Photos, Files).
      */
     public int importCustomIcon(Uri imageUri) {
         if (imageUri == null) return 0;
         try (InputStream is = context.getContentResolver().openInputStream(imageUri)) {
-            Bitmap bmp = BitmapFactory.decodeStream(is);
+            if (is == null) return 0;
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int r;
+            while ((r = is.read(buf)) != -1) {
+                baos.write(buf, 0, r);
+            }
+            byte[] data = baos.toByteArray();
+            Bitmap bmp = decodeIcon(data);
             return importCustomIcon(bmp);
         } catch (Exception e) {
             Log.e(TAG, "Failed to import image from URI: " + imageUri, e);
@@ -190,7 +239,7 @@ public class CustomIconManager {
     /**
      * Find next available ID for custom icons (starting at 17).
      */
-    private int getNextAvailableCustomId() {
+    public int getNextAvailableCustomId() {
         List<Integer> existing = getCustomIconIds();
         int candidate = CUSTOM_ICON_START_ID;
         while (existing.contains(candidate)) {
@@ -258,13 +307,13 @@ public class CustomIconManager {
     }
 
     /**
-     * Decode a Base64 PNG string and save as a custom icon with optional preferred ID.
+     * Decode a Base64 PNG/SVG string and save as a custom icon with optional preferred ID.
      */
     public int decodeAndSaveBase64(String base64Str, int preferredId) {
         if (base64Str == null || base64Str.isEmpty()) return 0;
         try {
             byte[] bytes = Base64.decode(base64Str, Base64.DEFAULT);
-            Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            Bitmap bmp = decodeIcon(bytes);
             if (bmp == null) return 0;
             Bitmap normalized = normalizeBitmap(bmp);
             bmp.recycle();

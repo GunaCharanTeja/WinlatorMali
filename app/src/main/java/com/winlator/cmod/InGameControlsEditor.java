@@ -41,6 +41,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
     private final Runnable onDone;
     private final FrameLayout root;
     private PopupWindow currentPopup;
+    private LinearLayout currentIconListLayout;
 
     public InGameControlsEditor(
             XServerDisplayActivity activity,
@@ -224,18 +225,20 @@ public final class InGameControlsEditor implements View.OnClickListener {
         final EditText etCustomText = view.findViewById(R.id.ETCustomText);
         etCustomText.setText(element.getText());
         final LinearLayout llIconList = view.findViewById(R.id.LLIconList);
+        currentIconListLayout = llIconList;
         loadIcons(llIconList, element.getIconId());
 
         updateLayout.run();
 
         currentPopup = AppUtils.showPopupWindow(anchorView, view, 340, 0);
         currentPopup.setOnDismissListener(() -> {
+            currentIconListLayout = null;
             String text = etCustomText.getText().toString().trim();
-            byte iconId = 0;
+            int iconId = 0;
             for (int i = 0; i < llIconList.getChildCount(); i++) {
                 View child = llIconList.getChildAt(i);
-                if (child.isSelected()) {
-                    iconId = (byte) child.getTag();
+                if (child.isSelected() && child.getTag() instanceof Integer) {
+                    iconId = (Integer) child.getTag();
                     break;
                 }
             }
@@ -254,16 +257,14 @@ public final class InGameControlsEditor implements View.OnClickListener {
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                ControlElement.Type type = ControlElement.Type.values()[position];
-                if (type != element.getType()) {
-                    element.setType(type);
-                    callback.run();
-                    profile.save();
-                    inputControlsView.invalidate();
-                }
+                element.setType(ControlElement.Type.values()[position]);
+                callback.run();
+                profile.save();
+                inputControlsView.invalidate();
             }
 
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
         });
     }
 
@@ -308,6 +309,9 @@ public final class InGameControlsEditor implements View.OnClickListener {
                 el.setIconId(newId);
                 save();
                 inputControlsView.invalidate();
+                if (currentIconListLayout != null) {
+                    loadIcons(currentIconListLayout, newId);
+                }
                 AppUtils.showToast(activity, "Custom icon imported and applied!");
             }
         }
@@ -317,7 +321,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
         activity.launchInGameIconPicker();
     }
 
-    private void loadIcons(final LinearLayout parent, byte selectedId) {
+    private void loadIcons(final LinearLayout parent, int selectedId) {
         parent.removeAllViews();
         com.winlator.cmod.inputcontrols.CustomIconManager iconManager = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(activity);
         List<Integer> iconIds = iconManager.getAllIconIds();
@@ -343,8 +347,13 @@ public final class InGameControlsEditor implements View.OnClickListener {
             imageView.setLayoutParams(params);
             imageView.setPadding(padding, padding, padding, padding);
             imageView.setBackgroundResource(R.drawable.icon_background);
-            imageView.setTag((byte) id);
-            imageView.setSelected(id == (selectedId & 0xFF));
+            imageView.setTag(Integer.valueOf(id));
+            imageView.setSelected(id == selectedId);
+            if (id <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
+                imageView.setColorFilter(activity.getResources().getColor(R.color.colorAccent));
+            } else {
+                imageView.setColorFilter(null);
+            }
             imageView.setOnClickListener((v) -> {
                 for (int i = 0; i < parent.getChildCount(); i++) parent.getChildAt(i).setSelected(false);
                 imageView.setSelected(true);

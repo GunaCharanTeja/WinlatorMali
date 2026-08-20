@@ -114,7 +114,7 @@ public class ControlElement {
     private boolean[] states = new boolean[4];
     private boolean boundingBoxNeedsUpdate = true;
     private String text = "";
-    private byte iconId;
+    private int iconId = 0;
     private Range range;
     private byte orientation;
     private PointF currentPosition;
@@ -274,12 +274,12 @@ public class ControlElement {
         this.text = text != null ? text : "";
     }
 
-    public byte getIconId() {
+    public int getIconId() {
         return iconId;
     }
 
     public void setIconId(int iconId) {
-        this.iconId = (byte)iconId;
+        this.iconId = iconId;
     }
 
     public Rect getBoundingBox() {
@@ -643,11 +643,21 @@ public class ControlElement {
 
 
     private void drawIcon(Canvas canvas, float cx, float cy, float width, float height, int iconId) {
+        if (iconId <= 0) return;
+        Bitmap icon = inputControlsView.getIcon(iconId);
+        if (icon == null) return;
+
         Paint paint = inputControlsView.getPaint();
-        Bitmap icon = inputControlsView.getIcon((byte)iconId);
-        paint.setColorFilter(inputControlsView.getColorFilter());
+        boolean isCustom = iconId > CustomIconManager.BUILTIN_ICON_MAX;
+        if (isCustom) {
+            paint.setColorFilter(null);
+        } else {
+            paint.setColorFilter(inputControlsView.getColorFilter());
+        }
+
         int margin = (int)(inputControlsView.getSnappingSize() * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 2.0f : 1.0f) * scale);
         int halfSize = (int)((Math.min(width, height) - margin) * 0.5f);
+        if (halfSize <= 0) halfSize = (int)(Math.min(width, height) * 0.5f);
 
         Rect srcRect = new Rect(0, 0, icon.getWidth(), icon.getHeight());
         Rect dstRect = new Rect((int)(cx - halfSize), (int)(cy - halfSize), (int)(cx + halfSize), (int)(cy + halfSize));

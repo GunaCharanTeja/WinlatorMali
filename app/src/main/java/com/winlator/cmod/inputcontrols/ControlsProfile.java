@@ -159,12 +159,13 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             }
             if (wheelsJSONArray.length() > 0) data.put("wheels", wheelsJSONArray);
 
-            // Embed custom icons for 100% portable sharing
+            // Embed custom icons for 100% portable sharing (Bannerlator .icpx + Winlator .icp formats)
             CustomIconManager iconManager = CustomIconManager.getInstance(context);
             JSONArray embeddedIcons = new JSONArray();
+            JSONArray customIconsArr = new JSONArray();
             java.util.Set<Integer> customIds = new java.util.HashSet<>();
             for (ControlElement element : elements) {
-                int iId = element.getIconId() & 0xFF;
+                int iId = element.getIconId();
                 if (iId > CustomIconManager.BUILTIN_ICON_MAX) customIds.add(iId);
             }
             for (RadialWheelConfig wheel : wheels) {
@@ -174,8 +175,15 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             }
             for (int cid : customIds) {
                 String b64 = iconManager.encodeIconBase64(cid);
-                if (b64 != null) embeddedIcons.put(b64);
+                if (b64 != null) {
+                    embeddedIcons.put(b64);
+                    JSONObject cObj = new JSONObject();
+                    cObj.put("id", cid);
+                    cObj.put("png", b64);
+                    customIconsArr.put(cObj);
+                }
             }
+            if (customIconsArr.length() > 0) data.put("customIcons", customIconsArr);
             if (embeddedIcons.length() > 0) data.put("embeddedIcons", embeddedIcons);
 
             FileUtils.writeString(file, data.toString());
@@ -298,7 +306,9 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 element.setY((int)(elementJSONObject.optDouble("y", 0.5) * inputControlsView.getMaxHeight()));
                 element.setScale((float)elementJSONObject.optDouble("scale", 1.0));
                 element.setText(elementJSONObject.optString("text", ""));
-                element.setIconId(elementJSONObject.optInt("iconId", 0));
+                int rawIconId = elementJSONObject.optInt("iconId", 0);
+                if (rawIconId < 0 && rawIconId >= Byte.MIN_VALUE) rawIconId = rawIconId & 0xFF;
+                element.setIconId(rawIconId);
                 if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.parse(elementJSONObject.optString("range", "FROM_A_TO_Z")));
                 if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.optInt("orientation", 0));
 
