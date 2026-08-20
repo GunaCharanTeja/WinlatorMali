@@ -116,6 +116,9 @@ public class ControlElement {
     private String text = "";
     private int iconId = 0;
     private boolean customIconAsButton = true;
+    private float widthScale = 1.0f;
+    private float heightScale = 1.0f;
+    private int touchPadding = 0;
     private Range range;
     private byte orientation;
     private PointF currentPosition;
@@ -289,6 +292,33 @@ public class ControlElement {
 
     public void setCustomIconAsButton(boolean customIconAsButton) {
         this.customIconAsButton = customIconAsButton;
+        boundingBoxNeedsUpdate = true;
+    }
+
+    public float getWidthScale() {
+        return widthScale;
+    }
+
+    public void setWidthScale(float widthScale) {
+        this.widthScale = widthScale;
+        boundingBoxNeedsUpdate = true;
+    }
+
+    public float getHeightScale() {
+        return heightScale;
+    }
+
+    public void setHeightScale(float heightScale) {
+        this.heightScale = heightScale;
+        boundingBoxNeedsUpdate = true;
+    }
+
+    public int getTouchPadding() {
+        return touchPadding;
+    }
+
+    public void setTouchPadding(int touchPadding) {
+        this.touchPadding = touchPadding;
     }
 
     public Rect getBoundingBox() {
@@ -320,6 +350,17 @@ public class ControlElement {
                         halfHeight = snappingSize * 3;
                         break;
                 }
+                if (customIconAsButton && iconId > 0) {
+                    Bitmap icon = inputControlsView.getIcon(iconId);
+                    if (icon != null && icon.getWidth() > 0 && icon.getHeight() > 0) {
+                        float aspect = (float)icon.getWidth() / (float)icon.getHeight();
+                        if (aspect > 1.0f) {
+                            halfWidth = (int)(halfHeight * aspect);
+                        } else if (aspect < 1.0f) {
+                            halfHeight = (int)(halfWidth / aspect);
+                        }
+                    }
+                }
                 break;
             case D_PAD: {
                 halfWidth = snappingSize * 7;
@@ -347,8 +388,8 @@ public class ControlElement {
             }
         }
 
-        halfWidth *= scale;
-        halfHeight *= scale;
+        halfWidth = (int)(halfWidth * scale * widthScale);
+        halfHeight = (int)(halfHeight * scale * heightScale);
         boundingBox.set(x - halfWidth, y - halfHeight, x + halfWidth, y + halfHeight);
         boundingBoxNeedsUpdate = false;
         return boundingBox;
@@ -729,6 +770,9 @@ public class ControlElement {
             elementJSONObject.put("text", text);
             elementJSONObject.put("iconId", iconId);
             elementJSONObject.put("customIconAsButton", customIconAsButton);
+            if (widthScale != 1.0f) elementJSONObject.put("widthScale", Float.valueOf(widthScale));
+            if (heightScale != 1.0f) elementJSONObject.put("heightScale", Float.valueOf(heightScale));
+            if (touchPadding != 0) elementJSONObject.put("touchPadding", touchPadding);
 
             if (type == Type.RANGE_BUTTON && range != null) {
                 elementJSONObject.put("range", range.name());
@@ -742,7 +786,12 @@ public class ControlElement {
     }
 
     public boolean containsPoint(float x, float y) {
-        return getBoundingBox().contains((int)(x + 0.5f), (int)(y + 0.5f));
+        Rect box = getBoundingBox();
+        if (touchPadding <= 0) {
+            return box.contains((int)(x + 0.5f), (int)(y + 0.5f));
+        }
+        int pad = (int)(touchPadding * inputControlsView.getSnappingSize() * 0.2f * scale);
+        return (x >= box.left - pad && x <= box.right + pad && y >= box.top - pad && y <= box.bottom + pad);
     }
 
     private boolean isKeepButtonPressedAfterMinTime() {

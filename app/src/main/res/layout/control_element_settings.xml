@@ -223,6 +223,85 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="Fill Button (Icon As Button)" />
+
+            <LinearLayout
+                android:id="@+id/LLBoundaryAdjuster"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Boundary Width" />
+                    <TextView
+                        android:id="@+id/TVWidthScale"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="100%" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/SBWidthScale"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:min="50"
+                    android:max="300" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="4dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Boundary Height" />
+                    <TextView
+                        android:id="@+id/TVHeightScale"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="100%" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/SBHeightScale"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:min="50"
+                    android:max="300" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="4dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Touch Area Padding" />
+                    <TextView
+                        android:id="@+id/TVTouchPadding"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="+0" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/SBTouchPadding"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:min="0"
+                    android:max="50" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

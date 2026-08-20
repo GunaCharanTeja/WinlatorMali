@@ -224,6 +224,62 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             inputControlsView.invalidate();
         });
 
+        final TextView tvWidthScale = view.findViewById(R.id.TVWidthScale);
+        SeekBar sbWidthScale = view.findViewById(R.id.SBWidthScale);
+        int currentW = (int)(element.getWidthScale() * 100);
+        tvWidthScale.setText(currentW + "%");
+        sbWidthScale.setProgress(currentW);
+        sbWidthScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvWidthScale.setText(progress + "%");
+                if (fromUser) {
+                    element.setWidthScale(progress / 100.0f);
+                    profile.save();
+                    inputControlsView.invalidate();
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        final TextView tvHeightScale = view.findViewById(R.id.TVHeightScale);
+        SeekBar sbHeightScale = view.findViewById(R.id.SBHeightScale);
+        int currentH = (int)(element.getHeightScale() * 100);
+        tvHeightScale.setText(currentH + "%");
+        sbHeightScale.setProgress(currentH);
+        sbHeightScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvHeightScale.setText(progress + "%");
+                if (fromUser) {
+                    element.setHeightScale(progress / 100.0f);
+                    profile.save();
+                    inputControlsView.invalidate();
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        final TextView tvTouchPadding = view.findViewById(R.id.TVTouchPadding);
+        SeekBar sbTouchPadding = view.findViewById(R.id.SBTouchPadding);
+        int currentPad = element.getTouchPadding();
+        tvTouchPadding.setText("+" + currentPad);
+        sbTouchPadding.setProgress(currentPad);
+        sbTouchPadding.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvTouchPadding.setText("+" + progress);
+                if (fromUser) {
+                    element.setTouchPadding(progress);
+                    profile.save();
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
         updateLayout.run();
 
         PopupWindow popupWindow = AppUtils.showPopupWindow(anchorView, view, 340, 0);
