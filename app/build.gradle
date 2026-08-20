@@ -136,6 +136,25 @@ android {
         abortOnError false
     }
 
+    flavorDimensions "version"
+    productFlavors {
+        standard {
+            dimension "version"
+            applicationId "com.winlator.mali"
+            resValue "string", "app_name", "Winlator Mali"
+        }
+        ludashi {
+            dimension "version"
+            applicationId "com.ludashi.benchmark"
+            resValue "string", "app_name", "Winlator Mali Ludashi"
+        }
+        antutu {
+            dimension "version"
+            applicationId "com.antutu.ABenchMark"
+            resValue "string", "app_name", "Winlator Mali AnTuTu"
+        }
+    }
+
 
     ndkVersion '29.0.14206865'
 
