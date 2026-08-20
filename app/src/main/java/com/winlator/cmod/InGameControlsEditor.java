@@ -77,6 +77,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
         root.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         root.findViewById(R.id.BTElementSettings).setOnClickListener(this);
         root.findViewById(R.id.BTStylePreset).setOnClickListener(this);
+        root.findViewById(R.id.BTOpacity).setOnClickListener(this);
         root.findViewById(R.id.BTReset).setOnClickListener(this);
         root.findViewById(R.id.BTRadialWheel).setOnClickListener(this);
         root.findViewById(R.id.BTDone).setOnClickListener(this);

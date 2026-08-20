@@ -93,6 +93,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         container.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         container.findViewById(R.id.BTElementSettings).setOnClickListener(this);
         container.findViewById(R.id.BTStylePreset).setOnClickListener(this);
+        container.findViewById(R.id.BTOpacity).setOnClickListener(this);
         container.findViewById(R.id.BTReset).setOnClickListener(this);
     }
 
