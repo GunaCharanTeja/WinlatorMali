@@ -214,7 +214,7 @@ public class InputControlsManager {
         try (JsonReader reader = new JsonReader(new InputStreamReader(inStream, StandardCharsets.UTF_8))) {
             int profileId = 0;
             String profileName = null;
-            float cursorSpeed = Float.NaN;
+            float cursorSpeed = 1.0f;
             int fieldsRead = 0;
 
             reader.beginObject();
@@ -241,7 +241,7 @@ public class InputControlsManager {
 
             ControlsProfile profile = new ControlsProfile(context, profileId);
             profile.setName(profileName);
-            profile.setCursorSpeed(cursorSpeed);
+            profile.setCursorSpeed((Float.isNaN(cursorSpeed) || Float.isInfinite(cursorSpeed) || cursorSpeed <= 0) ? 1.0f : cursorSpeed);
             return profile;
         }
         catch (IOException e) {

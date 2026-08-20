@@ -355,9 +355,12 @@ public class ControlElement {
                         halfHeight = (int)(snappingSize * 2.5f);
                         break;
                     case SQUARE:
-                    case CIRCLE:
                         halfWidth = (int)(snappingSize * 2.5f);
                         halfHeight = (int)(snappingSize * 2.5f);
+                        break;
+                    case CIRCLE:
+                        halfWidth = snappingSize * 3;
+                        halfHeight = snappingSize * 3;
                         break;
                 }
                 if (customIconAsButton && iconId > 0) {
@@ -715,7 +718,7 @@ public class ControlElement {
                 canvas.drawRect(rect, paint);
                 break;
             case ROUND_RECT:
-                float radius = Math.min(rect.height(), rect.width()) * 0.35f;
+                float radius = rect.height() * 0.5f;
                 canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, radius, radius, paint);
                 break;
             case CAPSULE:
@@ -753,7 +756,7 @@ public class ControlElement {
         if (fitBoundingBox) {
             // Icon visual size is determined by base element dimension * scale (independent of widthScale/heightScale boundary)
             int snappingSize = inputControlsView.getSnappingSize();
-            float baseDimension = snappingSize * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 5.5f : 5.0f);
+            float baseDimension = snappingSize * (shape == Shape.CIRCLE ? 6.0f : (shape == Shape.SQUARE ? 5.0f : 5.0f));
             float maxDim = Math.max(icon.getWidth(), icon.getHeight());
             float iconDrawScale = (baseDimension * scale) / (maxDim > 0 ? maxDim : 1.0f);
 
@@ -827,6 +830,7 @@ public class ControlElement {
                 if (a <= 0 || b <= 0) return false;
                 return ((dx * dx) / (a * a) + (dy * dy) / (b * b)) <= 1.0f;
             }
+            case ROUND_RECT:
             case CAPSULE: {
                 if (halfW >= halfH) {
                     // Horizontal capsule / stadium
@@ -849,16 +853,6 @@ public class ControlElement {
                         return (dx * dx + capDy * capDy) <= (r * r);
                     }
                 }
-            }
-            case ROUND_RECT: {
-                float r = Math.min(halfW, halfH) * 0.35f + pad;
-                float innerW = Math.max(0, halfW + pad - r);
-                float innerH = Math.max(0, halfH + pad - r);
-                if (Math.abs(dx) <= innerW && Math.abs(dy) <= (halfH + pad)) return true;
-                if (Math.abs(dx) <= (halfW + pad) && Math.abs(dy) <= innerH) return true;
-                float cornerDx = Math.abs(dx) - innerW;
-                float cornerDy = Math.abs(dy) - innerH;
-                return (cornerDx * cornerDx + cornerDy * cornerDy) <= (r * r);
             }
             case RECT:
             case SQUARE:
@@ -1004,7 +998,7 @@ public class ControlElement {
 
                 inputControlsView.invalidate();
             }
-            else if (type == Type.TRACKPAD) {
+            else if (type == Type.TRACKPAD || type == Type.MOUSE_AREA) {
                 // Check if gamepad bindings - use unified handling
                 Binding firstBinding = getBindingAt(0);
                 if (firstBinding.isGamepad()) {

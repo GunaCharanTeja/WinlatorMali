@@ -1941,7 +1941,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
 
-        List<RadialWheelConfig> wheels = (profile != null)
+        List<RadialWheelConfig> wheels = (profile != null && !profile.getWheels().isEmpty())
                 ? profile.getWheels()
                 : RadialWheelConfig.loadGlobal(this);
 

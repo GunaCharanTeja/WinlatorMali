@@ -594,13 +594,17 @@ public class InputControlsView extends View {
                 case MotionEvent.ACTION_UP -> { if (selectedElement != null) profile.save(); if (moveCursor) cursor.set((int)Mathf.roundTo(x, snappingSize), (int)Mathf.roundTo(y, snappingSize)); invalidate(); }
             }
         }
-        if (!editMode && profile != null) {
+        if (!editMode) {
+            if (profile == null || !showTouchscreenControls) {
+                if (touchpadView != null) touchpadView.onTouchEvent(event);
+                return true;
+            }
+
             int actionIndex = event.getActionIndex(), pointerId = event.getPointerId(actionIndex), actionMasked = event.getActionMasked();
             boolean handled = false;
             switch (actionMasked) {
                 case MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     float x = event.getX(actionIndex), y = event.getY(actionIndex);
-                    touchpadView.setPointerButtonLeftEnabled(true);
                     for (ControlElement element : profile.getElements()) {
                         boolean contains = element.containsPoint(x, y);
                         if (contains && radialWheelManager != null && !radialWheelManager.getConfigs().isEmpty()) {
@@ -619,10 +623,12 @@ public class InputControlsView extends View {
                                 Vibrator v = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
                                 if (v != null && v.hasVibrator()) v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE));
                             }
+                            if (touchpadView != null && element.getBindingAt(0) == Binding.MOUSE_LEFT_BUTTON) {
+                                touchpadView.setPointerButtonLeftEnabled(false);
+                            }
                         }
-                        if (element.getBindingAt(0) == Binding.MOUSE_LEFT_BUTTON) touchpadView.setPointerButtonLeftEnabled(false);
                     }
-                    if (!handled) touchpadView.onTouchEvent(event);
+                    if (!handled && touchpadView != null) touchpadView.onTouchEvent(event);
                     invalidate();
                 }
                 case MotionEvent.ACTION_MOVE -> {
@@ -631,10 +637,19 @@ public class InputControlsView extends View {
                         invalidate();
                         return true;
                     }
+                    boolean hasUnhandledPointer = false;
                     for (byte i = 0; i < event.getPointerCount(); i++) {
-                        handled = false;
-                        for (ControlElement element : profile.getElements()) if (element.handleTouchMove(event.getPointerId(i), event.getX(i), event.getY(i))) handled = true;
-                        if (!handled) touchpadView.onTouchEvent(event);
+                        boolean elementHandled = false;
+                        for (ControlElement element : profile.getElements()) {
+                            if (element.handleTouchMove(event.getPointerId(i), event.getX(i), event.getY(i))) {
+                                elementHandled = true;
+                                break;
+                            }
+                        }
+                        if (!elementHandled) hasUnhandledPointer = true;
+                    }
+                    if (hasUnhandledPointer && touchpadView != null) {
+                        touchpadView.onTouchEvent(event);
                     }
                     invalidate();
                 }
@@ -653,9 +668,14 @@ public class InputControlsView extends View {
                                 }
                             }
                         }
-                        if (element.handleTouchUp(pointerId)) handled = true;
+                        if (element.handleTouchUp(pointerId)) {
+                            handled = true;
+                            if (touchpadView != null && element.getBindingAt(0) == Binding.MOUSE_LEFT_BUTTON) {
+                                touchpadView.setPointerButtonLeftEnabled(true);
+                            }
+                        }
                     }
-                    if (!handled) touchpadView.onTouchEvent(event);
+                    if (!handled && touchpadView != null) touchpadView.onTouchEvent(event);
                     invalidate();
                 }
             }

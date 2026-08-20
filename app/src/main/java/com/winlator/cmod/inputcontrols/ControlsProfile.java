@@ -46,11 +46,11 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     }
 
     public float getCursorSpeed() {
-        return cursorSpeed;
+        return (Float.isNaN(cursorSpeed) || Float.isInfinite(cursorSpeed) || cursorSpeed <= 0) ? 1.0f : cursorSpeed;
     }
 
     public void setCursorSpeed(float cursorSpeed) {
-        this.cursorSpeed = cursorSpeed;
+        this.cursorSpeed = (Float.isNaN(cursorSpeed) || Float.isInfinite(cursorSpeed) || cursorSpeed <= 0) ? 1.0f : cursorSpeed;
     }
 
     public boolean isVirtualGamepad() {

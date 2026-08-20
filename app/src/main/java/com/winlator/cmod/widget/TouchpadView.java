@@ -105,11 +105,12 @@ public class TouchpadView extends View {
     }
 
     private void updateXform(int outerWidth, int outerHeight, int innerWidth, int innerHeight) {
+        if (outerWidth <= 0 || outerHeight <= 0 || innerWidth <= 0 || innerHeight <= 0) return;
         ViewTransformation viewTransformation = new ViewTransformation();
         viewTransformation.update(outerWidth, outerHeight, innerWidth, innerHeight);
 
-        float invAspect = 1.0f / viewTransformation.aspect;
-        if (!xServer.getRenderer().isFullscreen()) {
+        float invAspect = 1.0f / (viewTransformation.aspect != 0 ? viewTransformation.aspect : 1.0f);
+        if (xServer != null && xServer.getRenderer() != null && !xServer.getRenderer().isFullscreen()) {
             XForm.makeTranslation(xform, -viewTransformation.viewOffsetX, -viewTransformation.viewOffsetY);
             XForm.scale(xform, invAspect, invAspect);
         } else
@@ -141,13 +142,15 @@ public class TouchpadView extends View {
         }
 
         private int deltaX() {
-            float dx = (x - lastX) * sensitivity;
+            float s = (Float.isNaN(sensitivity) || Float.isInfinite(sensitivity) || sensitivity <= 0) ? 1.0f : sensitivity;
+            float dx = (x - lastX) * s;
             if (Math.abs(dx) > CURSOR_ACCELERATION_THRESHOLD) dx *= CURSOR_ACCELERATION;
             return Mathf.roundPoint(dx);
         }
 
         private int deltaY() {
-            float dy = (y - lastY) * sensitivity;
+            float s = (Float.isNaN(sensitivity) || Float.isInfinite(sensitivity) || sensitivity <= 0) ? 1.0f : sensitivity;
+            float dy = (y - lastY) * s;
             if (Math.abs(dy) > CURSOR_ACCELERATION_THRESHOLD) dy *= CURSOR_ACCELERATION;
             return Mathf.roundPoint(dy);
         }
@@ -560,7 +563,11 @@ public class TouchpadView extends View {
     }
 
     public void setSensitivity(float sensitivity) {
-        this.sensitivity = sensitivity;
+        if (Float.isNaN(sensitivity) || Float.isInfinite(sensitivity) || sensitivity <= 0) {
+            this.sensitivity = 1.0f;
+        } else {
+            this.sensitivity = sensitivity;
+        }
     }
 
     public boolean isPointerButtonLeftEnabled() {
