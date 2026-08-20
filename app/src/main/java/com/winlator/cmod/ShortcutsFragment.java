@@ -164,7 +164,6 @@ public class ShortcutsFragment extends Fragment {
 
             boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
             float titleSize = isLandscape ? 12.5f : 15.0f;
-            float badgeSize = isLandscape ? 8.5f : 10.5f;
 
             if (holder.title != null) {
                 holder.title.setTextSize(TypedValue.COMPLEX_UNIT_SP, titleSize);
@@ -174,16 +173,14 @@ public class ShortcutsFragment extends Fragment {
             String displayWine = formatWineVersionForDisplay(rawWine);
             if (displayWine.isEmpty()) displayWine = item.container.getName();
             if (holder.subtitle != null) {
-                holder.subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, badgeSize);
-                holder.subtitle.setText(displayWine);
+                adjustTextSizeToFit(holder.subtitle, displayWine, 10.5f, 6.0f);
             }
 
             String gameVersion = item.getGameVersion();
             if (gameVersion != null && !gameVersion.isEmpty()) {
                 String formattedVer = gameVersion.startsWith("v") || gameVersion.startsWith("V") ? gameVersion : "v" + gameVersion;
                 if (holder.version != null) {
-                    holder.version.setTextSize(TypedValue.COMPLEX_UNIT_SP, badgeSize);
-                    holder.version.setText(formattedVer);
+                    adjustTextSizeToFit(holder.version, formattedVer, 10.5f, 6.0f);
                     holder.version.setVisibility(View.VISIBLE);
                 }
             } else if (holder.version != null) {
@@ -207,6 +204,43 @@ public class ShortcutsFragment extends Fragment {
 
             holder.menuButton.setOnClickListener((v) -> showListItemMenu(v, item));
             holder.innerArea.setOnClickListener((v) -> runFromShortcut(item));
+        }
+
+        private void adjustTextSizeToFit(TextView textView, String text, float maxSp, float minSp) {
+            if (textView == null) return;
+            textView.setText(text != null ? text : "");
+            if (text == null || text.isEmpty()) return;
+
+            int width = textView.getWidth();
+            if (width > 0) {
+                applyFittedTextSize(textView, text, maxSp, minSp, width);
+            }
+
+            textView.post(() -> {
+                int w = textView.getWidth();
+                if (w > 0) {
+                    applyFittedTextSize(textView, text, maxSp, minSp, w);
+                }
+            });
+        }
+
+        private void applyFittedTextSize(TextView textView, String text, float maxSp, float minSp, int widthPx) {
+            float padding = textView.getCompoundPaddingLeft() + textView.getCompoundPaddingRight();
+            float availableWidth = widthPx - padding;
+            if (availableWidth <= 0) return;
+
+            android.text.TextPaint paint = new android.text.TextPaint(textView.getPaint());
+            float density = textView.getResources().getDisplayMetrics().scaledDensity;
+
+            float currentSp = maxSp;
+            while (currentSp > minSp) {
+                paint.setTextSize(currentSp * density);
+                if (paint.measureText(text) <= availableWidth) {
+                    break;
+                }
+                currentSp -= 0.25f;
+            }
+            textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSp);
         }
 
         @Override
