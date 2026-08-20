@@ -1,9 +1,10 @@
 package com.winlator.cmod;
 
+import java.io.File;
+import java.util.List;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
-import java.util.List;
 import android.content.SharedPreferences;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -49,6 +50,8 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
     private androidx.activity.result.ActivityResultLauncher<String> iconPickerLauncher;
     private LinearLayout currentIconListLayout;
 
+    private String initialProfileSnapshot;
+
     @Override
     public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
@@ -77,7 +80,9 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         inputControlsView.setEditMode(true);
         inputControlsView.setOverlayOpacity(0.6f);
 
-        profile = InputControlsManager.loadProfile(this, ControlsProfile.getProfileFile(this, getIntent().getIntExtra("profile_id", 0)));
+        File profileFile = ControlsProfile.getProfileFile(this, getIntent().getIntExtra("profile_id", 0));
+        initialProfileSnapshot = (profileFile != null && profileFile.isFile()) ? FileUtils.readString(profileFile) : null;
+        profile = InputControlsManager.loadProfile(this, profileFile);
         ((TextView)findViewById(R.id.TVProfileName)).setText(profile.getName());
         inputControlsView.setProfile(profile);
 
@@ -127,8 +132,13 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             case R.id.BTReset:
                 ContentDialog.confirm(this, "Reset all buttons to original positions?", () -> {
                     if (profile != null) {
-                        boolean resetDefault = profile.resetToDefaultTemplate(inputControlsView);
-                        if (!resetDefault) {
+                        if (profile.isTemplate()) {
+                            profile.resetToDefaultTemplate(inputControlsView);
+                        } else if (initialProfileSnapshot != null && !initialProfileSnapshot.isEmpty()) {
+                            File targetFile = ControlsProfile.getProfileFile(this, profile.id);
+                            FileUtils.writeString(targetFile, initialProfileSnapshot);
+                            profile.loadElements(inputControlsView);
+                        } else {
                             profile.loadElements(inputControlsView);
                         }
                         inputControlsView.invalidate();

@@ -361,6 +361,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     }
 
     public boolean resetToDefaultTemplate(InputControlsView inputControlsView) {
+        if (!isTemplate()) return false;
         try {
             android.content.res.AssetManager assetManager = context.getAssets();
             String[] assetFiles = assetManager.list("inputcontrols/profiles");
@@ -368,7 +369,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 for (String assetFile : assetFiles) {
                     String assetPath = "inputcontrols/profiles/" + assetFile;
                     ControlsProfile originProfile = InputControlsManager.loadProfile(context, assetManager.open(assetPath));
-                    if (originProfile.getName().equalsIgnoreCase(this.getName()) || originProfile.id == this.id) {
+                    if (originProfile != null && originProfile.getName().equalsIgnoreCase(this.getName())) {
                         File targetFile = getProfileFile(context, id);
                         FileUtils.copy(context, assetPath, targetFile);
                         loadElements(inputControlsView);

@@ -44,6 +44,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
     private final ControlsProfile profile;
     private final Runnable onDone;
     private final FrameLayout root;
+    private final String initialProfileSnapshot;
     private PopupWindow currentPopup;
     private LinearLayout currentIconListLayout;
 
@@ -58,6 +59,9 @@ public final class InGameControlsEditor implements View.OnClickListener {
         this.inputControlsView = inputControlsView;
         this.profile = profile;
         this.onDone = onDone;
+
+        java.io.File profileFile = (profile != null) ? ControlsProfile.getProfileFile(activity, profile.id) : null;
+        this.initialProfileSnapshot = (profileFile != null && profileFile.isFile()) ? FileUtils.readString(profileFile) : null;
 
         root = (FrameLayout) LayoutInflater.from(activity).inflate(
                 R.layout.in_game_controls_editor_overlay, container, false);
@@ -135,8 +139,13 @@ public final class InGameControlsEditor implements View.OnClickListener {
         } else if (id == R.id.BTReset) {
             ContentDialog.confirm(activity, "Reset all buttons to original positions?", () -> {
                 if (profile != null) {
-                    boolean resetDefault = profile.resetToDefaultTemplate(inputControlsView);
-                    if (!resetDefault) {
+                    if (profile.isTemplate()) {
+                        profile.resetToDefaultTemplate(inputControlsView);
+                    } else if (initialProfileSnapshot != null && !initialProfileSnapshot.isEmpty()) {
+                        java.io.File targetFile = ControlsProfile.getProfileFile(activity, profile.id);
+                        FileUtils.writeString(targetFile, initialProfileSnapshot);
+                        profile.loadElements(inputControlsView);
+                    } else {
                         profile.loadElements(inputControlsView);
                     }
                     inputControlsView.invalidate();
