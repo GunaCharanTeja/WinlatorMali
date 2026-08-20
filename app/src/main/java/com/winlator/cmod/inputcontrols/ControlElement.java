@@ -434,11 +434,58 @@ public class ControlElement {
 
 
     public String getDisplayText() {
+        ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
+        if (inputControlsView != null && inputControlsView.getProfile() != null) {
+            stylePreset = inputControlsView.getProfile().getStylePreset();
+        }
+
         if (text != null && !text.isEmpty()) {
+            if (stylePreset == ControlStylePreset.XBOX) {
+                if (text.equalsIgnoreCase("L1")) return "LB";
+                if (text.equalsIgnoreCase("R1")) return "RB";
+                if (text.equalsIgnoreCase("L2")) return "LT";
+                if (text.equalsIgnoreCase("R2")) return "RT";
+                if (text.equalsIgnoreCase("L3")) return "LS";
+                if (text.equalsIgnoreCase("R3")) return "RS";
+                if (text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("BACK")) return "VIEW";
+                if (text.equalsIgnoreCase("START")) return "MENU";
+            } else if (stylePreset == ControlStylePreset.PLAYSTATION) {
+                if (text.equalsIgnoreCase("LB")) return "L1";
+                if (text.equalsIgnoreCase("RB")) return "R1";
+                if (text.equalsIgnoreCase("LT")) return "L2";
+                if (text.equalsIgnoreCase("RT")) return "R2";
+                if (text.equalsIgnoreCase("LS")) return "L3";
+                if (text.equalsIgnoreCase("RS")) return "R3";
+                if (text.equalsIgnoreCase("VIEW")) return "SHARE";
+                if (text.equalsIgnoreCase("MENU")) return "OPTIONS";
+            }
             return text;
         }
         else {
             Binding binding = getBindingAt(0);
+            if (stylePreset == ControlStylePreset.XBOX) {
+                switch (binding) {
+                    case GAMEPAD_BUTTON_L1: return "LB";
+                    case GAMEPAD_BUTTON_R1: return "RB";
+                    case GAMEPAD_BUTTON_L2: return "LT";
+                    case GAMEPAD_BUTTON_R2: return "RT";
+                    case GAMEPAD_BUTTON_L3: return "LS";
+                    case GAMEPAD_BUTTON_R3: return "RS";
+                    case GAMEPAD_BUTTON_SELECT: return "VIEW";
+                    case GAMEPAD_BUTTON_START: return "MENU";
+                }
+            } else if (stylePreset == ControlStylePreset.PLAYSTATION) {
+                switch (binding) {
+                    case GAMEPAD_BUTTON_L1: return "L1";
+                    case GAMEPAD_BUTTON_R1: return "R1";
+                    case GAMEPAD_BUTTON_L2: return "L2";
+                    case GAMEPAD_BUTTON_R2: return "R2";
+                    case GAMEPAD_BUTTON_L3: return "L3";
+                    case GAMEPAD_BUTTON_R3: return "R3";
+                    case GAMEPAD_BUTTON_SELECT: return "SHARE";
+                    case GAMEPAD_BUTTON_START: return "OPTIONS";
+                }
+            }
             String text = binding.toString().replace("NUMPAD ", "NP").replace("BUTTON ", "");
             if (text.length() > 7) {
                 String[] parts = text.split(" ");
