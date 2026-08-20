@@ -17,6 +17,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.util.TypedValue;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -24,6 +25,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.widget.TextViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -81,12 +83,15 @@ public class ShortcutsFragment extends Fragment {
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         updateGridLayout();
-        if (recyclerView != null && recyclerView.getAdapter() != null) {
-            recyclerView.post(() -> {
-                if (recyclerView != null && recyclerView.getAdapter() != null) {
-                    recyclerView.getAdapter().notifyDataSetChanged();
-                }
-            });
+        if (recyclerView != null) {
+            recyclerView.getRecycledViewPool().clear();
+            if (recyclerView.getAdapter() != null) {
+                recyclerView.post(() -> {
+                    if (recyclerView != null && recyclerView.getAdapter() != null) {
+                        recyclerView.getAdapter().notifyDataSetChanged();
+                    }
+                });
+            }
         }
     }
 
@@ -165,7 +170,7 @@ public class ShortcutsFragment extends Fragment {
             String displayWine = formatWineVersionForDisplay(rawWine);
             if (displayWine.isEmpty()) displayWine = item.container.getName();
             if (holder.subtitle != null) {
-                holder.subtitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10);
+                TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(holder.subtitle, 6, 10, 1, TypedValue.COMPLEX_UNIT_SP);
                 holder.subtitle.setText(displayWine);
             }
 
@@ -173,7 +178,7 @@ public class ShortcutsFragment extends Fragment {
             if (gameVersion != null && !gameVersion.isEmpty()) {
                 String formattedVer = gameVersion.startsWith("v") || gameVersion.startsWith("V") ? gameVersion : "v" + gameVersion;
                 if (holder.version != null) {
-                    holder.version.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10);
+                    TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(holder.version, 6, 10, 1, TypedValue.COMPLEX_UNIT_SP);
                     holder.version.setText(formattedVer);
                     holder.version.setVisibility(View.VISIBLE);
                 }
