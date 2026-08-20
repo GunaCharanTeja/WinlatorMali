@@ -96,9 +96,14 @@ public class RadialWheelView extends View {
             case MotionEvent.ACTION_UP: {
                 if (selectedSlice >= 0 && selectedSlice < config.slices.size()) {
                     RadialWheelSlice slice = config.slices.get(selectedSlice);
-                    if (slice.binding != null && slice.binding != Binding.NONE) {
-                        inputControlsView.handleInputEvent(slice.binding, true);
-                        inputControlsView.handleInputEvent(slice.binding, false);
+                    if (slice != null) {
+                        if (slice.binding != null && slice.binding != Binding.NONE) inputControlsView.handleInputEvent(slice.binding, true);
+                        if (slice.binding2 != null && slice.binding2 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding2, true);
+                        if (slice.binding3 != null && slice.binding3 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding3, true);
+
+                        if (slice.binding3 != null && slice.binding3 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding3, false);
+                        if (slice.binding2 != null && slice.binding2 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding2, false);
+                        if (slice.binding != null && slice.binding != Binding.NONE) inputControlsView.handleInputEvent(slice.binding, false);
                     }
                 }
                 close();
@@ -180,25 +185,46 @@ public class RadialWheelView extends View {
         paint.setTypeface(Typeface.DEFAULT_BOLD);
         canvas.drawText("\u2715", touchX, touchY + (paint.getTextSize() / 3f), paint);
 
-        // Draw labels
-        paint.setColor(COLOR_LABEL);
+        // Draw slice contents (Icon or label)
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(12f * density);
         paint.setTypeface(Typeface.DEFAULT_BOLD);
         paint.setStyle(Paint.Style.FILL);
 
         float labelRadius = outerRadius * 0.72f;
         for (int i = 0; i < sliceCount; i++) {
             RadialWheelSlice slice = config.slices.get(i);
-            String label = (slice.label != null && !slice.label.isEmpty())
-                    ? slice.label : slice.binding != Binding.NONE ? slice.binding.toString() : "";
-            if (label.isEmpty()) continue;
-
             float midAngle = startOffset + i * sliceAngleDeg + sliceAngleDeg / 2f;
             double midRad = Math.toRadians(midAngle);
             float lx = touchX + (float)(Math.cos(midRad) * labelRadius);
-            float ly = touchY + (float)(Math.sin(midRad) * labelRadius) + (paint.getTextSize() / 3f);
-            canvas.drawText(label, lx, ly, paint);
+            float ly = touchY + (float)(Math.sin(midRad) * labelRadius);
+
+            if (slice.iconId > 0) {
+                android.graphics.Bitmap iconBmp = inputControlsView.getIcon(slice.iconId);
+                if (iconBmp != null) {
+                    float baseSize = 24f * density;
+                    float effectiveScale = (slice.iconScale > 0 ? slice.iconScale : 1.0f) * (config.iconScale > 0 ? config.iconScale : 1.0f);
+                    float iconSize = baseSize * effectiveScale;
+
+                    if (slice.iconId <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
+                        paint.setColorFilter(new android.graphics.PorterDuffColorFilter(i == selectedSlice ? 0xFFFFFFFF : 0xFF81D4FA, android.graphics.PorterDuff.Mode.SRC_IN));
+                    } else {
+                        paint.setColorFilter(null);
+                    }
+
+                    android.graphics.Rect dst = new android.graphics.Rect((int)(lx - iconSize / 2), (int)(ly - iconSize / 2), (int)(lx + iconSize / 2), (int)(ly + iconSize / 2));
+                    canvas.drawBitmap(iconBmp, null, dst, paint);
+                    paint.setColorFilter(null);
+                    continue;
+                }
+            }
+
+            String label = (slice.label != null && !slice.label.isEmpty())
+                    ? slice.label : (slice.binding != null && slice.binding != Binding.NONE ? slice.binding.toString() : "");
+            if (label.isEmpty()) continue;
+
+            paint.setColor(i == selectedSlice ? 0xFFFFFFFF : COLOR_LABEL);
+            paint.setTextSize((i == selectedSlice ? 13f : 11f) * density);
+            canvas.drawText(label, lx, ly + (paint.getTextSize() / 3f), paint);
         }
     }
 }

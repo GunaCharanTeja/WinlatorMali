@@ -104,6 +104,7 @@ public class IconPickerDialog {
 
                     Bitmap bmp = iconManager.getIcon(id);
                     if (bmp != null) iv.setImageBitmap(bmp);
+                    iv.setColorFilter(null);
 
                     iv.setOnClickListener(v -> {
                         if (callback != null) callback.onIconSelected(id);
@@ -154,6 +155,7 @@ public class IconPickerDialog {
 
                 Bitmap bmp = iconManager.getIcon(id);
                 if (bmp != null) iv.setImageBitmap(bmp);
+                iv.setColorFilter(context.getResources().getColor(R.color.colorAccent));
 
                 iv.setOnClickListener(v -> {
                     if (callback != null) callback.onIconSelected(id);

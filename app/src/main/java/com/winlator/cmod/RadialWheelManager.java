@@ -25,6 +25,7 @@ import java.util.List;
 public class RadialWheelManager {
     private final InputControlsView inputControlsView;
     private final List<RadialWheelConfig> configs = new ArrayList<>();
+    private final java.util.Set<Binding> heldBindings = new java.util.HashSet<>();
 
     private RadialWheelConfig activeConfig = null;
     private boolean open = false;
@@ -67,17 +68,34 @@ public class RadialWheelManager {
     }
 
     /**
-     * Check if a binding press/hold should activate a wheel.
+     * Check if a binding press/hold should activate a wheel (single trigger or 2-button combo).
      */
     public boolean onBindingHeld(Binding binding, float x, float y) {
         if (binding == null || binding == Binding.NONE) return false;
-        // If the wheel is ALREADY open for this trigger binding, preserve selection and do not reset!
-        if (isOpen() && activeConfig != null && activeConfig.triggerBinding == binding) {
-            return true;
+        heldBindings.add(binding);
+
+        // If the wheel is ALREADY open, check if held bindings still satisfy its trigger
+        if (isOpen() && activeConfig != null) {
+            boolean hasTrigger1 = heldBindings.contains(activeConfig.triggerBinding);
+            boolean hasTrigger2 = activeConfig.triggerBinding2 == null || activeConfig.triggerBinding2 == Binding.NONE || heldBindings.contains(activeConfig.triggerBinding2);
+            if (hasTrigger1 && hasTrigger2) {
+                return true; // Preserve active wheel and selection
+            }
+        }
+
+        // Check for 2-button combo triggers first, then single triggers
+        for (RadialWheelConfig cfg : configs) {
+            if (cfg.triggerBinding2 != null && cfg.triggerBinding2 != Binding.NONE) {
+                if (heldBindings.contains(cfg.triggerBinding) && heldBindings.contains(cfg.triggerBinding2)) {
+                    return openWheel(cfg);
+                }
+            }
         }
         for (RadialWheelConfig cfg : configs) {
-            if (cfg.triggerBinding == binding) {
-                return openWheel(cfg);
+            if (cfg.triggerBinding2 == null || cfg.triggerBinding2 == Binding.NONE) {
+                if (heldBindings.contains(cfg.triggerBinding)) {
+                    return openWheel(cfg);
+                }
             }
         }
         return false;
@@ -117,11 +135,14 @@ public class RadialWheelManager {
     }
 
     /**
-     * Called when the trigger binding is released.
+     * Called when a trigger binding is released.
      */
     public boolean onBindingReleased(Binding binding) {
-        if (!isOpen()) return false;
-        if (activeConfig.triggerBinding == binding) {
+        heldBindings.remove(binding);
+        if (!isOpen() || activeConfig == null) return false;
+        boolean matchesTrigger = (activeConfig.triggerBinding == binding) ||
+                (activeConfig.triggerBinding2 != null && activeConfig.triggerBinding2 != Binding.NONE && activeConfig.triggerBinding2 == binding);
+        if (matchesTrigger) {
             fireSelectedAndClose();
             return true;
         }
@@ -252,9 +273,16 @@ public class RadialWheelManager {
     private void fireSelectedAndClose() {
         if (isOpen() && activeConfig != null && selectedSlice >= 0 && selectedSlice < activeConfig.slices.size()) {
             RadialWheelSlice slice = activeConfig.slices.get(selectedSlice);
-            if (slice != null && slice.binding != null && slice.binding != Binding.NONE) {
-                inputControlsView.handleInputEvent(slice.binding, true);
-                inputControlsView.handleInputEvent(slice.binding, false);
+            if (slice != null) {
+                // Multi-button combo press
+                if (slice.binding != null && slice.binding != Binding.NONE) inputControlsView.handleInputEvent(slice.binding, true);
+                if (slice.binding2 != null && slice.binding2 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding2, true);
+                if (slice.binding3 != null && slice.binding3 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding3, true);
+
+                // Multi-button combo release
+                if (slice.binding3 != null && slice.binding3 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding3, false);
+                if (slice.binding2 != null && slice.binding2 != Binding.NONE) inputControlsView.handleInputEvent(slice.binding2, false);
+                if (slice.binding != null && slice.binding != Binding.NONE) inputControlsView.handleInputEvent(slice.binding, false);
             }
         }
         dismissAll();
@@ -370,11 +398,21 @@ public class RadialWheelManager {
             float cy = centerY + (float)(Math.sin(midRad) * contentRadius);
 
             if (slice.iconId > 0) {
-                Bitmap iconBmp = inputControlsView.getIcon((byte) slice.iconId);
+                Bitmap iconBmp = inputControlsView.getIcon(slice.iconId);
                 if (iconBmp != null) {
-                    float iconSize = 26f * density;
+                    float baseIconSize = 28f * density;
+                    float effectiveScale = (slice.iconScale > 0 ? slice.iconScale : 1.0f) * (activeConfig.iconScale > 0 ? activeConfig.iconScale : 1.0f);
+                    float iconSize = baseIconSize * effectiveScale;
+
+                    if (slice.iconId <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
+                        paint.setColorFilter(new android.graphics.PorterDuffColorFilter(i == selectedSlice ? 0xFFFFFFFF : 0xFF81D4FA, android.graphics.PorterDuff.Mode.SRC_IN));
+                    } else {
+                        paint.setColorFilter(null);
+                    }
+
                     Rect dst = new Rect((int)(cx - iconSize / 2), (int)(cy - iconSize / 2), (int)(cx + iconSize / 2), (int)(cy + iconSize / 2));
-                    canvas.drawBitmap(iconBmp, null, dst, null);
+                    canvas.drawBitmap(iconBmp, null, dst, paint);
+                    paint.setColorFilter(null);
                     continue;
                 }
             }

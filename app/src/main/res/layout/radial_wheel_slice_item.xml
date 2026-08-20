@@ -1,54 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
+    android:orientation="vertical"
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
 
-    <!-- Slice Index Badge -->
-    <TextView
-        android:id="@+id/TVSliceIndex"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:background="@drawable/rounded_circle_bg"
-        android:gravity="center"
-        android:textColor="@android:color/white"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:text="1" />
-
-    <!-- Slice Icon Preview Button -->
-    <ImageView
-        android:id="@+id/IVSliceIcon"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:layout_marginStart="4dp"
-        android:padding="3dp"
-        android:background="@drawable/button_neutral"
-        android:contentDescription="Slice Icon"
-        android:scaleType="fitCenter" />
-
-    <!-- Slice Label Input -->
-    <EditText
-        style="@style/EditText"
-        android:id="@+id/ETSliceLabel"
-        android:layout_width="65dp"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:hint="Label"
-        android:singleLine="true"
-        android:textSize="12sp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-    <!-- Slice Binding Action -->
-    <Spinner
-        android:id="@+id/SPSliceBinding"
-        style="@style/ComboBox"
-        android:layout_width="0dp"
+        <!-- Slice Index Badge -->
+        <TextView
+            android:id="@+id/TVSliceIndex"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:background="@drawable/rounded_circle_bg"
+            android:gravity="center"
+            android:textColor="@android:color/white"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:text="1" />
+
+        <!-- Slice Icon Preview Button -->
+        <ImageView
+            android:id="@+id/IVSliceIcon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="4dp"
+            android:padding="3dp"
+            android:background="@drawable/button_neutral"
+            android:contentDescription="Slice Icon"
+            android:scaleType="fitCenter" />
+
+        <!-- Slice Label Input -->
+        <EditText
+            style="@style/EditText"
+            android:id="@+id/ETSliceLabel"
+            android:layout_width="60dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:hint="Label"
+            android:singleLine="true"
+            android:textSize="12sp" />
+
+        <!-- Slice Binding Action 1 -->
+        <Spinner
+            android:id="@+id/SPSliceBinding"
+            style="@style/ComboBox"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:spinnerMode="dropdown" />
+
+        <!-- Combo Toggle Button -->
+        <ImageView
+            android:id="@+id/BTComboExpand"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="2dp"
+            android:src="@drawable/icon_add"
+            android:padding="4dp"
+            android:contentDescription="Add Combo Key"
+            android:background="?selectableItemBackgroundBorderless"
+            app:tint="@color/colorAccent" />
+    </LinearLayout>
+
+    <!-- Combo Bindings Row (Optional) -->
+    <LinearLayout
+        android:id="@+id/LLComboRow"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_weight="1"
-        android:spinnerMode="dropdown" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginStart="26dp"
+        android:layout_marginTop="2dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+"
+            android:textStyle="bold"
+            android:textColor="@color/colorAccent"
+            android:paddingEnd="4dp" />
+
+        <Spinner
+            android:id="@+id/SPSliceBinding2"
+            style="@style/ComboBox"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:spinnerMode="dropdown" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+"
+            android:textStyle="bold"
+            android:textColor="@color/colorAccent"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
+
+        <Spinner
+            android:id="@+id/SPSliceBinding3"
+            style="@style/ComboBox"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:spinnerMode="dropdown" />
+    </LinearLayout>
 
 </LinearLayout>

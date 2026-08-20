@@ -17,11 +17,15 @@ public class RadialWheelConfig {
     public int id;
     public String name;
     public Binding triggerBinding;
+    public Binding triggerBinding2;
+    public float iconScale;
     public List<RadialWheelSlice> slices;
 
     public RadialWheelConfig() {
         this.name = "Wheel";
         this.triggerBinding = Binding.NONE;
+        this.triggerBinding2 = Binding.NONE;
+        this.iconScale = 1.0f;
         this.slices = new ArrayList<>();
         for (int i = 0; i < MAX_SLICES; i++) {
             slices.add(new RadialWheelSlice());
@@ -39,6 +43,8 @@ public class RadialWheelConfig {
             obj.put("id", id);
             obj.put("name", name != null ? name : "Wheel");
             obj.put("triggerBinding", triggerBinding != null ? triggerBinding.name() : Binding.NONE.name());
+            if (triggerBinding2 != null && triggerBinding2 != Binding.NONE) obj.put("triggerBinding2", triggerBinding2.name());
+            if (iconScale != 1.0f && iconScale > 0) obj.put("iconScale", Float.valueOf(iconScale));
             JSONArray slicesArray = new JSONArray();
             for (RadialWheelSlice slice : slices) {
                 JSONObject sj = slice.toJSONObject();
@@ -56,12 +62,11 @@ public class RadialWheelConfig {
         try {
             cfg.id = obj.optInt("id", 0);
             cfg.name = obj.optString("name", "Wheel");
-            String triggerStr = obj.optString("triggerBinding", "NONE");
-            try {
-                cfg.triggerBinding = Binding.valueOf(triggerStr);
-            } catch (IllegalArgumentException e) {
-                cfg.triggerBinding = Binding.NONE;
-            }
+            cfg.iconScale = (float) obj.optDouble("iconScale", 1.0);
+            
+            cfg.triggerBinding = parseBinding(obj.optString("triggerBinding", "NONE"));
+            cfg.triggerBinding2 = parseBinding(obj.optString("triggerBinding2", "NONE"));
+            
             cfg.slices.clear();
             if (obj.has("slices")) {
                 JSONArray slicesArray = obj.getJSONArray("slices");
@@ -77,6 +82,15 @@ public class RadialWheelConfig {
             // use defaults
         }
         return cfg;
+    }
+
+    private static Binding parseBinding(String name) {
+        if (name == null || name.isEmpty() || name.equals("NONE")) return Binding.NONE;
+        try {
+            return Binding.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return Binding.NONE;
+        }
     }
 
     public static ArrayList<RadialWheelConfig> loadGlobal(Context context) {

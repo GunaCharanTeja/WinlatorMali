@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.RectF;
 
 import androidx.core.graphics.ColorUtils;
 
@@ -58,7 +59,7 @@ public class ControlElement {
         }
     }
     public enum Shape {
-        CIRCLE, RECT, ROUND_RECT, SQUARE;
+        CIRCLE, CAPSULE, OVAL, ROUND_RECT, RECT, SQUARE;
 
         public static String[] names() {
             Shape[] shapes = values();
@@ -341,13 +342,18 @@ public class ControlElement {
                         halfWidth = snappingSize * 4;
                         halfHeight = snappingSize * 2;
                         break;
-                    case SQUARE:
-                        halfWidth = (int)(snappingSize * 2.5f);
+                    case CAPSULE:
+                        halfWidth = (int)(snappingSize * 3.5f);
+                        halfHeight = (int)(snappingSize * 2.2f);
+                        break;
+                    case OVAL:
+                        halfWidth = (int)(snappingSize * 3.5f);
                         halfHeight = (int)(snappingSize * 2.5f);
                         break;
+                    case SQUARE:
                     case CIRCLE:
-                        halfWidth = snappingSize * 3;
-                        halfHeight = snappingSize * 3;
+                        halfWidth = (int)(snappingSize * 2.5f);
+                        halfHeight = (int)(snappingSize * 2.5f);
                         break;
                 }
                 if (customIconAsButton && iconId > 0) {
@@ -487,17 +493,14 @@ public class ControlElement {
                     paint.clearShadowLayer();
                     iconDrawn = drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, true);
                     if (iconDrawn) {
-                        float cornerRadius = Math.max(6f, snappingSize * 0.4f * scale);
                         if (pressed) {
                             paint.setStyle(Paint.Style.FILL);
-                            paint.setColor(0x40FFFFFF);
-                            canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, cornerRadius, cornerRadius, paint);
+                            drawShape(canvas, boundingBox, 0x40FFFFFF, paint);
                         }
                         if (selected) {
                             paint.setStyle(Paint.Style.STROKE);
-                            paint.setColor(inputControlsView.getSecondaryColor());
                             paint.setStrokeWidth(Math.max(4f, snappingSize * 0.12f * scale));
-                            canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, cornerRadius, cornerRadius, paint);
+                            drawShape(canvas, boundingBox, inputControlsView.getSecondaryColor(), paint);
                         }
                     }
                 }
@@ -696,16 +699,27 @@ public class ControlElement {
     private void drawShape(Canvas canvas, Rect rect, int color, Paint paint) {
         paint.setColor(color);
         float halfWidth = rect.width() * 0.5f;
+        float halfHeight = rect.height() * 0.5f;
+        float cx = rect.centerX();
+        float cy = rect.centerY();
+
         switch (shape) {
             case CIRCLE:
-                canvas.drawCircle(rect.centerX(), rect.centerY(), halfWidth, paint);
+                canvas.drawCircle(cx, cy, Math.min(halfWidth, halfHeight), paint);
                 break;
             case RECT:
                 canvas.drawRect(rect, paint);
                 break;
             case ROUND_RECT:
-                float radius = rect.height() * 0.5f;
+                float radius = Math.min(rect.height(), rect.width()) * 0.35f;
                 canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, radius, radius, paint);
+                break;
+            case CAPSULE:
+                float capRadius = Math.min(halfWidth, halfHeight);
+                canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, capRadius, capRadius, paint);
+                break;
+            case OVAL:
+                canvas.drawOval(new RectF(rect), paint);
                 break;
             case SQUARE:
                 float squareRadius = inputControlsView.getSnappingSize() * 0.75f * scale;
@@ -718,7 +732,7 @@ public class ControlElement {
     private boolean drawIcon(Canvas canvas, float cx, float cy, float width, float height, int iconId, boolean fitBoundingBox) {
         if (iconId <= 0) return false;
         Bitmap icon = inputControlsView.getIcon(iconId);
-        if (icon == null) return false;
+        if (icon == null || icon.getWidth() <= 0 || icon.getHeight() <= 0) return false;
 
         Paint paint = inputControlsView.getPaint();
         boolean isCustom = iconId > CustomIconManager.BUILTIN_ICON_MAX;
@@ -731,14 +745,14 @@ public class ControlElement {
         Rect srcRect = new Rect(0, 0, icon.getWidth(), icon.getHeight());
 
         if (fitBoundingBox) {
-            float padding = Math.max(1f, inputControlsView.getSnappingSize() * 0.25f * scale);
-            float availW = width - padding * 2;
-            float availH = height - padding * 2;
-            float fitScale = Math.min(availW / icon.getWidth(), availH / icon.getHeight());
-            if (fitScale <= 0 || !Float.isFinite(fitScale)) return false;
+            // Icon visual size is determined by base element dimension * scale (independent of widthScale/heightScale boundary)
+            int snappingSize = inputControlsView.getSnappingSize();
+            float baseDimension = snappingSize * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 5.5f : 5.0f);
+            float maxDim = Math.max(icon.getWidth(), icon.getHeight());
+            float iconDrawScale = (baseDimension * scale) / (maxDim > 0 ? maxDim : 1.0f);
 
-            float halfW = icon.getWidth() * fitScale * 0.5f;
-            float halfH = icon.getHeight() * fitScale * 0.5f;
+            float halfW = icon.getWidth() * iconDrawScale * 0.5f;
+            float halfH = icon.getHeight() * iconDrawScale * 0.5f;
             Rect dstRect = new Rect((int)(cx - halfW), (int)(cy - halfH), (int)(cx + halfW), (int)(cy + halfH));
             canvas.drawBitmap(icon, srcRect, dstRect, paint);
         } else {
@@ -787,11 +801,65 @@ public class ControlElement {
 
     public boolean containsPoint(float x, float y) {
         Rect box = getBoundingBox();
-        if (touchPadding <= 0) {
-            return box.contains((int)(x + 0.5f), (int)(y + 0.5f));
+        float pad = touchPadding > 0 ? (touchPadding * inputControlsView.getSnappingSize() * 0.2f * scale) : 0f;
+
+        float cx = box.centerX();
+        float cy = box.centerY();
+        float dx = x - cx;
+        float dy = y - cy;
+        float halfW = box.width() * 0.5f;
+        float halfH = box.height() * 0.5f;
+
+        switch (shape) {
+            case CIRCLE: {
+                float r = Math.min(halfW, halfH) + pad;
+                return (dx * dx + dy * dy) <= (r * r);
+            }
+            case OVAL: {
+                float a = halfW + pad;
+                float b = halfH + pad;
+                if (a <= 0 || b <= 0) return false;
+                return ((dx * dx) / (a * a) + (dy * dy) / (b * b)) <= 1.0f;
+            }
+            case CAPSULE: {
+                if (halfW >= halfH) {
+                    // Horizontal capsule / stadium
+                    float r = halfH + pad;
+                    float straightHalfW = Math.max(0, halfW - halfH);
+                    if (Math.abs(dx) <= straightHalfW) {
+                        return Math.abs(dy) <= r;
+                    } else {
+                        float capDx = Math.abs(dx) - straightHalfW;
+                        return (capDx * capDx + dy * dy) <= (r * r);
+                    }
+                } else {
+                    // Vertical capsule / stadium
+                    float r = halfW + pad;
+                    float straightHalfH = Math.max(0, halfH - halfW);
+                    if (Math.abs(dy) <= straightHalfH) {
+                        return Math.abs(dx) <= r;
+                    } else {
+                        float capDy = Math.abs(dy) - straightHalfH;
+                        return (dx * dx + capDy * capDy) <= (r * r);
+                    }
+                }
+            }
+            case ROUND_RECT: {
+                float r = Math.min(halfW, halfH) * 0.35f + pad;
+                float innerW = Math.max(0, halfW + pad - r);
+                float innerH = Math.max(0, halfH + pad - r);
+                if (Math.abs(dx) <= innerW && Math.abs(dy) <= (halfH + pad)) return true;
+                if (Math.abs(dx) <= (halfW + pad) && Math.abs(dy) <= innerH) return true;
+                float cornerDx = Math.abs(dx) - innerW;
+                float cornerDy = Math.abs(dy) - innerH;
+                return (cornerDx * cornerDx + cornerDy * cornerDy) <= (r * r);
+            }
+            case RECT:
+            case SQUARE:
+            default: {
+                return (x >= box.left - pad && x <= box.right + pad && y >= box.top - pad && y <= box.bottom + pad);
+            }
         }
-        int pad = (int)(touchPadding * inputControlsView.getSnappingSize() * 0.2f * scale);
-        return (x >= box.left - pad && x <= box.right + pad && y >= box.top - pad && y <= box.bottom + pad);
     }
 
     private boolean isKeepButtonPressedAfterMinTime() {

@@ -101,7 +101,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Hold Trigger Button"
+                        android:text="Hold Trigger Button 1"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
@@ -112,6 +112,49 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:spinnerMode="dropdown" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Combo Trigger Button 2 (Optional)"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/SPTriggerBinding2"
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:spinnerMode="dropdown" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Wheel Icon Scale"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                        <TextView
+                            android:id="@+id/TVWheelIconScale"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="100%"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <SeekBar
+                        android:id="@+id/SBWheelIconScale"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:min="50"
+                        android:max="300" />
                 </LinearLayout>
 
                 <TextView

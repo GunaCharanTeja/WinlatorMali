@@ -60,6 +60,9 @@ public class RadialWheelsDialog {
         View btRemoveWheel = dialog.findViewById(R.id.BTRemoveWheel);
         EditText etWheelName = dialog.findViewById(R.id.ETWheelName);
         Spinner spTriggerBinding = dialog.findViewById(R.id.SPTriggerBinding);
+        Spinner spTriggerBinding2 = dialog.findViewById(R.id.SPTriggerBinding2);
+        TextView tvWheelIconScale = dialog.findViewById(R.id.TVWheelIconScale);
+        android.widget.SeekBar sbWheelIconScale = dialog.findViewById(R.id.SBWheelIconScale);
         LinearLayout llSlicesContainer = dialog.findViewById(R.id.LLSlicesContainer);
 
         // Detect if external controller is connected to show only gamepad buttons
@@ -86,6 +89,19 @@ public class RadialWheelsDialog {
         triggerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spTriggerBinding.setAdapter(triggerAdapter);
 
+        ArrayAdapter<String> triggerAdapter2 = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, bindingNames);
+        triggerAdapter2.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spTriggerBinding2.setAdapter(triggerAdapter2);
+
+        sbWheelIconScale.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                tvWheelIconScale.setText(progress + "%");
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(android.widget.SeekBar seekBar) {}
+        });
+
         final int[] currentWheelIndex = {0};
 
         // Method to save current UI state into the active wheel config
@@ -93,10 +109,16 @@ public class RadialWheelsDialog {
             if (currentWheelIndex[0] < 0 || currentWheelIndex[0] >= wheels.size()) return;
             RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
             cfg.name = etWheelName.getText().toString().trim();
+            cfg.iconScale = sbWheelIconScale.getProgress() / 100.0f;
 
             int trigPos = spTriggerBinding.getSelectedItemPosition();
             if (trigPos >= 0 && trigPos < allBindings.length) {
                 cfg.triggerBinding = allBindings[trigPos];
+            }
+
+            int trigPos2 = spTriggerBinding2.getSelectedItemPosition();
+            if (trigPos2 >= 0 && trigPos2 < allBindings.length) {
+                cfg.triggerBinding2 = allBindings[trigPos2];
             }
 
             int childCount = llSlicesContainer.getChildCount();
@@ -104,6 +126,8 @@ public class RadialWheelsDialog {
                 View sliceView = llSlicesContainer.getChildAt(i);
                 EditText etLabel = sliceView.findViewById(R.id.ETSliceLabel);
                 Spinner spBinding = sliceView.findViewById(R.id.SPSliceBinding);
+                Spinner spBinding2 = sliceView.findViewById(R.id.SPSliceBinding2);
+                Spinner spBinding3 = sliceView.findViewById(R.id.SPSliceBinding3);
                 RadialWheelSlice slice = cfg.slices.get(i);
 
                 if (etLabel != null) {
@@ -113,6 +137,18 @@ public class RadialWheelsDialog {
                     int bPos = spBinding.getSelectedItemPosition();
                     if (bPos >= 0 && bPos < allBindings.length) {
                         slice.binding = allBindings[bPos];
+                    }
+                }
+                if (spBinding2 != null) {
+                    int bPos2 = spBinding2.getSelectedItemPosition();
+                    if (bPos2 >= 0 && bPos2 < allBindings.length) {
+                        slice.binding2 = allBindings[bPos2];
+                    }
+                }
+                if (spBinding3 != null) {
+                    int bPos3 = spBinding3.getSelectedItemPosition();
+                    if (bPos3 >= 0 && bPos3 < allBindings.length) {
+                        slice.binding3 = allBindings[bPos3];
                     }
                 }
             }
@@ -139,7 +175,11 @@ public class RadialWheelsDialog {
             RadialWheelConfig cfg = wheels.get(currentWheelIndex[0]);
             etWheelName.setText(cfg.name != null ? cfg.name : "");
 
-            // Set trigger binding selection
+            int scalePct = (int)((cfg.iconScale > 0 ? cfg.iconScale : 1.0f) * 100);
+            sbWheelIconScale.setProgress(scalePct);
+            tvWheelIconScale.setText(scalePct + "%");
+
+            // Set trigger 1 binding selection
             int triggerIdx = 0;
             if (cfg.triggerBinding != null) {
                 for (int i = 0; i < allBindings.length; i++) {
@@ -151,6 +191,18 @@ public class RadialWheelsDialog {
             }
             spTriggerBinding.setSelection(triggerIdx);
 
+            // Set trigger 2 binding selection
+            int triggerIdx2 = 0;
+            if (cfg.triggerBinding2 != null) {
+                for (int i = 0; i < allBindings.length; i++) {
+                    if (allBindings[i] == cfg.triggerBinding2) {
+                        triggerIdx2 = i;
+                        break;
+                    }
+                }
+            }
+            spTriggerBinding2.setSelection(triggerIdx2);
+
             // Populate slices
             llSlicesContainer.removeAllViews();
             for (int i = 0; i < RadialWheelConfig.MAX_SLICES; i++) {
@@ -161,6 +213,10 @@ public class RadialWheelsDialog {
                 ImageView ivIcon = sliceView.findViewById(R.id.IVSliceIcon);
                 EditText etLabel = sliceView.findViewById(R.id.ETSliceLabel);
                 Spinner spBinding = sliceView.findViewById(R.id.SPSliceBinding);
+                ImageView btComboExpand = sliceView.findViewById(R.id.BTComboExpand);
+                LinearLayout llComboRow = sliceView.findViewById(R.id.LLComboRow);
+                Spinner spBinding2 = sliceView.findViewById(R.id.SPSliceBinding2);
+                Spinner spBinding3 = sliceView.findViewById(R.id.SPSliceBinding3);
 
                 tvIndex.setText(String.valueOf(i + 1));
                 etLabel.setText(slice.label != null ? slice.label : "");
@@ -171,6 +227,8 @@ public class RadialWheelsDialog {
                 ArrayAdapter<String> sliceBindingAdapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, bindingNames);
                 sliceBindingAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                 spBinding.setAdapter(sliceBindingAdapter);
+                spBinding2.setAdapter(sliceBindingAdapter);
+                spBinding3.setAdapter(sliceBindingAdapter);
 
                 int bIdx = 0;
                 if (slice.binding != null) {
@@ -182,6 +240,42 @@ public class RadialWheelsDialog {
                     }
                 }
                 spBinding.setSelection(bIdx);
+
+                int bIdx2 = 0;
+                if (slice.binding2 != null) {
+                    for (int j = 0; j < allBindings.length; j++) {
+                        if (allBindings[j] == slice.binding2) {
+                            bIdx2 = j;
+                            break;
+                        }
+                    }
+                }
+                spBinding2.setSelection(bIdx2);
+
+                int bIdx3 = 0;
+                if (slice.binding3 != null) {
+                    for (int j = 0; j < allBindings.length; j++) {
+                        if (allBindings[j] == slice.binding3) {
+                            bIdx3 = j;
+                            break;
+                        }
+                    }
+                }
+                spBinding3.setSelection(bIdx3);
+
+                boolean hasCombo = (slice.binding2 != null && slice.binding2 != Binding.NONE) || (slice.binding3 != null && slice.binding3 != Binding.NONE);
+                llComboRow.setVisibility(hasCombo ? View.VISIBLE : View.GONE);
+                btComboExpand.setImageResource(hasCombo ? R.drawable.icon_remove : R.drawable.icon_add);
+
+                btComboExpand.setOnClickListener(v -> {
+                    boolean isVisible = llComboRow.getVisibility() == View.VISIBLE;
+                    llComboRow.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+                    btComboExpand.setImageResource(isVisible ? R.drawable.icon_add : R.drawable.icon_remove);
+                    if (isVisible) {
+                        spBinding2.setSelection(0);
+                        spBinding3.setSelection(0);
+                    }
+                });
 
                 llSlicesContainer.addView(sliceView);
             }
@@ -247,11 +341,18 @@ public class RadialWheelsDialog {
             Bitmap bmp = com.winlator.cmod.inputcontrols.CustomIconManager.getInstance(context).getIcon(iconId);
             if (bmp != null) {
                 iv.setImageBitmap(bmp);
+                if (iconId <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
+                    iv.setColorFilter(context.getResources().getColor(R.color.colorAccent));
+                } else {
+                    iv.setColorFilter(null);
+                }
             } else {
                 iv.setImageResource(R.drawable.icon_radial_wheel);
+                iv.setColorFilter(null);
             }
         } else {
             iv.setImageResource(R.drawable.icon_radial_wheel);
+            iv.setColorFilter(null);
         }
     }
 
