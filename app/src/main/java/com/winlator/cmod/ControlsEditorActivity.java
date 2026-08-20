@@ -140,13 +140,10 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             case R.id.BTReset:
                 ContentDialog.confirm(this, "Reset all buttons to original positions?", () -> {
                     if (profile != null) {
-                        if (profile.isTemplate()) {
-                            profile.resetToDefaultTemplate(inputControlsView);
-                        } else if (initialProfileSnapshot != null && !initialProfileSnapshot.isEmpty()) {
+                        boolean resetDone = profile.resetToOriginal(inputControlsView);
+                        if (!resetDone && initialProfileSnapshot != null && !initialProfileSnapshot.isEmpty()) {
                             File targetFile = ControlsProfile.getProfileFile(this, profile.id);
                             FileUtils.writeString(targetFile, initialProfileSnapshot);
-                            profile.loadElements(inputControlsView);
-                        } else {
                             profile.loadElements(inputControlsView);
                         }
                         inputControlsView.invalidate();

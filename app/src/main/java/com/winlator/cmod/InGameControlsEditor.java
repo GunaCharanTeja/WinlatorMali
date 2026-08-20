@@ -145,13 +145,10 @@ public final class InGameControlsEditor implements View.OnClickListener {
         } else if (id == R.id.BTReset) {
             ContentDialog.confirm(activity, "Reset all buttons to original positions?", () -> {
                 if (profile != null) {
-                    if (profile.isTemplate()) {
-                        profile.resetToDefaultTemplate(inputControlsView);
-                    } else if (initialProfileSnapshot != null && !initialProfileSnapshot.isEmpty()) {
+                    boolean resetDone = profile.resetToOriginal(inputControlsView);
+                    if (!resetDone && initialProfileSnapshot != null && !initialProfileSnapshot.isEmpty()) {
                         java.io.File targetFile = ControlsProfile.getProfileFile(activity, profile.id);
                         FileUtils.writeString(targetFile, initialProfileSnapshot);
-                        profile.loadElements(inputControlsView);
-                    } else {
                         profile.loadElements(inputControlsView);
                     }
                     inputControlsView.invalidate();

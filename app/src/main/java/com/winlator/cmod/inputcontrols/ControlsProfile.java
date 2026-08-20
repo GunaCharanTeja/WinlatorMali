@@ -329,6 +329,11 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
         File file = getProfileFile(context, id);
         if (!file.isFile()) return;
 
+        File origBackup = new File(InputControlsManager.getProfilesDir(context), "controls-" + id + ".orig");
+        if (!origBackup.exists()) {
+            FileUtils.copy(file, origBackup);
+        }
+
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
             this.stylePreset = ControlStylePreset.parse(profileJSONObject.optString("stylePreset", "WINLATOR_MALI"));
@@ -417,6 +422,20 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             e.printStackTrace();
         }
         return wheels;
+    }
+
+    public boolean resetToOriginal(InputControlsView inputControlsView) {
+        if (isTemplate()) {
+            return resetToDefaultTemplate(inputControlsView);
+        }
+        File origBackup = new File(InputControlsManager.getProfilesDir(context), "controls-" + id + ".orig");
+        if (origBackup.isFile()) {
+            File targetFile = getProfileFile(context, id);
+            FileUtils.copy(origBackup, targetFile);
+            loadElements(inputControlsView);
+            return true;
+        }
+        return false;
     }
 
     public boolean resetToDefaultTemplate(InputControlsView inputControlsView) {

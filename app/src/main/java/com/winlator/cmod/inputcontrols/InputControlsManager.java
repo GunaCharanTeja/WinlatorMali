@@ -143,6 +143,8 @@ public class InputControlsManager {
             data.put("name", newName);
             if (data.has("template")) data.remove("template");
             FileUtils.writeString(newFile, data.toString());
+            File origBackup = new File(InputControlsManager.getProfilesDir(context), "controls-" + newId + ".orig");
+            FileUtils.writeString(origBackup, data.toString());
         }
         catch (JSONException e) {}
 
@@ -153,7 +155,11 @@ public class InputControlsManager {
 
     public void removeProfile(ControlsProfile profile) {
         File file = ControlsProfile.getProfileFile(context, profile.id);
-        if (file.isFile() && file.delete()) profiles.remove(profile);
+        if (file.isFile() && file.delete()) {
+            File origBackup = new File(InputControlsManager.getProfilesDir(context), "controls-" + profile.id + ".orig");
+            if (origBackup.isFile()) origBackup.delete();
+            profiles.remove(profile);
+        }
     }
 
     public ControlsProfile importProfile(JSONObject data) {
@@ -163,6 +169,8 @@ public class InputControlsManager {
             File newFile = ControlsProfile.getProfileFile(context, newId);
             data.put("id", newId);
             FileUtils.writeString(newFile, data.toString());
+            File origBackup = new File(InputControlsManager.getProfilesDir(context), "controls-" + newId + ".orig");
+            FileUtils.writeString(origBackup, data.toString());
             ControlsProfile newProfile = loadProfile(context, newFile);
 
             int foundIndex = -1;
