@@ -30,12 +30,21 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     private boolean wheelsLoaded = false;
     private boolean virtualGamepad = false;
     private ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
+    private float overlayOpacity = InputControlsView.DEFAULT_OVERLAY_OPACITY;
     private final Context context;
     private GamepadState gamepadState;
 
     public ControlsProfile(Context context, int id) {
         this.context = context;
         this.id = id;
+    }
+
+    public float getOverlayOpacity() {
+        return (Float.isNaN(overlayOpacity) || Float.isInfinite(overlayOpacity) || overlayOpacity < 0.05f) ? InputControlsView.DEFAULT_OVERLAY_OPACITY : overlayOpacity;
+    }
+
+    public void setOverlayOpacity(float overlayOpacity) {
+        this.overlayOpacity = Math.max(0.05f, Math.min(1.0f, overlayOpacity));
     }
 
     public ControlStylePreset getStylePreset() {
@@ -170,6 +179,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             data.put("id", id);
             data.put("name", name);
             data.put("cursorSpeed", Float.valueOf(cursorSpeed));
+            data.put("overlayOpacity", Float.valueOf(getOverlayOpacity()));
             data.put("stylePreset", getStylePreset().name());
 
             JSONArray elementsJSONArray = new JSONArray();
@@ -322,6 +332,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
             this.stylePreset = ControlStylePreset.parse(profileJSONObject.optString("stylePreset", "WINLATOR_MALI"));
+            this.overlayOpacity = (float) profileJSONObject.optDouble("overlayOpacity", (double) InputControlsView.DEFAULT_OVERLAY_OPACITY);
             if (profileJSONObject.has("customIcons")) {
                 CustomIconManager iconManager = CustomIconManager.getInstance(context);
                 JSONArray customIcons = profileJSONObject.getJSONArray("customIcons");

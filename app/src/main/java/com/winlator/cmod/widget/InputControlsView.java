@@ -303,6 +303,7 @@ public class InputControlsView extends View {
     public synchronized void setProfile(ControlsProfile profile) {
         if (profile != null) {
             this.profile = profile;
+            this.overlayOpacity = profile.getOverlayOpacity();
             deselectAllElements();
             if (radialWheelManager != null) {
                 radialWheelManager.updateConfigs(profile.getWheels());

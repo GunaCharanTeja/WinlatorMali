@@ -133,6 +133,9 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             case R.id.BTStylePreset:
                 showStylePresetDialog();
                 break;
+            case R.id.BTOpacity:
+                showGlobalOpacityDialog();
+                break;
             case R.id.BTReset:
                 ContentDialog.confirm(this, "Reset all buttons to original positions?", () -> {
                     if (profile != null) {
@@ -151,6 +154,61 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                 });
                 break;
         }
+    }
+
+    private void showGlobalOpacityDialog() {
+        if (profile == null) return;
+        ContentDialog dialog = new ContentDialog(this);
+        dialog.setTitle("Global Controls Opacity");
+        dialog.setIcon(R.drawable.icon_opacity);
+
+        FrameLayout frameLayout = dialog.findViewById(R.id.FrameLayout);
+        if (frameLayout == null) return;
+        frameLayout.setVisibility(View.VISIBLE);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding((int)UnitUtils.dpToPx(16), (int)UnitUtils.dpToPx(16), (int)UnitUtils.dpToPx(16), (int)UnitUtils.dpToPx(16));
+
+        TextView tvValue = new TextView(this);
+        int currentPct = (int)(profile.getOverlayOpacity() * 100);
+        tvValue.setText("Opacity: " + currentPct + "%");
+        tvValue.setTextSize(14);
+        tvValue.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        tvValue.setTextColor(getResources().getColor(R.color.colorAccent));
+        layout.addView(tvValue);
+
+        SeekBar seekBar = new SeekBar(this);
+        seekBar.setMax(100);
+        seekBar.setProgress(currentPct);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, (int)UnitUtils.dpToPx(12), 0, (int)UnitUtils.dpToPx(8));
+        seekBar.setLayoutParams(params);
+
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
+                int val = Math.max(10, progress);
+                tvValue.setText("Opacity: " + val + "%");
+                float opacity = val / 100.0f;
+                profile.setOverlayOpacity(opacity);
+                inputControlsView.setOverlayOpacity(opacity);
+                inputControlsView.invalidate();
+            }
+            @Override public void onStartTrackingTouch(SeekBar sb) {}
+            @Override public void onStopTrackingTouch(SeekBar sb) {
+                profile.save();
+            }
+        });
+
+        layout.addView(seekBar);
+        frameLayout.addView(layout);
+
+        dialog.setOnConfirmCallback(() -> {
+            profile.save();
+        });
+
+        dialog.show();
     }
 
     private void showStylePresetDialog() {

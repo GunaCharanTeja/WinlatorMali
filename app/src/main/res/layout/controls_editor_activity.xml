@@ -62,6 +62,12 @@
             android:src="@drawable/icon_palette"  />
 
         <ImageButton
+            android:id="@+id/BTOpacity"
+            style="@style/ToolButton"
+            android:contentDescription="Global Opacity"
+            android:src="@drawable/icon_opacity"  />
+
+        <ImageButton
             android:id="@+id/BTReset"
             style="@style/ToolButton"
             android:contentDescription="Reset Layout"
