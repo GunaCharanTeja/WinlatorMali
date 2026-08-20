@@ -408,6 +408,7 @@ public class RadialWheelManager {
                         paint.setColorFilter(new android.graphics.PorterDuffColorFilter(i == selectedSlice ? 0xFFFFFFFF : 0xFF81D4FA, android.graphics.PorterDuff.Mode.SRC_IN));
                     } else {
                         paint.setColorFilter(null);
+                        paint.setAlpha(255);
                     }
 
                     Rect dst = new Rect((int)(cx - iconSize / 2), (int)(cy - iconSize / 2), (int)(cx + iconSize / 2), (int)(cy + iconSize / 2));

@@ -209,6 +209,7 @@ public class RadialWheelView extends View {
                         paint.setColorFilter(new android.graphics.PorterDuffColorFilter(i == selectedSlice ? 0xFFFFFFFF : 0xFF81D4FA, android.graphics.PorterDuff.Mode.SRC_IN));
                     } else {
                         paint.setColorFilter(null);
+                        paint.setAlpha(255);
                     }
 
                     android.graphics.Rect dst = new android.graphics.Rect((int)(lx - iconSize / 2), (int)(ly - iconSize / 2), (int)(lx + iconSize / 2), (int)(ly + iconSize / 2));

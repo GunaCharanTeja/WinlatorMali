@@ -118,6 +118,8 @@ public class CustomIconManager {
         Bitmap output = Bitmap.createBitmap(ICON_RESOLUTION, ICON_RESOLUTION, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(output);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        paint.setAlpha(255);
+        paint.setColorFilter(null);
 
         int srcW = src.getWidth();
         int srcH = src.getHeight();

@@ -738,6 +738,7 @@ public class ControlElement {
         boolean isCustom = iconId > CustomIconManager.BUILTIN_ICON_MAX;
         if (isCustom) {
             paint.setColorFilter(null);
+            paint.setAlpha(255);
         } else {
             paint.setColorFilter(inputControlsView.getColorFilter());
         }
