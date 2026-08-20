@@ -59,7 +59,7 @@ public class ControlElement {
         }
     }
     public enum Shape {
-        CIRCLE, CAPSULE, OVAL, ROUND_RECT, RECT, SQUARE;
+        CIRCLE, CAPSULE, OVAL, ROUND_RECT, RECT, SQUARE, HEXAGON, DIAMOND, OCTAGON;
 
         public static String[] names() {
             Shape[] shapes = values();
@@ -116,7 +116,7 @@ public class ControlElement {
     private boolean boundingBoxNeedsUpdate = true;
     private String text = "";
     private int iconId = 0;
-    private boolean customIconAsButton = true;
+    private boolean customIconAsButton = false;
     private float widthScale = 1.0f;
     private float heightScale = 1.0f;
     private int touchPadding = 0;
@@ -374,6 +374,15 @@ public class ControlElement {
                         halfWidth = snappingSize * 3;
                         halfHeight = snappingSize * 3;
                         break;
+                    case HEXAGON:
+                        halfWidth = (int)(snappingSize * 3.2f);
+                        halfHeight = (int)(snappingSize * 2.8f);
+                        break;
+                    case DIAMOND:
+                    case OCTAGON:
+                        halfWidth = snappingSize * 3;
+                        halfHeight = snappingSize * 3;
+                        break;
                 }
                 if (customIconAsButton && iconId > 0) {
                     Bitmap icon = inputControlsView.getIcon(iconId);
@@ -498,7 +507,9 @@ public class ControlElement {
         float cy = boundingBox.centerY();
 
         canvas.save();
-        if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
+        if (pressed) canvas.scale(0.96f, 0.96f, cx, cy);
+        float shadowRadius = snappingSize * (pressed ? 0.4f : 0.2f) * scale;
+        paint.setShadowLayer(shadowRadius, 0, 0, shadowColor);
 
         switch (type) {
             case BUTTON:
@@ -507,12 +518,9 @@ public class ControlElement {
                 boolean imageAsButton = customIconAsButton && iconId > 0;
                 boolean iconDrawn = false;
                 if (imageAsButton) {
+                    paint.clearShadowLayer();
                     iconDrawn = drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, true);
                     if (iconDrawn) {
-                        if (pressed) {
-                            paint.setStyle(Paint.Style.FILL);
-                            drawShape(canvas, boundingBox, 0x40FFFFFF, paint);
-                        }
                         if (selected) {
                             paint.setStyle(Paint.Style.STROKE);
                             paint.setStrokeWidth(Math.max(4f, snappingSize * 0.12f * scale));
@@ -539,6 +547,7 @@ public class ControlElement {
                         drawShape(canvas, boundingBox, strokeColor, paint);
                     }
 
+                    paint.clearShadowLayer();
                     if (iconId > 0) {
                         drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, false);
                     } else {
@@ -740,6 +749,48 @@ public class ControlElement {
                 float squareRadius = inputControlsView.getSnappingSize() * 0.75f * scale;
                 canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, squareRadius, squareRadius, paint);
                 break;
+            case HEXAGON: {
+                Path hexPath = inputControlsView.getPath();
+                hexPath.reset();
+                for (int i = 0; i < 6; i++) {
+                    double angle = Math.PI / 3.0 * i - Math.PI / 6.0;
+                    float px = cx + (float)(halfWidth * Math.cos(angle));
+                    float py = cy + (float)(halfHeight * Math.sin(angle));
+                    if (i == 0) hexPath.moveTo(px, py);
+                    else hexPath.lineTo(px, py);
+                }
+                hexPath.close();
+                canvas.drawPath(hexPath, paint);
+                break;
+            }
+            case DIAMOND: {
+                Path diamondPath = inputControlsView.getPath();
+                diamondPath.reset();
+                diamondPath.moveTo(cx, rect.top);
+                diamondPath.lineTo(rect.right, cy);
+                diamondPath.lineTo(cx, rect.bottom);
+                diamondPath.lineTo(rect.left, cy);
+                diamondPath.close();
+                canvas.drawPath(diamondPath, paint);
+                break;
+            }
+            case OCTAGON: {
+                Path octPath = inputControlsView.getPath();
+                octPath.reset();
+                float cutX = halfWidth * 0.35f;
+                float cutY = halfHeight * 0.35f;
+                octPath.moveTo(rect.left + cutX, rect.top);
+                octPath.lineTo(rect.right - cutX, rect.top);
+                octPath.lineTo(rect.right, rect.top + cutY);
+                octPath.lineTo(rect.right, rect.bottom - cutY);
+                octPath.lineTo(rect.right - cutX, rect.bottom);
+                octPath.lineTo(rect.left + cutX, rect.bottom);
+                octPath.lineTo(rect.left, rect.bottom - cutY);
+                octPath.lineTo(rect.left, rect.top + cutY);
+                octPath.close();
+                canvas.drawPath(octPath, paint);
+                break;
+            }
         }
     }
 
@@ -762,7 +813,7 @@ public class ControlElement {
         if (fitBoundingBox) {
             // Icon visual size is determined by base element dimension * scale (independent of widthScale/heightScale boundary)
             int snappingSize = inputControlsView.getSnappingSize();
-            float baseDimension = snappingSize * (shape == Shape.CIRCLE ? 6.0f : (shape == Shape.SQUARE ? 5.0f : 5.0f));
+            float baseDimension = snappingSize * (shape == Shape.CIRCLE || shape == Shape.DIAMOND || shape == Shape.OCTAGON ? 6.0f : (shape == Shape.HEXAGON ? 5.8f : (shape == Shape.SQUARE ? 5.0f : 5.0f)));
             float maxDim = Math.max(icon.getWidth(), icon.getHeight());
             float iconDrawScale = (baseDimension * scale) / (maxDim > 0 ? maxDim : 1.0f);
 
@@ -770,7 +821,7 @@ public class ControlElement {
             float halfH = icon.getHeight() * iconDrawScale * 0.5f;
             dstRect.set((int)(cx - halfW), (int)(cy - halfH), (int)(cx + halfW), (int)(cy + halfH));
         } else {
-            int margin = (int)(inputControlsView.getSnappingSize() * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 2.0f : 1.0f) * scale);
+            int margin = (int)(inputControlsView.getSnappingSize() * (shape == Shape.CIRCLE || shape == Shape.SQUARE || shape == Shape.DIAMOND ? 2.0f : 1.0f) * scale);
             int halfSize = (int)((Math.min(width, height) - margin) * 0.5f);
             if (halfSize <= 0) halfSize = (int)(Math.min(width, height) * 0.5f);
             dstRect.set((int)(cx - halfSize), (int)(cy - halfSize), (int)(cx + halfSize), (int)(cy + halfSize));
@@ -835,6 +886,30 @@ public class ControlElement {
                 if (a <= 0 || b <= 0) return false;
                 return ((dx * dx) / (a * a) + (dy * dy) / (b * b)) <= 1.0f;
             }
+            case DIAMOND: {
+                float w = halfW + pad;
+                float h = halfH + pad;
+                if (w <= 0 || h <= 0) return false;
+                return (Math.abs(dx) / w + Math.abs(dy) / h) <= 1.0f;
+            }
+            case HEXAGON: {
+                float w = halfW + pad;
+                float h = halfH + pad;
+                if (w <= 0 || h <= 0) return false;
+                float q2x = Math.abs(dx) / w;
+                float q2y = Math.abs(dy) / h;
+                if (q2x > 1.0f || q2y > 1.0f) return false;
+                return (2.0f * q2y + q2x) <= 2.0f;
+            }
+            case OCTAGON: {
+                float w = halfW + pad;
+                float h = halfH + pad;
+                if (w <= 0 || h <= 0) return false;
+                float ox = Math.abs(dx) / w;
+                float oy = Math.abs(dy) / h;
+                if (ox > 1.0f || oy > 1.0f) return false;
+                return (ox + oy) <= 1.4f;
+            }
             case ROUND_RECT:
             case CAPSULE: {
                 if (halfW >= halfH) {
@@ -879,8 +954,10 @@ public class ControlElement {
                 states[0] = true;
                 if (isKeepButtonPressedAfterMinTime()) touchTime = System.currentTimeMillis();
                 if (!toggleSwitch || !selected) {
-                    inputControlsView.handleInputEvent(getBindingAt(0), true);
-                    inputControlsView.handleInputEvent(getBindingAt(1), true);
+                    for (byte i = 0; i < 4; i++) {
+                        Binding b = getBindingAt(i);
+                        if (b != Binding.NONE) inputControlsView.handleInputEvent(b, true);
+                    }
                 }
                 return true;
             }
@@ -919,83 +996,43 @@ public class ControlElement {
                 float localY = y - boundingBox.top;
                 float offsetX = localX - radius;
                 float offsetY = localY - radius;
+                float distance = (float)Math.sqrt(offsetX * offsetX + offsetY * offsetY);
 
-                float distance = Mathf.lengthSq(radius - localX, radius - localY);
-                if (distance > radius * radius) {
-                    float angle = (float)Math.atan2(offsetY, offsetX);
-                    offsetX = (float)(Math.cos(angle) * radius);
-                    offsetY = (float)(Math.sin(angle) * radius);
+                if (distance > radius) {
+                    offsetX = (offsetX / distance) * radius;
+                    offsetY = (offsetY / distance) * radius;
                 }
 
-                deltaX = Mathf.clamp(offsetX / radius, -1, 1);
-                deltaY = Mathf.clamp(offsetY / radius, -1, 1);
+                deltaX = offsetX / radius;
+                deltaY = offsetY / radius;
             }
 
             if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
                 if (currentPosition == null) currentPosition = new PointF();
                 currentPosition.x = boundingBox.left + deltaX * radius + radius;
                 currentPosition.y = boundingBox.top + deltaY * radius + radius;
-                
-                Binding firstBinding = getBindingAt(0);
-                boolean hasMouseMove = false;
-                for (byte i = 0; i < 4; i++) if (getBindingAt(i).isMouseMove()) {
-                    hasMouseMove = true;
-                    break;
-                }
 
-                if (hasMouseMove) {
-                    inputControlsView.handleMouseMovement(deltaX, deltaY);
-                    for (byte i = 0; i < 4; i++) this.states[i] = true;
-                } else if (firstBinding.isGamepad()) {
-                    // Use radial deadzone to prevent angle snapping
-                    float magnitude = (float)Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                    
-                    float finalX = 0;
-                    float finalY = 0;
-                    
-                    if (magnitude > STICK_DEAD_ZONE) {
-                        // Normalize and apply sensitivity
-                        float normalizedX = deltaX / magnitude;
-                        float normalizedY = deltaY / magnitude;
-                        
-                        // Scale magnitude by sensitivity, respecting deadzone
-                        float scaledMagnitude = Math.max(0, magnitude - 0.01f) * STICK_SENSITIVITY;
-                        scaledMagnitude = Math.min(scaledMagnitude, 1.0f);
-                        
-                        finalX = normalizedX * scaledMagnitude;
-                        finalY = normalizedY * scaledMagnitude;
-                    }
-                    
-                    // Use unified stick input method - sets both X and Y together
-                    inputControlsView.handleStickInput(null, firstBinding, finalX, finalY);
-                    
-                    // Mark all directions as active for proper release handling
-                    for (byte i = 0; i < 4; i++) {
-                        this.states[i] = true;
-                    }
-                } else if (firstBinding.isMouseMove()) {
-                    inputControlsView.handleMouseMovement(deltaX, deltaY);
-                    for (byte i = 0; i < 4; i++) this.states[i] = true;
+                Binding firstBinding = getBindingAt(0);
+                float magnitude = (float)Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+                // Use unified stick handling for gamepad sticks
+                if (firstBinding.isGamepad()) {
+                    inputControlsView.handleStickInput(null, firstBinding, deltaX, deltaY);
                 } else {
-                    // Fallback to per-direction handling for keyboard bindings with radial logic
-                    float magnitude = (float)Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                     final boolean[] states = {false, false, false, false};
-                    
+
                     if (magnitude > STICK_DEAD_ZONE) {
-                        // Use angle-based detection for better 8-way coverage
                         float angle = (float)Math.toDegrees(Math.atan2(deltaY, deltaX));
                         if (angle < 0) angle += 360;
-                        
-                        // Define sectors with 45-degree overlaps for diagonals
-                        if (angle >= 202.5f && angle <= 337.5f) states[0] = true; // Up (270)
-                        if (angle >= 292.5f || angle <= 67.5f)  states[1] = true; // Right (0)
-                        if (angle >= 22.5f  && angle <= 157.5f) states[2] = true; // Down (90)
-                        if (angle >= 112.5f && angle <= 247.5f) states[3] = true; // Left (180)
+
+                        if (angle >= 202.5f && angle <= 337.5f) states[0] = true; // Up
+                        if (angle >= 292.5f || angle <= 67.5f)  states[1] = true; // Right
+                        if (angle >= 22.5f  && angle <= 157.5f) states[2] = true; // Down
+                        if (angle >= 112.5f && angle <= 247.5f) states[3] = true; // Left
                     }
 
                     for (byte i = 0; i < 4; i++) {
                         Binding binding = getBindingAt(i);
-                        // Pass magnitude for "Analog Keyboard Emulation" (pulsing)
                         inputControlsView.handleInputEvent(binding, states[i], magnitude);
                         this.states[i] = states[i];
                     }
@@ -1004,33 +1041,28 @@ public class ControlElement {
                 inputControlsView.invalidate();
             }
             else if (type == Type.TRACKPAD || type == Type.MOUSE_AREA) {
-                // Check if gamepad bindings - use unified handling
                 Binding firstBinding = getBindingAt(0);
                 if (firstBinding.isGamepad()) {
-                    // Apply interpolation to both axes
                     if (interpolator == null) interpolator = new CubicBezierInterpolator();
                     interpolator.set(0.075f, 0.95f, 0.45f, 0.95f);
-                    
+
                     float valueX = deltaX;
                     float valueY = deltaY;
                     if (Math.abs(valueX) > TRACKPAD_ACCELERATION_THRESHOLD) valueX *= STICK_SENSITIVITY;
                     if (Math.abs(valueY) > TRACKPAD_ACCELERATION_THRESHOLD) valueY *= STICK_SENSITIVITY;
-                    
+
                     float interpX = interpolator.getInterpolation(Math.min(1.0f, Math.abs(valueX / TRACKPAD_MAX_SPEED)));
                     float interpY = interpolator.getInterpolation(Math.min(1.0f, Math.abs(valueY / TRACKPAD_MAX_SPEED)));
-                    
+
                     float finalX = Mathf.clamp(interpX * Mathf.sign(valueX), -1, 1);
                     float finalY = Mathf.clamp(interpY * Mathf.sign(valueY), -1, 1);
-                    
-                    // Use unified stick input
+
                     inputControlsView.handleStickInput(null, firstBinding, finalX, finalY);
-                    
-                    // Mark all as active
+
                     for (byte i = 0; i < 4; i++) {
                         this.states[i] = true;
                     }
                 } else {
-                    // Mouse movement handling
                     final boolean[] states = {deltaY <= -TRACKPAD_MIN_SPEED, deltaX >= TRACKPAD_MIN_SPEED, deltaY >= TRACKPAD_MIN_SPEED, deltaX <= -TRACKPAD_MIN_SPEED};
                     int cursorDx = 0;
                     int cursorDy = 0;
@@ -1088,15 +1120,19 @@ public class ControlElement {
                 if (isKeepButtonPressedAfterMinTime() && touchTime != null) {
                     selected = (System.currentTimeMillis() - (long)touchTime) > BUTTON_MIN_TIME_TO_KEEP_PRESSED;
                     if (!selected) {
-                        inputControlsView.handleInputEvent(getBindingAt(0), false);
-                        inputControlsView.handleInputEvent(getBindingAt(1), false);
+                        for (byte i = 0; i < 4; i++) {
+                            Binding b = getBindingAt(i);
+                            if (b != Binding.NONE) inputControlsView.handleInputEvent(b, false);
+                        }
                     }
                     touchTime = null;
                     inputControlsView.invalidate();
                 }
                 else if (!toggleSwitch || selected) {
-                    inputControlsView.handleInputEvent(getBindingAt(0), false);
-                    inputControlsView.handleInputEvent(getBindingAt(1), false);
+                    for (byte i = 0; i < 4; i++) {
+                        Binding b = getBindingAt(i);
+                        if (b != Binding.NONE) inputControlsView.handleInputEvent(b, false);
+                    }
                 }
 
                 if (toggleSwitch) {

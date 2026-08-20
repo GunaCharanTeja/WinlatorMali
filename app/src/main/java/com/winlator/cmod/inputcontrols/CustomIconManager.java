@@ -35,8 +35,8 @@ import java.util.zip.ZipOutputStream;
  */
 public class CustomIconManager {
     private static final String TAG = "CustomIconManager";
-    public static final int BUILTIN_ICON_MAX = 16;
-    public static final int CUSTOM_ICON_START_ID = 17;
+    public static final int BUILTIN_ICON_MAX = 39;
+    public static final int CUSTOM_ICON_START_ID = 1000;
     public static final int ICON_RESOLUTION = 256; // Standardized high-performance 256x256 resolution (razor-sharp at up to 600% scale with 4x reduced GPU fill-rate)
 
     private static CustomIconManager instance;
@@ -44,6 +44,7 @@ public class CustomIconManager {
     private final File customIconsDir;
     private final LruCache<Integer, Bitmap> memoryCache;
     private final java.util.concurrent.ConcurrentHashMap<Integer, Bitmap> fastCache = new java.util.concurrent.ConcurrentHashMap<>(128);
+    private final java.util.concurrent.ConcurrentHashMap<Integer, String> base64Cache = new java.util.concurrent.ConcurrentHashMap<>(128);
 
     private CustomIconManager(Context context) {
         this.context = context.getApplicationContext();
@@ -242,6 +243,7 @@ public class CustomIconManager {
         if (id <= BUILTIN_ICON_MAX) return false;
         File file = new File(customIconsDir, id + ".png");
         fastCache.remove(id);
+        base64Cache.remove(id);
         synchronized (memoryCache) {
             memoryCache.remove(id);
         }
@@ -314,11 +316,15 @@ public class CustomIconManager {
      * Encode an icon bitmap into a compact Base64 PNG string.
      */
     public String encodeIconBase64(int id) {
+        String cached = base64Cache.get(id);
+        if (cached != null) return cached;
         Bitmap bmp = getIcon(id);
         if (bmp == null) return null;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         bmp.compress(Bitmap.CompressFormat.PNG, 100, baos);
-        return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+        String encoded = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+        base64Cache.put(id, encoded);
+        return encoded;
     }
 
     /**

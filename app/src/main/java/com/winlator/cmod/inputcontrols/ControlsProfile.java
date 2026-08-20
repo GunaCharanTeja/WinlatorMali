@@ -309,7 +309,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 int rawIconId = elementJSONObject.optInt("iconId", 0);
                 if (rawIconId < 0 && rawIconId >= Byte.MIN_VALUE) rawIconId = rawIconId & 0xFF;
                 element.setIconId(rawIconId);
-                element.setCustomIconAsButton(elementJSONObject.optBoolean("customIconAsButton", true));
+                element.setCustomIconAsButton(elementJSONObject.optBoolean("customIconAsButton", false));
                 element.setWidthScale((float)elementJSONObject.optDouble("widthScale", 1.0));
                 element.setHeightScale((float)elementJSONObject.optDouble("heightScale", 1.0));
                 element.setTouchPadding(elementJSONObject.optInt("touchPadding", 0));

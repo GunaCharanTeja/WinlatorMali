@@ -96,7 +96,7 @@ android {
         // We’re preserving Winlator’s request to keep targetSdkVersion at 28
         targetSdkVersion 28
 
-        versionCode 20
+        versionCode 21
         versionName "1.0 Bionic"
 
         // External native build from Winlator
