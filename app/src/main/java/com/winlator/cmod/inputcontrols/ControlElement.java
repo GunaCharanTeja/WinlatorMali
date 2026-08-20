@@ -597,22 +597,22 @@ public class ControlElement {
                 break;
             }
             case PLAYSTATION: {
-                if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A") || label.equals("✕") || label.equals("X")) {
-                    customStroke = 0xFF00B0FF; // Electric Blue (Cross)
-                    customBg = 0xFF001F33;
-                    customContent = 0xFF00B0FF;
-                } else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B") || label.equals("◯") || label.equals("O")) {
-                    customStroke = 0xFFFF3D00; // Crimson Red (Circle)
-                    customBg = 0xFF380D00;
-                    customContent = 0xFFFF3D00;
-                } else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X") || label.equals("▢") || label.equals("SQ")) {
-                    customStroke = 0xFFF50057; // Neon Pink (Square)
-                    customBg = 0xFF380014;
-                    customContent = 0xFFF50057;
-                } else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y") || label.equals("△") || label.equals("TRI")) {
-                    customStroke = 0xFF00E676; // Mint Green (Triangle)
-                    customBg = 0xFF003814;
+                if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y") || label.equals("△") || label.equals("TRI") || label.equals("TRIANGLE")) {
+                    customStroke = 0xFF00E676; // Sony Mint Green (Triangle)
+                    customBg = 0xFF002E11;
                     customContent = 0xFF00E676;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B") || label.equals("◯") || label.equals("O") || label.equals("CIRCLE")) {
+                    customStroke = 0xFFFF3D00; // Sony Crimson Red (Circle)
+                    customBg = 0xFF330A00;
+                    customContent = 0xFFFF3D00;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A") || label.equals("✕") || label.equals("CROSS")) {
+                    customStroke = 0xFF00B0FF; // Sony Electric Blue (Cross)
+                    customBg = 0xFF001A33;
+                    customContent = 0xFF00B0FF;
+                } else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X") || label.equals("▢") || label.equals("SQ") || label.equals("SQUARE")) {
+                    customStroke = 0xFFFF4081; // Sony Neon Pink (Square)
+                    customBg = 0xFF330018;
+                    customContent = 0xFFFF4081;
                 } else {
                     customStroke = 0xFF78909C;
                     customBg = 0xFF0B0E14;
@@ -756,17 +756,17 @@ public class ControlElement {
                                 iconDrawnCustom = true;
                             }
                         } else if (stylePreset == ControlStylePreset.PLAYSTATION) {
-                            if (b0 == Binding.GAMEPAD_BUTTON_A || text.equalsIgnoreCase("A") || text.equals("✕")) {
-                                drawPlayStationCross(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                            if (b0 == Binding.GAMEPAD_BUTTON_Y || text.equalsIgnoreCase("Y") || text.equals("△") || text.equalsIgnoreCase("TRIANGLE")) {
+                                drawPlayStationTriangle(canvas, cx, cy, boundingBox.width(), paint, contentColor);
                                 iconDrawnCustom = true;
-                            } else if (b0 == Binding.GAMEPAD_BUTTON_B || text.equalsIgnoreCase("B") || text.equals("◯")) {
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_B || text.equalsIgnoreCase("B") || text.equals("◯") || text.equalsIgnoreCase("CIRCLE")) {
                                 drawPlayStationCircle(canvas, cx, cy, boundingBox.width(), paint, contentColor);
                                 iconDrawnCustom = true;
-                            } else if (b0 == Binding.GAMEPAD_BUTTON_X || text.equalsIgnoreCase("X") || text.equals("▢")) {
-                                drawPlayStationSquare(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_A || text.equalsIgnoreCase("A") || text.equals("✕") || text.equalsIgnoreCase("CROSS")) {
+                                drawPlayStationCross(canvas, cx, cy, boundingBox.width(), paint, contentColor);
                                 iconDrawnCustom = true;
-                            } else if (b0 == Binding.GAMEPAD_BUTTON_Y || text.equalsIgnoreCase("Y") || text.equals("△")) {
-                                drawPlayStationTriangle(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_X || text.equalsIgnoreCase("X") || text.equals("▢") || text.equalsIgnoreCase("SQUARE")) {
+                                drawPlayStationSquare(canvas, cx, cy, boundingBox.width(), paint, contentColor);
                                 iconDrawnCustom = true;
                             }
                         } else if (stylePreset == ControlStylePreset.RETRO_ARCADE) {
