@@ -179,6 +179,7 @@ public final class InGameControlsEditor implements View.OnClickListener {
 
         LinearLayout layout = new LinearLayout(activity);
         layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setMinimumWidth((int)UnitUtils.dpToPx(300));
         layout.setPadding((int)UnitUtils.dpToPx(16), (int)UnitUtils.dpToPx(16), (int)UnitUtils.dpToPx(16), (int)UnitUtils.dpToPx(16));
 
         TextView tvValue = new TextView(activity);

@@ -107,18 +107,28 @@
                 <Button
                     android:id="@+id/BTReset"
                     android:visibility="gone"
+                    android:layout_width="wrap_content"
+                    android:minWidth="72dp"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp"
                     android:text="@string/reset"
                     style="@style/ButtonNeutral" />
 
                 <Button
                     style="@style/ButtonNeutral"
-                    android:layout_weight="1"
+                    android:layout_width="wrap_content"
+                    android:minWidth="72dp"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp"
                     android:text="@string/cancel"
                     android:id="@+id/BTCancel" />
 
                 <Button
                     style="@style/ButtonNeutral"
-                    android:layout_weight="1"
+                    android:layout_width="wrap_content"
+                    android:minWidth="72dp"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp"
                     android:text="@string/ok"
                     android:id="@+id/BTConfirm" />
             </LinearLayout>
