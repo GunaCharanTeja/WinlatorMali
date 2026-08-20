@@ -1643,7 +1643,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 profileItems.add(profile.getName());
             }
 
-            sProfile.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, profileItems));
+            sProfile.setAdapter(createThemedSpinnerAdapter(this, profileItems, isDarkMode));
             sProfile.setSelection(selectedPosition);
         };
         loadProfileSpinner.run();
@@ -1666,19 +1666,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final CheckBox cbInvertGyroY = dialog.findViewById(R.id.CBInvertGyroY);
         cbInvertGyroY.setChecked(gyroInvertY);
 
+        int popupBgRes = isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background;
+
         final Spinner sGyroActivationMode = dialog.findViewById(R.id.SGyroActivationMode);
         String[] activationModes = {"Always", "Touch Screen / Touchpad", "Left Trigger (LT / ADS)", "Right Trigger (RT)", "Right Stick (RS)"};
-        sGyroActivationMode.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, activationModes));
+        sGyroActivationMode.setPopupBackgroundResource(popupBgRes);
+        sGyroActivationMode.setAdapter(createThemedSpinnerAdapter(this, activationModes, isDarkMode));
         sGyroActivationMode.setSelection(Math.min(gyroActivationMode, activationModes.length - 1));
 
         final Spinner sGyroTarget = dialog.findViewById(R.id.SGyroTarget);
         String[] gyroTargets = {"Mouse Look", "Right Stick (Camera)", "Left Stick (Steering)", "Arrow Keys"};
-        sGyroTarget.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, gyroTargets));
+        sGyroTarget.setPopupBackgroundResource(popupBgRes);
+        sGyroTarget.setAdapter(createThemedSpinnerAdapter(this, gyroTargets, isDarkMode));
         sGyroTarget.setSelection(Math.min(gyroTarget, gyroTargets.length - 1));
 
         final Spinner sGyroCurve = dialog.findViewById(R.id.SGyroCurve);
         String[] gyroCurves = {"Linear (1:1)", "Enhanced (Exponential)", "Sigmoid (S-Curve)"};
-        sGyroCurve.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, gyroCurves));
+        sGyroCurve.setPopupBackgroundResource(popupBgRes);
+        sGyroCurve.setAdapter(createThemedSpinnerAdapter(this, gyroCurves, isDarkMode));
         sGyroCurve.setSelection(Math.min(gyroCurve, gyroCurves.length - 1));
 
         final TextView tvGyroSensitivityX = dialog.findViewById(R.id.TVGyroSensitivityX);
@@ -2721,6 +2726,34 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+
+    private static ArrayAdapter<String> createThemedSpinnerAdapter(android.content.Context context, java.util.List<String> items, boolean isDarkMode) {
+        int itemTextColor = isDarkMode ? android.graphics.Color.WHITE : android.graphics.Color.BLACK;
+        return new ArrayAdapter<String>(context, android.R.layout.simple_spinner_dropdown_item, items) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View v = super.getView(position, convertView, parent);
+                if (v instanceof TextView) {
+                    ((TextView) v).setTextColor(itemTextColor);
+                    ((TextView) v).setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                }
+                return v;
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                View v = super.getDropDownView(position, convertView, parent);
+                if (v instanceof TextView) {
+                    ((TextView) v).setTextColor(itemTextColor);
+                }
+                return v;
+            }
+        };
+    }
+
+    private static ArrayAdapter<String> createThemedSpinnerAdapter(android.content.Context context, String[] items, boolean isDarkMode) {
+        return createThemedSpinnerAdapter(context, java.util.Arrays.asList(items), isDarkMode);
+    }
 }
 
 

@@ -46,17 +46,28 @@
         <ImageButton
             android:id="@+id/BTAddElement"
             style="@style/ToolButton"
+            android:contentDescription="Add Element"
             android:src="@drawable/icon_add" />
 
         <ImageButton
             android:id="@+id/BTRemoveElement"
             style="@style/ToolButton"
+            android:contentDescription="Remove Element"
             android:src="@drawable/icon_remove" />
 
         <ImageButton
             android:id="@+id/BTElementSettings"
             style="@style/ToolButton"
+            android:contentDescription="Element Settings"
             android:src="@drawable/icon_settings" />
+
+        <ImageButton
+            android:id="@+id/BTRadialWheel"
+            style="@style/ToolButton"
+            android:contentDescription="Radial Wheel"
+            android:src="@drawable/icon_radial_wheel" />
+
+        <View style="@style/VerticalLine" />
 
         <ImageButton
             android:id="@+id/BTStylePreset"
@@ -70,21 +81,18 @@
             android:contentDescription="Global Opacity"
             android:src="@drawable/icon_opacity" />
 
+        <View style="@style/VerticalLine" />
+
         <ImageButton
             android:id="@+id/BTReset"
             style="@style/ToolButton"
+            android:contentDescription="Reset Layout"
             android:src="@drawable/icon_reset" />
-
-        <ImageButton
-            android:id="@+id/BTRadialWheel"
-            style="@style/ToolButton"
-            android:src="@drawable/icon_radial_wheel" />
-
-        <View style="@style/VerticalLine" />
 
         <ImageButton
             android:id="@+id/BTDone"
             style="@style/ToolButton"
+            android:contentDescription="Done"
             android:src="@drawable/icon_confirm" />
 
     </LinearLayout>

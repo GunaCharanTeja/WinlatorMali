@@ -200,7 +200,31 @@ public class ScreenEffectDialog extends ContentDialog {
             }
             position++;
         }
-        sProfile.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, items));
+
+        boolean isDarkMode = preferences.getBoolean("dark_mode", true);
+        int itemTextColor = isDarkMode ? Color.WHITE : Color.BLACK;
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, items) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View v = super.getView(position, convertView, parent);
+                if (v instanceof TextView) {
+                    ((TextView) v).setTextColor(itemTextColor);
+                    ((TextView) v).setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                }
+                return v;
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                View v = super.getDropDownView(position, convertView, parent);
+                if (v instanceof TextView) {
+                    ((TextView) v).setTextColor(itemTextColor);
+                }
+                return v;
+            }
+        };
+        sProfile.setAdapter(adapter);
+        sProfile.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sProfile.setSelection(selectedPosition);
     }
 

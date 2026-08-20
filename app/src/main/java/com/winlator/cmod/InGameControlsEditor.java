@@ -474,7 +474,8 @@ public final class InGameControlsEditor implements View.OnClickListener {
 
     private void loadTypeSpinner(final ControlElement element, Spinner spinner, final Runnable callback) {
         final boolean[] isInitializing = {true};
-        spinner.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, ControlElement.Type.names()));
+        spinner.setPopupBackgroundResource(R.drawable.content_dialog_background_dark);
+        spinner.setAdapter(createThemedAdapter(activity, ControlElement.Type.names()));
         spinner.setSelection(element.getType().ordinal());
         spinner.post(() -> isInitializing[0] = false);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -497,7 +498,8 @@ public final class InGameControlsEditor implements View.OnClickListener {
 
     private void loadShapeSpinner(final ControlElement element, Spinner spinner) {
         final boolean[] isInitializing = {true};
-        spinner.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, ControlElement.Shape.names()));
+        spinner.setPopupBackgroundResource(R.drawable.content_dialog_background_dark);
+        spinner.setAdapter(createThemedAdapter(activity, ControlElement.Shape.names()));
         spinner.setSelection(element.getShape().ordinal());
         spinner.post(() -> isInitializing[0] = false);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -518,7 +520,8 @@ public final class InGameControlsEditor implements View.OnClickListener {
 
     private void loadRangeSpinner(final ControlElement element, Spinner spinner) {
         final boolean[] isInitializing = {true};
-        spinner.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, ControlElement.Range.names()));
+        spinner.setPopupBackgroundResource(R.drawable.content_dialog_background_dark);
+        spinner.setAdapter(createThemedAdapter(activity, ControlElement.Range.names()));
         spinner.setSelection(element.getRange().ordinal(), false);
         spinner.post(() -> isInitializing[0] = false);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -692,10 +695,14 @@ public final class InGameControlsEditor implements View.OnClickListener {
                     break;
             }
 
-            sBinding.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, bindingEntries));
+            sBinding.setPopupBackgroundResource(R.drawable.content_dialog_background_dark);
+            sBinding.setAdapter(createThemedAdapter(activity, bindingEntries));
             AppUtils.setSpinnerSelectionFromValue(sBinding, element.getBindingAt(index).toString());
             sBinding.post(() -> isInitializing[0] = false);
         };
+
+        sBindingType.setPopupBackgroundResource(R.drawable.content_dialog_background_dark);
+        sBindingType.setAdapter(createThemedAdapter(activity, new String[]{"Keyboard", "Mouse", "Gamepad"}));
 
         Binding selectedBinding = element.getBindingAt(index);
         int typeIndex = selectedBinding.isGamepad() ? 2 : (selectedBinding.isMouse() ? 1 : 0);
@@ -781,5 +788,28 @@ public final class InGameControlsEditor implements View.OnClickListener {
                 applyThemeToViewHierarchy(group.getChildAt(i), isDarkMode);
             }
         }
+    }
+
+    private static ArrayAdapter<String> createThemedAdapter(android.content.Context context, String[] items) {
+        return new ArrayAdapter<String>(context, android.R.layout.simple_spinner_dropdown_item, items) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View v = super.getView(position, convertView, parent);
+                if (v instanceof TextView) {
+                    ((TextView) v).setTextColor(android.graphics.Color.WHITE);
+                    ((TextView) v).setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                }
+                return v;
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                View v = super.getDropDownView(position, convertView, parent);
+                if (v instanceof TextView) {
+                    ((TextView) v).setTextColor(android.graphics.Color.WHITE);
+                }
+                return v;
+            }
+        };
     }
 }
