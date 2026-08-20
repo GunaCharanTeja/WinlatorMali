@@ -88,8 +88,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         NavigationView navigationView = findViewById(R.id.NavigationView);
         navigationView.setNavigationItemSelectedListener(this);
 
-        if (!com.winlator.cmod.core.GPUInformation.isAdrenoGPU(this)) {
+        boolean forceShowAdreno = sharedPreferences.getBoolean("show_adrenotools_unsupported", false);
+        if (!forceShowAdreno && !com.winlator.cmod.core.GPUInformation.isAdrenoGPU(this)) {
             navigationView.getMenu().findItem(R.id.main_menu_adrenotools_gpu_drivers).setVisible(false);
+        } else {
+            navigationView.getMenu().findItem(R.id.main_menu_adrenotools_gpu_drivers).setVisible(true);
         }
 
         setSupportActionBar(findViewById(R.id.Toolbar));
@@ -162,6 +165,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 ImageFsInstaller.installIfNeeded(this);
             }
             else finish();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        NavigationView navigationView = findViewById(R.id.NavigationView);
+        if (navigationView != null) {
+            boolean forceShowAdreno = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("show_adrenotools_unsupported", false);
+            MenuItem item = navigationView.getMenu().findItem(R.id.main_menu_adrenotools_gpu_drivers);
+            if (item != null) {
+                item.setVisible(forceShowAdreno || com.winlator.cmod.core.GPUInformation.isAdrenoGPU(this));
+            }
         }
     }
 

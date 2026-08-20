@@ -258,6 +258,7 @@
         <b>0</b> : Do not allow continue running a block that is unprotected and potentially dirty.<br />
         <b>1</b> : Allow continue to run a dynablock that write data in the same page as code. It can gets faster in loading time of some game but can also get unexpected crashes.<br />
         <b>2</b> : Will also, when it detect an HotPage, flag that page as NEVERCLEAN, and so it will not be write protected but Block build from that page will always be tested. It can be faster that way (but some SMC case might not be trapped).]]></string>
+    <string name="show_adrenotools_unsupported">Show Custom Drivers on Unsupported Devices</string>
     <string name="box64_env_var_help__dynarec_nativeflags"><![CDATA[
         Enable or disable the use of native flags.<br /><br />
         <b>0</b> : Do not use native flags.<br />

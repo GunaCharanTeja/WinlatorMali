@@ -488,6 +488,13 @@
                             android:layout_gravity="left|center"
                             android:text="@string/share_android_clipboard" />
 
+                        <CheckBox
+                            android:id="@+id/CBShowAdrenoTools"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="left|center"
+                            android:text="@string/show_adrenotools_unsupported" />
+
                         <View style="@style/FieldSeparator" />
 
                         <TextView

@@ -273,6 +273,21 @@ public class SettingsFragment extends Fragment {
         final CheckBox cbShareClipboard = view.findViewById(R.id.CBShareAndroidClipboard);
         cbShareClipboard.setChecked(preferences.getBoolean("share_android_clipboard", false));
 
+        final CheckBox cbShowAdrenoTools = view.findViewById(R.id.CBShowAdrenoTools);
+        cbShowAdrenoTools.setChecked(preferences.getBoolean("show_adrenotools_unsupported", false));
+        cbShowAdrenoTools.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            preferences.edit().putBoolean("show_adrenotools_unsupported", isChecked).apply();
+            if (getActivity() != null) {
+                NavigationView navView = getActivity().findViewById(R.id.NavigationView);
+                if (navView != null) {
+                    android.view.MenuItem item = navView.getMenu().findItem(R.id.main_menu_adrenotools_gpu_drivers);
+                    if (item != null) {
+                        item.setVisible(isChecked || com.winlator.cmod.core.GPUInformation.isAdrenoGPU(context));
+                    }
+                }
+            }
+        });
+
         final EditText etDownloadableContentsURL = view.findViewById(R.id.ETDownloadableContentsURL);
         etDownloadableContentsURL.setText(preferences.getString("downloadable_contents_url", ContentsManager.REMOTE_PROFILES));
 
@@ -297,6 +312,7 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("enable_file_provider", cbEnableFileProvider.isChecked());
             editor.putBoolean("open_with_android_browser", cbOpenInBrowser.isChecked());
             editor.putBoolean("share_android_clipboard", cbShareClipboard.isChecked());
+            editor.putBoolean("show_adrenotools_unsupported", cbShowAdrenoTools.isChecked());
 
             editor.putString("downloadable_contents_url", etDownloadableContentsURL.getText().toString());
 
