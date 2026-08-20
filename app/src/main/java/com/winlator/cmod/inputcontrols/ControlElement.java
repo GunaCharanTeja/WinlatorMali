@@ -245,13 +245,21 @@ public class ControlElement {
         boundingBoxNeedsUpdate = true;
     }
 
+    private int cachedHalfWidth = 0;
+    private int cachedHalfHeight = 0;
+    private final Rect dstRect = new Rect();
+
     public short getX() {
         return x;
     }
 
     public void setX(int x) {
         this.x = (short)x;
-        boundingBoxNeedsUpdate = true;
+        if (!boundingBoxNeedsUpdate && cachedHalfWidth > 0 && cachedHalfHeight > 0) {
+            boundingBox.set(this.x - cachedHalfWidth, this.y - cachedHalfHeight, this.x + cachedHalfWidth, this.y + cachedHalfHeight);
+        } else {
+            boundingBoxNeedsUpdate = true;
+        }
     }
 
     public short getY() {
@@ -260,7 +268,11 @@ public class ControlElement {
 
     public void setY(int y) {
         this.y = (short)y;
-        boundingBoxNeedsUpdate = true;
+        if (!boundingBoxNeedsUpdate && cachedHalfWidth > 0 && cachedHalfHeight > 0) {
+            boundingBox.set(this.x - cachedHalfWidth, this.y - cachedHalfHeight, this.x + cachedHalfWidth, this.y + cachedHalfHeight);
+        } else {
+            boundingBoxNeedsUpdate = true;
+        }
     }
 
     public boolean isSelected() {
@@ -401,9 +413,9 @@ public class ControlElement {
             }
         }
 
-        halfWidth = (int)(halfWidth * scale * widthScale);
-        halfHeight = (int)(halfHeight * scale * heightScale);
-        boundingBox.set(x - halfWidth, y - halfHeight, x + halfWidth, y + halfHeight);
+        cachedHalfWidth = (int)(halfWidth * scale * widthScale);
+        cachedHalfHeight = (int)(halfHeight * scale * heightScale);
+        boundingBox.set(x - cachedHalfWidth, y - cachedHalfHeight, x + cachedHalfWidth, y + cachedHalfHeight);
         boundingBoxNeedsUpdate = false;
         return boundingBox;
     }
@@ -487,8 +499,6 @@ public class ControlElement {
 
         canvas.save();
         if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
-        float shadowRadius = snappingSize * (pressed ? 0.4f : 0.2f) * scale;
-        paint.setShadowLayer(shadowRadius, 0, 0, shadowColor);
 
         switch (type) {
             case BUTTON:
@@ -497,7 +507,6 @@ public class ControlElement {
                 boolean imageAsButton = customIconAsButton && iconId > 0;
                 boolean iconDrawn = false;
                 if (imageAsButton) {
-                    paint.clearShadowLayer();
                     iconDrawn = drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, true);
                     if (iconDrawn) {
                         if (pressed) {
@@ -530,7 +539,6 @@ public class ControlElement {
                         drawShape(canvas, boundingBox, strokeColor, paint);
                     }
 
-                    paint.clearShadowLayer();
                     if (iconId > 0) {
                         drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, false);
                     } else {
@@ -742,7 +750,7 @@ public class ControlElement {
         if (icon == null || icon.getWidth() <= 0 || icon.getHeight() <= 0) return false;
 
         Paint paint = inputControlsView.getPaint();
-        paint.setFlags(paint.getFlags() | Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+        paint.setFilterBitmap(true);
         boolean isCustom = iconId > CustomIconManager.BUILTIN_ICON_MAX;
         if (isCustom) {
             paint.setColorFilter(null);
@@ -750,8 +758,6 @@ public class ControlElement {
         } else {
             paint.setColorFilter(inputControlsView.getColorFilter());
         }
-
-        Rect srcRect = new Rect(0, 0, icon.getWidth(), icon.getHeight());
 
         if (fitBoundingBox) {
             // Icon visual size is determined by base element dimension * scale (independent of widthScale/heightScale boundary)
@@ -762,16 +768,15 @@ public class ControlElement {
 
             float halfW = icon.getWidth() * iconDrawScale * 0.5f;
             float halfH = icon.getHeight() * iconDrawScale * 0.5f;
-            Rect dstRect = new Rect((int)(cx - halfW), (int)(cy - halfH), (int)(cx + halfW), (int)(cy + halfH));
-            canvas.drawBitmap(icon, srcRect, dstRect, paint);
+            dstRect.set((int)(cx - halfW), (int)(cy - halfH), (int)(cx + halfW), (int)(cy + halfH));
         } else {
             int margin = (int)(inputControlsView.getSnappingSize() * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 2.0f : 1.0f) * scale);
             int halfSize = (int)((Math.min(width, height) - margin) * 0.5f);
             if (halfSize <= 0) halfSize = (int)(Math.min(width, height) * 0.5f);
-            Rect dstRect = new Rect((int)(cx - halfSize), (int)(cy - halfSize), (int)(cx + halfSize), (int)(cy + halfSize));
-            canvas.drawBitmap(icon, srcRect, dstRect, paint);
+            dstRect.set((int)(cx - halfSize), (int)(cy - halfSize), (int)(cx + halfSize), (int)(cy + halfSize));
         }
 
+        canvas.drawBitmap(icon, null, dstRect, paint);
         paint.setColorFilter(null);
         return true;
     }

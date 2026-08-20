@@ -205,7 +205,7 @@ public class RadialWheelView extends View {
                     float effectiveScale = (slice.iconScale > 0 ? slice.iconScale : 1.0f) * (config.iconScale > 0 ? config.iconScale : 1.0f);
                     float iconSize = baseSize * effectiveScale;
 
-                    paint.setFlags(paint.getFlags() | Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
+                    paint.setFilterBitmap(true);
                     if (slice.iconId <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
                         paint.setColorFilter(new android.graphics.PorterDuffColorFilter(i == selectedSlice ? 0xFFFFFFFF : 0xFF81D4FA, android.graphics.PorterDuff.Mode.SRC_IN));
                     } else {
