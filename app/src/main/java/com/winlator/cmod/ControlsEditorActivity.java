@@ -390,18 +390,23 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean isDarkMode = preferences.getBoolean("dark_mode", true);
-        int bgColor = isDarkMode ? 0xFF1E1E1E : 0xFFF5F5F5;
-        int headerBgColor = isDarkMode ? 0xFF2A2A2A : 0xFFE0E0E0;
         int accentColor = getResources().getColor(isDarkMode ? R.color.colorAccentDark : R.color.colorAccent);
 
+        InGameControlsEditor.applyThemeToViewHierarchy(view, isDarkMode);
+
         final PopupWindow popupWindow = new PopupWindow(this);
-        popupWindow.setElevation(8.0f);
+        popupWindow.setElevation(10.0f);
         popupWindow.setWidth(dialogWidth);
         popupWindow.setHeight(dialogHeight);
         popupWindow.setContentView(view);
         popupWindow.setFocusable(true);
         popupWindow.setOutsideTouchable(true);
-        popupWindow.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(bgColor));
+
+        android.graphics.drawable.GradientDrawable bgDrawable = new android.graphics.drawable.GradientDrawable();
+        bgDrawable.setColor(isDarkMode ? 0xFF181C24 : 0xFFFFFFFF);
+        bgDrawable.setCornerRadius(UnitUtils.dpToPx(12));
+        bgDrawable.setStroke((int)UnitUtils.dpToPx(1.5f), isDarkMode ? 0xFF333D4D : 0xFFCFD8DC);
+        popupWindow.setBackgroundDrawable(bgDrawable);
 
         // Calculate initial spawn position: place on opposite side of screen from the selected element so it NEVER covers the button
         int initialX = (element.getX() > screenWidth / 2) ? (int)UnitUtils.dpToPx(24) : (screenWidth - dialogWidth - (int)UnitUtils.dpToPx(24));
@@ -410,7 +415,12 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
         View dragHeader = view.findViewById(R.id.LLDragHeader);
         if (dragHeader != null) {
-            dragHeader.setBackgroundColor(headerBgColor);
+            android.graphics.drawable.GradientDrawable headerDrawable = new android.graphics.drawable.GradientDrawable();
+            headerDrawable.setColor(isDarkMode ? 0xFF242C38 : 0xFFECEFF1);
+            float r = UnitUtils.dpToPx(12);
+            headerDrawable.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+            dragHeader.setBackground(headerDrawable);
+
             TextView tvDragTitle = dragHeader.findViewById(R.id.TVDragTitle);
             if (tvDragTitle != null) tvDragTitle.setTextColor(accentColor);
 
@@ -589,6 +599,10 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
+
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean isDarkMode = preferences.getBoolean("dark_mode", true);
+        InGameControlsEditor.applyThemeToViewHierarchy(view, isDarkMode);
 
         container.addView(view);
     }

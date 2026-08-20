@@ -328,6 +328,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        isDarkMode = preferences.getBoolean("dark_mode", true);
+        setTheme(isDarkMode ? R.style.AppThemeFullscreen_Dark : R.style.AppThemeFullscreen);
+
         super.onCreate(savedInstanceState);
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);

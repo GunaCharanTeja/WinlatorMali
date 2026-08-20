@@ -8,14 +8,17 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.Spinner;
@@ -401,18 +404,23 @@ public final class InGameControlsEditor implements View.OnClickListener {
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(activity);
         boolean isDarkMode = preferences.getBoolean("dark_mode", true);
-        int bgColor = isDarkMode ? 0xFF1E1E1E : 0xFFF5F5F5;
-        int headerBgColor = isDarkMode ? 0xFF2A2A2A : 0xFFE0E0E0;
         int accentColor = activity.getResources().getColor(isDarkMode ? R.color.colorAccentDark : R.color.colorAccent);
 
+        applyThemeToViewHierarchy(view, isDarkMode);
+
         final PopupWindow popupWindow = new PopupWindow(activity);
-        popupWindow.setElevation(8.0f);
+        popupWindow.setElevation(10.0f);
         popupWindow.setWidth(dialogWidth);
         popupWindow.setHeight(dialogHeight);
         popupWindow.setContentView(view);
         popupWindow.setFocusable(true);
         popupWindow.setOutsideTouchable(true);
-        popupWindow.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(bgColor));
+
+        android.graphics.drawable.GradientDrawable bgDrawable = new android.graphics.drawable.GradientDrawable();
+        bgDrawable.setColor(isDarkMode ? 0xFF181C24 : 0xFFFFFFFF);
+        bgDrawable.setCornerRadius(UnitUtils.dpToPx(12));
+        bgDrawable.setStroke((int) UnitUtils.dpToPx(1.5f), isDarkMode ? 0xFF333D4D : 0xFFCFD8DC);
+        popupWindow.setBackgroundDrawable(bgDrawable);
 
         int initialX = (element.getX() > screenWidth / 2) ? (int) UnitUtils.dpToPx(24) : (screenWidth - dialogWidth - (int) UnitUtils.dpToPx(24));
         int initialY = (int) UnitUtils.dpToPx(36);
@@ -420,7 +428,12 @@ public final class InGameControlsEditor implements View.OnClickListener {
 
         View dragHeader = view.findViewById(R.id.LLDragHeader);
         if (dragHeader != null) {
-            dragHeader.setBackgroundColor(headerBgColor);
+            android.graphics.drawable.GradientDrawable headerDrawable = new android.graphics.drawable.GradientDrawable();
+            headerDrawable.setColor(isDarkMode ? 0xFF242C38 : 0xFFECEFF1);
+            float r = UnitUtils.dpToPx(12);
+            headerDrawable.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+            dragHeader.setBackground(headerDrawable);
+
             TextView tvDragTitle = dragHeader.findViewById(R.id.TVDragTitle);
             if (tvDragTitle != null) tvDragTitle.setTextColor(accentColor);
 
@@ -727,6 +740,46 @@ public final class InGameControlsEditor implements View.OnClickListener {
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
 
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(activity);
+        boolean isDarkMode = preferences.getBoolean("dark_mode", true);
+        applyThemeToViewHierarchy(view, isDarkMode);
+
         container.addView(view);
+    }
+
+    public static void applyThemeToViewHierarchy(View view, boolean isDarkMode) {
+        if (view == null) return;
+        int textColor = isDarkMode ? 0xFFECEFF1 : 0xFF212121;
+        int hintColor = isDarkMode ? 0xFF78909C : 0xFF9E9E9E;
+        int accentColor = isDarkMode ? 0xFF00E5FF : 0xFF0284C7;
+
+        if (view instanceof TextView && !(view instanceof Button) && !(view instanceof CheckBox) && !(view instanceof RadioButton) && !(view instanceof EditText)) {
+            TextView tv = (TextView) view;
+            int id = tv.getId();
+            if (id == R.id.TVDragTitle) {
+                tv.setTextColor(accentColor);
+            } else if (id == R.id.TVScale || id == R.id.TVWidthScale || id == R.id.TVHeightScale || id == R.id.TVTouchPadding) {
+                tv.setTextColor(accentColor);
+            } else {
+                tv.setTextColor(textColor);
+            }
+        } else if (view instanceof CheckBox) {
+            CheckBox cb = (CheckBox) view;
+            cb.setTextColor(textColor);
+        } else if (view instanceof RadioButton) {
+            RadioButton rb = (RadioButton) view;
+            rb.setTextColor(textColor);
+        } else if (view instanceof EditText) {
+            EditText et = (EditText) view;
+            et.setTextColor(textColor);
+            et.setHintTextColor(hintColor);
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyThemeToViewHierarchy(group.getChildAt(i), isDarkMode);
+            }
+        }
     }
 }
