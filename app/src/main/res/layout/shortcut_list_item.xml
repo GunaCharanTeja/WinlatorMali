@@ -79,12 +79,8 @@
                 android:shadowDy="2.0"
                 android:shadowRadius="6.5"
                 android:textColor="@color/white"
-                android:textSize="15.5sp"
-                android:textStyle="bold"
-                app:autoSizeMaxTextSize="15.5sp"
-                app:autoSizeMinTextSize="11sp"
-                app:autoSizeStepGranularity="0.5sp"
-                app:autoSizeTextType="uniform" />
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -102,17 +98,14 @@
                     android:ellipsize="end"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center_vertical"
+                    android:singleLine="true"
                     android:maxLines="1"
                     android:shadowColor="#cc000000"
                     android:shadowDx="0.0"
                     android:shadowDy="1.0"
                     android:shadowRadius="2.0"
                     android:textColor="#E0E0E0"
-                    android:textSize="10sp"
-                    app:autoSizeMaxTextSize="10sp"
-                    app:autoSizeMinTextSize="6sp"
-                    app:autoSizeStepGranularity="0.5sp"
-                    app:autoSizeTextType="uniform" />
+                    android:textSize="10.5sp" />
 
                 <androidx.appcompat.widget.AppCompatTextView
                     android:id="@+id/TVVersion"
@@ -123,18 +116,15 @@
                     android:ellipsize="end"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center_vertical"
+                    android:singleLine="true"
                     android:maxLines="1"
                     android:shadowColor="#cc000000"
                     android:shadowDx="0.0"
                     android:shadowDy="1.0"
                     android:shadowRadius="2.0"
                     android:textColor="#00E5FF"
-                    android:textSize="10sp"
+                    android:textSize="10.5sp"
                     android:textStyle="bold"
-                    app:autoSizeMaxTextSize="10sp"
-                    app:autoSizeMinTextSize="6sp"
-                    app:autoSizeStepGranularity="0.5sp"
-                    app:autoSizeTextType="uniform"
                     android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>

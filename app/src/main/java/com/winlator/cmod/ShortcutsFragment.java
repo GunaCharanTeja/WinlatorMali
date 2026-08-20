@@ -86,11 +86,7 @@ public class ShortcutsFragment extends Fragment {
         if (recyclerView != null) {
             recyclerView.getRecycledViewPool().clear();
             if (recyclerView.getAdapter() != null) {
-                recyclerView.post(() -> {
-                    if (recyclerView != null && recyclerView.getAdapter() != null) {
-                        recyclerView.getAdapter().notifyDataSetChanged();
-                    }
-                });
+                recyclerView.getAdapter().notifyDataSetChanged();
             }
         }
     }
@@ -166,11 +162,19 @@ public class ShortcutsFragment extends Fragment {
             Shortcut item = data.get(position);
             holder.title.setText(item.name);
 
+            boolean isLandscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+            float titleSize = isLandscape ? 12.5f : 15.0f;
+            float badgeSize = isLandscape ? 8.5f : 10.5f;
+
+            if (holder.title != null) {
+                holder.title.setTextSize(TypedValue.COMPLEX_UNIT_SP, titleSize);
+            }
+
             String rawWine = item.getExtra("wineVersion", item.container.getWineVersion());
             String displayWine = formatWineVersionForDisplay(rawWine);
             if (displayWine.isEmpty()) displayWine = item.container.getName();
             if (holder.subtitle != null) {
-                TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(holder.subtitle, 6, 10, 1, TypedValue.COMPLEX_UNIT_SP);
+                holder.subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, badgeSize);
                 holder.subtitle.setText(displayWine);
             }
 
@@ -178,7 +182,7 @@ public class ShortcutsFragment extends Fragment {
             if (gameVersion != null && !gameVersion.isEmpty()) {
                 String formattedVer = gameVersion.startsWith("v") || gameVersion.startsWith("V") ? gameVersion : "v" + gameVersion;
                 if (holder.version != null) {
-                    TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(holder.version, 6, 10, 1, TypedValue.COMPLEX_UNIT_SP);
+                    holder.version.setTextSize(TypedValue.COMPLEX_UNIT_SP, badgeSize);
                     holder.version.setText(formattedVer);
                     holder.version.setVisibility(View.VISIBLE);
                 }
