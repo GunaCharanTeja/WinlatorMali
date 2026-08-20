@@ -768,6 +768,12 @@ public class ControlElement {
                             } else if (b0 == Binding.GAMEPAD_BUTTON_X || text.equalsIgnoreCase("X") || text.equals("▢") || text.equalsIgnoreCase("SQUARE")) {
                                 drawPlayStationSquare(canvas, cx, cy, boundingBox.width(), paint, contentColor);
                                 iconDrawnCustom = true;
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_START || text.equalsIgnoreCase("START") || text.equalsIgnoreCase("OPTIONS") || text.equalsIgnoreCase("MENU")) {
+                                drawPlayStationOptionsIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_SELECT || text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("SHARE") || text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("CREATE")) {
+                                drawPlayStationShareIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
                             }
                         } else if (stylePreset == ControlStylePreset.RETRO_ARCADE) {
                             if (text.equalsIgnoreCase("COIN") || b0 == Binding.GAMEPAD_BUTTON_SELECT) {
@@ -1565,5 +1571,38 @@ public class ControlElement {
         // Inner dot
         paint.setStyle(Paint.Style.FILL);
         canvas.drawCircle(cx, cy, sw * 1.2f, paint);
+    }
+
+    private void drawPlayStationOptionsIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        float sw = Math.max(3f, size * 0.065f);
+        paint.setStrokeWidth(sw);
+        float h = size * 0.20f;
+        float spacing = size * 0.11f;
+        // 3 vertical parallel bars (Official PlayStation Options icon)
+        canvas.drawLine(cx - spacing, cy - h, cx - spacing, cy + h, paint);
+        canvas.drawLine(cx, cy - h, cx, cy + h, paint);
+        canvas.drawLine(cx + spacing, cy - h, cx + spacing, cy + h, paint);
+    }
+
+    private void drawPlayStationShareIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        float sw = Math.max(3f, size * 0.06f);
+        paint.setStrokeWidth(sw);
+        float len = size * 0.16f;
+        float off = size * 0.08f;
+        // Center vertical ray
+        canvas.drawLine(cx, cy - off, cx, cy - off - len, paint);
+        // Left angled ray (45 deg)
+        canvas.drawLine(cx - off * 0.7f, cy - off * 0.7f, cx - (off + len) * 0.7f, cy - (off + len) * 0.7f, paint);
+        // Right angled ray (45 deg)
+        canvas.drawLine(cx + off * 0.7f, cy - off * 0.7f, cx + (off + len) * 0.7f, cy - (off + len) * 0.7f, paint);
+        // Base rounded pill dot
+        paint.setStyle(Paint.Style.FILL);
+        canvas.drawCircle(cx, cy + size * 0.08f, sw * 1.3f, paint);
     }
 }
