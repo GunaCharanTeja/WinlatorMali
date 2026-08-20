@@ -8,6 +8,7 @@ import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 
 import androidx.core.graphics.ColorUtils;
 
@@ -681,11 +682,45 @@ public class ControlElement {
                         drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, false);
                     } else {
                         String text = getDisplayText();
-                        paint.setTextSize(Math.min(getTextSizeForWidth(paint, text, boundingBox.width() - strokeWidth * 2), snappingSize * 2 * scale));
-                        paint.setTextAlign(Paint.Align.CENTER);
-                        paint.setStyle(Paint.Style.FILL);
-                        paint.setColor(contentColor);
-                        canvas.drawText(text, x, (y - ((paint.descent() + paint.ascent()) * 0.5f)), paint);
+                        boolean iconDrawnCustom = false;
+
+                        if (stylePreset == ControlStylePreset.XBOX) {
+                            if (text.equalsIgnoreCase("START") || text.equalsIgnoreCase("MENU") || b0 == Binding.GAMEPAD_BUTTON_START) {
+                                drawXboxMenuIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            } else if (text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("VIEW") || b0 == Binding.GAMEPAD_BUTTON_SELECT) {
+                                drawXboxViewIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            }
+                        } else if (stylePreset == ControlStylePreset.PLAYSTATION) {
+                            if (b0 == Binding.GAMEPAD_BUTTON_A || text.equalsIgnoreCase("A") || text.equals("✕")) {
+                                drawPlayStationCross(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_B || text.equalsIgnoreCase("B") || text.equals("◯")) {
+                                drawPlayStationCircle(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_X || text.equalsIgnoreCase("X") || text.equals("▢")) {
+                                drawPlayStationSquare(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            } else if (b0 == Binding.GAMEPAD_BUTTON_Y || text.equalsIgnoreCase("Y") || text.equals("△")) {
+                                drawPlayStationTriangle(canvas, cx, cy, boundingBox.width(), paint, contentColor);
+                                iconDrawnCustom = true;
+                            }
+                        }
+
+                        if (!iconDrawnCustom) {
+                            if (stylePreset == ControlStylePreset.XBOX) {
+                                paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+                            } else {
+                                paint.setTypeface(Typeface.DEFAULT);
+                            }
+                            paint.setTextSize(Math.min(getTextSizeForWidth(paint, text, boundingBox.width() - strokeWidth * 2), snappingSize * 2 * scale));
+                            paint.setTextAlign(Paint.Align.CENTER);
+                            paint.setStyle(Paint.Style.FILL);
+                            paint.setColor(contentColor);
+                            canvas.drawText(text, x, (y - ((paint.descent() + paint.ascent()) * 0.5f)), paint);
+                            paint.setTypeface(Typeface.DEFAULT);
+                        }
                     }
                 }
                 break;
@@ -732,6 +767,13 @@ public class ControlElement {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setColor(strokeColor);
                 canvas.drawPath(path, paint);
+
+                if (stylePreset == ControlStylePreset.XBOX) {
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setColor(ColorUtils.setAlphaComponent(customStroke, (int)(alpha * 0.35f)));
+                    paint.setStrokeWidth(Math.max(2f, strokeWidth * 0.75f));
+                    canvas.drawCircle(cx, cy, snappingSize * 2.2f * scale, paint);
+                }
                 break;
             }
             case RANGE_BUTTON: {
@@ -1305,5 +1347,83 @@ public class ControlElement {
         currentPosition.set(x, y);
         // Optionally invalidate the view to trigger a redraw
         inputControlsView.invalidate();
+    }
+
+    private void drawXboxMenuIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        float w = size * 0.22f;
+        float h = size * 0.14f;
+        float sw = Math.max(3.5f, size * 0.065f);
+        paint.setStrokeWidth(sw);
+        canvas.drawLine(cx - w, cy - h, cx + w, cy - h, paint);
+        canvas.drawLine(cx - w, cy, cx + w, cy, paint);
+        canvas.drawLine(cx - w, cy + h, cx + w, cy + h, paint);
+    }
+
+    private void drawXboxViewIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        float sw = Math.max(3f, size * 0.06f);
+        paint.setStrokeWidth(sw);
+        float sqW = size * 0.32f;
+        float sqH = size * 0.24f;
+        float offX = size * 0.08f;
+        float offY = size * 0.06f;
+        float cr = size * 0.04f;
+
+        // Background window/rectangle
+        RectF r1 = new RectF(cx - offX - sqW * 0.5f, cy - offY - sqH * 0.5f, cx - offX + sqW * 0.5f, cy - offY + sqH * 0.5f);
+        canvas.drawRoundRect(r1, cr, cr, paint);
+
+        // Foreground window/rectangle
+        RectF r2 = new RectF(cx + offX - sqW * 0.5f, cy + offY - sqH * 0.5f, cx + offX + sqW * 0.5f, cy + offY + sqH * 0.5f);
+        canvas.drawRoundRect(r2, cr, cr, paint);
+    }
+
+    private void drawPlayStationTriangle(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        float sw = Math.max(3.5f, size * 0.09f);
+        paint.setStrokeWidth(sw);
+        float r = size * 0.32f;
+        Path p = new Path();
+        p.moveTo(cx, cy - r);
+        p.lineTo(cx + r * 0.866f, cy + r * 0.5f);
+        p.lineTo(cx - r * 0.866f, cy + r * 0.5f);
+        p.close();
+        canvas.drawPath(p, paint);
+    }
+
+    private void drawPlayStationSquare(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        float sw = Math.max(3.5f, size * 0.09f);
+        paint.setStrokeWidth(sw);
+        float half = size * 0.26f;
+        canvas.drawRoundRect(new RectF(cx - half, cy - half, cx + half, cy + half), sw * 0.5f, sw * 0.5f, paint);
+    }
+
+    private void drawPlayStationCircle(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        float sw = Math.max(3.5f, size * 0.09f);
+        paint.setStrokeWidth(sw);
+        canvas.drawCircle(cx, cy, size * 0.28f, paint);
+    }
+
+    private void drawPlayStationCross(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(color);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        float sw = Math.max(3.5f, size * 0.09f);
+        paint.setStrokeWidth(sw);
+        float half = size * 0.24f;
+        canvas.drawLine(cx - half, cy - half, cx + half, cy + half, paint);
+        canvas.drawLine(cx + half, cy - half, cx - half, cy + half, paint);
     }
 }
