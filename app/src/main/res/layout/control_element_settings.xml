@@ -216,6 +216,13 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal" />
             </HorizontalScrollView>
+
+            <CheckBox
+                android:id="@+id/CBCustomIconAsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Fill Button (Icon As Button)" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

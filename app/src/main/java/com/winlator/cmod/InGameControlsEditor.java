@@ -228,6 +228,14 @@ public final class InGameControlsEditor implements View.OnClickListener {
         currentIconListLayout = llIconList;
         loadIcons(llIconList, element.getIconId());
 
+        final CheckBox cbCustomIconAsButton = view.findViewById(R.id.CBCustomIconAsButton);
+        cbCustomIconAsButton.setChecked(element.isCustomIconAsButton());
+        cbCustomIconAsButton.setOnCheckedChangeListener((btn, isChecked) -> {
+            element.setCustomIconAsButton(isChecked);
+            profile.save();
+            inputControlsView.invalidate();
+        });
+
         updateLayout.run();
 
         currentPopup = AppUtils.showPopupWindow(anchorView, view, 340, 0);

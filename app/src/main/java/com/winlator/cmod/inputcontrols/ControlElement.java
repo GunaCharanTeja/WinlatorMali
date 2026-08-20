@@ -115,6 +115,7 @@ public class ControlElement {
     private boolean boundingBoxNeedsUpdate = true;
     private String text = "";
     private int iconId = 0;
+    private boolean customIconAsButton = true;
     private Range range;
     private byte orientation;
     private PointF currentPosition;
@@ -282,6 +283,14 @@ public class ControlElement {
         this.iconId = iconId;
     }
 
+    public boolean isCustomIconAsButton() {
+        return customIconAsButton;
+    }
+
+    public void setCustomIconAsButton(boolean customIconAsButton) {
+        this.customIconAsButton = customIconAsButton;
+    }
+
     public Rect getBoundingBox() {
         if (boundingBoxNeedsUpdate) computeBoundingBox();
         return boundingBox;
@@ -431,33 +440,42 @@ public class ControlElement {
             case BUTTON:
             case EXPANDABLE_BUTTON:
             case BUTTON_GRID: {
-                if (getDisplayText().matches("(?i)L[12]|R[12]|LT|RT|LB|RB")) {
-                    float radius = boundingBox.height() * 0.5f;
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(backgroundColor);
-                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
-                    paint.setStyle(Paint.Style.STROKE);
-                    paint.setColor(strokeColor);
-                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
-                } else {
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(backgroundColor);
-                    drawShape(canvas, boundingBox, backgroundColor, paint);
-                    paint.setStyle(Paint.Style.STROKE);
-                    paint.setColor(strokeColor);
-                    drawShape(canvas, boundingBox, strokeColor, paint);
+                boolean imageAsButton = customIconAsButton && iconId > 0;
+                boolean iconDrawn = false;
+                if (imageAsButton) {
+                    paint.clearShadowLayer();
+                    iconDrawn = drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, true);
                 }
 
-                paint.clearShadowLayer();
-                if (iconId > 0) {
-                    drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId);
-                } else {
-                    String text = getDisplayText();
-                    paint.setTextSize(Math.min(getTextSizeForWidth(paint, text, boundingBox.width() - strokeWidth * 2), snappingSize * 2 * scale));
-                    paint.setTextAlign(Paint.Align.CENTER);
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(contentColor);
-                    canvas.drawText(text, x, (y - ((paint.descent() + paint.ascent()) * 0.5f)), paint);
+                if (!imageAsButton || !iconDrawn) {
+                    if (getDisplayText().matches("(?i)L[12]|R[12]|LT|RT|LB|RB")) {
+                        float radius = boundingBox.height() * 0.5f;
+                        paint.setStyle(Paint.Style.FILL);
+                        paint.setColor(backgroundColor);
+                        canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setColor(strokeColor);
+                        canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
+                    } else {
+                        paint.setStyle(Paint.Style.FILL);
+                        paint.setColor(backgroundColor);
+                        drawShape(canvas, boundingBox, backgroundColor, paint);
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setColor(strokeColor);
+                        drawShape(canvas, boundingBox, strokeColor, paint);
+                    }
+
+                    paint.clearShadowLayer();
+                    if (iconId > 0) {
+                        drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId, false);
+                    } else {
+                        String text = getDisplayText();
+                        paint.setTextSize(Math.min(getTextSizeForWidth(paint, text, boundingBox.width() - strokeWidth * 2), snappingSize * 2 * scale));
+                        paint.setTextAlign(Paint.Align.CENTER);
+                        paint.setStyle(Paint.Style.FILL);
+                        paint.setColor(contentColor);
+                        canvas.drawText(text, x, (y - ((paint.descent() + paint.ascent()) * 0.5f)), paint);
+                    }
                 }
                 break;
             }
@@ -642,10 +660,10 @@ public class ControlElement {
     }
 
 
-    private void drawIcon(Canvas canvas, float cx, float cy, float width, float height, int iconId) {
-        if (iconId <= 0) return;
+    private boolean drawIcon(Canvas canvas, float cx, float cy, float width, float height, int iconId, boolean fitBoundingBox) {
+        if (iconId <= 0) return false;
         Bitmap icon = inputControlsView.getIcon(iconId);
-        if (icon == null) return;
+        if (icon == null) return false;
 
         Paint paint = inputControlsView.getPaint();
         boolean isCustom = iconId > CustomIconManager.BUILTIN_ICON_MAX;
@@ -655,14 +673,29 @@ public class ControlElement {
             paint.setColorFilter(inputControlsView.getColorFilter());
         }
 
-        int margin = (int)(inputControlsView.getSnappingSize() * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 2.0f : 1.0f) * scale);
-        int halfSize = (int)((Math.min(width, height) - margin) * 0.5f);
-        if (halfSize <= 0) halfSize = (int)(Math.min(width, height) * 0.5f);
-
         Rect srcRect = new Rect(0, 0, icon.getWidth(), icon.getHeight());
-        Rect dstRect = new Rect((int)(cx - halfSize), (int)(cy - halfSize), (int)(cx + halfSize), (int)(cy + halfSize));
-        canvas.drawBitmap(icon, srcRect, dstRect, paint);
+
+        if (fitBoundingBox) {
+            float padding = Math.max(1f, inputControlsView.getSnappingSize() * 0.25f * scale);
+            float availW = width - padding * 2;
+            float availH = height - padding * 2;
+            float fitScale = Math.min(availW / icon.getWidth(), availH / icon.getHeight());
+            if (fitScale <= 0 || !Float.isFinite(fitScale)) return false;
+
+            float halfW = icon.getWidth() * fitScale * 0.5f;
+            float halfH = icon.getHeight() * fitScale * 0.5f;
+            Rect dstRect = new Rect((int)(cx - halfW), (int)(cy - halfH), (int)(cx + halfW), (int)(cy + halfH));
+            canvas.drawBitmap(icon, srcRect, dstRect, paint);
+        } else {
+            int margin = (int)(inputControlsView.getSnappingSize() * (shape == Shape.CIRCLE || shape == Shape.SQUARE ? 2.0f : 1.0f) * scale);
+            int halfSize = (int)((Math.min(width, height) - margin) * 0.5f);
+            if (halfSize <= 0) halfSize = (int)(Math.min(width, height) * 0.5f);
+            Rect dstRect = new Rect((int)(cx - halfSize), (int)(cy - halfSize), (int)(cx + halfSize), (int)(cy + halfSize));
+            canvas.drawBitmap(icon, srcRect, dstRect, paint);
+        }
+
         paint.setColorFilter(null);
+        return true;
     }
 
     public JSONObject toJSONObject() {
@@ -681,6 +714,7 @@ public class ControlElement {
             elementJSONObject.put("toggleSwitch", toggleSwitch);
             elementJSONObject.put("text", text);
             elementJSONObject.put("iconId", iconId);
+            elementJSONObject.put("customIconAsButton", customIconAsButton);
 
             if (type == Type.RANGE_BUTTON && range != null) {
                 elementJSONObject.put("range", range.name());

@@ -216,6 +216,14 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         currentIconListLayout = llIconList;
         loadIcons(llIconList, element.getIconId());
 
+        final CheckBox cbCustomIconAsButton = view.findViewById(R.id.CBCustomIconAsButton);
+        cbCustomIconAsButton.setChecked(element.isCustomIconAsButton());
+        cbCustomIconAsButton.setOnCheckedChangeListener((btn, isChecked) -> {
+            element.setCustomIconAsButton(isChecked);
+            profile.save();
+            inputControlsView.invalidate();
+        });
+
         updateLayout.run();
 
         PopupWindow popupWindow = AppUtils.showPopupWindow(anchorView, view, 340, 0);

@@ -309,6 +309,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 int rawIconId = elementJSONObject.optInt("iconId", 0);
                 if (rawIconId < 0 && rawIconId >= Byte.MIN_VALUE) rawIconId = rawIconId & 0xFF;
                 element.setIconId(rawIconId);
+                element.setCustomIconAsButton(elementJSONObject.optBoolean("customIconAsButton", true));
                 if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.parse(elementJSONObject.optString("range", "FROM_A_TO_Z")));
                 if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.optInt("orientation", 0));
 
