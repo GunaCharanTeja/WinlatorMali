@@ -159,6 +159,7 @@ public class ControlElement {
 
         text = "";
         iconId = 0;
+        customIconAsButton = false;
         range = null;
         boundingBoxNeedsUpdate = true;
     }

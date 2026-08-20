@@ -256,6 +256,7 @@ public class InputControlsView extends View {
     public synchronized boolean addElement() {
         if (editMode && profile != null) {
             ControlElement element = new ControlElement(this);
+            element.setCustomIconAsButton(false);
             element.setX(cursor.x);
             element.setY(cursor.y);
             profile.addElement(element);
