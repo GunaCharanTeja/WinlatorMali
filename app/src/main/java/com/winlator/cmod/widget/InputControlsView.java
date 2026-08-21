@@ -23,6 +23,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
@@ -30,6 +31,7 @@ import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.RadialWheelManager;
+import com.winlator.cmod.core.UnitUtils;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ControlElement;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
@@ -63,6 +65,12 @@ public class InputControlsView extends View {
     private int snappingSize;
     private float offsetX;
     private float offsetY;
+    private float initialTouchX;
+    private float initialTouchY;
+    private int elementStartX;
+    private int elementStartY;
+    private boolean isDraggingElement = false;
+    private int touchSlop;
     private ControlElement selectedElement;
     private ControlsProfile profile;
     private float overlayOpacity = DEFAULT_OVERLAY_OPACITY;
@@ -110,6 +118,8 @@ public class InputControlsView extends View {
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
+        touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        if (touchSlop <= 0) touchSlop = (int) UnitUtils.dpToPx(8);
     }
 
     @SuppressLint("ResourceType")
@@ -125,6 +135,8 @@ public class InputControlsView extends View {
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
+        touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        if (touchSlop <= 0) touchSlop = (int) UnitUtils.dpToPx(8);
     }
 
     public void setEditMode(boolean editMode) {
@@ -585,16 +597,55 @@ public class InputControlsView extends View {
 
         if (editMode && readyToDraw) {
             float x = event.getX(), y = event.getY();
-            switch (event.getAction()) {
+            switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN -> {
+                    initialTouchX = x;
+                    initialTouchY = y;
+                    isDraggingElement = false;
                     ControlElement element = intersectElement(x, y);
-                    moveCursor = element == null;
-                    if (element != null) { offsetX = x - element.getX(); offsetY = y - element.getY(); }
+                    moveCursor = (element == null);
+                    if (element != null) {
+                        elementStartX = element.getX();
+                        elementStartY = element.getY();
+                        offsetX = x - elementStartX;
+                        offsetY = y - elementStartY;
+                    }
                     selectElement(element);
                 }
-                case MotionEvent.ACTION_MOVE -> { if (selectedElement != null) { selectedElement.setX((int)Mathf.roundTo(x - offsetX, snappingSize)); selectedElement.setY((int)Mathf.roundTo(y - offsetY, snappingSize)); invalidate(); } }
-                case MotionEvent.ACTION_UP -> { if (selectedElement != null) profile.save(); if (moveCursor) cursor.set((int)Mathf.roundTo(x, snappingSize), (int)Mathf.roundTo(y, snappingSize)); invalidate(); }
+                case MotionEvent.ACTION_MOVE -> {
+                    if (selectedElement != null) {
+                        float dx = x - initialTouchX;
+                        float dy = y - initialTouchY;
+                        if (!isDraggingElement && Math.hypot(dx, dy) > touchSlop) {
+                            isDraggingElement = true;
+                        }
+                        if (isDraggingElement) {
+                            selectedElement.setX((int) Mathf.roundTo(elementStartX + dx, snappingSize));
+                            selectedElement.setY((int) Mathf.roundTo(elementStartY + dy, snappingSize));
+                            invalidate();
+                        }
+                    }
+                }
+                case MotionEvent.ACTION_UP -> {
+                    if (selectedElement != null && isDraggingElement) {
+                        if (profile != null) profile.save();
+                    }
+                    if (moveCursor && !isDraggingElement) {
+                        cursor.set((int) Mathf.roundTo(x, snappingSize), (int) Mathf.roundTo(y, snappingSize));
+                    }
+                    isDraggingElement = false;
+                    invalidate();
+                }
+                case MotionEvent.ACTION_CANCEL -> {
+                    if (isDraggingElement && selectedElement != null) {
+                        selectedElement.setX(elementStartX);
+                        selectedElement.setY(elementStartY);
+                    }
+                    isDraggingElement = false;
+                    invalidate();
+                }
             }
+            return true;
         }
         if (!editMode) {
             if (profile == null || !showTouchscreenControls) {
