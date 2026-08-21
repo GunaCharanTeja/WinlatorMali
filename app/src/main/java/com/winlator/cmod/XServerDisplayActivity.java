@@ -1749,7 +1749,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.findViewById(R.id.BTRadialWheel).setOnClickListener(v -> {
             int position = sProfile.getSelectedItemPosition();
-            ControlsProfile selectedProfile = (position > 0) ? inputControlsManager.getProfiles().get(position - 1) : null;
+            ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
+            ControlsProfile selectedProfile = (position > 0 && position <= profiles.size()) ? profiles.get(position - 1) : null;
             if (selectedProfile == null && ExternalController.getControllers().isEmpty()) {
                 AppUtils.showToast(this, "Please select a profile or connect a controller");
                 return;
@@ -1796,19 +1797,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         final Runnable updateProfile = () -> {
             int position = sProfile.getSelectedItemPosition();
-            if (position > 0) {
-                showInputControls(inputControlsManager.getProfiles().get(position - 1));
+            ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
+            if (position > 0 && position <= profiles.size()) {
+                showInputControls(profiles.get(position - 1));
             }
             else hideInputControls();
         };
 
         dialog.findViewById(R.id.BTSettings).setOnClickListener((v) -> {
             int position = sProfile.getSelectedItemPosition();
-            if (position <= 0) {
+            ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
+            if (position <= 0 || position > profiles.size()) {
                 AppUtils.showToast(this, R.string.no_profile_selected);
                 return;
             }
-            ControlsProfile profileToEdit = inputControlsManager.getProfiles().get(position - 1);
+            ControlsProfile profileToEdit = profiles.get(position - 1);
             dialog.dismiss();
             startInGameControlsEditor(profileToEdit);
         });
@@ -1884,10 +1887,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // If no profile is selected, hide the controls
         int selectedProfileIndex = preferences.getInt("selected_profile_index", -1); // Default to -1 for no profile
+        ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
 
-        if (selectedProfileIndex >= 0 && selectedProfileIndex < inputControlsManager.getProfiles().size()) {
+        if (selectedProfileIndex >= 0 && selectedProfileIndex < profiles.size()) {
             // A profile is selected, show the controls
-            ControlsProfile profile = inputControlsManager.getProfiles().get(selectedProfileIndex);
+            ControlsProfile profile = profiles.get(selectedProfileIndex);
             showInputControls(profile);
         } else {
             // No profile selected, ensure the controls are hidden

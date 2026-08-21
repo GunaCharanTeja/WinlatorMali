@@ -167,6 +167,19 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
         return Integer.compare(id, o.id);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ControlsProfile that = (ControlsProfile) o;
+        return id == that.id;
+    }
+
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(id);
+    }
+
     public boolean isElementsLoaded() {
         return elementsLoaded;
     }

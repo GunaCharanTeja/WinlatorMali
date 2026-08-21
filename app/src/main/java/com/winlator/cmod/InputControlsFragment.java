@@ -334,7 +334,10 @@ public class InputControlsFragment extends Fragment {
         int selectedPosition = 0;
         for (int i = 0; i < profiles.size(); i++) {
             ControlsProfile profile = profiles.get(i);
-            if (profile == currentProfile) selectedPosition = i + 1;
+            if (currentProfile != null && profile.id == currentProfile.id) {
+                selectedPosition = i + 1;
+                currentProfile = profile;
+            }
             values.add(profile.getName());
         }
 
