@@ -3,6 +3,7 @@ package com.winlator.cmod.inputcontrols;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
@@ -807,6 +808,16 @@ public class ControlElement {
                             paint.setTypeface(Typeface.DEFAULT);
                         }
                     }
+                }
+
+                if (selected && touchPadding > 0) {
+                    float pad = touchPadding * snappingSize * 0.2f * scale;
+                    Rect paddedBox = new Rect((int)(boundingBox.left - pad), (int)(boundingBox.top - pad), (int)(boundingBox.right + pad), (int)(boundingBox.bottom + pad));
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setStrokeWidth(Math.max(2.5f, snappingSize * 0.06f * scale));
+                    paint.setPathEffect(new DashPathEffect(new float[]{snappingSize * 0.25f * scale, snappingSize * 0.15f * scale}, 0));
+                    drawShape(canvas, paddedBox, 0xCC00E5FF, paint);
+                    paint.setPathEffect(null);
                 }
                 break;
             }
