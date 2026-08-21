@@ -373,6 +373,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                 tvTouchPadding.setText("+" + progress);
                 if (fromUser) {
                     element.setTouchPadding(progress);
+                    inputControlsView.invalidate();
                 }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
