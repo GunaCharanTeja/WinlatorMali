@@ -683,8 +683,8 @@ public class ControlElement {
             backgroundColor = ColorUtils.setAlphaComponent(customBg, (int)(alpha * (pressed ? 0.85f : 0.45f)));
         }
 
-        int primaryColor = selected ? inputControlsView.getSecondaryColor() : customStroke;
-        int strokeColor = ColorUtils.setAlphaComponent(primaryColor, (int)(alpha * (pressed ? 1.0f : 0.8f)));
+        int primaryColor = selected ? 0xFF00E5FF : customStroke;
+        int strokeColor = ColorUtils.setAlphaComponent(primaryColor, (int)(alpha * (pressed ? 1.0f : (selected ? 1.0f : 0.8f))));
 
         int contentColor = ColorUtils.setAlphaComponent(customContent, (int)(alpha * 0.95f));
         int shadowColor = ColorUtils.setAlphaComponent(customShadow, (int)(alpha * (pressed ? 0.35f : 0.15f)));
@@ -717,7 +717,7 @@ public class ControlElement {
                         if (selected) {
                             paint.setStyle(Paint.Style.STROKE);
                             paint.setStrokeWidth(Math.max(4f, snappingSize * 0.12f * scale));
-                            drawShape(canvas, boundingBox, inputControlsView.getSecondaryColor(), paint);
+                            drawShape(canvas, boundingBox, 0xFF00E5FF, paint);
                         }
                     }
                 }
@@ -985,26 +985,33 @@ public class ControlElement {
 
         switch (shape) {
             case CIRCLE:
-                canvas.drawCircle(cx, cy, Math.min(halfWidth, halfHeight), paint);
+                if (Math.abs(halfWidth - halfHeight) > 1.0f) {
+                    canvas.drawOval(new RectF(rect), paint);
+                } else {
+                    canvas.drawCircle(cx, cy, halfWidth, paint);
+                }
                 break;
             case RECT:
                 canvas.drawRect(rect, paint);
                 break;
-            case ROUND_RECT:
-                float radius = rect.height() * 0.5f;
-                canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, radius, radius, paint);
+            case ROUND_RECT: {
+                float radius = Math.min(halfWidth, halfHeight) * 0.5f;
+                canvas.drawRoundRect(new RectF(rect), radius, radius, paint);
                 break;
-            case CAPSULE:
+            }
+            case CAPSULE: {
                 float capRadius = Math.min(halfWidth, halfHeight);
-                canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, capRadius, capRadius, paint);
+                canvas.drawRoundRect(new RectF(rect), capRadius, capRadius, paint);
                 break;
+            }
             case OVAL:
                 canvas.drawOval(new RectF(rect), paint);
                 break;
-            case SQUARE:
-                float squareRadius = inputControlsView.getSnappingSize() * 0.75f * scale;
-                canvas.drawRoundRect(rect.left, rect.top, rect.right, rect.bottom, squareRadius, squareRadius, paint);
+            case SQUARE: {
+                float squareRadius = Math.min(halfWidth, halfHeight) * 0.25f;
+                canvas.drawRoundRect(new RectF(rect), squareRadius, squareRadius, paint);
                 break;
+            }
             case HEXAGON: {
                 Path hexPath = inputControlsView.getPath();
                 hexPath.reset();
@@ -1133,8 +1140,15 @@ public class ControlElement {
 
         switch (shape) {
             case CIRCLE: {
-                float r = Math.min(halfW, halfH) + pad;
-                return (dx * dx + dy * dy) <= (r * r);
+                if (Math.abs(halfW - halfH) > 1.0f) {
+                    float a = halfW + pad;
+                    float b = halfH + pad;
+                    if (a <= 0 || b <= 0) return false;
+                    return ((dx * dx) / (a * a) + (dy * dy) / (b * b)) <= 1.0f;
+                } else {
+                    float r = halfW + pad;
+                    return (dx * dx + dy * dy) <= (r * r);
+                }
             }
             case OVAL: {
                 float a = halfW + pad;
