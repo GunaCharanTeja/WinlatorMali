@@ -8,6 +8,9 @@ add_subdirectory(OpenXR-SDK)
 add_subdirectory(patchelf)
 add_subdirectory(adrenotools)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Add Winlator shared library
 add_library(winlator SHARED
         xr/engine.c
@@ -22,6 +25,9 @@ add_library(winlator SHARED
         winlator/xconnector_epoll.c
         winlator/alsa_client.c
         winlator/vulkan.c
+        apex/apex_pacing.cpp
+        apex/apex_pipeline.cpp
+        apex/apex_jni_bridge.cpp
 )
 
 target_compile_options(winlator PRIVATE -Wall -Wextra)

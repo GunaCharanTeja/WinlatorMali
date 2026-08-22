@@ -21,7 +21,8 @@ public class XServerView extends GLSurfaceView {
         setPreserveEGLContextOnPause(true);
         renderer = new GLRenderer(this, xServer);
         setRenderer(renderer);
-        setRenderMode(RENDERMODE_WHEN_DIRTY);
+        setRenderMode(RENDERMODE_CONTINUOUSLY);
+        renderer.startChoreographer();
     }
 
     public void setApexMode(boolean active) {

@@ -1,26 +1,22 @@
 package com.winlator.cmod.renderer;
 
 import android.opengl.GLES20;
-import android.util.Log;
-
 import com.winlator.cmod.renderer.effects.Effect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
 import com.winlator.cmod.renderer.effects.HDREffect;
 import com.winlator.cmod.renderer.effects.FSREffect;
-import com.winlator.cmod.renderer.lsfg.LSFGEffect;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class EffectComposer {
-    private static final String TAG = "EffectComposer";
     private boolean isRendering = false;
     private final List<Effect> effects = new ArrayList<>();
     private RenderTarget readBuffer;
     private RenderTarget writeBuffer;
     private final GLRenderer renderer;
-    private Boolean supportsGLES31Cache = null;
+    private int frameCount = 0;
 
     public EffectComposer(GLRenderer renderer) {
         this.renderer = renderer;
@@ -45,11 +41,7 @@ public class EffectComposer {
 
     public synchronized void addEffect(Effect effect) {
         if (!effects.contains(effect)) {
-            if (effect instanceof LSFGEffect) {
-                effects.add(0, effect);
-            } else {
-                effects.add(effect);
-            }
+            effects.add(effect);
         }
         renderer.xServerView.requestRender();
     }
@@ -86,87 +78,81 @@ public class EffectComposer {
         if (isRendering) return;
         isRendering = true;
 
-        LSFGEffect lsfgEffect = getEffect(LSFGEffect.class);
-        boolean isGenerated = lsfgEffect != null && lsfgEffect.getManager().isGeneratedFrame();
-
         initBuffers();
 
-        if (!isGenerated) {
-            // Disable cursor rendering during off-screen game capture to avoid generator warping artifacts
-            renderer.setRenderCursorEnabled(false);
-            
-            // Force viewport update to ensure capture pass respects current windowed/fullscreen state
-            renderer.viewportNeedsUpdate = true;
+        // 1. Draw game scene into offscreen readBuffer
+        renderer.setRenderCursorEnabled(false);
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        renderer.drawFrame();
+        renderer.setRenderCursorEnabled(true);
 
-            // Draw game to readBuffer at surface resolution
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
-            
-            // Clear the WHOLE buffer first (for black bars)
+        // 2. Dispatch Native Apex Frame Generation or Normal Passthrough
+        if (ApexNativeBridge.nativeIsActive()) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
             GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-            
-            renderer.drawFrame();
-            
-            // Restore cursor rendering
-            renderer.setRenderCursorEnabled(true);
-            
-            // Capture for Apex
-            if (lsfgEffect != null) lsfgEffect.onPreRender(readBuffer, null);
-        } else {
-            // Process Apex Logic (Compute pass)
-            if (lsfgEffect != null) lsfgEffect.onPreRender(readBuffer, null);
-        }
 
-        if (hasEffects()) {
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            ApexNativeBridge.nativeProcessFrame(
+                readBuffer.getTextureId(),
+                0, // Target default screen framebuffer
+                renderer.surfaceWidth,
+                renderer.surfaceHeight
+            );
+        } else if (hasEffects()) {
             for (int i = 0; i < effects.size(); i++) {
                 Effect effect = effects.get(i);
                 boolean renderToScreen = (i == effects.size() - 1);
                 int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
 
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
-                
-                // Always use the full surface viewport to maintain 1:1 mapping with the captured buffer
                 GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
-                
+
                 if (renderToScreen && !renderer.isFullscreen()) {
-                    // Use scissor to restrict the final DRAWING to the game area (clips cursor and prevents bleeding)
                     GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-                    GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY, 
+                    GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY,
                                      renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
                 } else {
                     GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
                 }
-                
+
                 GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
                 renderEffect(effect);
 
                 if (!renderToScreen) swapBuffers();
             }
+        } else {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            if (!renderer.isFullscreen()) {
+                GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+                GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY,
+                                 renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
+                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+            } else {
+                GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+            }
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            renderEffect(null);
         }
 
-        // Final pass: draw cursor (it will be clipped by the scissor set above)
+        // 3. Render hardware cursor on top
         renderer.drawCursorExplicitly();
-        
-        // Cleanup: ensure viewport and state are reset for next frame
         renderer.viewportNeedsUpdate = true;
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
         isRendering = false;
     }
 
-    private int frameCount = 0;
-
     private void renderEffect(Effect effect) {
-        ShaderMaterial material = effect.getMaterial();
+        ShaderMaterial material = effect != null ? effect.getMaterial() : renderer.getPassthroughMaterial();
         if (material == null) return;
 
         material.use();
         renderer.getQuadVertices().bind(material.programId);
         material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
-        
-        // Pass extra uniforms if the shader requires them (e.g. NTSC effect)
         material.setUniformInt("FrameCount", frameCount++);
         material.setUniformVec2("TextureSize", readBuffer.getWidth(), readBuffer.getHeight());
 
@@ -192,42 +178,6 @@ public class EffectComposer {
             addEffect(new ToonEffect());
         }
         renderer.xServerView.requestRender();
-    }
-
-    public synchronized void toggleLSFGEffect(boolean enabled) {
-        LSFGEffect lsfgEffect = getEffect(LSFGEffect.class);
-        if (lsfgEffect != null) {
-            if (!enabled) {
-                lsfgEffect.getManager().setEnabled(false);
-                removeEffect(lsfgEffect);
-            }
-        } else if (enabled) {
-            if (supportsGLES31Cache == null) {
-                try {
-                    String version = GLES20.glGetString(GLES20.GL_VERSION);
-                    if (version != null) {
-                        supportsGLES31Cache = version.contains("OpenGL ES 3.1") || version.contains("OpenGL ES 3.2");
-                    } else if (renderer.xServerView.getContext() != null) {
-                        android.app.ActivityManager activityManager = (android.app.ActivityManager) renderer.xServerView.getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE);
-                        if (activityManager != null) {
-                            android.content.pm.ConfigurationInfo configInfo = activityManager.getDeviceConfigurationInfo();
-                            supportsGLES31Cache = configInfo.reqGlEsVersion >= 0x00030001;
-                        }
-                    }
-                } catch (Exception e) {
-                    supportsGLES31Cache = false;
-                }
-                if (supportsGLES31Cache == null) supportsGLES31Cache = false;
-            }
-            
-            if (supportsGLES31Cache) {
-                lsfgEffect = new LSFGEffect(renderer, renderer.getLSFGManager());
-                addEffect(lsfgEffect);
-                lsfgEffect.getManager().setEnabled(true);
-            } else {
-                Log.e(TAG, "GLES 3.1 not supported, cannot enable LSFG");
-            }
-        }
     }
 
     public synchronized void toggleHDREffect(boolean enabled) {

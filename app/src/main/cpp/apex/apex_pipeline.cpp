@@ -1,0 +1,697 @@
+#include "apex_engine.h"
+#include "apex_shaders.h"
+#include <vector>
+#include <cstring>
+#include <iomanip>
+#include <sstream>
+
+namespace apex {
+
+ApexEngine& ApexEngine::getInstance() {
+    static ApexEngine instance;
+    return instance;
+}
+
+ApexEngine::ApexEngine() {
+    mDesktopPassTextures.fill(0);
+    mDeltaHistory.fill(33333334.0f);
+    mSortedHistory.fill(33333334.0f);
+}
+
+ApexEngine::~ApexEngine() {
+    destroy();
+}
+
+static const char* getShaderTypeName(GLenum type) {
+    switch (type) {
+        case GL_VERTEX_SHADER:   return "VERTEX_SHADER";
+        case GL_FRAGMENT_SHADER: return "FRAGMENT_SHADER";
+        case GL_COMPUTE_SHADER:  return "COMPUTE_SHADER";
+        default:                 return "UNKNOWN_SHADER";
+    }
+}
+
+static const char* getGlErrorString(GLenum err) {
+    switch (err) {
+        case GL_NO_ERROR:                      return "GL_NO_ERROR";
+        case GL_INVALID_ENUM:                  return "GL_INVALID_ENUM";
+        case GL_INVALID_VALUE:                 return "GL_INVALID_VALUE";
+        case GL_INVALID_OPERATION:             return "GL_INVALID_OPERATION";
+        case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+        case GL_OUT_OF_MEMORY:                 return "GL_OUT_OF_MEMORY";
+        default:                               return "GL_UNKNOWN_ERROR";
+    }
+}
+
+static GLuint compileShader(GLenum type, const char* source) {
+    if (!source || std::strlen(source) == 0) {
+        __android_log_print(ANDROID_LOG_ERROR, "ApexEngine", "ApexShader: FAILED TO COMPILE - Source is empty or null");
+        return 0;
+    }
+
+    GLuint shader = glCreateShader(type);
+    if (shader == 0) {
+        __android_log_print(ANDROID_LOG_ERROR, "ApexEngine", "ApexShader: FAILED TO COMPILE - glCreateShader returned 0");
+        return 0;
+    }
+
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
+
+    GLint success = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLint logLen = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
+        std::vector<char> infoLog(std::max(1, logLen));
+        if (logLen > 0) {
+            glGetShaderInfoLog(shader, logLen, nullptr, infoLog.data());
+        }
+        __android_log_print(ANDROID_LOG_ERROR, "ApexEngine", "ApexShader: FAILED TO COMPILE - %s", infoLog.data());
+        glDeleteShader(shader);
+        return 0;
+    }
+
+    APEX_LOGD("Shader compiled successfully: ID %u (%s, %zu bytes)", shader, getShaderTypeName(type), std::strlen(source));
+    return shader;
+}
+
+static GLuint createProgram(GLuint vs, GLuint fs) {
+    if (!vs || !fs) {
+        APEX_LOGE("createProgram: Invalid vertex (%u) or fragment (%u) shader handles", vs, fs);
+        return 0;
+    }
+
+    GLuint program = glCreateProgram();
+    if (program == 0) {
+        APEX_LOGE("createProgram: glCreateProgram failed! GL Error: %s", getGlErrorString(glGetError()));
+        return 0;
+    }
+
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+
+    GLint success = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLint logLen = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        std::vector<char> infoLog(std::max(1, logLen));
+        if (logLen > 0) {
+            glGetProgramInfoLog(program, logLen, nullptr, infoLog.data());
+        }
+        APEX_LOGE("=================================================================");
+        APEX_LOGE("GRAPHICS PROGRAM LINKING FAILED! [VS: %u, FS: %u]", vs, fs);
+        APEX_LOGE("InfoLog:\n%s", infoLog.data());
+        APEX_LOGE("=================================================================");
+        glDeleteProgram(program);
+        return 0;
+    }
+
+    APEX_LOGI("Graphics Program linked successfully: ID %u [VS: %u, FS: %u]", program, vs, fs);
+    return program;
+}
+
+static GLuint createComputeProgram(const char* computeSource) {
+    GLuint cs = compileShader(GL_COMPUTE_SHADER, computeSource);
+    if (!cs) {
+        APEX_LOGE("createComputeProgram: Compute shader compilation failed");
+        return 0;
+    }
+
+    GLuint program = glCreateProgram();
+    if (program == 0) {
+        APEX_LOGE("createComputeProgram: glCreateProgram failed! GL Error: %s", getGlErrorString(glGetError()));
+        glDeleteShader(cs);
+        return 0;
+    }
+
+    glAttachShader(program, cs);
+    glLinkProgram(program);
+    glDeleteShader(cs);
+
+    GLint success = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        GLint logLen = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        std::vector<char> infoLog(std::max(1, logLen));
+        if (logLen > 0) {
+            glGetProgramInfoLog(program, logLen, nullptr, infoLog.data());
+        }
+        APEX_LOGE("=================================================================");
+        APEX_LOGE("COMPUTE PROGRAM LINKING FAILED!");
+        APEX_LOGE("InfoLog:\n%s", infoLog.data());
+        APEX_LOGE("=================================================================");
+        glDeleteProgram(program);
+        return 0;
+    }
+
+    APEX_LOGI("Compute Program linked successfully: ID %u", program);
+    return program;
+}
+
+void ApexEngine::compileShaders() {
+    APEX_LOGI("Compiling Apex Optical Flow & Warping Shaders...");
+
+    if (mComputeProgramFused == 0) {
+        mComputeProgramFused = createComputeProgram(kComputeShaderFused);
+    }
+    if (mComputeProgramMulti == 0) {
+        mComputeProgramMulti = createComputeProgram(kComputeShaderMulti);
+    }
+    if (mWarpingProgram == 0) {
+        GLuint vs = compileShader(GL_VERTEX_SHADER, kWarpingVertexShader);
+        GLuint fs = compileShader(GL_FRAGMENT_SHADER, kWarpingFragmentShader);
+        if (vs && fs) {
+            mWarpingProgram = createProgram(vs, fs);
+            glDeleteShader(vs);
+            glDeleteShader(fs);
+        }
+    }
+
+    if (mComputeProgramFused && mComputeProgramMulti && mWarpingProgram) {
+        APEX_LOGI("All Apex Shaders compiled and linked successfully. (Fused: %u, Multi: %u, Warping: %u)",
+                  mComputeProgramFused, mComputeProgramMulti, mWarpingProgram);
+    } else {
+        APEX_LOGE("One or more Apex shaders failed to compile! (Fused: %u, Multi: %u, Warping: %u)",
+                  mComputeProgramFused, mComputeProgramMulti, mWarpingProgram);
+    }
+}
+
+static void createStorageTexture(GLuint& tex, int width, int height, const char* name) {
+    if (tex == 0) {
+        glGenTextures(1, &tex);
+    }
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA16F, width, height);
+    
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        APEX_LOGE("createStorageTexture (%s %dx%d) failed! Error: %s (0x%X)",
+                  name, width, height, getGlErrorString(err), err);
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    APEX_LOGD("Created RGBA16F Storage Texture: %s (ID %u, %dx%d)", name, tex, width, height);
+}
+
+static void createColorTexture(GLuint& tex, int width, int height, const char* name) {
+    if (tex == 0) {
+        glGenTextures(1, &tex);
+    }
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        APEX_LOGE("createColorTexture (%s %dx%d) failed! Error: %s (0x%X)",
+                  name, width, height, getGlErrorString(err), err);
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    APEX_LOGD("Created RGBA8 Color Texture: %s (ID %u, %dx%d)", name, tex, width, height);
+}
+
+void ApexEngine::ensureResources(int width, int height) {
+    if (mSurfaceWidth != width || mSurfaceHeight != height) {
+        APEX_LOGI("Dimension changed (%dx%d -> %dx%d), reallocating GPU resources...",
+                  mSurfaceWidth, mSurfaceHeight, width, height);
+        cleanupResources();
+        mSurfaceWidth = width;
+        mSurfaceHeight = height;
+    }
+
+    if (mCurrentCapturedTexture == 0) {
+        createColorTexture(mCurrentCapturedTexture, width, height, "CurrentCapturedTexture");
+    }
+    if (mPreviousCapturedTexture == 0) {
+        createColorTexture(mPreviousCapturedTexture, width, height, "PreviousCapturedTexture");
+    }
+    if (mCaptureFbo == 0) {
+        glGenFramebuffers(1, &mCaptureFbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mCurrentCapturedTexture, 0);
+        GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
+            APEX_LOGE("Capture FBO incomplete! Status: 0x%X", fboStatus);
+        } else {
+            APEX_LOGI("Capture FBO created and verified complete (ID %u)", mCaptureFbo);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    if (mMotionVectorTexture == 0) {
+        createStorageTexture(mMotionVectorTexture, width, height, "MotionVectorTexture");
+    }
+    if (mMvHistoryTexture == 0) {
+        createStorageTexture(mMvHistoryTexture, width, height, "MvHistoryTexture");
+    }
+
+    // Allocate Intermediate Multi-Pass Textures (GL_RGBA16F)
+    int wL1 = std::max(1, width / 2);
+    int hL1 = std::max(1, height / 2);
+    int wL2 = std::max(1, width / 4);
+    int hL2 = std::max(1, height / 4);
+
+    if (mDesktopPassTextures[0] == 0) createStorageTexture(mDesktopPassTextures[0], width, height, "Pass0_L0Luma");
+    if (mDesktopPassTextures[1] == 0) createStorageTexture(mDesktopPassTextures[1], wL1, hL1,       "Pass1_L1Luma");
+    if (mDesktopPassTextures[2] == 0) createStorageTexture(mDesktopPassTextures[2], wL2, hL2,       "Pass2_L2Luma");
+    if (mDesktopPassTextures[3] == 0) createStorageTexture(mDesktopPassTextures[3], wL2, hL2,       "Pass3_CoarseMV");
+    if (mDesktopPassTextures[4] == 0) createStorageTexture(mDesktopPassTextures[4], wL1, hL1,       "Pass4_MidMV");
+    if (mDesktopPassTextures[5] == 0) createStorageTexture(mDesktopPassTextures[5], width, height, "Pass5_RawMV");
+    if (mDesktopPassTextures[6] == 0) createStorageTexture(mDesktopPassTextures[6], width, height, "Pass6_Divergence");
+    if (mDesktopPassTextures[7] == 0) createStorageTexture(mDesktopPassTextures[7], width, height, "Pass7_FilteredMV");
+
+    // Setup Full-Screen Quad VAO & VBO
+    if (mQuadVao == 0) {
+        const float quadVerts[] = {
+            0.0f, 0.0f,
+            1.0f, 0.0f,
+            0.0f, 1.0f,
+            1.0f, 1.0f
+        };
+        glGenVertexArrays(1, &mQuadVao);
+        glGenBuffers(1, &mQuadVbo);
+
+        glBindVertexArray(mQuadVao);
+        glBindBuffer(GL_ARRAY_BUFFER, mQuadVbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        APEX_LOGI("Full-screen quad VAO (%u) and VBO (%u) initialized", mQuadVao, mQuadVbo);
+    }
+}
+
+void ApexEngine::cleanupResources() {
+    APEX_LOGI("Cleaning up ApexEngine GPU resources...");
+    if (mCurrentCapturedTexture) { glDeleteTextures(1, &mCurrentCapturedTexture); mCurrentCapturedTexture = 0; }
+    if (mPreviousCapturedTexture) { glDeleteTextures(1, &mPreviousCapturedTexture); mPreviousCapturedTexture = 0; }
+    if (mMotionVectorTexture) { glDeleteTextures(1, &mMotionVectorTexture); mMotionVectorTexture = 0; }
+    if (mMvHistoryTexture) { glDeleteTextures(1, &mMvHistoryTexture); mMvHistoryTexture = 0; }
+
+    for (GLuint& tex : mDesktopPassTextures) {
+        if (tex) {
+            glDeleteTextures(1, &tex);
+            tex = 0;
+        }
+    }
+
+    if (mCaptureFbo) { glDeleteFramebuffers(1, &mCaptureFbo); mCaptureFbo = 0; }
+    if (mQuadVbo) { glDeleteBuffers(1, &mQuadVbo); mQuadVbo = 0; }
+    if (mQuadVao) { glDeleteVertexArrays(1, &mQuadVao); mQuadVao = 0; }
+}
+
+void ApexEngine::init(int width, int height) {
+    APEX_LOGI("ApexEngine::init(%d, %d) - Initializing native GLES 3.1 Frame Generation Engine", width, height);
+    mSurfaceWidth = width;
+    mSurfaceHeight = height;
+    compileShaders();
+    ensureResources(width, height);
+    mInitialized = true;
+    APEX_LOGI("ApexEngine initialization complete! Active: %s, Preset: %s, Target FPS: %d",
+              mActive.load() ? "TRUE" : "FALSE", getQualityPresetName(mQualityPreset.load()), mTargetFPS.load());
+}
+
+void ApexEngine::updateDimensions(int width, int height) {
+    if (mSurfaceWidth != width || mSurfaceHeight != height) {
+        APEX_LOGI("ApexEngine::updateDimensions(%dx%d -> %dx%d)", mSurfaceWidth, mSurfaceHeight, width, height);
+        init(width, height);
+    }
+}
+
+void ApexEngine::destroy() {
+    APEX_LOGI("ApexEngine::destroy() - Destroying pipeline and shaders");
+    cleanupResources();
+    if (mComputeProgramFused) { glDeleteProgram(mComputeProgramFused); mComputeProgramFused = 0; }
+    if (mComputeProgramMulti) { glDeleteProgram(mComputeProgramMulti); mComputeProgramMulti = 0; }
+    if (mWarpingProgram) { glDeleteProgram(mWarpingProgram); mWarpingProgram = 0; }
+    mInitialized = false;
+    APEX_LOGI("ApexEngine destroyed successfully");
+}
+
+void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, int height) {
+    int quality = mQualityPreset.load(std::memory_order_acquire);
+
+    // Ping-pong motion vector history
+    std::swap(mMotionVectorTexture, mMvHistoryTexture);
+
+    if (quality == QUALITY_ULTRA_PERFORMANCE) {
+        // Preset 0: 1 Fused Pass (1/4x Native)
+        int w = std::max(1, width / 4);
+        int h = std::max(1, height / 4);
+
+        glUseProgram(mComputeProgramFused);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, currTex);
+        glUniform1i(glGetUniformLocation(mComputeProgramFused, "currFrame"), 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, prevTex);
+        glUniform1i(glGetUniformLocation(mComputeProgramFused, "prevFrame"), 1);
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, mMvHistoryTexture);
+        glUniform1i(glGetUniformLocation(mComputeProgramFused, "mvHistoryTexture"), 2);
+
+        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((w + 15) / 16, (h + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+        return;
+    }
+
+    // Presets 1 - 4: Multi-Pass Pipeline
+    glUseProgram(mComputeProgramMulti);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "quality"), quality);
+
+    // Bind common samplers
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, currTex);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "currFrame"), 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, prevTex);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "prevFrame"), 1);
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, mMvHistoryTexture);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "mvHistoryTexture"), 2);
+
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[0]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL0"), 3);
+
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[1]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL1"), 4);
+
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[2]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL2"), 5);
+
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[3]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "coarseMVTex"), 6);
+
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[4]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "midMVTex"), 7);
+
+    glActiveTexture(GL_TEXTURE8);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[5]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "rawMVTex"), 8);
+
+    glActiveTexture(GL_TEXTURE9);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[6]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "divergenceTex"), 9);
+
+    glActiveTexture(GL_TEXTURE10);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[7]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "filteredMVTex"), 10);
+
+    GLint locPass = glGetUniformLocation(mComputeProgramMulti, "passIndex");
+
+    int wL1 = std::max(1, width / 2);
+    int hL1 = std::max(1, height / 2);
+    int wL2 = std::max(1, width / 4);
+    int hL2 = std::max(1, height / 4);
+
+    if (quality == QUALITY_PERFORMANCE) {
+        // Preset 1: 3 Passes (1/4x)
+        glUniform1i(locPass, 1);
+        glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 4);
+        glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 8);
+        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+    else if (quality == QUALITY_BALANCED) {
+        // Preset 2: 5 Passes (1/3x)
+        int wWork = std::max(1, width / 3);
+        int hWork = std::max(1, height / 3);
+        int wHalf = std::max(1, wWork / 2);
+        int hHalf = std::max(1, hWork / 2);
+
+        glUniform1i(locPass, 1);
+        glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wWork + 15) / 16, (hWork + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 2);
+        glBindImageTexture(0, mDesktopPassTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wHalf + 15) / 16, (hHalf + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 4);
+        glBindImageTexture(0, mDesktopPassTextures[3], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wHalf + 15) / 16, (hHalf + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 5);
+        glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wWork + 15) / 16, (hWork + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 8);
+        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wWork + 15) / 16, (hWork + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+    else if (quality == QUALITY_HIGH_QUALITY) {
+        // Preset 3: 7 Passes (1/2x)
+        glUniform1i(locPass, 1);
+        glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 2);
+        glBindImageTexture(0, mDesktopPassTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 4);
+        glBindImageTexture(0, mDesktopPassTextures[3], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 5);
+        glBindImageTexture(0, mDesktopPassTextures[4], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 6);
+        glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 8);
+        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+    else if (quality == QUALITY_DESKTOP_QUALITY) {
+        // Preset 4: 10 Passes (1:1 Native)
+        glUniform1i(locPass, 1);
+        glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 2);
+        glBindImageTexture(0, mDesktopPassTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 3);
+        glBindImageTexture(0, mDesktopPassTextures[2], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 4);
+        glBindImageTexture(0, mDesktopPassTextures[3], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 5);
+        glBindImageTexture(0, mDesktopPassTextures[4], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 6);
+        glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 7);
+        glBindImageTexture(0, mDesktopPassTextures[6], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 8);
+        glBindImageTexture(0, mDesktopPassTextures[7], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 9);
+        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+}
+
+void ApexEngine::runWarpingPass(GLuint currTex, GLuint prevTex, GLuint mvTex, GLuint outputFboId, float factor, int width, int height) {
+    glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
+    glViewport(0, 0, width, height);
+
+    glUseProgram(mWarpingProgram);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, currTex);
+    glUniform1i(glGetUniformLocation(mWarpingProgram, "currentCapturedTexture"), 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, prevTex);
+    glUniform1i(glGetUniformLocation(mWarpingProgram, "previousCapturedTexture"), 1);
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, mvTex);
+    glUniform1i(glGetUniformLocation(mWarpingProgram, "motionVectorTexture"), 2);
+
+    glUniform2f(glGetUniformLocation(mWarpingProgram, "resolution"), static_cast<float>(width), static_cast<float>(height));
+    glUniform1f(glGetUniformLocation(mWarpingProgram, "interpolationFactor"), factor);
+    glUniform1f(glGetUniformLocation(mWarpingProgram, "qualityMode"), static_cast<float>(mQualityPreset.load(std::memory_order_relaxed)));
+    glUniform1f(glGetUniformLocation(mWarpingProgram, "uBlurIntensity"), mShutterGain.load(std::memory_order_relaxed));
+
+    glBindVertexArray(mQuadVao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void ApexEngine::logHeartbeatIfDue(int64_t nowNanos) {
+    if (mLastHeartbeatTimeNanos == 0) {
+        mLastHeartbeatTimeNanos = nowNanos;
+        return;
+    }
+
+    int64_t elapsed = nowNanos - mLastHeartbeatTimeNanos;
+    if (elapsed >= 2000000000LL) { // 2.0s Heartbeat
+        float deltaSec = static_cast<float>(elapsed) / 1000000000.0f;
+        float realFps = static_cast<float>(mHeartbeatRealFrames) / deltaSec;
+        float genFps = static_cast<float>(mHeartbeatGenFrames) / deltaSec;
+        float totalFps = realFps + genFps;
+        float typicalMs = mTypicalDeltaNanos / 1000000.0f;
+
+        APEX_LOGI("[HEARTBEAT] Preset: %s | Real: %.1f FPS | Gen: %.1f FPS | Total: %.1f FPS | Multiplier: %dx (%.2f) | Pacing: %.2f ms (Target: %d FPS)",
+                  getQualityPresetName(mQualityPreset.load()),
+                  realFps, genFps, totalFps,
+                  mAutoMultiplier.load(), mAutoMultiplierVal.load(),
+                  typicalMs, mTargetFPS.load());
+
+        APEX_LOGI("[HEARTBEAT] Factor: last=%.3f (min=%.3f, max=%.3f) | Deltas: [%.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.1f] ms",
+                  mLastFactor, mMinFactor, mMaxFactor,
+                  mDeltaHistory[0] / 1000000.0f, mDeltaHistory[1] / 1000000.0f,
+                  mDeltaHistory[2] / 1000000.0f, mDeltaHistory[3] / 1000000.0f,
+                  mDeltaHistory[4] / 1000000.0f, mDeltaHistory[5] / 1000000.0f,
+                  mDeltaHistory[6] / 1000000.0f, mDeltaHistory[7] / 1000000.0f);
+
+        mHeartbeatRealFrames = 0;
+        mHeartbeatGenFrames = 0;
+        mLastHeartbeatTimeNanos = nowNanos;
+        mMinFactor = 1.0f;
+        mMaxFactor = 0.0f;
+    }
+}
+
+void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int width, int height) {
+    if (!mActive.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    if (!mInitialized || mSurfaceWidth != width || mSurfaceHeight != height) {
+        init(width, height);
+    }
+
+    int64_t nowNanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    // Consume pending real frame flag set when DXVK/Wine updates window content
+    bool hasPendingReal = mPendingRealFrame.exchange(false, std::memory_order_acq_rel);
+    bool isReal = hasPendingReal || (mRealFramesCaptured.load(std::memory_order_relaxed) < 2);
+
+    if (isReal) {
+        // REAL GAME FRAME: Ingest to history, update optical flow, display real frame (factor = 1.0)
+        mHeartbeatRealFrames++;
+        mActualRealFrameCount.fetch_add(1, std::memory_order_relaxed);
+
+        int64_t lastRealTime = mLastRealFrameTimeNanos.load(std::memory_order_acquire);
+        std::swap(mPreviousCapturedTexture, mCurrentCapturedTexture);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mCurrentCapturedTexture, 0);
+        glViewport(0, 0, width, height);
+
+        // Blit incoming game frame into current capture texture
+        runWarpingPass(inputTextureId, inputTextureId, mMotionVectorTexture, mCaptureFbo, 1.0f, width, height);
+
+        if (lastRealTime > 0) {
+            float delta = static_cast<float>(nowNanos - lastRealTime);
+            if (delta > 1000000.0f && delta < 300000000.0f) {
+                mDeltaHistory[mHistoryIndex] = delta;
+                mHistoryIndex = (mHistoryIndex + 1) % mDeltaHistory.size();
+
+                std::copy(mDeltaHistory.begin(), mDeltaHistory.end(), mSortedHistory.begin());
+                std::sort(mSortedHistory.begin(), mSortedHistory.end());
+                float medianDelta = mSortedHistory[mSortedHistory.size() / 2];
+
+                mTypicalDeltaNanos = mTypicalDeltaNanos * 0.40f + medianDelta * 0.60f;
+            }
+        }
+        mLastRealFrameTimeNanos.store(nowNanos, std::memory_order_release);
+
+        // Run optical flow compute shaders between current and previous frame
+        runComputePipeline(mCurrentCapturedTexture, mPreviousCapturedTexture, width, height);
+
+        // Present real frame to screen (zero lag, factor = 1.0)
+        runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, 1.0f, width, height);
+
+        mRealFramesCaptured.fetch_add(1, std::memory_order_relaxed);
+        mFramesSinceReal.store(0, std::memory_order_release);
+        mRenderingGeneratedFrame.store(false, std::memory_order_release);
+    } else {
+        // GENERATED FRAME: Synthesize intermediate frame using optical flow vectors
+        mHeartbeatGenFrames++;
+        mGeneratedFrameCount.fetch_add(1, std::memory_order_relaxed);
+        mFramesSinceReal.fetch_add(1, std::memory_order_relaxed);
+
+        float factor = getInterpolationFactor(nowNanos);
+        runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, factor, width, height);
+        mRenderingGeneratedFrame.store(true, std::memory_order_release);
+    }
+
+    logHeartbeatIfDue(nowNanos);
+}
+
+} // namespace apex

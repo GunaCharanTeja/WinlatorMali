@@ -342,8 +342,8 @@
     </string-array>
     <string-array name="vkbasalt_sharpness_entries">
         <item>None</item>
-        <item>CAS</item>
-        <item>DLS</item>
+        <item>AMD RCAS</item>
+        <item>AMD RCAS + Vibrance</item>
     </string-array>
     <string-array name="num_controllers_entries">
         <item>1</item>
@@ -355,9 +355,11 @@
         <item>Unified Control System</item>
     </string-array>
     <string-array name="lsfg_quality_entries">
-        <item>Performance</item>
-        <item>Balanced</item>
-        <item>High Quality</item>
+        <item>Ultra Performance (1-2 Passes - OG Mobile)</item>
+        <item>Performance (3 Physical Passes)</item>
+        <item>Balanced (5 Physical Passes)</item>
+        <item>High Quality (7 Physical Passes)</item>
+        <item>Desktop Quality (10 Physical Passes)</item>
     </string-array>
     <string-array name="lsfg_multiplier_entries">
         <item>2x</item>
@@ -374,8 +376,8 @@
         <item>120 FPS</item>
     </string-array>
     <string-array name="sharpening_mode_entries">
-        <item>CAS (Pure)</item>
-        <item>DLS (CAS + Saturation)</item>
+        <item>AMD RCAS (Pure Sharpening)</item>
+        <item>AMD RCAS + Vibrance (Color Pop)</item>
     </string-array>
     <string-array name="fps_limit_entries">
         <item>Unlimited</item>

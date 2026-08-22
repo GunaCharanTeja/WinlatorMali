@@ -1049,7 +1049,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         tvScale.setText(String.format(Locale.US, "%.1fx", initialScaleValue));
 
         String[] presets = {"Custom", "Top Left", "Top Center", "Top Right", "Middle Left", "Center", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"};
-        spPreset.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, presets));
+        int popupBgRes = isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background;
+        spPreset.setPopupBackgroundResource(popupBgRes);
+        spPreset.setAdapter(createThemedSpinnerAdapter(this, presets, isDarkMode));
 
         cbEnable.setOnCheckedChangeListener((v, isChecked) -> {
             if (isChecked) frameRating.enableByUser();
