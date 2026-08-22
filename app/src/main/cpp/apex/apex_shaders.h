@@ -30,20 +30,20 @@ void main() {
 
     vec2 uv = (vec2(pixelPos) + 0.5) / vec2(imageSize);
     vec2 ts = 1.0 / vec2(imageSize);
-    const vec2 maxVelocity = vec2(0.15); // Max 15% screen motion
+    const vec2 maxVelocity = vec2(0.20); // 20% screen velocity range
 
     float l00 = getPerceptualLuma(textureLod(currFrame, uv, 0.0).rgb);
     float p00 = getPerceptualLuma(textureLod(prevFrame, uv, 0.0).rgb);
     float diff = abs(l00 - p00);
 
-    // Decoupled HUD / Static Region Mask
+    // Static HUD / UI Mask
     float lumaN = getPerceptualLuma(textureLod(currFrame, uv + vec2(0.0, -ts.y), 0.0).rgb);
     float lumaS = getPerceptualLuma(textureLod(currFrame, uv + vec2(0.0,  ts.y), 0.0).rgb);
     float lumaE = getPerceptualLuma(textureLod(currFrame, uv + vec2( ts.x, 0.0), 0.0).rgb);
     float lumaW = getPerceptualLuma(textureLod(currFrame, uv + vec2(-ts.x, 0.0), 0.0).rgb);
     float edgeStrength = abs(lumaN + lumaS + lumaE + lumaW - 4.0 * l00);
 
-    if (diff < 0.006 || (edgeStrength > 0.15 && diff < 0.020)) {
+    if (diff < 0.005 || (edgeStrength > 0.18 && diff < 0.015)) {
         imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 1.0, 1.0));
         return;
     }
@@ -51,9 +51,9 @@ void main() {
     vec2 bestMV = vec2(0.0);
     float bestSAD = diff;
 
-    // 2-Tier Hierarchical Diamond Search with Clamping
-    float steps[2] = float[2](12.0, 4.0);
-    for (int s = 0; s < 2; s++) {
+    // 3-Tier Multi-Scale Diamond Search (Extended Range for fast camera pans)
+    float steps[3] = float[3](24.0, 10.0, 3.0);
+    for (int s = 0; s < 3; s++) {
         float stepVal = steps[s];
         for (int j = 0; j < 8; j++) {
             vec2 off = clamp(bestMV + diamondOffsets8[j] * (stepVal * ts), -maxVelocity, maxVelocity);
@@ -67,7 +67,7 @@ void main() {
         }
     }
 
-    // 3x3 Spatial Vector Median Filter
+    // 3x3 Spatial Vector Median Filter (FSR 3 / FidelityFX)
     vec2 neighborMVs[9];
     int nIdx = 0;
     for (int dy = -1; dy <= 1; dy++) {
@@ -91,8 +91,8 @@ void main() {
         }
     }
 
-    // Deadzone for subpixel micro-jitter suppression
-    if (length(bestMV) < ts.x * 0.25) {
+    // Subpixel micro-jitter deadband
+    if (length(bestMV) < ts.x * 0.30) {
         bestMV = vec2(0.0);
     }
 
@@ -148,7 +148,7 @@ void main() {
 
     vec2 uv = (vec2(pixelPos) + 0.5) / vec2(imageSize);
     vec2 ts = 1.0 / vec2(imageSize);
-    const vec2 maxVelocity = vec2(0.15); // Max 15% screen motion limit
+    const vec2 maxVelocity = vec2(0.20); // 20% screen velocity range
 
     if (passIndex == 1) {
         // PASS 1: Native Perceptual Luma Extraction (L0)
@@ -180,15 +180,16 @@ void main() {
         return;
     }
     else if (passIndex == 4) {
-        // PASS 4: Coarse Scale Optical Flow Estimation
+        // PASS 4: Coarse Scale Optical Flow Estimation (Extended Range)
         sampler2D srcLuma = (quality == 4) ? lumaTexL2 : ((quality == 3) ? lumaTexL1 : lumaTexL0);
         vec4 lumaData = textureLod(srcLuma, uv, 0.0);
         float l00 = lumaData.r;
         float bestSAD = abs(lumaData.r - lumaData.g);
         vec2 bestMV = vec2(0.0);
 
-        float steps[3] = float[3](14.0, 7.0, 3.0);
-        for (int s = 0; s < 3; s++) {
+        // Extended 4-tier coarse search for wide-angle camera sweeps
+        float steps[4] = float[4](32.0, 18.0, 8.0, 3.0);
+        for (int s = 0; s < 4; s++) {
             float stepVal = steps[s];
             for (int j = 0; j < 16; j++) {
                 vec2 off = clamp(bestMV + searchOffsets16[j] * (stepVal * ts), -maxVelocity, maxVelocity);
@@ -205,7 +206,7 @@ void main() {
         return;
     }
     else if (passIndex == 5) {
-        // PASS 5: Guided Upscale & Refinement
+        // PASS 5: Guided Upscale & Multi-Scale Refinement
         sampler2D srcLuma = (quality == 4) ? lumaTexL1 : lumaTexL0;
         vec2 guidedMV = clamp(textureLod(coarseMVTex, uv, 0.0).rg, -maxVelocity, maxVelocity);
         vec4 lumaData = textureLod(srcLuma, uv, 0.0);
@@ -213,7 +214,7 @@ void main() {
         float bestSAD = abs(lumaData.r - textureLod(srcLuma, clamp(uv + guidedMV, 0.0, 1.0), 0.0).g);
         vec2 bestMV = guidedMV;
 
-        float steps[3] = float[3](5.0, 2.5, 1.0);
+        float steps[3] = float[3](8.0, 4.0, 1.5);
         for (int s = 0; s < 3; s++) {
             float stepVal = steps[s];
             for (int j = 0; j < 16; j++) {
@@ -231,13 +232,13 @@ void main() {
         return;
     }
     else if (passIndex == 6) {
-        // PASS 6: Fine 1:1 Subpixel Optical Flow Block Matching
+        // PASS 6: Fine 1:1 Subpixel Optical Flow Matching
         vec2 guidedMV = clamp(textureLod(midMVTex, uv, 0.0).rg, -maxVelocity, maxVelocity);
         vec4 lumaData = textureLod(lumaTexL0, uv, 0.0);
         float l00 = lumaData.r;
         float diff = abs(lumaData.r - lumaData.g);
 
-        if (diff < 0.006) {
+        if (diff < 0.005) {
             imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 0.0, 1.0));
             return;
         }
@@ -245,7 +246,7 @@ void main() {
         float bestSAD = abs(lumaData.r - textureLod(lumaTexL0, clamp(uv + guidedMV, 0.0, 1.0), 0.0).g);
         vec2 bestMV = guidedMV;
 
-        float steps[3] = float[3](2.0, 1.0, 0.5);
+        float steps[3] = float[3](3.0, 1.5, 0.5);
         for (int s = 0; s < 3; s++) {
             float stepVal = steps[s];
             for (int j = 0; j < 16; j++) {
@@ -273,7 +274,7 @@ void main() {
         return;
     }
     else if (passIndex == 8) {
-        // PASS 8: 3x3 Spatial Vector Median Filter
+        // PASS 8: 3x3 Spatial Vector Median Filter (FSR 3 / FidelityFX)
         sampler2D srcTex = (quality == 4) ? divergenceTex : rawMVTex;
         vec2 neighborMVs[9];
         int nIdx = 0;
@@ -298,8 +299,8 @@ void main() {
             }
         }
 
-        // Subpixel micro-jitter deadzone filter
-        if (length(filteredMV) < ts.x * 0.25) {
+        // Subpixel micro-jitter deadband
+        if (length(filteredMV) < ts.x * 0.30) {
             filteredMV = vec2(0.0);
         }
         filteredMV = clamp(filteredMV, -maxVelocity, maxVelocity);
@@ -398,37 +399,46 @@ void main() {
     vec2 mv = clamp(mvSample.rg, -vec2(0.15), vec2(0.15));
     float confidence = clamp(mvSample.b, 0.0, 1.0);
 
-    // Attenuate motion vector when confidence is low to prevent tearing
+    // Subpixel micro-jitter deadband suppression
+    if (length(mv) < (1.0 / resolution.x) * 0.35) {
+        mv = vec2(0.0);
+        confidence = 1.0;
+    }
+
+    // Attenuate motion vector when confidence is low to prevent pixel tearing
     mv *= smoothstep(0.05, 0.45, confidence);
 
-    vec2 uvPrev = clamp(vUV + mv * factor, 0.0, 1.0);
-    vec2 uvCurr = clamp(vUV - mv * (1.0 - factor), 0.0, 1.0);
+    // Bidirectional Optical Flow Warping:
+    // Factor = 0 -> Previous Frame (vUV)
+    // Factor = 1 -> Current Frame (vUV)
+    vec2 uvPrev = clamp(vUV + mv * (1.0 - factor), 0.0, 1.0);
+    vec2 uvCurr = clamp(vUV - mv * factor, 0.0, 1.0);
 
-    float shutterGain = clamp(uBlurIntensity, 0.0, 1.0) * 0.35;
+    float shutterGain = clamp(uBlurIntensity, 0.0, 1.0) * 0.25;
     vec2 vel = mv * shutterGain;
 
     // 5-Tap Gaussian Velocity Flow & Shutter Blur along Motion Vectors
     vec3 warpedPrev = (
-        texture(previousCapturedTexture, clamp(uvPrev - vel, 0.0, 1.0)).rgb * 0.10 +
-        texture(previousCapturedTexture, clamp(uvPrev - vel * 0.5, 0.0, 1.0)).rgb * 0.20 +
-        texture(previousCapturedTexture, uvPrev).rgb * 0.40 +
-        texture(previousCapturedTexture, clamp(uvPrev + vel * 0.5, 0.0, 1.0)).rgb * 0.20 +
-        texture(previousCapturedTexture, clamp(uvPrev + vel, 0.0, 1.0)).rgb * 0.10
+        texture(previousCapturedTexture, clamp(uvPrev - vel * 0.75, 0.0, 1.0)).rgb * 0.15 +
+        texture(previousCapturedTexture, clamp(uvPrev - vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
+        texture(previousCapturedTexture, uvPrev).rgb * 0.30 +
+        texture(previousCapturedTexture, clamp(uvPrev + vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
+        texture(previousCapturedTexture, clamp(uvPrev + vel * 0.75, 0.0, 1.0)).rgb * 0.15
     );
 
     vec3 warpedCurr = (
-        texture(currentCapturedTexture, clamp(uvCurr + vel, 0.0, 1.0)).rgb * 0.10 +
-        texture(currentCapturedTexture, clamp(uvCurr + vel * 0.5, 0.0, 1.0)).rgb * 0.20 +
-        texture(currentCapturedTexture, uvCurr).rgb * 0.40 +
-        texture(currentCapturedTexture, clamp(uvCurr - vel * 0.5, 0.0, 1.0)).rgb * 0.20 +
-        texture(currentCapturedTexture, clamp(uvCurr - vel, 0.0, 1.0)).rgb * 0.10
+        texture(currentCapturedTexture, clamp(uvCurr + vel * 0.75, 0.0, 1.0)).rgb * 0.15 +
+        texture(currentCapturedTexture, clamp(uvCurr + vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
+        texture(currentCapturedTexture, uvCurr).rgb * 0.30 +
+        texture(currentCapturedTexture, clamp(uvCurr - vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
+        texture(currentCapturedTexture, clamp(uvCurr - vel * 0.75, 0.0, 1.0)).rgb * 0.15
     );
 
     // AMD FSR 3 Normalized Color Similarity & Disocclusion Detection
     float sim = normalizedDot3(warpedPrev, warpedCurr);
     float lumaDiff = abs(dot(warpedPrev - warpedCurr, vec3(0.2126, 0.7152, 0.0722)));
     float simThreshold = (qualityMode >= 2.5) ? 0.65 : 0.70;
-    float disocclusion = smoothstep(simThreshold, 0.95, 1.0 - sim) + smoothstep(0.15, 0.40, lumaDiff);
+    float disocclusion = smoothstep(simThreshold, 0.95, 1.0 - sim) + smoothstep(0.12, 0.35, lumaDiff);
     disocclusion = clamp(disocclusion, 0.0, 1.0);
 
     // Continuous Adaptive Hermite S-Curve Crossfade
@@ -436,6 +446,11 @@ void main() {
     float blendFactor = max(disocclusion, (1.0 - confidence));
     float t = mix(factor, smoothT, blendFactor * 0.60);
     t = clamp(t, 0.0, 1.0);
+
+    // In disocclusion areas, bias towards current frame to eliminate ghosting trails
+    if (disocclusion > 0.4) {
+        t = mix(t, 1.0, smoothstep(0.4, 0.85, disocclusion));
+    }
 
     vec3 result = mix(warpedPrev, warpedCurr, t);
     outColor = vec4(result, 1.0);

@@ -156,20 +156,20 @@ float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
     if (!mActive.load(std::memory_order_relaxed)) return 0.0f;
     if (mRealFramesCaptured.load(std::memory_order_relaxed) < 2) return 0.5f;
 
-    int64_t lastTime = mLastRealFrameTimeNanos.load(std::memory_order_acquire);
-    float factor = 0.5f;
+    int framesSince = mFramesSinceReal.load(std::memory_order_acquire);
+    int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
 
+    float discretePhase = static_cast<float>(std::clamp(framesSince, 1, mult - 1)) / static_cast<float>(mult);
+    float factor = discretePhase;
+
+    int64_t lastTime = mLastRealFrameTimeNanos.load(std::memory_order_acquire);
     if (lastTime > 0 && mTypicalDeltaNanos > 1000000.0f) {
         float elapsed = static_cast<float>(nowNanos - lastTime);
-        float progress = elapsed / mTypicalDeltaNanos;
-        factor = std::clamp(progress, 0.10f, 0.90f);
-    } else {
-        int framesSince = mFramesSinceReal.load(std::memory_order_acquire);
-        int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
-        int stepIndex = std::clamp(framesSince, 1, mult - 1);
-        factor = static_cast<float>(stepIndex) / static_cast<float>(mult);
-        factor = std::clamp(factor, 0.10f, 0.90f);
+        float continuousProgress = elapsed / mTypicalDeltaNanos;
+        factor = discretePhase * 0.80f + continuousProgress * 0.20f;
     }
+
+    factor = std::clamp(factor, 0.10f, 0.90f);
 
     mLastFactor = factor;
     mMinFactor = std::min(mMinFactor, factor);

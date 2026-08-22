@@ -94,7 +94,7 @@ public class WinlatorHUD extends View {
     private float snapFps = 0;
     private float snapTotalFps = 0;
     private boolean apexActive = false;
-    private int apexMultiplier = 2;
+    private float apexMultiplier = 2.0f;
 
     private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
     private String rendererLabel = "OpenGL";
@@ -218,7 +218,7 @@ public class WinlatorHUD extends View {
             gMax = gMax + (targetMax - gMax) * 0.15f;
             
             if (apexActive) {
-                strFps = String.format(Locale.US, "%.0f (%dx)", displayFps, apexMultiplier);
+                strFps = String.format(Locale.US, "%.0f (%.1fx)", displayFps, apexMultiplier);
             } else {
                 strFps = String.format(Locale.US, "%.0f", displayFps);
             }
@@ -747,10 +747,12 @@ public class WinlatorHUD extends View {
         });
     }
 
-    public void setApexStats(float totalFps, int multiplier, boolean active) {
+    public void setApexStats(float totalFps, float multiplier, boolean active) {
         uiHandler.post(() -> {
             this.snapTotalFps = totalFps;
             this.apexMultiplier = multiplier;
+            this.strFps = active ? String.format(Locale.US, "%.0f (%.1fx)", totalFps, multiplier)
+                                 : String.format(Locale.US, "%.0f", totalFps);
             if (this.apexActive != active) {
                 this.apexActive = active;
                 layoutDirty = true;

@@ -419,15 +419,25 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             if (ApexNativeBridge.nativeIsActive()) {
                 int realFPS = ApexNativeBridge.nativeGetRealFPS();
                 int genFPS = ApexNativeBridge.nativeGetGenFPS();
-                displayTotalFPS = (realFPS + genFPS) / delta;
+                float realRate = realFPS / delta;
+                float genRate = genFPS / delta;
+                displayTotalFPS = realRate + genRate;
+                
+                float liveMultiplier = 1.0f;
+                if (realRate > 0.5f) {
+                    liveMultiplier = Math.max(1.0f, displayTotalFPS / realRate);
+                } else if (displayTotalFPS > 0.5f) {
+                    liveMultiplier = 2.0f;
+                }
+
                 if (winlatorHUD != null) {
-                    winlatorHUD.setApexStats(displayTotalFPS, ApexNativeBridge.nativeGetAutoMultiplier(), true);
+                    winlatorHUD.setApexStats(displayTotalFPS, liveMultiplier, true);
                 }
             } else {
                 displayTotalFPS = regularFrameCount / delta;
                 regularFrameCount = 0;
                 if (winlatorHUD != null) {
-                    winlatorHUD.setApexStats(displayTotalFPS, 1, false);
+                    winlatorHUD.setApexStats(displayTotalFPS, 1.0f, false);
                 }
             }
 
