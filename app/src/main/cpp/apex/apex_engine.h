@@ -68,6 +68,9 @@ public:
     void setShutterGain(float gain);
     float getShutterGain() const;
 
+    void setFlowScale(float scale);
+    float getFlowScale() const;
+
     // Telemetry & FPS Counters
     int getActualRealFrameCount();
     int getGeneratedFrameCount();
@@ -96,6 +99,7 @@ private:
     std::atomic<int> mQualityPreset{QUALITY_PERFORMANCE};
     std::atomic<int> mTargetFPS{60};
     std::atomic<float> mShutterGain{0.5f};
+    std::atomic<float> mFlowScale{1.0f};
 
     // Pacing & Delta State
     std::atomic<bool> mPendingRealFrame{false};

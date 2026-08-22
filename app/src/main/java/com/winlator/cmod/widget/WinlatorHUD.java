@@ -751,13 +751,13 @@ public class WinlatorHUD extends View {
         uiHandler.post(() -> {
             this.snapTotalFps = totalFps;
             this.apexMultiplier = multiplier;
-            this.strFps = active ? String.format(Locale.US, "%.0f (%.1fx)", totalFps, multiplier)
-                                 : String.format(Locale.US, "%.0f", totalFps);
             if (this.apexActive != active) {
                 this.apexActive = active;
                 layoutDirty = true;
                 requestLayout();
             }
+            // We no longer set strFps here to avoid flickering with the snapshot() thread.
+            // snapshot() will pick up the new snapTotalFps on its next cycle.
             invalidate();
         });
     }

@@ -140,6 +140,20 @@
                     app:sbMaxValue="1.0"
                     app:sbMinValue="0.0"
                     app:sbStep="0.01" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8.0dip"
+                    android:textSize="12sp"
+                    android:text="Flow Scale (Motion Intensity)" />
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBLSFGFlowScale"
+                    android:layout_width="match_parent"
+                    android:layout_height="60.0dip"
+                    app:sbMaxValue="1.0"
+                    app:sbMinValue="0.1"
+                    app:sbStep="0.01" />
             </LinearLayout>
         </LinearLayout>
 

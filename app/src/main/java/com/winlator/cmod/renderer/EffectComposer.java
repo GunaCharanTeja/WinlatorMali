@@ -89,22 +89,13 @@ public class EffectComposer {
         renderer.drawFrame();
         renderer.setRenderCursorEnabled(true);
 
-        // 2. Dispatch Native Apex Frame Generation or Normal Passthrough
-        if (ApexNativeBridge.nativeIsActive()) {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-            GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
-
-            ApexNativeBridge.nativeProcessFrame(
-                readBuffer.getTextureId(),
-                0, // Target default screen framebuffer
-                renderer.surfaceWidth,
-                renderer.surfaceHeight
-            );
-        } else if (hasEffects()) {
+        // 2. Apply Post-Processing Effects (Ping-Pong between read/write buffers)
+        if (hasEffects()) {
             for (int i = 0; i < effects.size(); i++) {
                 Effect effect = effects.get(i);
-                boolean renderToScreen = (i == effects.size() - 1);
+                // If Apex is active, all effects render to offscreen buffers so Apex can use them as input.
+                // If Apex is inactive, the last effect renders directly to the screen.
+                boolean renderToScreen = (i == effects.size() - 1) && !ApexNativeBridge.nativeIsActive();
                 int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
 
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
@@ -123,17 +114,32 @@ public class EffectComposer {
 
                 if (!renderToScreen) swapBuffers();
             }
-        } else {
+        }
+
+        // 3. Dispatch Native Apex Frame Generation
+        if (ApexNativeBridge.nativeIsActive()) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+
+            // readBuffer now contains the result of all effects (or the raw frame if no effects)
+            ApexNativeBridge.nativeProcessFrame(
+                readBuffer.getTextureId(),
+                0, // Target default screen framebuffer
+                renderer.surfaceWidth,
+                renderer.surfaceHeight
+            );
+        } else if (!hasEffects()) {
+            // Passthrough (no effects, no apex)
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
             if (!renderer.isFullscreen()) {
                 GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
                 GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY,
                                  renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
-                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
             } else {
                 GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
             }
+            GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
             renderEffect(null);
         }

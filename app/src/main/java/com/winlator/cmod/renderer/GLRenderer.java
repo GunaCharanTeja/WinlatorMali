@@ -433,6 +433,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 if (winlatorHUD != null) {
                     winlatorHUD.setApexStats(displayTotalFPS, liveMultiplier, true);
                 }
+                regularFrameCount = 0; // Reset even when Apex is active to avoid accumulation
             } else {
                 displayTotalFPS = regularFrameCount / delta;
                 regularFrameCount = 0;

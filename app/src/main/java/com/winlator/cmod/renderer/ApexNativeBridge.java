@@ -14,6 +14,8 @@ public class ApexNativeBridge {
     public static native int nativeGetTargetFPS();
     public static native void nativeSetShutterGain(float gain);
     public static native float nativeGetShutterGain();
+    public static native void nativeSetFlowScale(float scale);
+    public static native float nativeGetFlowScale();
     public static native void nativeUpdateDimensions(int width, int height);
     public static native void nativeDestroy();
 

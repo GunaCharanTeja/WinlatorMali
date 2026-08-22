@@ -21,11 +21,13 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private final Spinner sLSFGTargetFPS;
     private final LinearLayout llLSFGSettings;
     private final SeekBar sbLSFGMotionBlur;
+    private final SeekBar sbLSFGFlowScale;
     private final CheckBox cbEnableHDR;
     private final CheckBox cbEnableSharpen;
     private final Spinner sSharpenMode;
     private final LinearLayout llSharpenSettings;
     private final SeekBar sbSharpenLevel;
+    private boolean lsfgPreviouslyEnabled = false;
 
     public GraphicsEnhancementsDialog(XServerDisplayActivity activity) {
         super(activity, R.layout.graphics_enhancements_dialog);
@@ -53,14 +55,17 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         sLSFGTargetFPS = findViewById(R.id.SLSFGTargetFPS);
         llLSFGSettings = findViewById(R.id.LLLSFGSettings);
         sbLSFGMotionBlur = findViewById(R.id.SBLSFGMotionBlur);
+        sbLSFGFlowScale = findViewById(R.id.SBLSFGFlowScale);
 
         boolean lsfgEnabled = com.winlator.cmod.renderer.ApexNativeBridge.nativeIsActive();
+        lsfgPreviouslyEnabled = lsfgEnabled;
 
         cbEnableLSFG.setChecked(lsfgEnabled);
         llLSFGSettings.setVisibility(lsfgEnabled ? View.VISIBLE : View.GONE);
 
         sLSFGQuality.setSelection(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetQuality());
         sbLSFGMotionBlur.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetShutterGain());
+        sbLSFGFlowScale.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetFlowScale());
         
         int targetFPS = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetTargetFPS();
         int targetFPSSelection = 0;
@@ -141,6 +146,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         });
 
         sbLSFGMotionBlur.setOnValueChangeListener((seekBar, value) -> applyEffects());
+        sbLSFGFlowScale.setOnValueChangeListener((seekBar, value) -> applyEffects());
 
         sFPSLimit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
@@ -208,11 +214,20 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         renderer.setFpsLimit(fpsLimit);
 
         boolean lsfgEnabled = cbEnableLSFG.isChecked();
+        
+        // Pulse Reset: if Apex was just turned ON, trigger a background pause/resume
+        // to build a clean motion history from zero state.
+        if (lsfgEnabled && !lsfgPreviouslyEnabled) {
+            activity.pulseFgReset();
+        }
+        lsfgPreviouslyEnabled = lsfgEnabled;
+
         com.winlator.cmod.renderer.ApexNativeBridge.nativeSetActive(lsfgEnabled);
 
         if (lsfgEnabled) {
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetQuality(sLSFGQuality.getSelectedItemPosition());
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetShutterGain(sbLSFGMotionBlur.getValue());
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetFlowScale(sbLSFGFlowScale.getValue());
 
             int targetFPS = 0;
             int targetFPSSelection = sLSFGTargetFPS.getSelectedItemPosition();

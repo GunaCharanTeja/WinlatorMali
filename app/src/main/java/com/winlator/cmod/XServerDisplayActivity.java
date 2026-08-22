@@ -2067,6 +2067,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String astcTranscode = graphicsDriverConfig.get("astcTranscode");
         String etc2Transcode = graphicsDriverConfig.get("etc2Transcode");
+        String skipSmallTextures = graphicsDriverConfig.get("skipSmallTextures");
         boolean transcodeEnabled = "1".equals(astcTranscode) || "1".equals(etc2Transcode);
 
         if (firstTimeBoot) {
@@ -2183,9 +2184,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
         }
 
-
-
-
+        envVars.put("BCN_SKIP_SMALL_TEXTURES", "1".equals(skipSmallTextures) ? "1" : "0");
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");
@@ -2759,6 +2758,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private static ArrayAdapter<String> createThemedSpinnerAdapter(android.content.Context context, String[] items, boolean isDarkMode) {
         return createThemedSpinnerAdapter(context, java.util.Arrays.asList(items), isDarkMode);
+    }
+
+    private boolean fgResetPulseInProgress = false;
+    public void pulseFgReset() {
+        if (fgResetPulseInProgress || isPaused || environment == null) return;
+        fgResetPulseInProgress = true;
+        
+        Log.d("WinFG", "Triggering 500ms Pulse Reset for clean framegen start");
+
+        // --- Pause Stage ---
+        if (xServerView != null) xServerView.onPause();
+        ProcessHelper.pauseAllWineProcesses();
+
+        // --- Resume Stage (0.5s later) ---
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!isPaused) {
+                if (xServerView != null) xServerView.onResume();
+                ProcessHelper.resumeAllWineProcesses();
+            }
+            fgResetPulseInProgress = false;
+            Log.d("WinFG", "Pulse Reset complete");
+        }, 500);
     }
 }
 

@@ -48,24 +48,35 @@ void main() {
         return;
     }
 
-    vec2 bestMV = vec2(0.0);
-    float bestSAD = diff;
+    // ---- Temporal search center (Vegas-style): start from last frame's vector ----
+    vec2 centerMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
 
-    // 3-Tier Multi-Scale Diamond Search (Extended Range for fast camera pans)
-    float steps[3] = float[3](24.0, 10.0, 3.0);
+    vec2 bestMV = centerMV;
+    float bestSAD = abs(l00 - getPerceptualLuma(textureLod(prevFrame, clamp(uv + centerMV, 0.0, 1.0), 0.0).rgb));
+    float secondBestSAD = 1.0;
+
+    // 3-Tier Multi-Scale Diamond Search (Extended Reach centered on velocity)
+    float steps[3] = float[3](18.0, 8.0, 2.0);
     for (int s = 0; s < 3; s++) {
         float stepVal = steps[s];
         for (int j = 0; j < 8; j++) {
-            vec2 off = clamp(bestMV + diamondOffsets8[j] * (stepVal * ts), -maxVelocity, maxVelocity);
+            vec2 off = clamp(centerMV + diamondOffsets8[j] * (stepVal * ts), -maxVelocity, maxVelocity);
             vec2 samplePos = clamp(uv + off, 0.0, 1.0);
             float curLuma = getPerceptualLuma(textureLod(prevFrame, samplePos, 0.0).rgb);
             float curSAD = abs(l00 - curLuma);
             if (curSAD < bestSAD) {
+                secondBestSAD = bestSAD;
                 bestSAD = curSAD;
                 bestMV = off;
+            } else if (curSAD < secondBestSAD && length(off - bestMV) > ts.x * 4.0) {
+                secondBestSAD = curSAD;
             }
         }
     }
+
+    // Bimodal Dominance Gate (Vegas Logic): distrust blocks with two competing motions (halos)
+    float dominance = clamp((secondBestSAD - bestSAD) / (bestSAD + 0.01), 0.0, 1.0);
+    float vegasTrust = smoothstep(0.10, 0.55, dominance);
 
     // 3x3 Spatial Vector Median Filter (FSR 3 / FidelityFX)
     vec2 neighborMVs[9];
@@ -96,10 +107,12 @@ void main() {
         bestMV = vec2(0.0);
     }
 
-    // AMD FSR 3 Adaptive History Blend
-    float confidence = 1.0 - clamp(bestSAD * 4.0, 0.0, 1.0);
+    // AMD FSR 3 Adaptive History Blend (Hyper-Liquid / High-Persistence Tuning)
+    float confidence = (1.0 - clamp(bestSAD * 4.0, 0.0, 1.0)) * vegasTrust;
     float mvDiff = length(bestMV - medianHistoryMV) / max(ts.x * 4.0, length(bestMV) + 0.001);
-    float historyWeight = clamp(0.70 * confidence * exp(-mvDiff * 0.6), 0.05, 0.80);
+
+    // 0.92 Persistence: creates a "Liquid Momentum" effect for ultra-buttery flow
+    float historyWeight = clamp(0.92 * confidence * exp(-pow(mvDiff, 2.0) * 8.0), 0.0, 0.92);
     vec2 stabilizedMV = mix(bestMV, medianHistoryMV, historyWeight);
     stabilizedMV = clamp(stabilizedMV, -maxVelocity, maxVelocity);
 
@@ -180,45 +193,57 @@ void main() {
         return;
     }
     else if (passIndex == 4) {
-        // PASS 4: Coarse Scale Optical Flow Estimation (Extended Range)
+        // PASS 4: Coarse Scale Optical Flow Estimation (Temporal Centering)
         sampler2D srcLuma = (quality == 4) ? lumaTexL2 : ((quality == 3) ? lumaTexL1 : lumaTexL0);
         vec4 lumaData = textureLod(srcLuma, uv, 0.0);
         float l00 = lumaData.r;
-        float bestSAD = abs(lumaData.r - lumaData.g);
-        vec2 bestMV = vec2(0.0);
+
+        vec2 centerMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
+        float bestSAD = abs(l00 - textureLod(srcLuma, clamp(uv + centerMV, 0.0, 1.0), 0.0).g);
+        vec2 bestMV = centerMV;
+        float secondBestSAD = 1.0;
 
         // Extended 4-tier coarse search for wide-angle camera sweeps
-        float steps[4] = float[4](32.0, 18.0, 8.0, 3.0);
+        float steps[4] = float[4](24.0, 14.0, 6.0, 2.0);
         for (int s = 0; s < 4; s++) {
             float stepVal = steps[s];
             for (int j = 0; j < 16; j++) {
-                vec2 off = clamp(bestMV + searchOffsets16[j] * (stepVal * ts), -maxVelocity, maxVelocity);
+                vec2 off = clamp(centerMV + searchOffsets16[j] * (stepVal * ts), -maxVelocity, maxVelocity);
                 vec2 samplePos = clamp(uv + off, 0.0, 1.0);
                 float curLuma = textureLod(srcLuma, samplePos, 0.0).g;
                 float curSAD = abs(l00 - curLuma);
                 if (curSAD < bestSAD) {
+                    secondBestSAD = bestSAD;
                     bestSAD = curSAD;
                     bestMV = off;
+                } else if (curSAD < secondBestSAD && length(off - bestMV) > ts.x * 12.0) {
+                    secondBestSAD = curSAD;
                 }
             }
         }
-        imageStore(motionVectorOutput, pixelPos, vec4(bestMV, bestSAD, 1.0));
+        float dominance = clamp((secondBestSAD - bestSAD) / (bestSAD + 0.01), 0.0, 1.0);
+        imageStore(motionVectorOutput, pixelPos, vec4(bestMV, bestSAD, dominance));
         return;
     }
     else if (passIndex == 5) {
-        // PASS 5: Guided Upscale & Multi-Scale Refinement
+        // PASS 5: Guided Upscale & Multi-Scale Refinement (Temporal Centering)
         sampler2D srcLuma = (quality == 4) ? lumaTexL1 : lumaTexL0;
+        vec2 centerMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
         vec2 guidedMV = clamp(textureLod(coarseMVTex, uv, 0.0).rg, -maxVelocity, maxVelocity);
+
+        // Blend coarse guide with temporal center for higher stability
+        vec2 baseMV = mix(guidedMV, centerMV, 0.35);
+
         vec4 lumaData = textureLod(srcLuma, uv, 0.0);
         float l00 = lumaData.r;
-        float bestSAD = abs(lumaData.r - textureLod(srcLuma, clamp(uv + guidedMV, 0.0, 1.0), 0.0).g);
-        vec2 bestMV = guidedMV;
+        float bestSAD = abs(lumaData.r - textureLod(srcLuma, clamp(uv + baseMV, 0.0, 1.0), 0.0).g);
+        vec2 bestMV = baseMV;
 
         float steps[3] = float[3](8.0, 4.0, 1.5);
         for (int s = 0; s < 3; s++) {
             float stepVal = steps[s];
             for (int j = 0; j < 16; j++) {
-                vec2 off = clamp(bestMV + searchOffsets16[j] * (stepVal * ts), -maxVelocity, maxVelocity);
+                vec2 off = clamp(baseMV + searchOffsets16[j] * (stepVal * ts), -maxVelocity, maxVelocity);
                 vec2 samplePos = clamp(uv + off, 0.0, 1.0);
                 float curLuma = textureLod(srcLuma, samplePos, 0.0).g;
                 float curSAD = abs(l00 - curLuma);
@@ -239,12 +264,13 @@ void main() {
         float diff = abs(lumaData.r - lumaData.g);
 
         if (diff < 0.005) {
-            imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 0.0, 1.0));
+            imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 1.0, 1.0));
             return;
         }
 
         float bestSAD = abs(lumaData.r - textureLod(lumaTexL0, clamp(uv + guidedMV, 0.0, 1.0), 0.0).g);
         vec2 bestMV = guidedMV;
+        float secondBestSAD = 1.0;
 
         float steps[3] = float[3](3.0, 1.5, 0.5);
         for (int s = 0; s < 3; s++) {
@@ -255,12 +281,16 @@ void main() {
                 float curLuma = textureLod(lumaTexL0, samplePos, 0.0).g;
                 float curSAD = abs(l00 - curLuma);
                 if (curSAD < bestSAD) {
+                    secondBestSAD = bestSAD;
                     bestSAD = curSAD;
                     bestMV = off;
+                } else if (curSAD < secondBestSAD && length(off - bestMV) > ts.x * 2.0) {
+                    secondBestSAD = curSAD;
                 }
             }
         }
-        imageStore(motionVectorOutput, pixelPos, vec4(bestMV, bestSAD, 1.0));
+        float dominance = clamp((secondBestSAD - bestSAD) / (bestSAD + 0.01), 0.0, 1.0);
+        imageStore(motionVectorOutput, pixelPos, vec4(bestMV, bestSAD, dominance));
         return;
     }
     else if (passIndex == 7) {
@@ -268,7 +298,8 @@ void main() {
         vec4 rawData = textureLod(rawMVTex, uv, 0.0);
         float diff = rawData.b;
         float sceneCut = (diff > 0.85) ? 1.0 : 0.0;
-        float confidence = 1.0 - clamp(rawData.b * 3.5, 0.0, 1.0);
+        float dominance = rawData.a;
+        float confidence = (1.0 - clamp(rawData.b * 3.5, 0.0, 1.0)) * smoothstep(0.10, 0.55, dominance);
         vec2 clampedMV = clamp(rawData.rg, -maxVelocity, maxVelocity);
         imageStore(motionVectorOutput, pixelPos, vec4(clampedMV, confidence, sceneCut));
         return;
@@ -314,7 +345,7 @@ void main() {
             vec2 projectedUV = clamp(uv - prevMV, 0.0, 1.0);
             vec2 historyMV = textureLod(mvHistoryTexture, projectedUV, 0.0).rg;
             float mvDiff = length(filteredMV - historyMV) / max(ts.x * 4.0, length(filteredMV) + 0.001);
-            float historyWeight = clamp(0.70 * conf * exp(-mvDiff * 0.6), 0.05, 0.80);
+            float historyWeight = clamp(0.92 * conf * exp(-pow(mvDiff, 2.0) * 8.0), 0.0, 0.92);
             vec2 stabilizedMV = (srcData.a > 0.5) ? vec2(0.0) : mix(filteredMV, historyMV, historyWeight);
             stabilizedMV = clamp(stabilizedMV, -maxVelocity, maxVelocity);
             imageStore(motionVectorOutput, pixelPos, vec4(stabilizedMV, conf, 0.0, 1.0));
@@ -335,7 +366,7 @@ void main() {
         vec2 historyMV = textureLod(mvHistoryTexture, projectedUV, 0.0).rg;
 
         float mvDiff = length(currentMV - historyMV) / max(ts.x * 4.0, length(currentMV) + 0.001);
-        float historyWeight = clamp(0.70 * confidence * exp(-mvDiff * 0.6), 0.05, 0.80);
+        float historyWeight = clamp(0.92 * confidence * exp(-pow(mvDiff, 2.0) * 8.0), 0.0, 0.92);
         vec2 stabilizedMV = (sceneCut > 0.5) ? vec2(0.0) : mix(currentMV, historyMV, historyWeight);
         stabilizedMV = clamp(stabilizedMV, -maxVelocity, maxVelocity);
 
@@ -373,6 +404,7 @@ uniform vec2 resolution;
 uniform float interpolationFactor;
 uniform float qualityMode;
 uniform float uBlurIntensity;
+uniform float uFlowScale;
 
 in vec2 vUV;
 out vec4 outColor;
@@ -386,17 +418,16 @@ float normalizedDot3(vec3 a, vec3 b) {
 
 void main() {
     float factor = interpolationFactor;
-    if (factor <= 0.001) {
-        outColor = vec4(texture(previousCapturedTexture, vUV).rgb, 1.0);
-        return;
-    }
-    if (factor >= 0.999) {
+
+    // Stabilized Real Frame Pass: Apply a very subtle blur to real frames to match
+    // the generated frames, preventing "Sharp vs Soft" flickering (Cinematic Tuning).
+    if (factor >= 0.999 && uBlurIntensity < 0.05) {
         outColor = vec4(texture(currentCapturedTexture, vUV).rgb, 1.0);
         return;
     }
 
     vec4 mvSample = texture(motionVectorTexture, vUV);
-    vec2 mv = clamp(mvSample.rg, -vec2(0.15), vec2(0.15));
+    vec2 mv = clamp(mvSample.rg, -vec2(0.15), vec2(0.15)) * uFlowScale;
     float confidence = clamp(mvSample.b, 0.0, 1.0);
 
     // Subpixel micro-jitter deadband suppression
@@ -405,51 +436,65 @@ void main() {
         confidence = 1.0;
     }
 
-    // Attenuate motion vector when confidence is low to prevent pixel tearing
-    mv *= smoothstep(0.05, 0.45, confidence);
+    // Attenuate motion vector when confidence is low (Extreme Sharpening for Mali)
+    mv *= pow(confidence, 1.5);
+    mv *= smoothstep(0.18, 0.65, confidence);
 
     // Bidirectional Optical Flow Warping:
-    // Factor = 0 -> Previous Frame (vUV)
-    // Factor = 1 -> Current Frame (vUV)
     vec2 uvPrev = clamp(vUV + mv * (1.0 - factor), 0.0, 1.0);
     vec2 uvCurr = clamp(vUV - mv * factor, 0.0, 1.0);
 
-    float shutterGain = clamp(uBlurIntensity, 0.0, 1.0) * 0.25;
+    // Hyper-Liquid Optical Blur: Deep Shutter Reach (1.5x Multiplier)
+    float shutterGain = clamp(uBlurIntensity, 0.0, 1.0) * 1.5;
     vec2 vel = mv * shutterGain;
 
-    // 5-Tap Gaussian Velocity Flow & Shutter Blur along Motion Vectors
+    // 7-Tap Hyper-Flow Dispersion Kernel (Velocity-Weighted Deep Softness)
     vec3 warpedPrev = (
-        texture(previousCapturedTexture, clamp(uvPrev - vel * 0.75, 0.0, 1.0)).rgb * 0.15 +
-        texture(previousCapturedTexture, clamp(uvPrev - vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
-        texture(previousCapturedTexture, uvPrev).rgb * 0.30 +
-        texture(previousCapturedTexture, clamp(uvPrev + vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
-        texture(previousCapturedTexture, clamp(uvPrev + vel * 0.75, 0.0, 1.0)).rgb * 0.15
+        texture(previousCapturedTexture, clamp(uvPrev - vel * 1.6, 0.0, 1.0)).rgb * 0.04 +
+        texture(previousCapturedTexture, clamp(uvPrev - vel * 1.0, 0.0, 1.0)).rgb * 0.08 +
+        texture(previousCapturedTexture, clamp(uvPrev - vel * 0.5, 0.0, 1.0)).rgb * 0.18 +
+        texture(previousCapturedTexture, uvPrev).rgb * 0.40 +
+        texture(previousCapturedTexture, clamp(uvPrev + vel * 0.5, 0.0, 1.0)).rgb * 0.18 +
+        texture(previousCapturedTexture, clamp(uvPrev + vel * 1.0, 0.0, 1.0)).rgb * 0.08 +
+        texture(previousCapturedTexture, clamp(uvPrev + vel * 1.6, 0.0, 1.0)).rgb * 0.04
     );
 
     vec3 warpedCurr = (
-        texture(currentCapturedTexture, clamp(uvCurr + vel * 0.75, 0.0, 1.0)).rgb * 0.15 +
-        texture(currentCapturedTexture, clamp(uvCurr + vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
-        texture(currentCapturedTexture, uvCurr).rgb * 0.30 +
-        texture(currentCapturedTexture, clamp(uvCurr - vel * 0.35, 0.0, 1.0)).rgb * 0.20 +
-        texture(currentCapturedTexture, clamp(uvCurr - vel * 0.75, 0.0, 1.0)).rgb * 0.15
+        texture(currentCapturedTexture, clamp(uvCurr + vel * 1.6, 0.0, 1.0)).rgb * 0.04 +
+        texture(currentCapturedTexture, clamp(uvCurr + vel * 1.0, 0.0, 1.0)).rgb * 0.08 +
+        texture(currentCapturedTexture, clamp(uvCurr + vel * 0.5, 0.0, 1.0)).rgb * 0.18 +
+        texture(currentCapturedTexture, uvCurr).rgb * 0.40 +
+        texture(currentCapturedTexture, clamp(uvCurr - vel * 0.5, 0.0, 1.0)).rgb * 0.18 +
+        texture(currentCapturedTexture, clamp(uvCurr - vel * 1.0, 0.0, 1.0)).rgb * 0.08 +
+        texture(currentCapturedTexture, clamp(uvCurr - vel * 1.6, 0.0, 1.0)).rgb * 0.04
     );
 
-    // AMD FSR 3 Normalized Color Similarity & Disocclusion Detection
+    if (factor >= 0.999) {
+        outColor = vec4(warpedCurr, 1.0);
+        return;
+    }
+
+    // AMD FSR 3 Normalized Color Similarity & Disocclusion Detection (Premium Clean Edge Tuning)
     float sim = normalizedDot3(warpedPrev, warpedCurr);
+    float colorDist = distance(warpedPrev, warpedCurr);
     float lumaDiff = abs(dot(warpedPrev - warpedCurr, vec3(0.2126, 0.7152, 0.0722)));
-    float simThreshold = (qualityMode >= 2.5) ? 0.65 : 0.70;
-    float disocclusion = smoothstep(simThreshold, 0.95, 1.0 - sim) + smoothstep(0.12, 0.35, lumaDiff);
+    float simThreshold = (qualityMode >= 2.5) ? 0.60 : 0.65;
+
+    // Combine cosine similarity with Euclidean distance for better halo rejection
+    float disocclusion = smoothstep(simThreshold, 0.92, 1.0 - sim) +
+                         smoothstep(0.10, 0.30, lumaDiff) +
+                         smoothstep(0.15, 0.45, colorDist);
     disocclusion = clamp(disocclusion, 0.0, 1.0);
 
-    // Continuous Adaptive Hermite S-Curve Crossfade
-    float smoothT = factor * factor * (3.0 - 2.0 * factor);
+    // Premium Adaptive Hermite S-Curve (Optimized for Optical Continuity)
+    float smoothT = factor * factor * factor * (factor * (factor * 6.0 - 15.0) + 10.0);
     float blendFactor = max(disocclusion, (1.0 - confidence));
-    float t = mix(factor, smoothT, blendFactor * 0.60);
+    float t = mix(factor, smoothT, blendFactor * 0.98);
     t = clamp(t, 0.0, 1.0);
 
     // In disocclusion areas, bias towards current frame to eliminate ghosting trails
-    if (disocclusion > 0.4) {
-        t = mix(t, 1.0, smoothstep(0.4, 0.85, disocclusion));
+    if (disocclusion > 0.25) {
+        t = mix(t, 1.0, smoothstep(0.25, 0.70, disocclusion));
     }
 
     vec3 result = mix(warpedPrev, warpedCurr, t);

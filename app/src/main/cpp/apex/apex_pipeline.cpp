@@ -582,6 +582,7 @@ void ApexEngine::runWarpingPass(GLuint currTex, GLuint prevTex, GLuint mvTex, GL
     glUniform1f(glGetUniformLocation(mWarpingProgram, "interpolationFactor"), factor);
     glUniform1f(glGetUniformLocation(mWarpingProgram, "qualityMode"), static_cast<float>(mQualityPreset.load(std::memory_order_relaxed)));
     glUniform1f(glGetUniformLocation(mWarpingProgram, "uBlurIntensity"), mShutterGain.load(std::memory_order_relaxed));
+    glUniform1f(glGetUniformLocation(mWarpingProgram, "uFlowScale"), mFlowScale.load(std::memory_order_relaxed));
 
     glBindVertexArray(mQuadVao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

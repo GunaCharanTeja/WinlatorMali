@@ -82,6 +82,18 @@ Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetShutterGain(JNIEnv* en
 }
 
 JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetFlowScale(JNIEnv* env, jclass clazz, jfloat scale) {
+    (void)env; (void)clazz;
+    apex::ApexEngine::getInstance().setFlowScale(scale);
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetFlowScale(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().getFlowScale();
+}
+
+JNIEXPORT void JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeUpdateDimensions(JNIEnv* env, jclass clazz, jint width, jint height) {
     (void)env; (void)clazz;
     apex::ApexEngine::getInstance().updateDimensions(width, height);

@@ -61,6 +61,18 @@ float ApexEngine::getShutterGain() const {
     return mShutterGain.load(std::memory_order_acquire);
 }
 
+void ApexEngine::setFlowScale(float scale) {
+    float clamped = std::clamp(scale, 0.1f, 1.0f);
+    float prev = mFlowScale.exchange(clamped, std::memory_order_acq_rel);
+    if (std::abs(prev - clamped) > 0.001f) {
+        APEX_LOGI("ApexEngine::setFlowScale(%.2f) - was: %.2f", clamped, prev);
+    }
+}
+
+float ApexEngine::getFlowScale() const {
+    return mFlowScale.load(std::memory_order_acquire);
+}
+
 void ApexEngine::setPendingRealFrame(bool pending) {
     mPendingRealFrame.store(pending, std::memory_order_release);
 }
@@ -160,16 +172,13 @@ float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
     int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
 
     float discretePhase = static_cast<float>(std::clamp(framesSince, 1, mult - 1)) / static_cast<float>(mult);
+
+    // Premium Liquid Sync: Always use the exact spatial midpoint (e.g. 0.5 for 2x, 0.33/0.66 for 3x).
+    // This matches the behavior of DLSS 3 / FSR 3 and ensures perfectly continuous motion
+    // even if the base game has minor timing jitter.
     float factor = discretePhase;
 
-    int64_t lastTime = mLastRealFrameTimeNanos.load(std::memory_order_acquire);
-    if (lastTime > 0 && mTypicalDeltaNanos > 1000000.0f) {
-        float elapsed = static_cast<float>(nowNanos - lastTime);
-        float continuousProgress = elapsed / mTypicalDeltaNanos;
-        factor = discretePhase * 0.80f + continuousProgress * 0.20f;
-    }
-
-    factor = std::clamp(factor, 0.10f, 0.90f);
+    factor = std::clamp(factor, 0.05f, 0.95f);
 
     mLastFactor = factor;
     mMinFactor = std::min(mMinFactor, factor);
