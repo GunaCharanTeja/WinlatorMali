@@ -122,10 +122,17 @@ android {
 
     signingConfigs {
         release {
-            storeFile file("${rootDir}/keystore/release.jks")
-            storePassword "android"
-            keyAlias "winlator_mali"
-            keyPassword "android"
+            def props = new Properties()
+            def localPropertiesFile = project.rootProject.file('local.properties')
+            if (localPropertiesFile.exists()) {
+                localPropertiesFile.withInputStream { props.load(it) }
+            }
+
+            storeFile props['keystore.file'] ? file(props['keystore.file']) : file("${rootDir}/keystore/release.jks")
+            storePassword props['keystore.password'] ?: "android"
+            keyAlias props['key.alias'] ?: "winlator_mali"
+            keyPassword props['key.password'] ?: "android"
+            
             enableV1Signing true
             enableV2Signing true
             enableV3Signing true
@@ -136,6 +143,7 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.release
         }
         release {
             minifyEnabled false

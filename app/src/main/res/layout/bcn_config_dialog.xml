@@ -116,5 +116,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/graphics_driver_etc2_transcode" />
+
+        <CheckBox
+            android:id="@+id/CBSkipSmallTextures"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_bcn_skip_small_textures" />
     </LinearLayout>
 </ScrollView>

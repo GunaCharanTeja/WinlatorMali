@@ -695,6 +695,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="bcn_layer_configuration">BCN Layer Configuration</string>
     <string name="graphics_driver_astc_transcode">ASTC Transcode</string>
     <string name="graphics_driver_etc2_transcode">ETC2 Transcode</string>
+    <string name="graphics_driver_bcn_skip_small_textures">Skip Compression on Small Textures</string>
     <string name="vkbasalt">vkBasalt</string>
     <string name="vkbasalt_sharpness_effects">Sharpness Effect</string>
     <string name="vkbasalt_sharpness_level">Sharpness Level</string>

@@ -120,11 +120,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
         
         contentsManager.syncContents();
 
-        final View vGraphicsDriverConfig = findViewById(R.id.BTGraphicsDriverConfig);
-        vGraphicsDriverConfig.setTag(shortcut.getExtra("graphicsDriverConfig", shortcut.container.getGraphicsDriverConfig()));
-        
         final View vDXWrapperConfig = findViewById(R.id.BTDXWrapperConfig);
         vDXWrapperConfig.setTag(shortcut.getExtra("dxwrapperConfig", shortcut.container.getDXWrapperConfig()));
+
+        final View vGraphicsDriverConfig = findViewById(R.id.BTGraphicsDriverConfig);
+        vGraphicsDriverConfig.setTag(shortcut.getExtra("graphicsDriverConfig", shortcut.container.getGraphicsDriverConfig()));
+
+        findViewById(R.id.BTBCNConfig).setOnClickListener(v -> new BCNConfigDialog(vGraphicsDriverConfig).show());
 
         loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig, shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver()),
             shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper()));
