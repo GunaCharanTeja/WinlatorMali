@@ -267,6 +267,7 @@ public class DXVKConfigDialog extends ContentDialog {
                              "d3d11.allowMapFlagNoWait = True\n" +
                              "d3d11.dcSingleUseMode = True\n" +
                              "d3d11.relaxedBarriers = True\n" +
+                             "d3d11.forceFormat = DXGI_FORMAT_B8G8R8A8_UNORM\n" +
                              "d3d9.allowDirectBufferMapping = True\n" +
                              "d3d9.maxFrameLatency = 1\n" +
                              "dxvk.deferSurfaceCreation = True\n" +

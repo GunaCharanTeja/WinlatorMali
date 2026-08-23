@@ -20,16 +20,27 @@ public class Texture {
 
 
     public void allocateTexture(short width, short height, ByteBuffer data) {
+        allocateTexture(width, height, width, data);
+    }
+
+    public void allocateTexture(short width, short height, short stride, ByteBuffer data) {
         int[] textureIds = new int[1];
         GLES20.glGenTextures(1, textureIds, 0);
         textureId = textureIds[0];
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 4);
+        if (stride > 0 && stride != width) {
+            android.opengl.GLES30.glPixelStorei(android.opengl.GLES30.GL_UNPACK_ROW_LENGTH, stride);
+        }
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
 
         if (data != null) {
             GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, format, width, height, 0, format, GLES20.GL_UNSIGNED_BYTE, data);
+        }
+
+        if (stride > 0 && stride != width) {
+            android.opengl.GLES30.glPixelStorei(android.opengl.GLES30.GL_UNPACK_ROW_LENGTH, 0);
         }
 
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrapS);
@@ -93,11 +104,17 @@ public class Texture {
         if (data == null) return;
 
         if (!isAllocated()) {
-            allocateTexture(drawable.width, drawable.height, data);
+            allocateTexture(drawable.width, drawable.height, drawable.getStride(), data);
         }
         else if (needsUpdate) {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+            if (drawable.getStride() > 0 && drawable.getStride() != drawable.width) {
+                android.opengl.GLES30.glPixelStorei(android.opengl.GLES30.GL_UNPACK_ROW_LENGTH, drawable.getStride());
+            }
             GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, drawable.width, drawable.height, format, GLES20.GL_UNSIGNED_BYTE, data);
+            if (drawable.getStride() > 0 && drawable.getStride() != drawable.width) {
+                android.opengl.GLES30.glPixelStorei(android.opengl.GLES30.GL_UNPACK_ROW_LENGTH, 0);
+            }
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
             needsUpdate = false;
         }

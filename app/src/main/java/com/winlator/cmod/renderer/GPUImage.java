@@ -5,10 +5,11 @@ import com.winlator.cmod.xserver.Drawable;
 import java.nio.ByteBuffer;
 
 public class GPUImage extends Texture {
-    private long hardwareBufferPtr;
+    public long hardwareBufferPtr;
+    public int format = 5;
     private long imageKHRPtr;
     private ByteBuffer virtualData;
-    private short stride;
+    public short stride;
     private static boolean supported = false;
 
     static {

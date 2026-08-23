@@ -145,6 +145,9 @@ public class ContainerDetailFragment extends Fragment {
         Spinner sWineVersion = view.findViewById(R.id.SWineVersion);
         sWineVersion.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
+        Spinner sDisplayDriver = view.findViewById(R.id.SDisplayDriver);
+        if (sDisplayDriver != null) sDisplayDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+
         Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
         sGraphicsDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
@@ -309,6 +312,40 @@ public class ContainerDetailFragment extends Fragment {
 
         loadScreenSizeSpinner(view, isEditMode() ? container.getScreenSize() : Container.DEFAULT_SCREEN_SIZE);
 
+        final Spinner sDisplayDriver = view.findViewById(R.id.SDisplayDriver);
+        updateDisplayDriverSpinner(context, sDisplayDriver);
+        String currentDisplayDriver = isEditMode() ? container.getDisplayDriver() : Container.DEFAULT_DISPLAY_DRIVER;
+        AppUtils.setSpinnerSelectionFromIdentifier(sDisplayDriver, currentDisplayDriver);
+
+        final View vDisplayDriverConfig = view.findViewById(R.id.BTDisplayDriverConfig);
+        if (StringUtils.parseIdentifier(currentDisplayDriver).equals("displayx")) {
+            vDisplayDriverConfig.setVisibility(View.VISIBLE);
+            vDisplayDriverConfig.setOnClickListener((v) -> (new com.winlator.cmod.contentdialog.DisplayXConfigDialog(vDisplayDriverConfig)).show());
+            vDisplayDriverConfig.setTag(isEditMode() ? container.getDisplayxConfig() : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG);
+        }
+        else {
+            vDisplayDriverConfig.setVisibility(View.GONE);
+        }
+
+        sDisplayDriver.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
+                String selectedItem = parent.getItemAtPosition(position).toString();
+                String identifier = StringUtils.parseIdentifier(selectedItem);
+                if (identifier.equals("displayx")) {
+                    vDisplayDriverConfig.setVisibility(View.VISIBLE);
+                    vDisplayDriverConfig.setOnClickListener((v1) -> (new com.winlator.cmod.contentdialog.DisplayXConfigDialog(vDisplayDriverConfig)).show());
+                    vDisplayDriverConfig.setTag(isEditMode() ? container.getDisplayxConfig() : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG);
+                }
+                else {
+                    vDisplayDriverConfig.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
         final Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
         
         final Spinner sDXWrapper = view.findViewById(R.id.SDXWrapper);
@@ -426,6 +463,8 @@ public class ContainerDetailFragment extends Fragment {
                 String envVars = envVarsView.getEnvVars();
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
+                String displayDriver = StringUtils.parseIdentifier(sDisplayDriver.getSelectedItem());
+                String displayxConfig = vDisplayDriverConfig.getTag() != null ? vDisplayDriverConfig.getTag().toString() : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG;
                 HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
                 if (config.get("version").isEmpty()) {
                     config.put("version", GPUInformation.isDriverSupported(DefaultVersion.WRAPPER_ADRENO, context) ? DefaultVersion.WRAPPER_ADRENO : DefaultVersion.WRAPPER);
@@ -460,6 +499,8 @@ public class ContainerDetailFragment extends Fragment {
                     container.setEnvVars(envVars);
                     container.setCPUList(cpuList);
                     container.setCPUListWoW64(cpuListWoW64);
+                    container.setDisplayDriver(displayDriver);
+                    container.setDisplayxConfig(displayxConfig);
                     container.setGraphicsDriver(graphicsDriver);
                     container.setGraphicsDriverConfig(graphicsDriverConfig);
                     container.setDXWrapper(dxwrapper);
@@ -490,6 +531,8 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("envVars", envVars);
                     data.put("cpuList", cpuList);
                     data.put("cpuListWoW64", cpuListWoW64);
+                    data.put("displayDriver", displayDriver);
+                    data.put("displayxConfig", displayxConfig);
                     data.put("graphicsDriver", graphicsDriver);
                     data.put("graphicsDriverConfig", graphicsDriverConfig);
                     data.put("dxwrapper", dxwrapper);
@@ -975,6 +1018,12 @@ public class ContainerDetailFragment extends Fragment {
             }
         }
         spinner.setSelection(isEditMode() && (index != 0) ? index : defaultValue);
+    }
+
+    public static void updateDisplayDriverSpinner(Context context, Spinner spinner) {
+        String[] originalItems = context.getResources().getStringArray(R.array.display_driver_entries);
+        List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
+        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
     }
 
     public static void updateGraphicsDriverSpinner(Context context, Spinner spinner) {

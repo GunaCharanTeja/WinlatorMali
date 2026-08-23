@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <android/bitmap.h>
+#include <android/hardware_buffer.h>
 #include <android/log.h>
 
 #define WHITE 0xffffff
@@ -14,7 +15,7 @@
 enum GCFunction {GCF_CLEAR, GCF_AND, GCF_AND_REVERSE, GCF_COPY, GCF_AND_INVERTED, GCF_NO_OP, GCF_XOR, GCF_OR, GCF_NOR, GCF_EQUIV, GCF_INVERT, GCF_OR_REVERSE, GCF_COPY_INVERTED, GCF_OR_INVERTED, GCF_NAND, GCF_SET};
 
 static int packColor(int8_t r, int8_t g, int8_t b) {
-    return ((r & 0xff00) << 8) | (g & 0xff00) | (b >> 8);
+    return ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
 }
 
 static void unpackColor(int color, uint8_t *rgba) {
@@ -75,7 +76,7 @@ static int setPixelOp(int srcColor, int dstColor, enum GCFunction gcFunction) {
 JNIEXPORT void JNICALL
 Java_com_winlator_cmod_xserver_Drawable_drawBitmap(JNIEnv *env, jclass obj,
                                               jshort width, jshort height, jobject srcData,
-                                              jobject dstData) {
+                                              jshort dstStride, jobject dstData) {
     uint8_t *srcDataAddr = (*env)->GetDirectBufferAddress(env, srcData);
     int *dstDataAddr = (*env)->GetDirectBufferAddress(env, dstData);
 
@@ -86,8 +87,9 @@ Java_com_winlator_cmod_xserver_Drawable_drawBitmap(JNIEnv *env, jclass obj,
 
     int stride = getBitmapBytePad(width);
     for (int16_t y = 0, x; y < height; y++) {
+        int *dst = dstDataAddr + (y * dstStride);
         for (x = 0; x < width; x++) {
-            *dstDataAddr++ = getBit(srcDataAddr, x) ? WHITE : BLACK;
+            dst[x] = getBit(srcDataAddr, x) ? WHITE : BLACK;
         }
         srcDataAddr += stride;
     }
@@ -235,11 +237,13 @@ Java_com_winlator_cmod_xserver_Drawable_drawLine(JNIEnv *env, jclass obj, jshort
 
 JNIEXPORT void JNICALL
 Java_com_winlator_cmod_xserver_Drawable_drawAlphaMaskedBitmap(JNIEnv *env, jclass obj,
-                                                         jbyte foreRed, jbyte foreGreen,
-                                                         jbyte foreBlue, jbyte backRed,
-                                                         jbyte backGreen, jbyte backBlue,
-                                                         jobject srcData, jobject maskData,
-                                                         jobject dstData) {
+                                                          jbyte foreRed, jbyte foreGreen,
+                                                          jbyte foreBlue, jbyte backRed,
+                                                          jbyte backGreen, jbyte backBlue,
+                                                          jobject srcData, jshort srcStride,
+                                                          jobject maskData, jshort maskStride,
+                                                          jshort width, jshort height,
+                                                          jshort dstStride, jobject dstData) {
     int *srcDataAddr = (*env)->GetDirectBufferAddress(env, srcData);
     int *maskDataAddr = (*env)->GetDirectBufferAddress(env, maskData);
     int *dstDataAddr = (*env)->GetDirectBufferAddress(env, dstData);
@@ -252,9 +256,16 @@ Java_com_winlator_cmod_xserver_Drawable_drawAlphaMaskedBitmap(JNIEnv *env, jclas
     int foreColor = packColor(foreRed, foreGreen, foreBlue);
     int backColor = packColor(backRed, backGreen, backBlue);
 
-    jlong dstLength = (*env)->GetDirectBufferCapacity(env, dstData) / 4;
-    for (int i = 0; i < dstLength; i++) {
-        dstDataAddr[i] = maskDataAddr[i] == WHITE ? (srcDataAddr[i] == WHITE ? foreColor : backColor) | 0xff000000 : 0x00000000;
+    for (int16_t y = 0; y < height; y++) {
+        int rowStart = y * dstStride;
+        int srcStart = y * srcStride;
+        int maskStart = y * maskStride;
+        for (int16_t x = 0; x < width; x++) {
+            int srcIdx = x + srcStart;
+            int dstIdx = x + rowStart;
+            int maskIdx = x + maskStart;
+            dstDataAddr[dstIdx] = maskDataAddr[maskIdx] == WHITE ? (srcDataAddr[srcIdx] == WHITE ? foreColor : backColor) | 0xff000000 : 0x00000000;
+        }
     }
 }
 
@@ -280,9 +291,7 @@ Java_com_winlator_cmod_xserver_Drawable_fromBitmap(JNIEnv *env, jclass obj, jobj
         return;
     }
 
-    for (int i = 0, size = info.width * info.height * 4; i < size; i++) {
-        memcpy(dataAddr + i, pixels + i, 4);
-    }
+    memcpy(dataAddr, pixels, info.width * info.height * 4);
 
     AndroidBitmap_unlockPixels(env, bitmap);
 }
@@ -318,4 +327,47 @@ Java_com_winlator_cmod_xserver_Pixmap_toBitmap(JNIEnv *env, jclass obj, jobject 
     }
 
     AndroidBitmap_unlockPixels(env, bitmap);
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_winlator_cmod_xserver_Drawable_allocate(JNIEnv *env, jobject obj, jint width, jint height, jint format) {
+    AHardwareBuffer *ahb;
+    AHardwareBuffer_Desc desc = {
+        .width = (uint32_t)width,
+        .height = (uint32_t)height,
+        .layers = 1,
+        .format = format == 5 ? 5 : AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+        .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY,
+    };
+    
+    int ret = AHardwareBuffer_allocate(&desc, &ahb);
+    if (ret != 0) return 0;
+    
+    AHardwareBuffer_Desc outDesc;
+    AHardwareBuffer_describe(ahb, &outDesc);
+    jclass cls = (*env)->GetObjectClass(env, obj);
+    jfieldID strideField = (*env)->GetFieldID(env, cls, "stride", "S");
+    if (strideField) {
+        (*env)->SetShortField(env, obj, strideField, (jshort)outDesc.stride);
+    }
+    
+    return (jlong)ahb;
+}
+
+JNIEXPORT jobject JNICALL
+Java_com_winlator_cmod_xserver_Drawable_lockBuffer(JNIEnv *env, jclass obj, jlong ahb) {
+    if (!ahb) return NULL;
+    void *addr;
+    AHardwareBuffer_Desc outDesc;
+    AHardwareBuffer_describe((AHardwareBuffer *)ahb, &outDesc);
+    int ret = AHardwareBuffer_lock((AHardwareBuffer *)ahb, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr);
+    if (ret != 0) return NULL;
+    return (*env)->NewDirectByteBuffer(env, addr, outDesc.stride * outDesc.height * 4);
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_cmod_xserver_Drawable_unlockBuffer(JNIEnv *env, jclass obj, jlong ahb) {
+    if (ahb) {
+        AHardwareBuffer_unlock((AHardwareBuffer *)ahb, NULL);
+    }
 }

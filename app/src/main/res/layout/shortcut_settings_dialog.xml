@@ -102,6 +102,31 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="Display Driver" />
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            
+            <Spinner
+                style="@style/ComboBox"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:id="@+id/SDisplayDriver"
+                android:entries="@array/display_driver_entries" />
+                
+            <ImageButton
+                style="@style/ListMenuButton"
+                android:id="@+id/BTDisplayDriverConfig"
+                android:src="@drawable/icon_settings"
+                android:visibility="gone" />   
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="@string/graphics_driver" />
 
         <LinearLayout

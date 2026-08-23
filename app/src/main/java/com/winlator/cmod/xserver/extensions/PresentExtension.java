@@ -123,17 +123,20 @@ public class PresentExtension implements Extension {
         final Pixmap pixmap = client.xServer.pixmapManager.getPixmap(pixmapId);
         if (pixmap == null) throw new BadPixmap(pixmapId);
 
-        Drawable content = window.getContent();
-        if (content.visual.depth != pixmap.drawable.visual.depth) throw new BadMatch();
-
         long ust = System.nanoTime() / 1000;
         long msc = ust / FAKE_INTERVAL;
 
-        synchronized (content.renderLock) {
-            content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);
-            sendIdleNotify(window, pixmap, serial, idleFence);
-            sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
+        if (client.xServer.getDisplayXView() != null) {
+            pixmap.drawable.updateDirect();
+        } else {
+            Drawable content = window.getContent();
+            if (content.visual.depth != pixmap.drawable.visual.depth) throw new BadMatch();
+            synchronized (content.renderLock) {
+                content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);
+            }
         }
+        sendIdleNotify(window, pixmap, serial, idleFence);
+        sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
     }
 
     private void selectInput(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -147,7 +150,9 @@ public class PresentExtension implements Extension {
         if (GPUImage.isSupported() && !mask.isEmpty()) {
             Drawable content = window.getContent();
             final Texture oldTexture = content.getTexture();
-            client.xServer.getRenderer().xServerView.queueEvent(oldTexture::destroy);
+            if (client.xServer != null && client.xServer.getRenderer() != null && client.xServer.getRenderer().xServerView != null) {
+                client.xServer.getRenderer().xServerView.queueEvent(oldTexture::destroy);
+            }
             content.setTexture(new GPUImage(content.width, content.height));
         }
 
@@ -212,7 +217,9 @@ public class PresentExtension implements Extension {
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.PIXMAP_MANAGER)) {
                     presentPixmap(client, inputStream, outputStream);
                 }
-                enforceAbsoluteFramerate(client.xServer.getRenderer());
+                if (client.xServer != null && client.xServer.getRenderer() != null) {
+                    enforceAbsoluteFramerate(client.xServer.getRenderer());
+                }
                 break;
             case ClientOpcodes.SELECT_INPUT:
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {

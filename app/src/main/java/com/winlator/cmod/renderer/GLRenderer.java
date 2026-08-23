@@ -367,6 +367,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private void renderCursor() {
         cursorMaterial.use();
         GLES20.glUniform2f(cursorMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
+        quadVertices.bind(cursorMaterial.programId);
 
         Window pointWindow = xServer.inputDeviceManager.getPointWindow();
         Cursor cursor = pointWindow != null ? pointWindow.attributes.getCursor() : null;
@@ -378,6 +379,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         } else {
             renderDrawable(rootCursorDrawable, x, y, cursorMaterial);
         }
+        quadVertices.disable();
     }
 
     public void setCursorVisible(boolean cursorVisible) {

@@ -35,6 +35,9 @@ public class XServer {
     public final InputDeviceManager inputDeviceManager;
     public final GrabManager grabManager;
     public final CursorLocker cursorLocker;
+    private String displayDriver = "opengl";
+    private int surfaceFormat = 5; // HAL_PIXEL_FORMAT_BGRA_8888
+    private com.winlator.cmod.widget.DisplayXView displayXView;
     private SHMSegmentManager shmSegmentManager;
     private GLRenderer renderer;
     private WinHandler winHandler;
@@ -45,7 +48,20 @@ public class XServer {
     private XClient grabbingClient = null;
 
     public XServer(ScreenInfo screenInfo) {
+        this(screenInfo, "opengl", null);
+    }
+
+    public XServer(ScreenInfo screenInfo, String displayDriver, com.winlator.cmod.core.KeyValueSet displayxConfig) {
         this.screenInfo = screenInfo;
+        this.displayDriver = displayDriver != null ? displayDriver : "opengl";
+        if (isDisplayX() && displayxConfig != null) {
+            String sf = displayxConfig.get("surfaceFormat");
+            if (sf.equals("rgba8")) {
+                this.surfaceFormat = 1; // HardwareBuffer.RGBA_8888
+            } else {
+                this.surfaceFormat = 5; // HAL_PIXEL_FORMAT_BGRA_8888
+            }
+        }
         cursorLocker = new CursorLocker(this);
         for (Lockable lockable : Lockable.values()) locks.put(lockable, new ReentrantLock());
 
@@ -59,6 +75,30 @@ public class XServer {
 
         DesktopHelper.attachTo(this);
         setupExtensions();
+    }
+
+    public String getDisplayDriver() {
+        return this.displayDriver;
+    }
+
+    public void setDisplayDriver(String displayDriver) {
+        this.displayDriver = displayDriver;
+    }
+
+    public boolean isDisplayX() {
+        return this.displayDriver != null && this.displayDriver.equalsIgnoreCase("displayx");
+    }
+
+    public int getSurfaceFormat() {
+        return this.surfaceFormat;
+    }
+
+    public com.winlator.cmod.widget.DisplayXView getDisplayXView() {
+        return displayXView;
+    }
+
+    public void setDisplayXView(com.winlator.cmod.widget.DisplayXView displayXView) {
+        this.displayXView = displayXView;
     }
 
     public boolean isRelativeMouseMovement() {

@@ -3,10 +3,17 @@ package com.winlator.cmod.xserver;
 import android.util.SparseArray;
 
 import java.nio.IntBuffer;
+import java.util.ArrayList;
 
 public class CursorManager extends XResourceManager {
     private final SparseArray<Cursor> cursors = new SparseArray<>();
     private final DrawableManager drawableManager;
+    private final ArrayList<OnCursorModificationListener> listeners = new ArrayList<>();
+
+    public interface OnCursorModificationListener {
+        default void onCreateCursor(Cursor cursor) {}
+        default void onFreeCursor(Cursor cursor) {}
+    }
 
     public CursorManager(DrawableManager drawableManager) {
         this.drawableManager = drawableManager;
@@ -22,12 +29,37 @@ public class CursorManager extends XResourceManager {
         Cursor cursor = new Cursor(id, x, y, drawable, sourcePixmap.drawable, maskPixmap != null ? maskPixmap.drawable : null);
         cursors.put(id, cursor);
         triggerOnCreateResourceListener(cursor);
+        triggerOnCreateCursor(cursor);
         return cursor;
     }
 
     public void freeCursor(int id) {
-        triggerOnFreeResourceListener(cursors.get(id));
+        Cursor cursor = cursors.get(id);
+        triggerOnFreeResourceListener(cursor);
+        triggerOnFreeCursor(cursor);
         cursors.remove(id);
+    }
+
+    public void addOnCursorModificationListener(OnCursorModificationListener listener) {
+        listeners.add(listener);
+    }
+
+    public void removeOnCursorModificationListener(OnCursorModificationListener listener) {
+        listeners.remove(listener);
+    }
+
+    private void triggerOnCreateCursor(Cursor cursor) {
+        for (int i = listeners.size() - 1; i >= 0; i--) {
+            listeners.get(i).onCreateCursor(cursor);
+        }
+    }
+
+    private void triggerOnFreeCursor(Cursor cursor) {
+        if (cursor != null) {
+            for (int i = listeners.size() - 1; i >= 0; i--) {
+                listeners.get(i).onFreeCursor(cursor);
+            }
+        }
     }
 
     private static boolean isEmptyMaskImage(Drawable maskImage) {
@@ -46,7 +78,10 @@ public class CursorManager extends XResourceManager {
         if (cursor.maskImage != null) {
             boolean visible = !isEmptyMaskImage(cursor.maskImage);
             cursor.setVisible(visible);
-            if (visible) cursor.cursorImage.drawAlphaMaskedBitmap(foreRed, foreGreen, foreBlue, backRed, backGreen, backBlue, cursor.sourceImage, cursor.maskImage);
+            if (visible) {
+                cursor.cursorImage.drawAlphaMaskedBitmap(foreRed, foreGreen, foreBlue, backRed, backGreen, backBlue, cursor.sourceImage, cursor.maskImage);
+                triggerOnCreateCursor(cursor);
+            }
         }
     }
 }

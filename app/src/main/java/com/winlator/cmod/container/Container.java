@@ -27,6 +27,7 @@ public class Container {
         BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_Y, BUTTON_GRIP, BUTTON_TRIGGER,
         THUMBSTICK_UP, THUMBSTICK_DOWN, THUMBSTICK_LEFT, THUMBSTICK_RIGHT
     }
+    public static final String DEFAULT_DISPLAY_DRIVER = "opengl";
     public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1";
     public static final String DEFAULT_SCREEN_SIZE = "1280x720";
     public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
@@ -48,6 +49,8 @@ public class Container {
     private String name;
     private String screenSize = DEFAULT_SCREEN_SIZE;
     private String envVars = DEFAULT_ENV_VARS;
+    private String displayDriver = DEFAULT_DISPLAY_DRIVER;
+    private String displayxConfig = com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG;
     private String graphicsDriver = DEFAULT_GRAPHICS_DRIVER;
     private String graphicsDriverConfig = DEFAULT_GRAPHICSDRIVERCONFIG;
     private String dxwrapper = DEFAULT_DXWRAPPER;
@@ -244,6 +247,22 @@ public class Container {
         this.fexcoreVersion = version;
     }
 
+    public String getDisplayDriver() {
+        return displayDriver != null ? displayDriver : DEFAULT_DISPLAY_DRIVER;
+    }
+
+    public void setDisplayDriver(String displayDriver) {
+        this.displayDriver = displayDriver;
+    }
+
+    public String getDisplayxConfig() {
+        return displayxConfig != null ? displayxConfig : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG;
+    }
+
+    public void setDisplayxConfig(String displayxConfig) {
+        this.displayxConfig = displayxConfig;
+    }
+
     public String getFEXCoreVersion() {
         return this.fexcoreVersion;
     }
@@ -411,6 +430,8 @@ public class Container {
             data.put("cpuListWoW64", cpuListWoW64);
             data.put("graphicsDriver", graphicsDriver);
             data.put("graphicsDriverConfig", graphicsDriverConfig);
+            data.put("displayDriver", displayDriver);
+            data.put("displayxConfig", displayxConfig);
             data.put("emulator", emulator);
             data.put("dxwrapper", dxwrapper);
             if (!dxwrapperConfig.isEmpty()) data.put("dxwrapperConfig", dxwrapperConfig);
@@ -468,6 +489,12 @@ public class Container {
                     break;
                 case "graphicsDriverConfig" :
                     setGraphicsDriverConfig(data.getString(key));
+                    break;
+                case "displayDriver" :
+                    setDisplayDriver(data.getString(key));
+                    break;
+                case "displayxConfig" :
+                    setDisplayxConfig(data.getString(key));
                     break;
                 case "emulator":
                     setEmulator(data.getString(key));

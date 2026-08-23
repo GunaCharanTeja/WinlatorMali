@@ -717,11 +717,21 @@ public class WinlatorHUD extends View {
         setVisibility(GONE);
     }
 
+    private boolean isDisplayX = false;
+
+    public void setDisplayDriver(String displayDriver) {
+        this.isDisplayX = displayDriver != null && displayDriver.equalsIgnoreCase("displayx");
+        this.rendererLabel = isDisplayX ? "DisplayX" : "OpenGL";
+        this.strRend = (isNative ? "+" : "") + rendererLabel;
+        this.layoutDirty = true;
+        postInvalidate();
+    }
+
     public void onRendererDetected(String name) {
         uiHandler.post(() -> {
             rendererActive = true;
             boolean changed = false;
-            if (name != null && !name.isEmpty() && !name.equals(rendererLabel)) {
+            if (!isDisplayX && name != null && !name.isEmpty() && !name.equals(rendererLabel)) {
                 rendererLabel = name;
                 strRend = (isNative ? "+" : "") + rendererLabel;
                 layoutDirty = true;
@@ -763,7 +773,12 @@ public class WinlatorHUD extends View {
     }
 
     public void setRenderer(String name) {
-        if (name != null && !name.isEmpty()) rendererLabel = name;
+        if (name != null && !name.isEmpty()) {
+            this.rendererLabel = name;
+            this.strRend = (isNative ? "+" : "") + rendererLabel;
+            this.layoutDirty = true;
+            postInvalidate();
+        }
     }
     public void setWrapperName(String name) {
         if (name != null && !name.isEmpty()) {
@@ -831,7 +846,7 @@ public class WinlatorHUD extends View {
     }
 
     public void reset() {
-        rendererLabel = "OpenGL"; frameAccum.set(0); snapFps = 0; gHead = 0; lastFpsNs = 0;
+        rendererLabel = isDisplayX ? "DisplayX" : "OpenGL"; frameAccum.set(0); snapFps = 0; gHead = 0; lastFpsNs = 0;
     }
 
     public void forceReset() {

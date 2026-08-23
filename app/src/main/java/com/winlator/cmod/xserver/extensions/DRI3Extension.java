@@ -1,12 +1,11 @@
 package com.winlator.cmod.xserver.extensions;
 
 import android.util.Log;
+import android.util.SparseArray;
 import com.winlator.cmod.renderer.GPUImage;
 
 import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCCESS;
 
-import com.winlator.cmod.core.Callback;
-import com.winlator.cmod.sysvshm.SysVSharedMemory;
 import com.winlator.cmod.xconnector.XConnectorEpoll;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
@@ -16,8 +15,9 @@ import com.winlator.cmod.xserver.Pixmap;
 import com.winlator.cmod.xserver.Window;
 import com.winlator.cmod.xserver.XClient;
 import com.winlator.cmod.xserver.XLock;
+import com.winlator.cmod.xserver.XResource;
+import com.winlator.cmod.xserver.XResourceManager;
 import com.winlator.cmod.xserver.XServer;
-import com.winlator.cmod.xserver.errors.BadAlloc;
 import com.winlator.cmod.xserver.errors.BadDrawable;
 import com.winlator.cmod.xserver.errors.BadIdChoice;
 import com.winlator.cmod.xserver.errors.BadImplementation;
@@ -25,20 +25,36 @@ import com.winlator.cmod.xserver.errors.BadWindow;
 import com.winlator.cmod.xserver.errors.XRequestError;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
-public class DRI3Extension implements Extension {
+public class DRI3Extension implements Extension, XResourceManager.OnResourceLifecycleListener {
     public static final byte MAJOR_OPCODE = -102;
-    private final Callback<Drawable> onDestroyDrawableListener = (drawable) -> {
-        ByteBuffer data = drawable.getData();
-        SysVSharedMemory.unmapSHMSegment(data, data.capacity());
-    };
+    private XServer xServer;
+    private final SparseArray<DirectContent> directContents = new SparseArray<DirectContent>();
+    
+    private class DirectContent {
+        Window window;
+        Pixmap content;
+        
+        private DirectContent(Window window, Pixmap pixmap) {
+            this.window = window;
+            this.content = pixmap;
+        }
+    }
 
     private static abstract class ClientOpcodes {
         private static final byte QUERY_VERSION = 0;
         private static final byte OPEN = 1;
         private static final byte PIXMAP_FROM_BUFFER = 2;
         private static final byte PIXMAP_FROM_BUFFERS = 7;
+    }
+    
+    public DRI3Extension() {}
+
+    public DRI3Extension(XServer xserver) {
+        this.xServer = xserver;
+        if (xserver != null && xserver.pixmapManager != null) {
+            this.xServer.pixmapManager.addOnResourceLifecycleListener(this);
+        }
     }
 
     @Override
@@ -70,7 +86,7 @@ public class DRI3Extension implements Extension {
             outputStream.writeShort(client.getSequenceNumber());
             outputStream.writeInt(0);
             outputStream.writeInt(1);
-            outputStream.writeInt(0);
+            outputStream.writeInt(2);
             outputStream.writePad(16);
         }
     }
@@ -108,7 +124,7 @@ public class DRI3Extension implements Extension {
         if (pixmap != null) throw new BadIdChoice(pixmapId);
 
         int fd = inputStream.getAncillaryFd();
-        pixmapFromFd(client, pixmapId, width, height, stride, 0, depth, fd, size);
+        pixmapFromHardwareBuffer(client, pixmapId, width, height, depth, fd, window);
     }
 
     private void pixmapFromBuffers(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -139,45 +155,28 @@ public class DRI3Extension implements Extension {
         if (pixmap != null) throw new BadIdChoice(pixmapId);
         
         int fd = inputStream.getAncillaryFd();
-        long size = (long)stride * height;
 
-        if (modifiers == 1255) {
-            Log.d("Dri3", "Creating pixmap from AHardwareBuffer");
-            pixmapFromHardwareBuffer(client, pixmapId, width, height, depth, fd);
-        }
-        else if (modifiers == 1274) {
-            Log.d("Dri3", "Creating pixmap from dmabuf filedescriptor"); 
-            pixmapFromFd(client, pixmapId, width, height, stride, offset, depth, fd, size);
-        }    
+        pixmapFromHardwareBuffer(client, pixmapId, width, height, depth, fd, window);
     }
     
-    private void pixmapFromHardwareBuffer(XClient client, int pixmapId, short width, short height, byte depth, int fd) throws IOException, XRequestError {
+    private void pixmapFromHardwareBuffer(XClient client, int pixmapId, short width, short height, byte depth, int fd, Window window) throws IOException, XRequestError {
         try {
             GPUImage gpuImage = new GPUImage(fd);
-            Drawable drawable = client.xServer.drawableManager.createDrawable(pixmapId, gpuImage.getStride(), height, depth);
-            drawable.setTexture(gpuImage);
-            client.xServer.pixmapManager.createPixmap(drawable);
+            Drawable drawable = client.xServer.drawableManager.createDrawable(pixmapId, width, height, depth);
+            drawable.setGPUImage(gpuImage);
+            drawable.setOnDrawListener(() -> client.xServer.windowManager.triggerOnUpdateWindowContentDirect(window, drawable));
+            if (client.xServer.getDisplayXView() != null) {
+                client.xServer.getDisplayXView().addDirectContent(window, drawable);
+            }
+            Pixmap pixmap = client.xServer.pixmapManager.createPixmap(drawable);
+            client.registerAsOwnerOfResource(pixmap);
+            
+            DirectContent directContent = new DirectContent(window, pixmap);
+            directContents.put(pixmap.id, directContent);
         }
         finally {
             XConnectorEpoll.closeFd(fd);
         }   
-    }
-
-    private void pixmapFromFd(XClient client, int pixmapId, short width, short height, int stride, int offset, byte depth, int fd, long size)  throws IOException, XRequestError {
-        try {
-            ByteBuffer buffer = SysVSharedMemory.mapSHMSegment(fd, size, offset, true);
-            if (buffer == null) throw new BadAlloc();
-            
-            short totalWidth = (short)(stride / 4);
-            Drawable drawable = client.xServer.drawableManager.createDrawable(pixmapId, totalWidth, height, depth);
-            drawable.setData(buffer);
-            drawable.setTexture(null);
-            drawable.setOnDestroyListener(onDestroyDrawableListener);
-            client.xServer.pixmapManager.createPixmap(drawable);
-        }
-        finally {
-            XConnectorEpoll.closeFd(fd);
-        }
     }
 
     @Override
@@ -205,5 +204,19 @@ public class DRI3Extension implements Extension {
             default:
                 throw new BadImplementation();
         }
+    }
+
+    @Override
+    public void onFreeResource(XResource resource) {
+        if (resource instanceof Pixmap) {
+            Pixmap pixmap = (Pixmap)resource;
+            DirectContent content = directContents.get(pixmap.id);
+            if (content != null) {
+                if (xServer != null && xServer.getDisplayXView() != null) {
+                    xServer.getDisplayXView().removeDirectContent(content.window, pixmap.id);
+                }
+                directContents.remove(pixmap.id);
+            }
+        }    
     }
 }

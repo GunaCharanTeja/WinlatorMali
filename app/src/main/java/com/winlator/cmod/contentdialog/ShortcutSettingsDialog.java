@@ -109,6 +109,39 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         loadScreenSizeSpinner(getContentView(), shortcut.getExtra("screenSize", shortcut.container.getScreenSize()), isDarkMode);
 
+        final Spinner sDisplayDriver = findViewById(R.id.SDisplayDriver);
+        ContainerDetailFragment.updateDisplayDriverSpinner(context, sDisplayDriver);
+        String currentDisplayDriver = shortcut.getExtra("displayDriver", shortcut.container.getDisplayDriver());
+        AppUtils.setSpinnerSelectionFromIdentifier(sDisplayDriver, currentDisplayDriver);
+
+        final View vDisplayDriverConfig = findViewById(R.id.BTDisplayDriverConfig);
+        if (com.winlator.cmod.core.StringUtils.parseIdentifier(currentDisplayDriver).equals("displayx")) {
+            vDisplayDriverConfig.setVisibility(View.VISIBLE);
+            vDisplayDriverConfig.setOnClickListener((v) -> (new DisplayXConfigDialog(vDisplayDriverConfig)).show());
+            vDisplayDriverConfig.setTag(shortcut.getExtra("displayxConfig", shortcut.container.getDisplayxConfig()));
+        }
+        else {
+            vDisplayDriverConfig.setVisibility(View.GONE);
+        }
+
+        sDisplayDriver.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selectedItem = parent.getItemAtPosition(position).toString();
+                String identifier = com.winlator.cmod.core.StringUtils.parseIdentifier(selectedItem);
+                if (identifier.equals("displayx")) {
+                    vDisplayDriverConfig.setVisibility(View.VISIBLE);
+                    vDisplayDriverConfig.setOnClickListener((v) -> (new DisplayXConfigDialog(vDisplayDriverConfig)).show());
+                    vDisplayDriverConfig.setTag(shortcut.getExtra("displayxConfig", shortcut.container.getDisplayxConfig()));
+                }
+                else {
+                    vDisplayDriverConfig.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
         final Spinner sGraphicsDriver = findViewById(R.id.SGraphicsDriver);
         
@@ -350,6 +383,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String execArgs = etExecArgs.getText().toString();
                 shortcut.putExtra("execArgs", !execArgs.isEmpty() ? execArgs : null);
                 shortcut.putExtra("screenSize", screenSize);
+                shortcut.putExtra("displayDriver", com.winlator.cmod.core.StringUtils.parseIdentifier(sDisplayDriver.getSelectedItem()));
+                shortcut.putExtra("displayxConfig", vDisplayDriverConfig.getTag() != null ? vDisplayDriverConfig.getTag().toString() : DisplayXConfigDialog.DEFAULT_CONFIG);
                 shortcut.putExtra("graphicsDriver", graphicsDriver);
                 shortcut.putExtra("graphicsDriverConfig", graphicsDriverConfig);
                 shortcut.putExtra("dxwrapper", dxwrapper);
@@ -469,6 +504,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         applyDarkThemeToEditText(etName, isDarkMode);
 
         // Update Spinners
+        Spinner sDisplayDriver = view.findViewById(R.id.SDisplayDriver);
         Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
         Spinner sDXWrapper = view.findViewById(R.id.SDXWrapper);
         Spinner sAudioDriver = view.findViewById(R.id.SAudioDriver);
@@ -482,6 +518,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         Spinner sStartupSelection = findViewById(R.id.SStartupSelection);
 
         // Set dark or light mode background for spinners
+        if (sDisplayDriver != null) sDisplayDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sGraphicsDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sDXWrapper.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sAudioDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
