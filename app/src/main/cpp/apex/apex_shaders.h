@@ -28,9 +28,30 @@ const vec4 OUT_B1 = vec4(2.408203, 0.069763, -2.306641, -1.020508);
 const vec4 OUT_G  = vec4(0.194946, 0.292236,  0.433594,  0.694336);
 const vec4 OUT_B2 = vec4(0.088257, -0.257568, -0.186157, -0.523926);
 
-vec4 extractNeuralFeatures(sampler2D tex, vec2 uv) {
-    float r00 = dot(textureLod(tex, uv, 0.0).rgb, vec3(0.299, 0.587, 0.114));
-    vec4 acc = (W1 + W2 + W3 + W4 + W6 + W7 + W8 + W9) * (r00 * 0.12) + W5 * r00;
+vec4 extractNeuralFeatures(sampler2D tex, vec2 uv, vec2 ts) {
+    vec3 cMM = textureLod(tex, uv + vec2(-ts.x, -ts.y), 0.0).rgb;
+    vec3 cMZ = textureLod(tex, uv + vec2(-ts.x,   0.0), 0.0).rgb;
+    vec3 cMP = textureLod(tex, uv + vec2(-ts.x,  ts.y), 0.0).rgb;
+    vec3 cZM = textureLod(tex, uv + vec2(  0.0, -ts.y), 0.0).rgb;
+    vec3 cZZ = textureLod(tex, uv,                      0.0).rgb;
+    vec3 cZP = textureLod(tex, uv + vec2(  0.0,  ts.y), 0.0).rgb;
+    vec3 cPM = textureLod(tex, uv + vec2( ts.x, -ts.y), 0.0).rgb;
+    vec3 cPZ = textureLod(tex, uv + vec2( ts.x,   0.0), 0.0).rgb;
+    vec3 cPP = textureLod(tex, uv + vec2( ts.x,  ts.y), 0.0).rgb;
+
+    float lMM = dot(cMM, vec3(0.299, 0.587, 0.114));
+    float lMZ = dot(cMZ, vec3(0.299, 0.587, 0.114));
+    float lMP = dot(cMP, vec3(0.299, 0.587, 0.114));
+    float lZM = dot(cZM, vec3(0.299, 0.587, 0.114));
+    float lZZ = dot(cZZ, vec3(0.299, 0.587, 0.114));
+    float lZP = dot(cZP, vec3(0.299, 0.587, 0.114));
+    float lPM = dot(cPM, vec3(0.299, 0.587, 0.114));
+    float lPZ = dot(cPZ, vec3(0.299, 0.587, 0.114));
+    float lPP = dot(cPP, vec3(0.299, 0.587, 0.114));
+
+    vec4 acc = W1 * lMM + W2 * lMZ + W3 * lMP +
+               W4 * lZM + W5 * lZZ + W6 * lZP +
+               W7 * lPM + W8 * lPZ + W9 * lPP;
     return (acc - OUT_B1) * OUT_G + OUT_B2;
 }
 
@@ -55,18 +76,18 @@ void main() {
     vec2 ts = 1.0 / vec2(imageSize);
     const vec2 maxVelocity = vec2(1.0); // 100% Full Screen Span Reach (Unbounded 360 Camera Flicks)
 
-    vec4 currFeat = extractNeuralFeatures(currFrame, uv);
-    vec4 prevFeat = extractNeuralFeatures(prevFrame, uv);
+    vec4 currFeat = extractNeuralFeatures(currFrame, uv, ts);
+    vec4 prevFeat = extractNeuralFeatures(prevFrame, uv, ts);
     float diff = length(currFeat - prevFeat);
 
-    if (diff < 0.001) {
+    if (diff < 0.0001) {
         imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 1.0, 1.0));
         return;
     }
 
     vec2 centerMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
     vec2 bestMV = centerMV;
-    float bestSAD = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + centerMV, 0.0, 1.0)));
+    float bestSAD = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + centerMV, 0.0, 1.0), ts));
     float secondBestSAD = 100.0;
 
     // 5-Tier Extended Scale Search (1024px Reach)
@@ -185,10 +206,30 @@ const vec2 goldenSearch64[64] = vec2[](
     vec2( 0.000, -0.125), vec2(-0.088, -0.088), vec2(-0.125,  0.000), vec2(-0.088,  0.088)
 );
 
-vec4 extractNeuralFeatures(sampler2D tex, vec2 uv) {
-    vec3 c = textureLod(tex, uv, 0.0).rgb;
-    float l = dot(c, vec3(0.299, 0.587, 0.114));
-    vec4 acc = (W1 + W2 + W3 + W4 + W6 + W7 + W8 + W9) * (l * 0.12) + W5 * l;
+vec4 extractNeuralFeatures(sampler2D tex, vec2 uv, vec2 ts) {
+    vec3 cMM = textureLod(tex, uv + vec2(-ts.x, -ts.y), 0.0).rgb;
+    vec3 cMZ = textureLod(tex, uv + vec2(-ts.x,   0.0), 0.0).rgb;
+    vec3 cMP = textureLod(tex, uv + vec2(-ts.x,  ts.y), 0.0).rgb;
+    vec3 cZM = textureLod(tex, uv + vec2(  0.0, -ts.y), 0.0).rgb;
+    vec3 cZZ = textureLod(tex, uv,                      0.0).rgb;
+    vec3 cZP = textureLod(tex, uv + vec2(  0.0,  ts.y), 0.0).rgb;
+    vec3 cPM = textureLod(tex, uv + vec2( ts.x, -ts.y), 0.0).rgb;
+    vec3 cPZ = textureLod(tex, uv + vec2( ts.x,   0.0), 0.0).rgb;
+    vec3 cPP = textureLod(tex, uv + vec2( ts.x,  ts.y), 0.0).rgb;
+
+    float lMM = dot(cMM, vec3(0.299, 0.587, 0.114));
+    float lMZ = dot(cMZ, vec3(0.299, 0.587, 0.114));
+    float lMP = dot(cMP, vec3(0.299, 0.587, 0.114));
+    float lZM = dot(cZM, vec3(0.299, 0.587, 0.114));
+    float lZZ = dot(cZZ, vec3(0.299, 0.587, 0.114));
+    float lZP = dot(cZP, vec3(0.299, 0.587, 0.114));
+    float lPM = dot(cPM, vec3(0.299, 0.587, 0.114));
+    float lPZ = dot(cPZ, vec3(0.299, 0.587, 0.114));
+    float lPP = dot(cPP, vec3(0.299, 0.587, 0.114));
+
+    vec4 acc = W1 * lMM + W2 * lMZ + W3 * lMP +
+               W4 * lZM + W5 * lZZ + W6 * lZP +
+               W7 * lPM + W8 * lPZ + W9 * lPP;
     return (acc - OUT_B1) * OUT_G + OUT_B2;
 }
 
@@ -203,8 +244,8 @@ void main() {
 
     if (passIndex == 1) {
         // PASS 1: Native 4-Channel Neural Feature Extraction (L0)
-        vec4 fCurr = extractNeuralFeatures(currFrame, uv);
-        vec4 fPrev = extractNeuralFeatures(prevFrame, uv);
+        vec4 fCurr = extractNeuralFeatures(currFrame, uv, ts);
+        vec4 fPrev = extractNeuralFeatures(prevFrame, uv, ts);
         imageStore(motionVectorOutput, pixelPos, vec4(fCurr.rg, fPrev.rg));
         return;
     }
@@ -542,11 +583,28 @@ void main() {
     // Smooth Midpoint Spline Transition
     float t = factor;
     float inpaintWeight = max(disocclusion, 1.0 - confidence);
-    if (inpaintWeight > 0.08) {
-        t = mix(t, 1.0, smoothstep(0.08, 0.45, inpaintWeight));
+    if (inpaintWeight > 0.12) {
+        t = mix(t, 1.0, smoothstep(0.12, 0.50, inpaintWeight));
     }
 
     vec3 synthesized = mix(warpedPrev, warpedCurr, clamp(t, 0.0, 1.0));
+
+    // Optical Flow Dynamic Shutter Exposure (True Cinematic Blur on Moving Objects)
+    if (shutterGain > 0.01 && length(vel) > (0.15 / resolution.x)) {
+        vec3 blurred = vec3(0.0);
+        float wSum = 0.0;
+        for (int i = -12; i <= 12; i++) {
+            float tOff = float(i) / 12.0;
+            float gWeight = exp(-tOff * tOff * 2.0);
+            vec2 sampleUV = clamp(vUV + vel * tOff * 3.0, 0.0, 1.0);
+            blurred += sampleCatmullRom(currentCapturedTexture, sampleUV, resolution) * gWeight;
+            wSum += gWeight;
+        }
+        vec3 finalBlur = blurred / wSum;
+        float blurMix = clamp(length(vel) * resolution.x * 0.025 * shutterGain, 0.0, 0.85);
+        synthesized = mix(synthesized, finalBlur, blurMix);
+    }
+
     outColor = vec4(synthesized, 1.0);
 }
 )";
