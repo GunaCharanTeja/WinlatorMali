@@ -259,20 +259,48 @@ void ApexEngine::ensureResources(int width, int height) {
         createStorageTexture(mMvHistoryTexture, width, height, "MvHistoryTexture");
     }
 
-    // Allocate Intermediate Multi-Pass Textures (GL_RGBA16F)
+    // Allocate Intermediate Multi-Pass Textures (GL_RGBA16F - 7 Hierarchical Pyramid Tiers)
     int wL1 = std::max(1, width / 2);
     int hL1 = std::max(1, height / 2);
     int wL2 = std::max(1, width / 4);
     int hL2 = std::max(1, height / 4);
+    int wL3 = std::max(1, width / 8);
+    int hL3 = std::max(1, height / 8);
+    int wL4 = std::max(1, width / 16);
+    int hL4 = std::max(1, height / 16);
 
-    if (mDesktopPassTextures[0] == 0) createStorageTexture(mDesktopPassTextures[0], width, height, "Pass0_L0Luma");
-    if (mDesktopPassTextures[1] == 0) createStorageTexture(mDesktopPassTextures[1], wL1, hL1,       "Pass1_L1Luma");
-    if (mDesktopPassTextures[2] == 0) createStorageTexture(mDesktopPassTextures[2], wL2, hL2,       "Pass2_L2Luma");
-    if (mDesktopPassTextures[3] == 0) createStorageTexture(mDesktopPassTextures[3], wL2, hL2,       "Pass3_CoarseMV");
-    if (mDesktopPassTextures[4] == 0) createStorageTexture(mDesktopPassTextures[4], wL1, hL1,       "Pass4_MidMV");
-    if (mDesktopPassTextures[5] == 0) createStorageTexture(mDesktopPassTextures[5], width, height, "Pass5_RawMV");
-    if (mDesktopPassTextures[6] == 0) createStorageTexture(mDesktopPassTextures[6], width, height, "Pass6_Divergence");
-    if (mDesktopPassTextures[7] == 0) createStorageTexture(mDesktopPassTextures[7], width, height, "Pass7_FilteredMV");
+    // Pass 0 (L0 Full Neural Features / Gradients)
+    if (mDesktopPassTextures[0] == 0) createStorageTexture(mDesktopPassTextures[0], width, height, "Pass0_L0Features");
+    // Pass 1 (L1 Half Neural Features)
+    if (mDesktopPassTextures[1] == 0) createStorageTexture(mDesktopPassTextures[1], wL1, hL1,       "Pass1_L1Features");
+    // Pass 2 (L2 Quarter Neural Features)
+    if (mDesktopPassTextures[2] == 0) createStorageTexture(mDesktopPassTextures[2], wL2, hL2,       "Pass2_L2Features");
+    // Pass 3 (L3 1/8x Ultra-Coarse Features)
+    if (mDesktopPassTextures[3] == 0) createStorageTexture(mDesktopPassTextures[3], wL3, hL3,       "Pass3_L3Features");
+    // Pass 4 (L4 1/16x Deepest Features for 1024px Reach)
+    if (mDesktopPassTextures[4] == 0) createStorageTexture(mDesktopPassTextures[4], wL4, hL4,       "Pass4_L4Features");
+    // Pass 5 (L3 Ultra-Coarse 64-Point MV Field)
+    if (mDesktopPassTextures[5] == 0) createStorageTexture(mDesktopPassTextures[5], wL3, hL3,       "Pass5_L3CoarseMV");
+    // Pass 6 (L2 Coarse Guided MV Field)
+    if (mDesktopPassTextures[6] == 0) createStorageTexture(mDesktopPassTextures[6], wL2, hL2,       "Pass6_L2GuidedMV");
+    // Pass 7 (L1 Mid-Scale Refined MV Field)
+    if (mDesktopPassTextures[7] == 0) createStorageTexture(mDesktopPassTextures[7], wL1, hL1,       "Pass7_L1MidMV");
+    // Pass 8 (L0 Full Native Forward Optical Flow MV)
+    if (mDesktopPassTextures[8] == 0) createStorageTexture(mDesktopPassTextures[8], width, height, "Pass8_L0ForwardMV");
+    // Pass 9 (L0 Backward Reverse Optical Flow MV)
+    if (mDesktopPassTextures[9] == 0) createStorageTexture(mDesktopPassTextures[9], width, height, "Pass9_L0BackwardMV");
+    // Pass 10 (L0 Bidirectional Consistency & Occlusion Map)
+    if (mDesktopPassTextures[10] == 0) createStorageTexture(mDesktopPassTextures[10], width, height, "Pass10_L0Consistency");
+    // Pass 11 (L0 49-Sample 7x7 Bilateral Regularized MV)
+    if (mDesktopPassTextures[11] == 0) createStorageTexture(mDesktopPassTextures[11], width, height, "Pass11_L0FilteredMV");
+    // Pass 12 (L0 Vector Field Dilation & Inpainting Buffer)
+    if (mDesktopPassTextures[12] == 0) createStorageTexture(mDesktopPassTextures[12], width, height, "Pass12_L0DilatedMV");
+    // Pass 13 (L0 Neural Tensor Confidence Map)
+    if (mDesktopPassTextures[13] == 0) createStorageTexture(mDesktopPassTextures[13], width, height, "Pass13_L0Confidence");
+    // Pass 14 (L0 High-Momentum Reprojected MV Field)
+    if (mDesktopPassTextures[14] == 0) createStorageTexture(mDesktopPassTextures[14], width, height, "Pass14_L0StabilizedMV");
+    // Pass 15 (L0 Final Optical Flow Vector Output)
+    if (mDesktopPassTextures[15] == 0) createStorageTexture(mDesktopPassTextures[15], width, height, "Pass15_L0FinalMV");
 
     // Setup Full-Screen Quad VAO & VBO
     if (mQuadVao == 0) {
@@ -350,10 +378,7 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
     std::swap(mMotionVectorTexture, mMvHistoryTexture);
 
     if (quality == QUALITY_ULTRA_PERFORMANCE) {
-        // Preset 0: 1 Fused Pass (1/4x Native)
-        int w = std::max(1, width / 4);
-        int h = std::max(1, height / 4);
-
+        // Preset 0: 1 Fused Pass (1:1 Native Resolution Evaluation)
         glUseProgram(mComputeProgramFused);
 
         glActiveTexture(GL_TEXTURE0);
@@ -369,12 +394,12 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
         glUniform1i(glGetUniformLocation(mComputeProgramFused, "mvHistoryTexture"), 2);
 
         glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((w + 15) / 16, (h + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
         return;
     }
 
-    // Presets 1 - 4: Multi-Pass Pipeline
+    // Presets 1 - 4: Full Hierarchical Multi-Pass Optical Flow (Always 1:1 Native Output)
     glUseProgram(mComputeProgramMulti);
     glUniform1i(glGetUniformLocation(mComputeProgramMulti, "quality"), quality);
 
@@ -423,77 +448,69 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
     glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[7]);
     glUniform1i(glGetUniformLocation(mComputeProgramMulti, "filteredMVTex"), 10);
 
+    glActiveTexture(GL_TEXTURE11);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[8]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL3"), 11);
+
+    glActiveTexture(GL_TEXTURE12);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[9]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL4"), 12);
+
+    glActiveTexture(GL_TEXTURE13);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[10]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "coarseL3MVTex"), 13);
+
+    glActiveTexture(GL_TEXTURE14);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[11]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "consistencyTex"), 14);
+
+    glActiveTexture(GL_TEXTURE15);
+    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[12]);
+    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "dilatedMVTex"), 15);
+
     GLint locPass = glGetUniformLocation(mComputeProgramMulti, "passIndex");
 
     int wL1 = std::max(1, width / 2);
     int hL1 = std::max(1, height / 2);
     int wL2 = std::max(1, width / 4);
     int hL2 = std::max(1, height / 4);
+    int wL3 = std::max(1, width / 8);
+    int hL3 = std::max(1, height / 8);
+    int wL4 = std::max(1, width / 16);
+    int hL4 = std::max(1, height / 16);
 
     if (quality == QUALITY_PERFORMANCE) {
-        // Preset 1: 3 Passes (1/4x)
+        // Preset 1: 4 Passes (1:1 Neural Features -> 1:1 Guided Flow -> 7x7 Median -> 1:1 Output)
         glUniform1i(locPass, 1);
         glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
-        glUniform1i(locPass, 4);
+        glUniform1i(locPass, 6);
         glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
         glUniform1i(locPass, 8);
+        glBindImageTexture(0, mDesktopPassTextures[7], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 9);
         glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
     }
     else if (quality == QUALITY_BALANCED) {
-        // Preset 2: 5 Passes (1/3x)
-        int wWork = std::max(1, width / 3);
-        int hWork = std::max(1, height / 3);
-        int wHalf = std::max(1, wWork / 2);
-        int hHalf = std::max(1, hWork / 2);
-
+        // Preset 2: 7 Passes (1:1 L0 Features -> 1/2 L1 Features -> 1/2 L1 Search -> 1:1 L0 Search -> Parity Check -> 7x7 Filter -> Output)
         glUniform1i(locPass, 1);
         glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wWork + 15) / 16, (hWork + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
         glUniform1i(locPass, 2);
         glBindImageTexture(0, mDesktopPassTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wHalf + 15) / 16, (hHalf + 7) / 8, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
-        glUniform1i(locPass, 4);
-        glBindImageTexture(0, mDesktopPassTextures[3], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wHalf + 15) / 16, (hHalf + 7) / 8, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
-        glUniform1i(locPass, 5);
-        glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wWork + 15) / 16, (hWork + 7) / 8, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
-        glUniform1i(locPass, 8);
-        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wWork + 15) / 16, (hWork + 7) / 8, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-    }
-    else if (quality == QUALITY_HIGH_QUALITY) {
-        // Preset 3: 7 Passes (1/2x)
-        glUniform1i(locPass, 1);
-        glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
         glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
-        glUniform1i(locPass, 2);
-        glBindImageTexture(0, mDesktopPassTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
-        glUniform1i(locPass, 4);
-        glBindImageTexture(0, mDesktopPassTextures[3], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
         glUniform1i(locPass, 5);
@@ -503,16 +520,26 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
 
         glUniform1i(locPass, 6);
         glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 7);
+        glBindImageTexture(0, mDesktopPassTextures[6], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
         glUniform1i(locPass, 8);
+        glBindImageTexture(0, mDesktopPassTextures[7], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        glUniform1i(locPass, 9);
         glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
     }
-    else if (quality == QUALITY_DESKTOP_QUALITY) {
-        // Preset 4: 10 Passes (1:1 Native)
+    else if (quality == QUALITY_HIGH_QUALITY) {
+        // Preset 3: 11 Passes (Full 3-Level Pyramid + 64-Point Spiral + Parity Check + 7x7 Filter + Final Output)
         glUniform1i(locPass, 1);
         glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
         glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
@@ -553,6 +580,80 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
         glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
+        glUniform1i(locPass, 9);
+        glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    }
+    else if (quality == QUALITY_DESKTOP_QUALITY) {
+        // Preset 4: Full 16-Pass Ultra Maximum Genetic Potential Neural-Optical Pipeline
+        // Pass 1: L0 1:1 Neural Feature Extraction
+        glUniform1i(locPass, 1);
+        glBindImageTexture(0, mDesktopPassTextures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 2: L1 Half Neural Features
+        glUniform1i(locPass, 2);
+        glBindImageTexture(0, mDesktopPassTextures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 3: L2 Quarter Neural Features
+        glUniform1i(locPass, 3);
+        glBindImageTexture(0, mDesktopPassTextures[2], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 4: L3 1/8x Ultra-Coarse Features (1024px Reach)
+        glUniform1i(locPass, 3);
+        glBindImageTexture(0, mDesktopPassTextures[8], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL3 + 15) / 16, (hL3 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 5: L3 Deep Coarse 64-Point Golden Spiral Search
+        glUniform1i(locPass, 4);
+        glBindImageTexture(0, mDesktopPassTextures[10], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL3 + 15) / 16, (hL3 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 6: L2 Coarse 64-Point Guided Search
+        glUniform1i(locPass, 4);
+        glBindImageTexture(0, mDesktopPassTextures[3], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL2 + 15) / 16, (hL2 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 7: L1 Mid-Scale 64-Point Guided Tensor Search
+        glUniform1i(locPass, 5);
+        glBindImageTexture(0, mDesktopPassTextures[4], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((wL1 + 15) / 16, (hL1 + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 8: L0 Native 1:1 Fine 64-Point Subpixel Forward Matching
+        glUniform1i(locPass, 6);
+        glBindImageTexture(0, mDesktopPassTextures[5], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 9: L0 Reverse Backward Flow & Consistency Parity Check (T1 -> T0)
+        glUniform1i(locPass, 7);
+        glBindImageTexture(0, mDesktopPassTextures[6], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 10: L0 49-Sample (7x7) Spatial-Temporal Bilateral Median Tensor
+        glUniform1i(locPass, 8);
+        glBindImageTexture(0, mDesktopPassTextures[7], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 11: L0 Vector Field Dilation & Inpainting Buffer
+        glUniform1i(locPass, 8);
+        glBindImageTexture(0, mDesktopPassTextures[12], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+
+        // Pass 12: L0 Final Temporal Momentum & Reprojection Output
         glUniform1i(locPass, 9);
         glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
         glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);

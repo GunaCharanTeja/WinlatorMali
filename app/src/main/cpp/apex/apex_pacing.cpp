@@ -130,11 +130,24 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
             APEX_LOGD("Pacing: Rejected loading hitch / outlier frame delta (%.1f ms)", delta / 1000000.0f);
         }
 
-        // Low-FPS Stabilization Rule:
-        // When baseline FPS < 20 FPS (delta > 50ms), clamp to stable 2x integer step
-        if (mTypicalDeltaNanos >= 50000000.0f) {
+        // Low-FPS Stabilization & Anti-Stutter Engine:
+        // Level 1: Extreme Low-FPS (<15 FPS, delta > 66.6ms) -> Lock rigidly to 2x integer pacing
+        // Level 2: Sub-30 FPS (15-30 FPS, delta 33.3ms - 66.6ms) -> Adaptive 2x/3x integer stabilization
+        // Level 3: Normal/High FPS (>30 FPS) -> Dynamic rate matching
+        if (mTypicalDeltaNanos >= 66666666.0f) {
+            // Sub-15 FPS: Strictly lock to 2x with zero cadence jitter
             mAutoMultiplier.store(2, std::memory_order_release);
             mAutoMultiplierVal.store(2.0f, std::memory_order_release);
+        } else if (mTypicalDeltaNanos >= 33333333.0f) {
+            // 15 - 30 FPS: Lock to stable 2x/3x cadence
+            int target = mTargetFPS.load(std::memory_order_acquire);
+            if (target >= 90) {
+                mAutoMultiplier.store(3, std::memory_order_release);
+                mAutoMultiplierVal.store(3.0f, std::memory_order_release);
+            } else {
+                mAutoMultiplier.store(2, std::memory_order_release);
+                mAutoMultiplierVal.store(2.0f, std::memory_order_release);
+            }
         } else {
             int target = mTargetFPS.load(std::memory_order_acquire);
             if (target > 0) {
@@ -149,10 +162,8 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
                     mAutoMultiplier.store(mult, std::memory_order_release);
                 }
             } else {
-                // Unlimited Dynamic Mode
-                int mult = 2;
-                if (mTypicalDeltaNanos > 65000000.0f) mult = 2; // Locked to 2x for sub-15fps
-                else if (mTypicalDeltaNanos > 35000000.0f) mult = 3;
+                // Unlimited Dynamic High-Refresh Mode
+                int mult = (mTypicalDeltaNanos > 25000000.0f) ? 3 : 2;
                 mAutoMultiplier.store(mult, std::memory_order_release);
                 mAutoMultiplierVal.store(static_cast<float>(mult), std::memory_order_release);
             }
@@ -171,14 +182,13 @@ float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
     int framesSince = mFramesSinceReal.load(std::memory_order_acquire);
     int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
 
+    // Mathematical Spline Midpoint Lock:
+    // Even if game frametimes fluctuate wildly (e.g. 18ms -> 45ms -> 22ms),
+    // intermediate generated frames are presented at exact mathematical midpoints
+    // (e.g. 0.50 for 2x, 0.33 / 0.66 for 3x), completely decoupling presentation from game render stutter.
     float discretePhase = static_cast<float>(std::clamp(framesSince, 1, mult - 1)) / static_cast<float>(mult);
 
-    // Premium Liquid Sync: Always use the exact spatial midpoint (e.g. 0.5 for 2x, 0.33/0.66 for 3x).
-    // This matches the behavior of DLSS 3 / FSR 3 and ensures perfectly continuous motion
-    // even if the base game has minor timing jitter.
-    float factor = discretePhase;
-
-    factor = std::clamp(factor, 0.05f, 0.95f);
+    float factor = std::clamp(discretePhase, 0.05f, 0.95f);
 
     mLastFactor = factor;
     mMinFactor = std::min(mMinFactor, factor);

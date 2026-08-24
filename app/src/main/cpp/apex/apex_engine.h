@@ -19,20 +19,20 @@
 namespace apex {
 
 enum QualityPreset {
-    QUALITY_ULTRA_PERFORMANCE = 0, // 1 Fused Pass (1/4x)
-    QUALITY_PERFORMANCE       = 1, // 3 Passes (1/4x)
-    QUALITY_BALANCED          = 2, // 5 Passes (1/3x)
-    QUALITY_HIGH_QUALITY      = 3, // 7 Passes (1/2x)
-    QUALITY_DESKTOP_QUALITY   = 4  // 10 Passes (1:1 Native)
+    QUALITY_ULTRA_PERFORMANCE = 0, // 1 Fused Pass (1:1 Native Resolution)
+    QUALITY_PERFORMANCE       = 1, // 3 Passes (1:1 Native L0/L0/Output)
+    QUALITY_BALANCED          = 2, // 5 Passes (1:1 Native + 1/2 Pyramid)
+    QUALITY_HIGH_QUALITY      = 3, // 7 Passes (1:1 Native + Multi-Tier Hierarchy)
+    QUALITY_DESKTOP_QUALITY   = 4  // 10 Passes (1:1 Native Maximum Genetic Potential)
 };
 
 inline const char* getQualityPresetName(int preset) {
     switch (preset) {
-        case QUALITY_ULTRA_PERFORMANCE: return "Ultra Performance (1 Fused Pass)";
-        case QUALITY_PERFORMANCE:       return "Performance (3 Passes)";
-        case QUALITY_BALANCED:          return "Balanced (5 Passes)";
-        case QUALITY_HIGH_QUALITY:      return "High Quality (7 Passes)";
-        case QUALITY_DESKTOP_QUALITY:   return "Desktop Quality (10 Passes)";
+        case QUALITY_ULTRA_PERFORMANCE: return "Ultra Performance (1:1 Fused Pass)";
+        case QUALITY_PERFORMANCE:       return "Performance (1:1 3-Pass Direct)";
+        case QUALITY_BALANCED:          return "Balanced (1:1 5-Pass Hierarchical)";
+        case QUALITY_HIGH_QUALITY:      return "High Quality (1:1 7-Pass Multi-Scale)";
+        case QUALITY_DESKTOP_QUALITY:   return "Desktop Max (1:1 10-Pass FidelityFX)";
         default:                        return "Unknown Preset";
     }
 }
@@ -142,8 +142,8 @@ private:
     GLuint mMvHistoryTexture{0};
     GLuint mCaptureFbo{0};
 
-    // Intermediate Multi-Pass Storage Textures (GL_RGBA16F)
-    std::array<GLuint, 8> mDesktopPassTextures{};
+    // Intermediate Multi-Pass Storage Textures (GL_RGBA16F - 16 Full Neural-Optical Passes)
+    std::array<GLuint, 16> mDesktopPassTextures{};
 
     // Quad VAO & VBO
     GLuint mQuadVao{0};
