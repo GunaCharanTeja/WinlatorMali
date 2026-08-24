@@ -96,7 +96,7 @@ void main() {
         float stepVal = steps[s];
         for (int j = 0; j < 32; j++) {
             vec2 off = clamp(centerMV + spiralOffsets32[j] * (stepVal * ts), -maxVelocity, maxVelocity);
-            vec4 sampleFeat = extractNeuralFeatures(prevFrame, clamp(uv + off, 0.0, 1.0));
+            vec4 sampleFeat = extractNeuralFeatures(prevFrame, clamp(uv + off, 0.0, 1.0), ts);
             float curSAD = length(currFeat - sampleFeat);
             if (curSAD < bestSAD) {
                 secondBestSAD = bestSAD;
