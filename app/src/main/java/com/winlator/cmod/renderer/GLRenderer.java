@@ -342,9 +342,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     @Override
     public void onUpdateWindowContent(Window window) {
         ApexNativeBridge.nativeOnFrameCaptured(true);
-        if (!ApexNativeBridge.nativeIsActive()) {
-            xServerView.requestRender();
-        }
+        xServerView.requestRender();
     }
 
     @Override
