@@ -541,57 +541,46 @@ void main() {
     vec2 mv = mvSample.rg * uFlowScale;
     float confidence = clamp(mvSample.b, 0.0, 1.0);
 
-    // Bidirectional Optical Flow Trajectory (FSR3 / Bionic Cleanroom formulation):
-    // mv maps currFrame to prevFrame: currFrame(uv) ≈ prevFrame(uv + mv).
-    // An intermediate frame at factor 't' (e.g. 0.50):
-    //  - Backward ray to prevFrame: uvPrev = vUV + mv * (1.0 - factor)
-    //  - Forward ray to currFrame: uvCurr = vUV - mv * factor
+    // Video Editor Style (CapCut / RIFE / FlowFrames) Optical Flow Warping:
+    // Pure forward-backward intermediate frame morphing along continuous motion trajectories.
     vec2 uvPrev = clamp(vUV + mv * (1.0 - factor), 0.0, 1.0);
     vec2 uvCurr = clamp(vUV - mv * factor, 0.0, 1.0);
 
-    // Dynamic Adaptive Shutter Velocity (Hyper-Cinematic Motion Blur & Flow)
+    // Continuous Velocity Stream (CapCut Smooth Slow-Mo Feel)
     float shutterGain = clamp(uBlurIntensity, 0.0, 1.0);
-    vec2 vel = mv * (shutterGain * 3.00 + 0.35);
+    vec2 vel = mv * (shutterGain * 3.50 + 0.50);
 
-    vec3 warpedPrev;
-    vec3 warpedCurr;
+    // Multi-Sample Hyper-Smooth Motion Flow Kernel
+    vec3 accPrev = vec3(0.0);
+    vec3 accCurr = vec3(0.0);
+    float wSum = 0.0;
 
-    if (shutterGain > 0.01 && length(vel) > (0.05 / resolution.x)) {
-        // 25-Tap Ultra-Dispersive Gaussian Kernel
-        vec3 accPrev = vec3(0.0);
-        vec3 accCurr = vec3(0.0);
-        float wSum = 0.0;
-        for (int i = -12; i <= 12; i++) {
-            float tOff = float(i) / 12.0;
-            float gWeight = exp(-tOff * tOff * 1.5);
-            accPrev += sampleCatmullRom(previousCapturedTexture, clamp(uvPrev + vel * tOff * 5.0, 0.0, 1.0), resolution) * gWeight;
-            accCurr += sampleCatmullRom(currentCapturedTexture, clamp(uvCurr - vel * tOff * 5.0, 0.0, 1.0), resolution) * gWeight;
-            wSum += gWeight;
-        }
-        warpedPrev = accPrev / wSum;
-        warpedCurr = accCurr / wSum;
-    } else {
-        warpedPrev = sampleCatmullRom(previousCapturedTexture, uvPrev, resolution);
-        warpedCurr = sampleCatmullRom(currentCapturedTexture, uvCurr, resolution);
+    for (int i = -12; i <= 12; i++) {
+        float tOff = float(i) / 12.0;
+        float gWeight = exp(-tOff * tOff * 1.2);
+        vec2 pOffPrev = clamp(uvPrev + vel * tOff * 4.5, 0.0, 1.0);
+        vec2 pOffCurr = clamp(uvCurr - vel * tOff * 4.5, 0.0, 1.0);
+        accPrev += sampleCatmullRom(previousCapturedTexture, pOffPrev, resolution) * gWeight;
+        accCurr += sampleCatmullRom(currentCapturedTexture, pOffCurr, resolution) * gWeight;
+        wSum += gWeight;
     }
 
-    // Disocclusion & Parity Killer Gate (Permissive threshold for full motion perception)
-    float lumaPrev = dot(warpedPrev, vec3(0.2126, 0.7152, 0.0722));
-    float lumaCurr = dot(warpedCurr, vec3(0.2126, 0.7152, 0.0722));
-    float lumaDiff = abs(lumaPrev - lumaCurr);
-    float colorDist = distance(warpedPrev, warpedCurr);
+    vec3 warpedPrev = accPrev / wSum;
+    vec3 warpedCurr = accCurr / wSum;
 
-    float disocclusion = smoothstep(0.12, 0.45, lumaDiff) + smoothstep(0.18, 0.55, colorDist);
-    disocclusion = clamp(disocclusion, 0.0, 1.0);
+    // Optical Flow Video Blending:
+    // Soft sinusoidal temporal weighting creates the characteristic "liquid-smooth" morph between frames.
+    float smoothT = factor * factor * (3.0 - 2.0 * factor); // Smoothstep curve
+    vec3 synthesized = mix(warpedPrev, warpedCurr, smoothT);
 
-    // Pure Natural Heavy-Smooth Midpoint Synthesis
-    float t = factor;
-    float inpaintWeight = max(disocclusion, 1.0 - confidence);
-    if (inpaintWeight > 0.30) {
-        t = mix(t, 1.0, smoothstep(0.30, 0.80, inpaintWeight));
+    // Apply high-velocity motion trail blending for fast swipes and camera turns
+    if (length(mv) > (0.02 / resolution.x)) {
+        vec3 centerPrev = sampleCatmullRom(previousCapturedTexture, uvPrev, resolution);
+        vec3 centerCurr = sampleCatmullRom(currentCapturedTexture, uvCurr, resolution);
+        vec3 directMorph = mix(centerPrev, centerCurr, smoothT);
+        synthesized = mix(directMorph, synthesized, 0.70 + 0.30 * shutterGain);
     }
 
-    vec3 synthesized = mix(warpedPrev, warpedCurr, clamp(t, 0.0, 1.0));
     outColor = vec4(synthesized, 1.0);
 }
 )";
