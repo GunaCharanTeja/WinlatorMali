@@ -120,20 +120,19 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             fpsLimit = ApexNativeBridge.nativeGetTargetFPS();
         }
 
-        if (fpsLimit > 0) {
+        // When Apex is active, Choreographer drives the VSYNC frame delivery smoothly.
+        // Bypassing blocking onSpinWait/sleep prevents GL thread deadlocks and UI freezes.
+        if (!ApexNativeBridge.nativeIsActive() && fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
             long elapsed = System.nanoTime() - lastNanos;
             if (elapsed < targetIntervalNanos) {
                 long waitNanos = targetIntervalNanos - elapsed;
-                if (waitNanos > 1500000L) {
+                if (waitNanos > 2000000L) {
                     try {
-                        Thread.sleep((waitNanos - 1000000L) / 1000000L, (int) ((waitNanos - 1000000L) % 1000000L));
+                        Thread.sleep((waitNanos - 1000000L) / 1000000L);
                     } catch (InterruptedException e) {
                         // Ignore
                     }
-                }
-                while (System.nanoTime() - lastNanos < targetIntervalNanos) {
-                    Thread.onSpinWait();
                 }
             }
         }
