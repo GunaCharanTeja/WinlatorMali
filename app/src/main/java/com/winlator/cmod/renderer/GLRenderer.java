@@ -120,19 +120,20 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             fpsLimit = ApexNativeBridge.nativeGetTargetFPS();
         }
 
-        // When Apex is active, Choreographer drives the VSYNC frame delivery smoothly.
-        // Bypassing blocking onSpinWait/sleep prevents GL thread deadlocks and UI freezes.
-        if (!ApexNativeBridge.nativeIsActive() && fpsLimit > 0) {
+        if (fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
             long elapsed = System.nanoTime() - lastNanos;
             if (elapsed < targetIntervalNanos) {
                 long waitNanos = targetIntervalNanos - elapsed;
-                if (waitNanos > 2000000L) {
+                if (waitNanos > 1500000L) {
                     try {
-                        Thread.sleep((waitNanos - 1000000L) / 1000000L);
+                        Thread.sleep((waitNanos - 1000000L) / 1000000L, (int) ((waitNanos - 1000000L) % 1000000L));
                     } catch (InterruptedException e) {
                         // Ignore
                     }
+                }
+                while (System.nanoTime() - lastNanos < targetIntervalNanos) {
+                    Thread.onSpinWait();
                 }
             }
         }
@@ -462,23 +463,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         choreographerRunning = false;
     }
 
-    private long lastChoreographerNanos = 0;
-
     @Override
     public void doFrame(long frameTimeNanos) {
         if (!choreographerRunning) return;
         if (ApexNativeBridge.nativeIsActive()) {
-            int targetFPS = ApexNativeBridge.nativeGetTargetFPS();
-            if (targetFPS > 0) {
-                long targetIntervalNanos = 1000000000L / targetFPS;
-                long now = System.nanoTime();
-                if (now - lastChoreographerNanos >= targetIntervalNanos - 1000000L) {
-                    lastChoreographerNanos = now;
-                    xServerView.requestRender();
-                }
-            } else {
-                xServerView.requestRender();
-            }
+            xServerView.requestRender();
         }
         android.view.Choreographer.getInstance().postFrameCallback(this);
     }
