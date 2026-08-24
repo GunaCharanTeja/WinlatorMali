@@ -182,13 +182,29 @@ float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
     int framesSince = mFramesSinceReal.load(std::memory_order_acquire);
     int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
 
-    // Mathematical Spline Midpoint Lock:
-    // Even if game frametimes fluctuate wildly (e.g. 18ms -> 45ms -> 22ms),
-    // intermediate generated frames are presented at exact mathematical midpoints
-    // (e.g. 0.50 for 2x, 0.33 / 0.66 for 3x), completely decoupling presentation from game render stutter.
-    float discretePhase = static_cast<float>(std::clamp(framesSince, 1, mult - 1)) / static_cast<float>(mult);
+    // Dynamic Time-Continuous Phase Estimation:
+    // If framesSince exceeds mult-1 (e.g. during a stutter or lag spike),
+    // calculate the true time-progressed factor instead of clamping to a static freeze.
+    int64_t lastRealTime = mLastRealFrameTimeNanos.load(std::memory_order_acquire);
+    float factor = 0.5f;
 
-    float factor = std::clamp(discretePhase, 0.05f, 0.95f);
+    if (lastRealTime > 0 && mTypicalDeltaNanos > 1000000.0f) {
+        float elapsedNanos = static_cast<float>(nowNanos - lastRealTime);
+        float continuousPhase = elapsedNanos / mTypicalDeltaNanos;
+        
+        // Multi-Step Spline Interleaving:
+        if (framesSince < mult) {
+            float discreteStep = static_cast<float>(framesSince) / static_cast<float>(mult);
+            factor = std::lerp(discreteStep, std::clamp(continuousPhase, 0.05f, 0.95f), 0.35f);
+        } else {
+            // Extended stutter smoothing: asymptotic approach towards 0.95 without hard snapping
+            factor = 1.0f - (0.50f / (1.0f + (continuousPhase - 1.0f) * 0.8f));
+        }
+    } else {
+        factor = static_cast<float>(std::clamp(framesSince, 1, mult - 1)) / static_cast<float>(mult);
+    }
+
+    factor = std::clamp(factor, 0.05f, 0.95f);
 
     mLastFactor = factor;
     mMinFactor = std::min(mMinFactor, factor);
