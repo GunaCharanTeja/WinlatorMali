@@ -541,27 +541,31 @@ void main() {
     vec2 mv = mvSample.rg * uFlowScale;
     float confidence = clamp(mvSample.b, 0.0, 1.0);
 
-    // Bidirectional Optical Flow Trajectory
+    // Bidirectional Optical Flow Trajectory (FSR3 / Bionic Cleanroom formulation):
+    // mv maps currFrame to prevFrame: currFrame(uv) ≈ prevFrame(uv + mv).
+    // An intermediate frame at factor 't' (e.g. 0.50):
+    //  - Backward ray to prevFrame: uvPrev = vUV + mv * (1.0 - factor)
+    //  - Forward ray to currFrame: uvCurr = vUV - mv * factor
     vec2 uvPrev = clamp(vUV + mv * (1.0 - factor), 0.0, 1.0);
     vec2 uvCurr = clamp(vUV - mv * factor, 0.0, 1.0);
 
-    // Cinematic Motion Blur (Adaptive Shutter with Dynamic Dispersion)
+    // Dynamic Adaptive Shutter Velocity (True Cinematic Motion Blur)
     float shutterGain = clamp(uBlurIntensity, 0.0, 1.0);
-    vec2 vel = mv * (shutterGain * 1.25 + 0.10);
+    vec2 vel = mv * (shutterGain * 1.50 + 0.15);
 
     vec3 warpedPrev;
     vec3 warpedCurr;
 
-    if (shutterGain > 0.01 && length(vel) > (0.15 / resolution.x)) {
+    if (shutterGain > 0.01 && length(vel) > (0.10 / resolution.x)) {
         // 25-Tap Deep Hyper-Dispersive Gaussian Kernel
         vec3 accPrev = vec3(0.0);
         vec3 accCurr = vec3(0.0);
         float wSum = 0.0;
         for (int i = -12; i <= 12; i++) {
             float tOff = float(i) / 12.0;
-            float gWeight = exp(-tOff * tOff * 2.2);
-            accPrev += sampleCatmullRom(previousCapturedTexture, clamp(uvPrev + vel * tOff * 2.5, 0.0, 1.0), resolution) * gWeight;
-            accCurr += sampleCatmullRom(currentCapturedTexture, clamp(uvCurr - vel * tOff * 2.5, 0.0, 1.0), resolution) * gWeight;
+            float gWeight = exp(-tOff * tOff * 1.8);
+            accPrev += sampleCatmullRom(previousCapturedTexture, clamp(uvPrev + vel * tOff * 3.0, 0.0, 1.0), resolution) * gWeight;
+            accCurr += sampleCatmullRom(currentCapturedTexture, clamp(uvCurr - vel * tOff * 3.0, 0.0, 1.0), resolution) * gWeight;
             wSum += gWeight;
         }
         warpedPrev = accPrev / wSum;
@@ -571,40 +575,23 @@ void main() {
         warpedCurr = sampleCatmullRom(currentCapturedTexture, uvCurr, resolution);
     }
 
-    // Disocclusion & Parity Killer Gate
+    // Disocclusion & Parity Killer Gate (Color L2 distance + Luminance differential)
     float lumaPrev = dot(warpedPrev, vec3(0.2126, 0.7152, 0.0722));
     float lumaCurr = dot(warpedCurr, vec3(0.2126, 0.7152, 0.0722));
     float lumaDiff = abs(lumaPrev - lumaCurr);
     float colorDist = distance(warpedPrev, warpedCurr);
 
-    float disocclusion = smoothstep(0.06, 0.24, lumaDiff) + smoothstep(0.10, 0.32, colorDist);
+    float disocclusion = smoothstep(0.08, 0.32, lumaDiff) + smoothstep(0.12, 0.40, colorDist);
     disocclusion = clamp(disocclusion, 0.0, 1.0);
 
-    // Smooth Midpoint Spline Transition
+    // Pure Natural Heavy-Smooth Midpoint Synthesis
     float t = factor;
     float inpaintWeight = max(disocclusion, 1.0 - confidence);
-    if (inpaintWeight > 0.12) {
-        t = mix(t, 1.0, smoothstep(0.12, 0.50, inpaintWeight));
+    if (inpaintWeight > 0.20) {
+        t = mix(t, 1.0, smoothstep(0.20, 0.65, inpaintWeight));
     }
 
     vec3 synthesized = mix(warpedPrev, warpedCurr, clamp(t, 0.0, 1.0));
-
-    // Optical Flow Dynamic Shutter Exposure (True Cinematic Blur on Moving Objects)
-    if (shutterGain > 0.01 && length(vel) > (0.15 / resolution.x)) {
-        vec3 blurred = vec3(0.0);
-        float wSum = 0.0;
-        for (int i = -12; i <= 12; i++) {
-            float tOff = float(i) / 12.0;
-            float gWeight = exp(-tOff * tOff * 2.0);
-            vec2 sampleUV = clamp(vUV + vel * tOff * 3.0, 0.0, 1.0);
-            blurred += sampleCatmullRom(currentCapturedTexture, sampleUV, resolution) * gWeight;
-            wSum += gWeight;
-        }
-        vec3 finalBlur = blurred / wSum;
-        float blurMix = clamp(length(vel) * resolution.x * 0.025 * shutterGain, 0.0, 0.85);
-        synthesized = mix(synthesized, finalBlur, blurMix);
-    }
-
     outColor = vec4(synthesized, 1.0);
 }
 )";
