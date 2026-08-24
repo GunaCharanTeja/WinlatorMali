@@ -549,23 +549,23 @@ void main() {
     vec2 uvPrev = clamp(vUV + mv * (1.0 - factor), 0.0, 1.0);
     vec2 uvCurr = clamp(vUV - mv * factor, 0.0, 1.0);
 
-    // Dynamic Adaptive Shutter Velocity (True Cinematic Motion Blur)
+    // Dynamic Adaptive Shutter Velocity (Hyper-Cinematic Motion Blur & Flow)
     float shutterGain = clamp(uBlurIntensity, 0.0, 1.0);
-    vec2 vel = mv * (shutterGain * 1.50 + 0.15);
+    vec2 vel = mv * (shutterGain * 3.00 + 0.35);
 
     vec3 warpedPrev;
     vec3 warpedCurr;
 
-    if (shutterGain > 0.01 && length(vel) > (0.10 / resolution.x)) {
-        // 25-Tap Deep Hyper-Dispersive Gaussian Kernel
+    if (shutterGain > 0.01 && length(vel) > (0.05 / resolution.x)) {
+        // 25-Tap Ultra-Dispersive Gaussian Kernel
         vec3 accPrev = vec3(0.0);
         vec3 accCurr = vec3(0.0);
         float wSum = 0.0;
         for (int i = -12; i <= 12; i++) {
             float tOff = float(i) / 12.0;
-            float gWeight = exp(-tOff * tOff * 1.8);
-            accPrev += sampleCatmullRom(previousCapturedTexture, clamp(uvPrev + vel * tOff * 3.0, 0.0, 1.0), resolution) * gWeight;
-            accCurr += sampleCatmullRom(currentCapturedTexture, clamp(uvCurr - vel * tOff * 3.0, 0.0, 1.0), resolution) * gWeight;
+            float gWeight = exp(-tOff * tOff * 1.5);
+            accPrev += sampleCatmullRom(previousCapturedTexture, clamp(uvPrev + vel * tOff * 5.0, 0.0, 1.0), resolution) * gWeight;
+            accCurr += sampleCatmullRom(currentCapturedTexture, clamp(uvCurr - vel * tOff * 5.0, 0.0, 1.0), resolution) * gWeight;
             wSum += gWeight;
         }
         warpedPrev = accPrev / wSum;
@@ -575,20 +575,20 @@ void main() {
         warpedCurr = sampleCatmullRom(currentCapturedTexture, uvCurr, resolution);
     }
 
-    // Disocclusion & Parity Killer Gate (Color L2 distance + Luminance differential)
+    // Disocclusion & Parity Killer Gate (Permissive threshold for full motion perception)
     float lumaPrev = dot(warpedPrev, vec3(0.2126, 0.7152, 0.0722));
     float lumaCurr = dot(warpedCurr, vec3(0.2126, 0.7152, 0.0722));
     float lumaDiff = abs(lumaPrev - lumaCurr);
     float colorDist = distance(warpedPrev, warpedCurr);
 
-    float disocclusion = smoothstep(0.08, 0.32, lumaDiff) + smoothstep(0.12, 0.40, colorDist);
+    float disocclusion = smoothstep(0.12, 0.45, lumaDiff) + smoothstep(0.18, 0.55, colorDist);
     disocclusion = clamp(disocclusion, 0.0, 1.0);
 
     // Pure Natural Heavy-Smooth Midpoint Synthesis
     float t = factor;
     float inpaintWeight = max(disocclusion, 1.0 - confidence);
-    if (inpaintWeight > 0.20) {
-        t = mix(t, 1.0, smoothstep(0.20, 0.65, inpaintWeight));
+    if (inpaintWeight > 0.30) {
+        t = mix(t, 1.0, smoothstep(0.30, 0.80, inpaintWeight));
     }
 
     vec3 synthesized = mix(warpedPrev, warpedCurr, clamp(t, 0.0, 1.0));
