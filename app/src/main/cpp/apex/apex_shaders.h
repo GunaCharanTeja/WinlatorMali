@@ -77,14 +77,6 @@ void main() {
     const vec2 maxVelocity = vec2(1.0); // 100% Full Screen Span Reach (Unbounded 360 Camera Flicks)
 
     vec4 currFeat = extractNeuralFeatures(currFrame, uv, ts);
-    vec4 prevFeat = extractNeuralFeatures(prevFrame, uv, ts);
-    float diff = length(currFeat - prevFeat);
-
-    if (diff < 0.0001) {
-        imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 1.0, 1.0));
-        return;
-    }
-
     vec2 centerMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
     vec2 bestMV = centerMV;
     float bestSAD = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + centerMV, 0.0, 1.0), ts));
@@ -331,12 +323,6 @@ void main() {
         guidedMV = clamp(guidedMV, -maxVelocity, maxVelocity);
 
         vec4 fData = textureLod(lumaTexL0, uv, 0.0);
-        float diff = length(fData.rg - fData.ba);
-        if (diff < 0.001) {
-            imageStore(motionVectorOutput, pixelPos, vec4(0.0, 0.0, 1.0, 1.0));
-            return;
-        }
-
         vec2 bestMV = guidedMV;
         float bestSAD = length(fData.rg - textureLod(lumaTexL0, clamp(uv + guidedMV, 0.0, 1.0), 0.0).ba);
         float secondBestSAD = 100.0;
@@ -405,9 +391,6 @@ void main() {
             }
         }
 
-        if (length(filteredMV) < ts.x * 0.10) {
-            filteredMV = vec2(0.0);
-        }
         filteredMV = clamp(filteredMV, -maxVelocity, maxVelocity);
 
         vec4 srcData = textureLod(srcTex, uv, 0.0);
