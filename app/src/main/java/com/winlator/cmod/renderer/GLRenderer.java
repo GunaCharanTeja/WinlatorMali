@@ -462,11 +462,23 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         choreographerRunning = false;
     }
 
+    private long lastChoreographerNanos = 0;
+
     @Override
     public void doFrame(long frameTimeNanos) {
         if (!choreographerRunning) return;
         if (ApexNativeBridge.nativeIsActive()) {
-            xServerView.requestRender();
+            int targetFPS = ApexNativeBridge.nativeGetTargetFPS();
+            if (targetFPS > 0) {
+                long targetIntervalNanos = 1000000000L / targetFPS;
+                long now = System.nanoTime();
+                if (now - lastChoreographerNanos >= targetIntervalNanos - 1000000L) {
+                    lastChoreographerNanos = now;
+                    xServerView.requestRender();
+                }
+            } else {
+                xServerView.requestRender();
+            }
         }
         android.view.Choreographer.getInstance().postFrameCallback(this);
     }
