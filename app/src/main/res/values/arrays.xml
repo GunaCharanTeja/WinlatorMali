@@ -363,11 +363,11 @@
         <item>Unified Control System</item>
     </string-array>
     <string-array name="lsfg_quality_entries">
-        <item>Ultra Performance (1-2 Passes - OG Mobile)</item>
-        <item>Performance (3 Physical Passes)</item>
-        <item>Balanced (5 Physical Passes)</item>
-        <item>High Quality (7 Physical Passes)</item>
-        <item>Desktop Quality (10 Physical Passes)</item>
+        <item>Ultra Performance (1:1 Fused Neural Pass)</item>
+        <item>Performance (4 Physical Neural Passes)</item>
+        <item>Balanced (7 Physical Neural Passes)</item>
+        <item>High Quality (11 Physical Passes - Golden Spiral)</item>
+        <item>Desktop Quality (Full 16-Pass Neural-Optical Hierarchy)</item>
     </string-array>
     <string-array name="lsfg_multiplier_entries">
         <item>2x</item>

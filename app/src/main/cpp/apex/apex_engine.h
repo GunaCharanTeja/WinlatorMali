@@ -22,17 +22,17 @@ enum QualityPreset {
     QUALITY_ULTRA_PERFORMANCE = 0, // 1 Fused Pass (1:1 Native Resolution)
     QUALITY_PERFORMANCE       = 1, // 3 Passes (1:1 Native L0/L0/Output)
     QUALITY_BALANCED          = 2, // 5 Passes (1:1 Native + 1/2 Pyramid)
-    QUALITY_HIGH_QUALITY      = 3, // 7 Passes (1:1 Native + Multi-Tier Hierarchy)
-    QUALITY_DESKTOP_QUALITY   = 4  // 10 Passes (1:1 Native Maximum Genetic Potential)
+    QUALITY_HIGH_QUALITY      = 3, // 11 Passes (1:1 Native 3-Tier Pyramid + Golden Spiral)
+    QUALITY_DESKTOP_QUALITY   = 4  // 16 Passes (Full 1:1 Native Neural-Optical Hierarchy)
 };
 
 inline const char* getQualityPresetName(int preset) {
     switch (preset) {
-        case QUALITY_ULTRA_PERFORMANCE: return "Ultra Performance (1:1 Fused Pass)";
-        case QUALITY_PERFORMANCE:       return "Performance (1:1 3-Pass Direct)";
-        case QUALITY_BALANCED:          return "Balanced (1:1 5-Pass Hierarchical)";
-        case QUALITY_HIGH_QUALITY:      return "High Quality (1:1 7-Pass Multi-Scale)";
-        case QUALITY_DESKTOP_QUALITY:   return "Desktop Max (1:1 10-Pass FidelityFX)";
+        case QUALITY_ULTRA_PERFORMANCE: return "Ultra Performance (1:1 Fused Neural Pass)";
+        case QUALITY_PERFORMANCE:       return "Performance (1:1 4-Pass Neural)";
+        case QUALITY_BALANCED:          return "Balanced (1:1 7-Pass Hierarchical)";
+        case QUALITY_HIGH_QUALITY:      return "High Quality (1:1 11-Pass Golden Spiral)";
+        case QUALITY_DESKTOP_QUALITY:   return "Desktop Max (Full 16-Pass Neural-Optical Hierarchy)";
         default:                        return "Unknown Preset";
     }
 }
