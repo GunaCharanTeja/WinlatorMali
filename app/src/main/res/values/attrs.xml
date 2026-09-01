@@ -27,4 +27,13 @@
     <attr name="gamingCardSubtitleColor" format="color" />
     <attr name="gamingPopupColor" format="color" />
     <attr name="gamingToolbarColor" format="color" />
+
+    <!-- Semantic Theme Color Tokens -->
+    <attr name="semanticSurface" format="color" />
+    <attr name="semanticOnSurface" format="color" />
+    <attr name="semanticSurfaceVariant" format="color" />
+    <attr name="semanticOnSurfaceVariant" format="color" />
+    <attr name="semanticDivider" format="color" />
+    <attr name="semanticAccentDim" format="color" />
+    <attr name="semanticSurfaceContainer" format="color" />
 </resources>

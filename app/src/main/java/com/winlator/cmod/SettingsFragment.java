@@ -120,6 +120,38 @@ public class SettingsFragment extends Fragment {
             updateTheme(isChecked);
         });
 
+        final Spinner sThemePreset = view.findViewById(R.id.SThemePreset);
+        if (sThemePreset != null) {
+            String[] presetNames = ThemeManager.getPresetNames(context);
+            android.widget.ArrayAdapter<String> presetAdapter = new android.widget.ArrayAdapter<>(context, android.R.layout.simple_spinner_item, presetNames);
+            presetAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            sThemePreset.setAdapter(presetAdapter);
+            sThemePreset.setSelection(ThemeManager.getSelectedPresetIndex(context));
+            sThemePreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+
+            sThemePreset.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(android.widget.AdapterView<?> parent, View v, int position, long id) {
+                    if (position != ThemeManager.getSelectedPresetIndex(context)) {
+                        ThemeManager.setSelectedPresetIndex(context, position);
+                        if (ThemeManager.isCustomPresetSelected(context)) {
+                            new com.winlator.cmod.contentdialog.CustomThemeDialog(context).show();
+                        } else {
+                            if (getActivity() != null) getActivity().recreate();
+                        }
+                    }
+                }
+
+                @Override
+                public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+            });
+        }
+
+        View btCustomizeTheme = view.findViewById(R.id.BTCustomizeTheme);
+        if (btCustomizeTheme != null) {
+            btCustomizeTheme.setOnClickListener(v -> new com.winlator.cmod.contentdialog.CustomThemeDialog(context).show());
+        }
+
         initCustomApiKeySettings(view);
 
         // Initialize the cursor lock checkbox
@@ -343,6 +375,7 @@ public class SettingsFragment extends Fragment {
         } else {
             getActivity().setTheme(R.style.AppTheme);
         }
+        ThemeManager.applyTheme(getActivity());
 
         // Recreate the activity to apply the new theme
         getActivity().recreate();
@@ -394,13 +427,10 @@ public class SettingsFragment extends Fragment {
     }
 
     private void applyFieldSetLabelStyle(TextView textView, boolean isDarkMode) {
-        if (isDarkMode) {
-            textView.setTextColor(Color.parseColor("#cccccc"));
-            textView.setBackgroundResource(R.color.window_background_color_dark);
-        } else {
-            textView.setTextColor(Color.parseColor("#bdbdbd"));
-            textView.setBackgroundResource(R.color.window_background_color);
-        }
+        if (textView == null) return;
+        Context context = textView.getContext();
+        textView.setTextColor(ThemeManager.getOnSurfaceTextColor(context));
+        textView.setBackgroundColor(ThemeManager.getBackgroundColor(context));
     }
 
     private void initCustomApiKeySettings(View view) {

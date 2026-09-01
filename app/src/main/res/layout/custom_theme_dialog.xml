@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:scrollbars="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Live Preview Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/CardPreview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="3dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Fake Toolbar Header -->
+                <LinearLayout
+                    android:id="@+id/LLPreviewToolbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="38dp"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp">
+
+                    <TextView
+                        android:id="@+id/TVPreviewToolbarTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Theme Preview"
+                        android:textColor="#ffffff"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Card Content Body -->
+                <LinearLayout
+                    android:id="@+id/LLPreviewBody"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:id="@+id/TVPreviewText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Sample Title &amp; Description"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <!-- Sample Accent Button / Chip -->
+                        <TextView
+                            android:id="@+id/TVPreviewAccentButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingLeft="12dp"
+                            android:paddingTop="4dp"
+                            android:paddingRight="12dp"
+                            android:paddingBottom="4dp"
+                            android:text="Accent Button"
+                            android:textColor="#ffffff"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <!-- Contrast Badge -->
+                        <TextView
+                            android:id="@+id/TVPreviewContrastBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="10dp"
+                            android:paddingLeft="8dp"
+                            android:paddingTop="2dp"
+                            android:paddingRight="8dp"
+                            android:paddingBottom="2dp"
+                            android:text="Contrast: 8.5:1 (Pass)"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Accent Color Label -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Brand &amp; Accent Color"
+            android:textStyle="bold" />
+
+        <!-- Quick Color Swatches Grid (Horizontal Flow) -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/LLColorSwatches"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- Hex Input & Preview Box with Guaranteed High Contrast -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <View
+                android:id="@+id/VColorPreviewBox"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginRight="10dp" />
+
+            <EditText
+                android:id="@+id/ETHexColor"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:hint="#RRGGBB"
+                android:maxLines="1"
+                android:textSize="15sp"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp"
+                android:inputType="textCapCharacters" />
+        </LinearLayout>
+
+        <!-- RGB Sliders for mixing ANY custom color -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="14dp">
+
+            <!-- Red Slider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/TVRedLabel"
+                    android:layout_width="52dp"
+                    android:layout_height="wrap_content"
+                    android:text="R: 255"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <SeekBar
+                    android:id="@+id/SBRed"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="255"
+                    android:progress="255" />
+            </LinearLayout>
+
+            <!-- Green Slider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/TVGreenLabel"
+                    android:layout_width="52dp"
+                    android:layout_height="wrap_content"
+                    android:text="G: 0"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <SeekBar
+                    android:id="@+id/SBGreen"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="255"
+                    android:progress="0" />
+            </LinearLayout>
+
+            <!-- Blue Slider -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/TVBlueLabel"
+                    android:layout_width="52dp"
+                    android:layout_height="wrap_content"
+                    android:text="B: 85"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <SeekBar
+                    android:id="@+id/SBBlue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="255"
+                    android:progress="85" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Background Style Label -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Background Tone"
+            android:textStyle="bold" />
+
+        <!-- Background Swatches -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/LLBackgroundSwatches"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+    </LinearLayout>
+</ScrollView>

@@ -16,7 +16,7 @@
             android:layout_width="match_parent"
             android:layout_height="?actionBarSize"
             android:id="@+id/Toolbar"
-            android:background="@color/colorPrimary"
+            android:background="?attr/colorPrimary"
             app:layout_scrollFlags="enterAlways|scroll"
             app:title="@string/app_name"
             app:titleTextColor="#ffffff"
@@ -37,5 +37,6 @@
         android:fitsSystemWindows="true"
         app:headerLayout="@layout/main_menu_header"
         app:itemIconTint="@color/colorAccent"
+        app:itemTextColor="@color/colorPrimary"
         app:menu="@menu/main_menu"/>
 </androidx.drawerlayout.widget.DrawerLayout>

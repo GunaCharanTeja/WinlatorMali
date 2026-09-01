@@ -53,6 +53,7 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeManager.applyTheme(this);
         setContentView(R.layout.external_controller_bindings_activity);
 
         Intent intent = getIntent();

@@ -234,6 +234,50 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Enable Dark Mode" />
+
+                    <LinearLayout
+                        android:id="@+id/LLThemePreset"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Color Palette" />
+
+                        <Spinner
+                            android:id="@+id/SThemePreset"
+                            style="@style/ComboBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/LLCustomTheme"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Custom Palette Editor" />
+
+                        <ImageButton
+                            android:id="@+id/BTCustomizeTheme"
+                            style="@style/ToolButton"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:src="@drawable/icon_popup_menu_settings"
+                            android:contentDescription="Customize Colors" />
+                    </LinearLayout>
                 </LinearLayout>
                 <TextView
                     android:id="@+id/TVTheme"

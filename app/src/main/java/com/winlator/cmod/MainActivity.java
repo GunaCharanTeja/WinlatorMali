@@ -80,7 +80,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         } else {
             setTheme(R.style.AppTheme);
         }
-
+        ThemeManager.applyTheme(this);
 
         setContentView(R.layout.main_activity);
 
@@ -102,9 +102,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
         }
 
-        // Determine text color based on dark mode
-        int textColor = isDarkMode ? Color.WHITE : Color.BLACK;
+        // Determine text color based on theme
+        int textColor = isDarkMode ? ThemeManager.getOnSurfaceTextColor(this) : Color.parseColor("#212121");
         setNavigationViewItemTextColor(navigationView, textColor);
+        navigationView.setItemIconTintList(android.content.res.ColorStateList.valueOf(ThemeManager.getAccentColor(this)));
 
         // Create Winlator folder if not present
         File winlatorDir = new File(SettingsFragment.DEFAULT_WINLATOR_PATH);
@@ -343,6 +344,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "Fork of <b>Winlator Bionic</b> by <a href=\"https://github.com/Pipetto-crypto\">Pipetto Cripto</a>",
                     "Controller fixes by <a href=\"https://github.com/Vivsi1\">vivsi1</a>",
                     "Winlator HUD & File Manager from <b>Winlator Ludashi</b> by <a href=\"https://github.com/StevenMXZ\">stevenmxz</a>",
+                    "Theme system & CI contributions by <a href=\"https://github.com/Noysz\">Noysz</a>",
                     "Original idea for Community Configs by <a href=\"https://github.com/The412Banner\">The412Banner</a>",
                     "<b><a href=\"https://github.com/leegao\">leegao</a></b> (wrapper-leegao)",
                     "ASTC & ETC2 Transcode",

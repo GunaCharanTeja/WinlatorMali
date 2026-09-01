@@ -20,6 +20,14 @@
         <item name="gamingCardSubtitleColor">#b3000000</item>
         <item name="gamingPopupColor">#f2eceff1</item>
         <item name="gamingToolbarColor">@color/colorPrimary</item>
+
+        <item name="semanticSurface">#ffffff</item>
+        <item name="semanticOnSurface">#121212</item>
+        <item name="semanticSurfaceVariant">#f0f0f0</item>
+        <item name="semanticOnSurfaceVariant">#424242</item>
+        <item name="semanticDivider">#e0e0e0</item>
+        <item name="semanticAccentDim">#b30288d1</item>
+        <item name="semanticSurfaceContainer">#f8f9fa</item>
     </style>
 
     <!-- Dark Theme -->
@@ -42,6 +50,14 @@
         <item name="gamingCardSubtitleColor">#b3ffffff</item>
         <item name="gamingPopupColor">#f2263238</item>
         <item name="gamingToolbarColor">@color/colorPrimaryDarkMode</item>
+
+        <item name="semanticSurface">#1e1e1e</item>
+        <item name="semanticOnSurface">#e0e0e0</item>
+        <item name="semanticSurfaceVariant">#2a2a2a</item>
+        <item name="semanticOnSurfaceVariant">#aaaaaa</item>
+        <item name="semanticDivider">#383838</item>
+        <item name="semanticAccentDim">#4080d8ff</item>
+        <item name="semanticSurfaceContainer">#252525</item>
     </style>
 
     <!-- Light Theme Fullscreen -->
@@ -152,6 +168,7 @@
     <!-- TextView Styles -->
     <style name="TextView" parent="@android:style/Widget.TextView">
         <item name="android:textSize">16sp</item>
+        <item name="android:textColor">#121212</item>
     </style>
 
     <style name="TextView.Dark" parent="TextView">
@@ -161,8 +178,8 @@
     <!-- CheckBox Styles -->
     <style name="CheckBox" parent="@android:style/Widget.CompoundButton.CheckBox">
         <item name="colorAccent">@color/colorAccent</item>
-        <item name="android:textColorSecondary">@color/colorPrimary</item>
-        <item name="android:textColor">#000000</item>
+        <item name="android:textColorSecondary">#424242</item>
+        <item name="android:textColor">#121212</item>
         <item name="android:textSize">16sp</item>
     </style>
 

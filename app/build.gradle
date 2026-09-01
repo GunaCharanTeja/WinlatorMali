@@ -128,14 +128,17 @@ android {
                 localPropertiesFile.withInputStream { props.load(it) }
             }
 
-            storeFile props['keystore.file'] ? file(props['keystore.file']) : file("${rootDir}/keystore/release.jks")
-            storePassword props['keystore.password'] ?: "android"
-            keyAlias props['key.alias'] ?: "winlator_mali"
-            keyPassword props['key.password'] ?: "android"
-            
-            enableV1Signing true
-            enableV2Signing true
-            enableV3Signing true
+            def keyFile = props['keystore.file'] ? file(props['keystore.file']) : file("${rootDir}/keystore/release.jks")
+            if (keyFile.exists()) {
+                storeFile keyFile
+                storePassword props['keystore.password'] ?: "android"
+                keyAlias props['key.alias'] ?: "winlator_mali"
+                keyPassword props['key.password'] ?: "android"
+                
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
         }
     }
 
@@ -143,11 +146,16 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.debug
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            def releaseKeyFile = project.rootProject.file('keystore/release.jks')
+            if (releaseKeyFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 

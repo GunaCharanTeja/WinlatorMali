@@ -1,0 +1,85 @@
+name: Build Winlator Mali APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Product flavor to build'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - standard
+          - antutu
+          - ludashi
+          - all
+      build_type:
+        description: 'Build type (debug or release)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: >-
+          sdkmanager
+          "platforms;android-34"
+          "build-tools;35.0.0"
+          "cmake;3.22.1"
+          "ndk;29.0.14206865"
+
+      - name: Make Gradlew Executable
+        run: chmod +x ./gradlew
+
+      - name: Build APK(s)
+        run: |
+          FLAVOR="${{ github.event.inputs.flavor }}"
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          
+          # Capitalize build type for gradle task name (debug -> Debug, release -> Release)
+          CAP_TYPE="$(echo ${BUILD_TYPE:0:1} | tr '[:lower:]' '[:upper:]')${BUILD_TYPE:1}"
+          
+          if [ "$FLAVOR" = "all" ]; then
+            echo "Building all flavors for $BUILD_TYPE..."
+            ./gradlew assemble${CAP_TYPE} --no-daemon --stacktrace
+          else
+            CAP_FLAVOR="$(echo ${FLAVOR:0:1} | tr '[:lower:]' '[:upper:]')${FLAVOR:1}"
+            TASK_NAME="assemble${CAP_FLAVOR}${CAP_TYPE}"
+            echo "Executing task: :app:${TASK_NAME}..."
+            ./gradlew :app:${TASK_NAME} --no-daemon --stacktrace
+          fi
+
+      - name: Upload Built APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: winlator-mali-${{ github.event.inputs.flavor }}-${{ github.event.inputs.build_type }}
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
