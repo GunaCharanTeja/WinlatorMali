@@ -195,7 +195,9 @@ public class ContainerDetailFragment extends Fragment {
         sFEXCorePreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
         Spinner sStartupSelection = view.findViewById(R.id.SStartupSelection);
-        sStartupSelection.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+        if (sStartupSelection != null) sStartupSelection.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+
+        com.winlator.cmod.ThemeManager.applyThemeToView(view, getContext());
     }
 
     private void applyDynamicStylesRecursively(View view, boolean isDarkMode) {

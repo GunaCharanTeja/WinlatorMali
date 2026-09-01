@@ -2,9 +2,21 @@ package com.winlator.cmod;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
+import android.graphics.Typeface;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.TextView;
 import androidx.annotation.StyleRes;
 import androidx.preference.PreferenceManager;
+import com.google.android.material.tabs.TabLayout;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -198,5 +210,95 @@ public final class ThemeManager {
 
     public static int getDividerColor(Context context) {
         return isDarkMode(context) ? getSelectedPreset(context).divider : 0xFFE0E0E0;
+    }
+
+    public static void applyThemeToView(View view, Context context) {
+        if (view == null || context == null) return;
+        boolean isDarkMode = isDarkMode(context);
+        ThemePreset preset = getSelectedPreset(context);
+        int onSurface = preset.onSurface;
+        int onSurfaceVariant = preset.onSurfaceVariant;
+        int accent = preset.primary;
+        int surface = preset.surface;
+        int divider = preset.divider;
+
+        applyThemeRecursively(view, isDarkMode, onSurface, onSurfaceVariant, accent, surface, divider);
+    }
+
+    private static void applyThemeRecursively(View view, boolean isDarkMode, int onSurface, int onSurfaceVariant, int accent, int surface, int divider) {
+        if (view == null) return;
+
+        if (view instanceof EditText) {
+            EditText et = (EditText) view;
+            et.setTextColor(onSurface);
+            et.setHintTextColor(onSurfaceVariant);
+            et.setBackgroundResource(isDarkMode ? R.drawable.edit_text_dark : R.drawable.edit_text);
+        } else if (view instanceof CheckBox) {
+            CheckBox cb = (CheckBox) view;
+            cb.setTextColor(onSurface);
+            cb.setButtonTintList(ColorStateList.valueOf(accent));
+        } else if (view instanceof Spinner) {
+            Spinner spinner = (Spinner) view;
+            spinner.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+            spinner.setBackgroundResource(isDarkMode ? R.drawable.combo_box_dark : R.drawable.combo_box);
+        } else if (view instanceof TabLayout) {
+            TabLayout tabLayout = (TabLayout) view;
+            tabLayout.setBackgroundResource(isDarkMode ? R.drawable.tab_layout_background_dark : R.drawable.tab_layout_background);
+            tabLayout.setSelectedTabIndicatorColor(accent);
+            tabLayout.setTabTextColors(onSurfaceVariant, accent);
+        } else if (view instanceof SeekBar) {
+            SeekBar sb = (SeekBar) view;
+            sb.setThumbTintList(ColorStateList.valueOf(accent));
+            sb.setProgressTintList(ColorStateList.valueOf(accent));
+        } else if (view instanceof ImageButton) {
+            ImageButton ib = (ImageButton) view;
+            ib.setImageTintList(ColorStateList.valueOf(accent));
+        } else if (view instanceof ImageView) {
+            ImageView iv = (ImageView) view;
+            int id = iv.getId();
+            if (id == R.id.BTHelpDXWrapper || id == R.id.BTHelpGtaOptimization) {
+                iv.setImageTintList(ColorStateList.valueOf(onSurfaceVariant));
+            }
+        } else if (view instanceof TextView) {
+            TextView tv = (TextView) view;
+            int id = tv.getId();
+            if (id == R.id.TVGraphicsDriverVersion || id == R.id.TVSharpnessLevel || id == R.id.TVSharpnessDenoise) {
+                tv.setTextColor(accent);
+            } else {
+                CharSequence text = tv.getText();
+                if (text != null && isFieldSetHeader(text.toString())) {
+                    tv.setTextColor(accent);
+                    tv.setTypeface(null, Typeface.BOLD);
+                } else {
+                    tv.setTextColor(onSurface);
+                }
+            }
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyThemeRecursively(group.getChildAt(i), isDarkMode, onSurface, onSurfaceVariant, accent, surface, divider);
+            }
+        }
+    }
+
+    private static boolean isFieldSetHeader(String text) {
+        if (text == null) return false;
+        String t = text.trim();
+        return t.equalsIgnoreCase("DirectX") ||
+               t.equalsIgnoreCase("General") ||
+               t.equalsIgnoreCase("Box64") ||
+               t.equalsIgnoreCase("FEX-Core") ||
+               t.equalsIgnoreCase("FEXCore") ||
+               t.equalsIgnoreCase("Input Controls") ||
+               t.equalsIgnoreCase("Unified Control System") ||
+               t.equalsIgnoreCase("System") ||
+               t.equalsIgnoreCase("vkBasalt") ||
+               t.equalsIgnoreCase("Desktop") ||
+               t.equalsIgnoreCase("Win Components") ||
+               t.equalsIgnoreCase("Advanced") ||
+               t.equalsIgnoreCase("Environment Variables") ||
+               t.equalsIgnoreCase("Audio");
     }
 }

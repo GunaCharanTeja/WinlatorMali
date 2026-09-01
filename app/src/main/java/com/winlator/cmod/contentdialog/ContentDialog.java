@@ -30,7 +30,7 @@ public class ContentDialog extends Dialog {
     private Runnable onCancelCallback;
     private final View contentView;
 
-    private boolean isDarkMode;
+    protected boolean isDarkMode;
 
     public ContentDialog(@NonNull Context context) {
         this(context, 0);
@@ -39,7 +39,7 @@ public class ContentDialog extends Dialog {
     private View inflatedLayout;
 
     public ContentDialog(@NonNull Context context, int layoutResId) {
-        super(context, R.style.ContentDialog);
+        super(context, com.winlator.cmod.ThemeManager.isDarkMode(context) ? R.style.ContentDialog_Dark : R.style.ContentDialog);
         contentView = LayoutInflater.from(context).inflate(R.layout.content_dialog, null);
 
 
@@ -69,6 +69,8 @@ public class ContentDialog extends Dialog {
             View view = LayoutInflater.from(context).inflate(layoutResId, frameLayout, false);
             frameLayout.addView(view);
         }
+
+        com.winlator.cmod.ThemeManager.applyThemeToView(contentView, context);
 
         View confirmButton = contentView.findViewById(R.id.BTConfirm);
         confirmButton.setOnClickListener((v) -> {
