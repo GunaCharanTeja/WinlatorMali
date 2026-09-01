@@ -16,3 +16,17 @@ app/src/main/assets/proton-10-arm64ec.tzst
 app/src/main/assets/proton-9.0-arm64ec.txz
 app/src/main/assets/proton-9.0-arm64ec.tzst
 
+# Build outputs & APKs
+*.apk
+*.aab
+*.dm
+*.ap_
+*.dex
+output-metadata.json
+/app/antutu/
+/app/standard/
+/app/ludashi/
+/app/pubg/
+/app/build/
+build/
+bin/
