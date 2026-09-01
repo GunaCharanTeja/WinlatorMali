@@ -23,7 +23,7 @@
                 android:id="@+id/IVIcon"
                 android:layout_width="28dp"
                 android:layout_height="28dp"
-                app:tint="?attr/colorPrimary"
+                app:tint="?attr/colorAccent"
                 android:layout_marginRight="8dp"
                 android:visibility="gone" />
 
@@ -31,7 +31,7 @@
                 android:id="@+id/TVTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="?attr/colorPrimary"
+                android:textColor="?attr/colorAccent"
                 android:textStyle="bold"
                 android:textSize="18sp" />
         </LinearLayout>
@@ -88,7 +88,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="@color/colorPrimary"
+                android:textColor="?attr/colorAccent"
                 android:textStyle="bold"
                 android:visibility="gone" />
 

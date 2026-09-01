@@ -56,7 +56,7 @@
         <activity
             android:name="com.winlator.cmod.MainActivity"
             android:theme="@style/AppTheme.Dark"
-            android:screenOrientation="sensor"
+            android:screenOrientation="user"
             android:exported="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation">
             <intent-filter>
@@ -100,7 +100,7 @@
         <activity
             android:name="com.winlator.cmod.ExternalControllerBindingsActivity"
             android:theme="@style/AppTheme"
-            android:screenOrientation="sensor"
+            android:screenOrientation="user"
             android:exported="false" />
 
 

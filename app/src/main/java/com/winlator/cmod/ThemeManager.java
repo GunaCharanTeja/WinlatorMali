@@ -18,28 +18,28 @@ public final class ThemeManager {
     public static final String PREF_CUSTOM_BG = "custom_background_color";
 
     // =========================================================================
-    // CURATED DARK MODE PRESETS (Deep, rich ambient backgrounds + bright accents)
+    // CURATED DARK MODE PRESETS (Midnight Ocean is default at index 0)
     // =========================================================================
     public static final List<ThemePreset> DARK_PRESETS = Arrays.asList(
-        new ThemePreset("Default (Dark Glass)", 0xFF121212, 0xFF1E1E1E, 0xFF2A2A2A, 0xFF0288D1),
+        new ThemePreset("Midnight Ocean",       0xFF021024, 0xFF052659, 0xFF1D4274, 0xFF5483B3),
         new ThemePreset("Obsidian OLED",        0xFF000000, 0xFF101010, 0xFF1A1A1A, 0xFF3D5AFE),
         new ThemePreset("Cyberpunk Neon",       0xFF0D0221, 0xFF190933, 0xFF261447, 0xFFFF0055),
         new ThemePreset("Crimson Dusk",         0xFF181A2F, 0xFF242E49, 0xFF37415C, 0xFFB4182D),
-        new ThemePreset("Midnight Ocean",       0xFF021024, 0xFF052659, 0xFF1D4274, 0xFF5483B3),
+        new ThemePreset("Classic (Dark Glass)", 0xFF121212, 0xFF1E1E1E, 0xFF2A2A2A, 0xFF0288D1),
         new ThemePreset("Emerald Depth",        0xFF051F20, 0xFF0B2B26, 0xFF163832, 0xFF00E676),
         new ThemePreset("Grape Sunset",         0xFF1D1A39, 0xFF451952, 0xFF662549, 0xFFF39F5A),
         new ThemePreset("Violet Dream",         0xFF190019, 0xFF2B124C, 0xFF522B5B, 0xFF854F6C),
-        new ThemePreset("Custom Palette...",    0xFF121212, 0xFF1E1E1E, 0xFF2A2A2A, 0xFF0288D1)
+        new ThemePreset("Custom Palette...",    0xFF021024, 0xFF052659, 0xFF1D4274, 0xFF5483B3)
     );
 
     // =========================================================================
-    // CURATED LIGHT MODE PRESETS (Crisp clean surfaces + vivid readable branding)
+    // CURATED LIGHT MODE PRESETS (Ocean Breeze is default at index 0)
     // =========================================================================
     public static final List<ThemePreset> LIGHT_PRESETS = Arrays.asList(
-        new ThemePreset("Default (Light Slate)", 0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF607D8B, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
+        new ThemePreset("Ocean Breeze",          0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF0288D1, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
         new ThemePreset("Crimson Glow",          0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFFB4182D, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
         new ThemePreset("Emerald Forest",        0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF2E7D32, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
-        new ThemePreset("Ocean Breeze",          0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF0288D1, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
+        new ThemePreset("Classic (Light Slate)", 0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF607D8B, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
         new ThemePreset("Sunset Coral",          0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFFE05364, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
         new ThemePreset("Royal Amethyst",        0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF6A1B9A, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
         new ThemePreset("Monochrome Minimal",    0xFFFAFAFA, 0xFFFFFFFF, 0xFFF0F0F0, 0xFF212121, 0xFF121212, 0xFF121212, 0xFF424242, 0xFFFFFFFF, 0xFFE0E0E0),
@@ -48,11 +48,11 @@ public final class ThemeManager {
 
     @StyleRes
     private static final int[] DARK_STYLES = {
-        R.style.ThemePreset_DarkGlass,
+        R.style.ThemePreset_OceanIce,
         R.style.ThemePreset_ObsidianOLED,
         R.style.ThemePreset_Cyberpunk,
         R.style.ThemePreset_CrimsonDusk,
-        R.style.ThemePreset_OceanIce,
+        R.style.ThemePreset_DarkGlass,
         R.style.ThemePreset_EmeraldDepth,
         R.style.ThemePreset_GrapeSunset,
         R.style.ThemePreset_VioletCream,
@@ -61,10 +61,10 @@ public final class ThemeManager {
 
     @StyleRes
     private static final int[] LIGHT_STYLES = {
-        R.style.ThemePreset_DarkGlass_Light,
+        R.style.ThemePreset_OceanIce_Light,
         R.style.ThemePreset_CrimsonDusk_Light,
         R.style.ThemePreset_EmeraldDepth_Light,
-        R.style.ThemePreset_OceanIce_Light,
+        R.style.ThemePreset_DarkGlass_Light,
         R.style.ThemePreset_DuskCoral_Light,
         R.style.ThemePreset_VioletCream_Light,
         R.style.ThemePreset_ObsidianOLED_Light,
@@ -124,12 +124,12 @@ public final class ThemeManager {
 
     public static int getCustomAccentColor(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        return prefs.getInt(PREF_CUSTOM_ACCENT, isDarkMode(context) ? 0xFF00E5FF : 0xFF0288D1);
+        return prefs.getInt(PREF_CUSTOM_ACCENT, isDarkMode(context) ? 0xFF5483B3 : 0xFF0288D1);
     }
 
     public static int getCustomBackgroundColor(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        return prefs.getInt(PREF_CUSTOM_BG, isDarkMode(context) ? 0xFF121212 : 0xFFFAFAFA);
+        return prefs.getInt(PREF_CUSTOM_BG, isDarkMode(context) ? 0xFF021024 : 0xFFFAFAFA);
     }
 
     public static void setCustomColors(Context context, int accent, int background) {

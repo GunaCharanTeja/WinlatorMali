@@ -185,7 +185,7 @@
 
     <style name="CheckBox.Dark" parent="CheckBox">
         <item name="colorAccent">@color/colorAccentDark</item>
-        <item name="android:textColorSecondary">@color/colorPrimaryDark</item>
+        <item name="android:textColorSecondary">#b0bec5</item>
         <item name="android:textColor">#ffffff</item>
         <item name="android:textSize">16sp</item>
     </style>
@@ -277,14 +277,14 @@
 
     <style name="HorizontalLine">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">2dp</item>
-        <item name="android:background">@color/colorPrimary</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">?attr/semanticDivider</item>
         <item name="android:layout_marginTop">8dp</item>
         <item name="android:layout_marginBottom">8dp</item>
     </style>
 
     <style name="HorizontalLine.Dark" parent="HorizontalLine">
-        <item name="android:background">@color/colorPrimaryDarkMode</item>
+        <item name="android:background">?attr/semanticDivider</item>
     </style>
 
     <style name="FieldSeparator">
@@ -304,10 +304,10 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:background">@drawable/bordered_panel</item>
         <item name="android:orientation">vertical</item>
-        <item name="android:paddingLeft">8dp</item>
-        <item name="android:paddingRight">8dp</item>
-        <item name="android:paddingBottom">8dp</item>
-        <item name="android:paddingTop">16dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:paddingTop">24dp</item>
         <item name="android:layout_marginTop">10dp</item>
     </style>
 
@@ -318,17 +318,23 @@
     <style name="FieldSetLabel">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:background">@color/window_background_color</item>
+        <item name="android:background">@android:color/transparent</item>
         <item name="android:orientation">vertical</item>
-        <item name="android:paddingLeft">4dp</item>
-        <item name="android:paddingRight">4dp</item>
-        <item name="android:layout_marginLeft">8dp</item>
-        <item name="android:textColor">#bdbdbd</item>
+        <item name="android:paddingLeft">6dp</item>
+        <item name="android:paddingRight">6dp</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+        <item name="android:layout_marginLeft">12dp</item>
+        <item name="android:textColor">?attr/colorAccent</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
     </style>
 
     <style name="FieldSetLabel.Dark" parent="FieldSetLabel">
-        <item name="android:background">@color/window_background_color_dark</item>
-        <item name="android:textColor">#cccccc</item>
+        <item name="android:background">@android:color/transparent</item>
+        <item name="android:textColor">?attr/colorAccent</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
     </style>
 
     <!-- Table Header Styles -->
