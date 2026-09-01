@@ -977,7 +977,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     public void updateFrameRating(Window window) {
-        if (frameRating != null) {
+        if (frameRating != null && window != null && window.getWidth() > 200 && window.getHeight() > 200) {
             frameRating.onFrame();
         }
     }
@@ -1068,7 +1068,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbRend = dialog.findViewById(R.id.CBHudRenderer);
         CheckBox cbGraph = dialog.findViewById(R.id.CBHudGraph);
         CheckBox cbVert = dialog.findViewById(R.id.CBHudVertical);
-        CheckBox cbMono = dialog.findViewById(R.id.CBHudMono);
         CheckBox cbBorder = dialog.findViewById(R.id.CBHudBorder);
         CheckBox cbCompact = dialog.findViewById(R.id.CBHudCompact);
         CheckBox cbWrapper = dialog.findViewById(R.id.CBHudWrapper);
@@ -1080,7 +1079,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         TextView tvScale = dialog.findViewById(R.id.TVHudScale);
         Spinner spPreset = dialog.findViewById(R.id.SPHudPreset);
 
-        frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
+        frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
         cbEnable.setChecked(frameRating.isUserEnabled());
         cbVert.setChecked(frameRating.isVertical());
 
@@ -1096,6 +1095,23 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         int popupBgRes = isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background;
         spPreset.setPopupBackgroundResource(popupBgRes);
         spPreset.setAdapter(createThemedSpinnerAdapter(this, presets, isDarkMode));
+        int initialPreset = frameRating.getPositionPreset();
+        spPreset.setSelection(initialPreset >= 0 ? initialPreset + 1 : 0);
+
+        Spinner spStyle = dialog.findViewById(R.id.SPHudStyle);
+        if (spStyle != null) {
+            String[] styles = {"Classic (Multi-Color)", "Classic Monochrome", "Modular Glass Tiles"};
+            spStyle.setPopupBackgroundResource(popupBgRes);
+            spStyle.setAdapter(createThemedSpinnerAdapter(this, styles, isDarkMode));
+            spStyle.setSelection(Math.min(2, frameRating.getHudStyle()));
+            spStyle.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                    frameRating.setHudStyle(position);
+                }
+                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+            });
+        }
 
         cbEnable.setOnCheckedChangeListener((v, isChecked) -> {
             if (isChecked) frameRating.enableByUser();
@@ -1114,7 +1130,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbRend.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(6, isChecked));
         cbRam.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(7, isChecked));
         cbBattPct.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(8, isChecked));
-        cbMono.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(9, isChecked));
         cbBorder.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(10, isChecked));
         cbCompact.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(11, isChecked));
         cbWrapper.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(12, isChecked));
@@ -1147,6 +1162,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
                 if (position > 0) frameRating.setPositionPreset(position - 1);
+                else frameRating.clearPositionPreset();
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
@@ -1156,9 +1172,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             
             // Re-sync UI after a short delay to ensure forceReset's posted runnable has executed
             v.postDelayed(() -> {
-                frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
+                frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
                 cbEnable.setChecked(true);
                 cbVert.setChecked(false);
+                if (spStyle != null) spStyle.setSelection(WinlatorHUD.STYLE_CLASSIC);
                 
                 int alphaVal = (int)(frameRating.getHudAlpha() * 100);
                 sbAlpha.setProgress(alphaVal);
@@ -1168,7 +1185,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 sbScale.setProgress((int)((scaleValue - 0.5f) / 1.5f * 100));
                 tvScale.setText(String.format(Locale.US, "%.1fx", scaleValue));
                 
-                spPreset.setSelection(0);
+                spPreset.setSelection(2);
             }, 50);
         });
 

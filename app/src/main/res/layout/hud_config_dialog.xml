@@ -127,11 +127,23 @@
                 android:layout_marginTop="16dp">
                 <LinearLayout style="@style/FieldSet">
 
-                    <CheckBox
-                        android:id="@+id/CBHudMono"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Monochrome Mode" />
+                        android:orientation="vertical"
+                        android:layout_marginBottom="8dp">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="HUD Look &amp; Style"
+                            android:textStyle="bold"
+                            android:textSize="12sp" />
+                        <Spinner
+                            android:id="@+id/SPHudStyle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
 
                     <CheckBox
                         android:id="@+id/CBHudBorder"

@@ -309,6 +309,11 @@ public class Shortcut {
                 }
             }
 
+            String detectedVer = getGameVersion();
+            if (detectedVer != null && !detectedVer.isEmpty()) {
+                changed = true;
+            }
+
             if (changed && onShortcutLoadedListener != null) {
                 onShortcutLoadedListener.onShortcutLoaded(this);
             }
@@ -637,30 +642,6 @@ public class Shortcut {
     }
 
     public String getGameVersion() {
-        com.winlator.cmod.win32.PEParser.FileVersionInfo info = getFileVersionInfo();
-        if (info != null) {
-            String rawVer = null;
-            if (info.FileVersion != null && !info.FileVersion.trim().isEmpty()) {
-                rawVer = info.FileVersion.trim();
-            } else if (info.ProductVersion != null && !info.ProductVersion.trim().isEmpty()) {
-                rawVer = info.ProductVersion.trim();
-            }
-
-            if (rawVer != null) {
-                // Normalize commas and spaces: e.g. "1, 0, 4, 0" -> "1.0.4.0"
-                String cleaned = rawVer.replace(',', '.').replaceAll("\\s+", "");
-                while (cleaned.contains("..")) {
-                    cleaned = cleaned.replace("..", ".");
-                }
-                while (cleaned.endsWith(".")) {
-                    cleaned = cleaned.substring(0, cleaned.length() - 1);
-                }
-                while (cleaned.startsWith(".")) {
-                    cleaned = cleaned.substring(1);
-                }
-                return cleaned.isEmpty() ? null : cleaned;
-            }
-        }
-        return null;
+        return com.winlator.cmod.core.GameVersionDetector.detect(this);
     }
 }

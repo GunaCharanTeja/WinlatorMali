@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Stack;
 
 public class PEParser {
@@ -38,6 +39,35 @@ public class PEParser {
         public String ProductName = "";
         public String ProductVersion = "";
         public String SpecialBuildprivate = "";
+        public VSFixedFileInfo fixedFileInfo;
+
+        public boolean hasVersion() {
+            return (FileVersion != null && !FileVersion.trim().isEmpty() && !isZeroVersion(FileVersion))
+                || (ProductVersion != null && !ProductVersion.trim().isEmpty() && !isZeroVersion(ProductVersion))
+                || (fixedFileInfo != null && fixedFileInfo.hasVersion());
+        }
+
+        public String getBestVersion() {
+            if (ProductVersion != null && !ProductVersion.trim().isEmpty() && !isZeroVersion(ProductVersion)) {
+                return ProductVersion.trim();
+            }
+            if (FileVersion != null && !FileVersion.trim().isEmpty() && !isZeroVersion(FileVersion)) {
+                return FileVersion.trim();
+            }
+            if (fixedFileInfo != null) {
+                String pv = fixedFileInfo.getFormattedProductVersion();
+                if (pv != null && !isZeroVersion(pv)) return pv;
+                String fv = fixedFileInfo.getFormattedFileVersion();
+                if (fv != null && !isZeroVersion(fv)) return fv;
+            }
+            return (FileVersion != null && !FileVersion.trim().isEmpty()) ? FileVersion.trim() : ProductVersion;
+        }
+
+        private static boolean isZeroVersion(String ver) {
+            if (ver == null || ver.trim().isEmpty()) return true;
+            String clean = ver.replaceAll("[^0-9]", "");
+            return clean.isEmpty() || clean.matches("^0+$");
+        }
     }
 
     private interface ImageResourceEntry {
@@ -113,22 +143,22 @@ public class PEParser {
         }
     }
 
-    private static class VSFixedFileInfo {
-        private final int dwSignature;
-        private final int dwStrucVersion;
-        private final int dwFileVersionMS;
-        private final int dwFileVersionLS;
-        private final int dwProductVersionMS;
-        private final int dwProductVersionLS;
-        private final int dwFileFlagsMask;
-        private final int dwFileFlags;
-        private final int dwFileOS;
-        private final int dwFileType;
-        private final int dwFileSubtype;
-        private final int dwFileDateMS;
-        private final int dwFileDateLS;
+    public static class VSFixedFileInfo {
+        public final int dwSignature;
+        public final int dwStrucVersion;
+        public final int dwFileVersionMS;
+        public final int dwFileVersionLS;
+        public final int dwProductVersionMS;
+        public final int dwProductVersionLS;
+        public final int dwFileFlagsMask;
+        public final int dwFileFlags;
+        public final int dwFileOS;
+        public final int dwFileType;
+        public final int dwFileSubtype;
+        public final int dwFileDateMS;
+        public final int dwFileDateLS;
 
-        private VSFixedFileInfo(ByteBuffer data) {
+        public VSFixedFileInfo(ByteBuffer data) {
             dwSignature = data.getInt();
             dwStrucVersion = data.getInt();
             dwFileVersionMS = data.getInt();
@@ -143,12 +173,44 @@ public class PEParser {
             dwFileDateMS = data.getInt();
             dwFileDateLS = data.getInt();
         }
+
+        public boolean hasVersion() {
+            return (dwFileVersionMS | dwFileVersionLS | dwProductVersionMS | dwProductVersionLS) != 0;
+        }
+
+        public String getFormattedFileVersion() {
+            int v1 = (dwFileVersionMS >> 16) & 0xFFFF;
+            int v2 = dwFileVersionMS & 0xFFFF;
+            int v3 = (dwFileVersionLS >> 16) & 0xFFFF;
+            int v4 = dwFileVersionLS & 0xFFFF;
+            if ((v1 | v2 | v3 | v4) == 0) return null;
+            if (v4 == 0) {
+                if (v3 == 0) return v1 + "." + v2;
+                return v1 + "." + v2 + "." + v3;
+            }
+            return v1 + "." + v2 + "." + v3 + "." + v4;
+        }
+
+        public String getFormattedProductVersion() {
+            int v1 = (dwProductVersionMS >> 16) & 0xFFFF;
+            int v2 = dwProductVersionMS & 0xFFFF;
+            int v3 = (dwProductVersionLS >> 16) & 0xFFFF;
+            int v4 = dwProductVersionLS & 0xFFFF;
+            if ((v1 | v2 | v3 | v4) == 0) return null;
+            if (v4 == 0) {
+                if (v3 == 0) return v1 + "." + v2;
+                return v1 + "." + v2 + "." + v3;
+            }
+            return v1 + "." + v2 + "." + v3 + "." + v4;
+        }
     }
 
     private static String readUnicodeString(ByteBuffer data) {
         ByteBuffer stringBuf = ByteBuffer.allocate(512).order(ByteOrder.LITTLE_ENDIAN);
         short value;
-        while ((value = data.getShort()) != 0) stringBuf.putShort(value);
+        while (data.hasRemaining() && (value = data.getShort()) != 0) {
+            if (stringBuf.remaining() >= 2) stringBuf.putShort(value);
+        }
         return new String(Arrays.copyOf(stringBuf.array(), stringBuf.position()), StandardCharsets.UTF_16LE);
     }
 
@@ -167,15 +229,17 @@ public class PEParser {
 
             key = readUnicodeString(data);
             int offset = data.position() - position;
-            if ((offset & 3) != 0) data.getShort();
+            if ((offset & 3) != 0 && data.hasRemaining()) data.getShort();
 
-            if (valueLength > 0) {
+            if (valueLength > 0 && data.remaining() >= valueLength * 2) {
                 byte[] bytes = new byte[valueLength * 2];
                 data.get(bytes, 0, bytes.length);
                 value = readUnicodeString(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
             }
             else value = null;
-            if ((length & 3) != 0) data.getShort();
+
+            int endOffset = data.position() - position;
+            if ((endOffset & 3) != 0 && data.hasRemaining()) data.getShort();
         }
     }
 
@@ -193,15 +257,19 @@ public class PEParser {
             type = data.getShort();
             key = readUnicodeString(data);
             int offset = data.position() - position;
-            if ((offset & 3) != 0) data.getShort();
+            if ((offset & 3) != 0 && data.hasRemaining()) data.getShort();
             int remaining = length - offset;
 
-            while (remaining > 0) {
+            while (remaining > 6 && data.hasRemaining()) {
+                int prePos = data.position();
                 StringHdr stringhdr = new StringHdr(data);
                 stringHdrs.add(stringhdr);
-                remaining -= stringhdr.length;
+                int consumed = data.position() - prePos;
+                if (consumed <= 0) break;
+                remaining -= consumed;
             }
-            if ((length & 3) != 0) data.getShort();
+            int endOffset = data.position() - position;
+            if ((endOffset & 3) != 0 && data.hasRemaining()) data.getShort();
         }
     }
 
@@ -220,15 +288,19 @@ public class PEParser {
             key = readUnicodeString(data);
             if (!key.equals("StringFileInfo")) return;
             int offset = data.position() - position;
-            if ((offset & 3) != 0) data.getShort();
+            if ((offset & 3) != 0 && data.hasRemaining()) data.getShort();
             int remaining = length - offset;
 
-            while (remaining > 0) {
+            while (remaining > 6 && data.hasRemaining()) {
+                int prePos = data.position();
                 StringTable stringTable = new StringTable(data);
                 stringTables.add(stringTable);
-                remaining -= stringTable.length;
+                int consumed = data.position() - prePos;
+                if (consumed <= 0) break;
+                remaining -= consumed;
             }
-            if ((length & 3) != 0) data.getShort();
+            int endOffset = data.position() - position;
+            if ((endOffset & 3) != 0 && data.hasRemaining()) data.getShort();
         }
     }
 
@@ -247,15 +319,16 @@ public class PEParser {
             type = data.getShort();
             key = readUnicodeString(data);
             int offset = data.position() - position;
-            if ((offset & 3) != 0) data.getShort();
-            value = valueLength > 0 ? new VSFixedFileInfo(data) : null;
+            if ((offset & 3) != 0 && data.hasRemaining()) data.getShort();
+            value = (valueLength >= 52 && data.remaining() >= 52) ? new VSFixedFileInfo(data) : null;
 
-            if (value == null || value.dwStrucVersion != 0x10000) {
+            if (data.hasRemaining()) {
+                int align = data.position() - position;
+                if ((align & 3) != 0 && data.hasRemaining()) data.getShort();
+                stringFileInfo = new StringFileInfo(data);
+            } else {
                 stringFileInfo = null;
-                return;
             }
-
-            stringFileInfo = new StringFileInfo(data);
         }
     }
 
@@ -275,62 +348,111 @@ public class PEParser {
     }
 
     private ImageResourceDirectory readImageResourceDirectory(byte type) {
+        if (!this.peFile.isFile()) return null;
         try (InputStream inStream = new BufferedInputStream(new FileInputStream(this.peFile), 65536)) {
-            ByteBuffer allocate = ByteBuffer.allocate(64);
-            ByteOrder byteOrder = ByteOrder.LITTLE_ENDIAN;
-            ByteBuffer dosHeader = allocate.order(byteOrder);
-            int filePosition = 0 + inStream.read(dosHeader.array());
-            short magicNumber = dosHeader.getShort();
-            if (magicNumber == 23117) {
-                dosHeader.position(60);
-                int fileHeaderOffset = dosHeader.getInt() + 4;
-                int filePosition2 = filePosition + StreamUtils.skip(inStream, fileHeaderOffset - filePosition);
-                ByteBuffer fileHeader = ByteBuffer.allocate(20).order(byteOrder);
-                int filePosition3 = filePosition2 + inStream.read(fileHeader.array());
-                Short.toUnsignedInt(fileHeader.getShort());
-                short numberOfSections = fileHeader.getShort();
-                fileHeader.position(fileHeader.position() + 12);
-                short sizeofOptionalHeader = fileHeader.getShort();
-                int filePosition4 = filePosition3 + StreamUtils.skip(inStream, sizeofOptionalHeader);
-                int i = 0;
-                this.resourcesRVA = 0;
-                this.resourcesOffset = 0;
-                int resourcesSize = 0;
-                ByteBuffer sectionHeader = ByteBuffer.allocate(40).order(byteOrder);
-                byte[] nameBytes = new byte[8];
-                byte i2 = 0;
-                while (true) {
-                    if (i2 >= numberOfSections) {
-                        break;
-                    }
-                    sectionHeader.position(i);
-                    filePosition4 += inStream.read(sectionHeader.array());
-                    sectionHeader.get(nameBytes);
-                    String name = StringUtils.fromANSIString(nameBytes);
-                    if (!name.equals(".rsrc")) {
-                        i2 = (byte) (i2 + 1);
-                        i = 0;
-                    } else {
-                        sectionHeader.getInt();
-                        this.resourcesRVA = sectionHeader.getInt();
-                        resourcesSize = sectionHeader.getInt();
-                        this.resourcesOffset = sectionHeader.getInt();
-                        break;
+            ByteBuffer dosHeader = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN);
+            int read = inStream.read(dosHeader.array());
+            if (read < 64) return null;
+            short magicNumber = dosHeader.getShort(0);
+            if (magicNumber != 0x5A4D) return null; // 'MZ'
+
+            dosHeader.position(60);
+            int peOffset = dosHeader.getInt();
+            if (peOffset < 64 || peOffset > 10 * 1024 * 1024) return null;
+
+            int filePos = 64;
+            long skipped = StreamUtils.skip(inStream, peOffset - filePos);
+            filePos += (int) skipped;
+
+            ByteBuffer peSignature = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+            read = inStream.read(peSignature.array());
+            if (read < 4 || peSignature.getInt(0) != 0x00004550) return null; // 'PE\0\0'
+            filePos += 4;
+
+            ByteBuffer fileHeader = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN);
+            read = inStream.read(fileHeader.array());
+            if (read < 20) return null;
+            filePos += 20;
+
+            short numberOfSections = fileHeader.getShort(2);
+            short sizeOfOptionalHeader = fileHeader.getShort(16);
+
+            int resourceRVA = 0;
+            int resourceSize = 0;
+
+            if (sizeOfOptionalHeader > 0) {
+                ByteBuffer optionalHeader = ByteBuffer.allocate(sizeOfOptionalHeader).order(ByteOrder.LITTLE_ENDIAN);
+                read = inStream.read(optionalHeader.array());
+                filePos += read;
+
+                if (read >= 2) {
+                    short optMagic = optionalHeader.getShort(0);
+                    boolean is64Bit = (optMagic == 0x020B);
+                    int dataDirOffset = is64Bit ? 112 : 96;
+                    int numRvaAndSizesOffset = is64Bit ? 108 : 92;
+
+                    if (sizeOfOptionalHeader >= dataDirOffset + 24) {
+                        int numRvaAndSizes = optionalHeader.getInt(numRvaAndSizesOffset);
+                        if (numRvaAndSizes > 2) {
+                            // Entry 2: IMAGE_DIRECTORY_ENTRY_RESOURCE
+                            resourceRVA = optionalHeader.getInt(dataDirOffset + 16);
+                            resourceSize = optionalHeader.getInt(dataDirOffset + 20);
+                        }
                     }
                 }
-                int i3 = this.resourcesOffset;
-                if (i3 > 0) {
-                    int skip = filePosition4 + StreamUtils.skip(inStream, i3 - filePosition4);
-                    ByteBuffer resourcesBuffer = ByteBuffer.allocate(resourcesSize).order(ByteOrder.LITTLE_ENDIAN);
-                    inStream.read(resourcesBuffer.array(), 0, resourcesBuffer.limit());
-                    return new ImageResourceDirectory(type, resourcesBuffer, 0);
-                }
-                return null;
             }
-            return null;
-        } catch (IOException e) {
-            return null;
+
+            int numSections = Math.min(Math.max(0, numberOfSections), 96);
+            ByteBuffer sectionHeader = ByteBuffer.allocate(40).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] nameBytes = new byte[8];
+
+            int foundResourceOffset = 0;
+            int foundResourceRVA = 0;
+            int foundResourceSize = 0;
+
+            for (int s = 0; s < numSections; s++) {
+                sectionHeader.position(0);
+                read = inStream.read(sectionHeader.array());
+                if (read < 40) break;
+                filePos += 40;
+
+                sectionHeader.get(nameBytes);
+                String sectName = StringUtils.fromANSIString(nameBytes).toLowerCase(Locale.US);
+                int virtualSize = sectionHeader.getInt(8);
+                int virtualAddress = sectionHeader.getInt(12);
+                int sizeOfRawData = sectionHeader.getInt(16);
+                int pointerToRawData = sectionHeader.getInt(20);
+
+                if (resourceRVA != 0) {
+                    int sectSpan = Math.max(virtualSize, sizeOfRawData);
+                    if (resourceRVA >= virtualAddress && resourceRVA < virtualAddress + sectSpan) {
+                        foundResourceRVA = resourceRVA;
+                        foundResourceOffset = pointerToRawData + (resourceRVA - virtualAddress);
+                        foundResourceSize = resourceSize > 0 ? resourceSize : sizeOfRawData;
+                        break;
+                    }
+                } else if (sectName.equals(".rsrc") || sectName.equals("rsrc") || sectName.contains("rsrc")) {
+                    foundResourceRVA = virtualAddress;
+                    foundResourceOffset = pointerToRawData;
+                    foundResourceSize = sizeOfRawData;
+                    break;
+                }
+            }
+
+            if (foundResourceOffset > 0 && foundResourceSize > 0 && foundResourceSize <= 32 * 1024 * 1024) {
+                this.resourcesRVA = foundResourceRVA;
+                this.resourcesOffset = foundResourceOffset;
+
+                if (foundResourceOffset > filePos) {
+                    StreamUtils.skip(inStream, foundResourceOffset - filePos);
+                }
+                ByteBuffer resourcesBuffer = ByteBuffer.allocate(foundResourceSize).order(ByteOrder.LITTLE_ENDIAN);
+                inStream.read(resourcesBuffer.array(), 0, resourcesBuffer.limit());
+                return new ImageResourceDirectory(type, resourcesBuffer, 0);
+            }
+        } catch (Exception ignored) {
         }
+        return null;
     }
 
     private Bitmap decodeIcon(int iconIndex, boolean largeIcon, ArrayList<ImageResourceDataEntry> dataEntries) {
@@ -423,43 +545,137 @@ public class PEParser {
     }
 
     public static FileVersionInfo getFileVersionInfo(File peFile) {
-        if (!peFile.isFile()) return null;
+        if (peFile == null || !peFile.isFile()) return null;
 
-        PEParser peParser = new PEParser(peFile);
-        ImageResourceDirectory rootDirectory = peParser.readImageResourceDirectory(RT_VERSION);
-        if (rootDirectory == null) return null;
-        ArrayList<ImageResourceDataEntry> dataEntries = peParser.readImageResourceDataEntries(rootDirectory);
-        if (dataEntries.isEmpty()) return null;
+        try {
+            PEParser peParser = new PEParser(peFile);
+            ImageResourceDirectory rootDirectory = peParser.readImageResourceDirectory(RT_VERSION);
+            if (rootDirectory == null) return scanFileForVersionFallback(peFile);
 
-        ImageResourceDataEntry dataEntry = dataEntries.get(0);
-        int fileOffset = dataEntry.offsetToData - peParser.resourcesRVA + peParser.resourcesOffset;
-        ByteBuffer resourceData = peParser.readResourceData(fileOffset, dataEntry.size);
-        if (resourceData == null) return null;
+            ArrayList<ImageResourceDataEntry> dataEntries = peParser.readImageResourceDataEntries(rootDirectory);
+            if (dataEntries.isEmpty()) return scanFileForVersionFallback(peFile);
 
-        VSVersionInfo versionInfo = new VSVersionInfo(resourceData);
+            ImageResourceDataEntry dataEntry = dataEntries.get(0);
+            int fileOffset = dataEntry.offsetToData - peParser.resourcesRVA + peParser.resourcesOffset;
+            ByteBuffer resourceData = peParser.readResourceData(fileOffset, dataEntry.size);
+            if (resourceData == null) return scanFileForVersionFallback(peFile);
 
-        if (versionInfo.stringFileInfo != null) {
+            VSVersionInfo versionInfo = new VSVersionInfo(resourceData);
             FileVersionInfo fileVersionInfo = new FileVersionInfo();
-            for (StringTable stringTable : versionInfo.stringFileInfo.stringTables) {
-                for (StringHdr stringHdr : stringTable.stringHdrs) {
-                    switch (stringHdr.key) {
-                        case "Comments": if (fileVersionInfo.Comments.isEmpty()) fileVersionInfo.Comments = stringHdr.value; break;
-                        case "CompanyName": if (fileVersionInfo.CompanyName.isEmpty()) fileVersionInfo.CompanyName = stringHdr.value; break;
-                        case "FileDescription": if (fileVersionInfo.FileDescription.isEmpty()) fileVersionInfo.FileDescription = stringHdr.value; break;
-                        case "FileVersion": if (fileVersionInfo.FileVersion.isEmpty()) fileVersionInfo.FileVersion = stringHdr.value; break;
-                        case "InternalName": if (fileVersionInfo.InternalName.isEmpty()) fileVersionInfo.InternalName = stringHdr.value; break;
-                        case "LegalCopyright": if (fileVersionInfo.LegalCopyright.isEmpty()) fileVersionInfo.LegalCopyright = stringHdr.value; break;
-                        case "LegalTrademarks": if (fileVersionInfo.LegalTrademarks.isEmpty()) fileVersionInfo.LegalTrademarks = stringHdr.value; break;
-                        case "OriginalFilename": if (fileVersionInfo.OriginalFilename.isEmpty()) fileVersionInfo.OriginalFilename = stringHdr.value; break;
-                        case "PrivateBuild": if (fileVersionInfo.PrivateBuild.isEmpty()) fileVersionInfo.PrivateBuild = stringHdr.value; break;
-                        case "ProductName": if (fileVersionInfo.ProductName.isEmpty()) fileVersionInfo.ProductName = stringHdr.value; break;
-                        case "ProductVersion": if (fileVersionInfo.ProductVersion.isEmpty()) fileVersionInfo.ProductVersion = stringHdr.value; break;
-                        case "SpecialBuildprivate": if (fileVersionInfo.SpecialBuildprivate.isEmpty()) fileVersionInfo.SpecialBuildprivate = stringHdr.value; break;
+            fileVersionInfo.fixedFileInfo = versionInfo.value;
+
+            if (versionInfo.stringFileInfo != null) {
+                for (StringTable stringTable : versionInfo.stringFileInfo.stringTables) {
+                    for (StringHdr stringHdr : stringTable.stringHdrs) {
+                        if (stringHdr.value == null || stringHdr.value.trim().isEmpty()) continue;
+                        switch (stringHdr.key) {
+                            case "Comments": if (fileVersionInfo.Comments.isEmpty()) fileVersionInfo.Comments = stringHdr.value; break;
+                            case "CompanyName": if (fileVersionInfo.CompanyName.isEmpty()) fileVersionInfo.CompanyName = stringHdr.value; break;
+                            case "FileDescription": if (fileVersionInfo.FileDescription.isEmpty()) fileVersionInfo.FileDescription = stringHdr.value; break;
+                            case "FileVersion": if (fileVersionInfo.FileVersion.isEmpty()) fileVersionInfo.FileVersion = stringHdr.value; break;
+                            case "InternalName": if (fileVersionInfo.InternalName.isEmpty()) fileVersionInfo.InternalName = stringHdr.value; break;
+                            case "LegalCopyright": if (fileVersionInfo.LegalCopyright.isEmpty()) fileVersionInfo.LegalCopyright = stringHdr.value; break;
+                            case "LegalTrademarks": if (fileVersionInfo.LegalTrademarks.isEmpty()) fileVersionInfo.LegalTrademarks = stringHdr.value; break;
+                            case "OriginalFilename": if (fileVersionInfo.OriginalFilename.isEmpty()) fileVersionInfo.OriginalFilename = stringHdr.value; break;
+                            case "PrivateBuild": if (fileVersionInfo.PrivateBuild.isEmpty()) fileVersionInfo.PrivateBuild = stringHdr.value; break;
+                            case "ProductName": if (fileVersionInfo.ProductName.isEmpty()) fileVersionInfo.ProductName = stringHdr.value; break;
+                            case "ProductVersion": if (fileVersionInfo.ProductVersion.isEmpty()) fileVersionInfo.ProductVersion = stringHdr.value; break;
+                            case "SpecialBuildprivate": if (fileVersionInfo.SpecialBuildprivate.isEmpty()) fileVersionInfo.SpecialBuildprivate = stringHdr.value; break;
+                        }
                     }
                 }
             }
-            return fileVersionInfo;
+
+            // If structured string tables didn't find FileVersion/ProductVersion, scan raw resource buffer
+            if (fileVersionInfo.FileVersion.isEmpty() || fileVersionInfo.ProductVersion.isEmpty()) {
+                scanRawVersionStrings(resourceData, fileVersionInfo);
+            }
+
+            // If still no string version, fall back to FixedFileInfo numeric version
+            if (fileVersionInfo.FileVersion.isEmpty() && versionInfo.value != null) {
+                String fv = versionInfo.value.getFormattedFileVersion();
+                if (fv != null) fileVersionInfo.FileVersion = fv;
+            }
+            if (fileVersionInfo.ProductVersion.isEmpty() && versionInfo.value != null) {
+                String pv = versionInfo.value.getFormattedProductVersion();
+                if (pv != null) fileVersionInfo.ProductVersion = pv;
+            }
+
+            if (fileVersionInfo.hasVersion()) return fileVersionInfo;
+        } catch (Exception ignored) {
         }
+
+        return scanFileForVersionFallback(peFile);
+    }
+
+    private static void scanRawVersionStrings(ByteBuffer buf, FileVersionInfo info) {
+        try {
+            byte[] data = buf.array();
+            int limit = buf.limit();
+            if (info.FileVersion.isEmpty()) {
+                String fv = findUtf16StringValue(data, limit, "FileVersion");
+                if (fv != null && !fv.isEmpty()) info.FileVersion = fv;
+            }
+            if (info.ProductVersion.isEmpty()) {
+                String pv = findUtf16StringValue(data, limit, "ProductVersion");
+                if (pv != null && !pv.isEmpty()) info.ProductVersion = pv;
+            }
+            if (info.ProductName.isEmpty()) {
+                String pn = findUtf16StringValue(data, limit, "ProductName");
+                if (pn != null && !pn.isEmpty()) info.ProductName = pn;
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static String findUtf16StringValue(byte[] data, int limit, String key) {
+        try {
+            byte[] keyBytes = key.getBytes(StandardCharsets.UTF_16LE);
+            int keyLen = keyBytes.length;
+            for (int i = 0; i <= limit - keyLen - 4; i += 2) {
+                boolean match = true;
+                for (int k = 0; k < keyLen; k++) {
+                    if (data[i + k] != keyBytes[k]) { match = false; break; }
+                }
+                if (match) {
+                    int pos = i + keyLen;
+                    // Skip null terminators or DWORD padding
+                    while (pos < limit - 1 && data[pos] == 0 && data[pos + 1] == 0) {
+                        pos += 2;
+                    }
+                    if (pos >= limit - 1) return null;
+                    int start = pos;
+                    while (pos < limit - 1 && !(data[pos] == 0 && data[pos + 1] == 0)) {
+                        pos += 2;
+                    }
+                    if (pos > start) {
+                        String val = new String(data, start, pos - start, StandardCharsets.UTF_16LE).trim();
+                        if (val.length() >= 1 && val.length() <= 64 && !val.contains("\ufffd")) {
+                            return val;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static FileVersionInfo scanFileForVersionFallback(File peFile) {
+        try (InputStream in = new BufferedInputStream(new FileInputStream(peFile), 65536)) {
+            // Read up to first 2MB to search for version strings
+            int maxScan = (int) Math.min(peFile.length(), 2 * 1024 * 1024);
+            byte[] buf = new byte[maxScan];
+            int read = in.read(buf);
+            if (read > 1024) {
+                FileVersionInfo info = new FileVersionInfo();
+                info.FileVersion = findUtf16StringValue(buf, read, "FileVersion");
+                if (info.FileVersion == null) info.FileVersion = "";
+                info.ProductVersion = findUtf16StringValue(buf, read, "ProductVersion");
+                if (info.ProductVersion == null) info.ProductVersion = "";
+                info.ProductName = findUtf16StringValue(buf, read, "ProductName");
+                if (info.ProductName == null) info.ProductName = "";
+                if (info.hasVersion()) return info;
+            }
+        } catch (Exception ignored) {}
         return null;
     }
 
