@@ -58,6 +58,18 @@ Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetQuality(JNIEnv* env, j
 }
 
 JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetLoggingEnabled(JNIEnv* env, jclass clazz, jboolean enabled) {
+    (void)env; (void)clazz;
+    apex::ApexEngine::getInstance().setLoggingEnabled(enabled);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeIsLoggingEnabled(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().isLoggingEnabled() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetTargetFPS(JNIEnv* env, jclass clazz, jint fps) {
     (void)env; (void)clazz;
     apex::ApexEngine::getInstance().setTargetFPS(fps);
@@ -117,6 +129,18 @@ JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeIsGeneratedFrame(JNIEnv* env, jclass clazz) {
     (void)env; (void)clazz;
     return apex::ApexEngine::getInstance().isRenderingGeneratedFrame() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetDebugOverlay(JNIEnv* env, jclass clazz, jboolean enabled) {
+    (void)env; (void)clazz;
+    apex::ApexEngine::getInstance().setDebugOverlay(enabled);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeIsDebugOverlay(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().isDebugOverlay() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL

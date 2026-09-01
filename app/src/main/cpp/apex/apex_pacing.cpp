@@ -38,6 +38,14 @@ int ApexEngine::getQualityPreset() const {
     return mQualityPreset.load(std::memory_order_acquire);
 }
 
+void ApexEngine::setLoggingEnabled(bool enabled) {
+    mLoggingEnabled.store(enabled, std::memory_order_release);
+}
+
+bool ApexEngine::isLoggingEnabled() const {
+    return mLoggingEnabled.load(std::memory_order_acquire);
+}
+
 void ApexEngine::setTargetFPS(int fps) {
     int prev = mTargetFPS.exchange(fps, std::memory_order_acq_rel);
     if (prev != fps) {
@@ -71,6 +79,14 @@ void ApexEngine::setFlowScale(float scale) {
 
 float ApexEngine::getFlowScale() const {
     return mFlowScale.load(std::memory_order_acquire);
+}
+
+void ApexEngine::setDebugOverlay(bool enabled) {
+    mDebugOverlay.store(enabled, std::memory_order_release);
+}
+
+bool ApexEngine::isDebugOverlay() const {
+    return mDebugOverlay.load(std::memory_order_acquire);
 }
 
 void ApexEngine::setPendingRealFrame(bool pending) {
@@ -195,7 +211,8 @@ float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
         // Multi-Step Spline Interleaving:
         if (framesSince < mult) {
             float discreteStep = static_cast<float>(framesSince) / static_cast<float>(mult);
-            factor = std::lerp(discreteStep, std::clamp(continuousPhase, 0.05f, 0.95f), 0.35f);
+            float targetPhase = std::clamp(continuousPhase, 0.05f, 0.95f);
+            factor = discreteStep + 0.35f * (targetPhase - discreteStep);
         } else {
             // Extended stutter smoothing: asymptotic approach towards 0.95 without hard snapping
             factor = 1.0f - (0.50f / (1.0f + (continuousPhase - 1.0f) * 0.8f));

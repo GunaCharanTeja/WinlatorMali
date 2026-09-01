@@ -684,6 +684,7 @@ void ApexEngine::runWarpingPass(GLuint currTex, GLuint prevTex, GLuint mvTex, GL
     glUniform1f(glGetUniformLocation(mWarpingProgram, "qualityMode"), static_cast<float>(mQualityPreset.load(std::memory_order_relaxed)));
     glUniform1f(glGetUniformLocation(mWarpingProgram, "uBlurIntensity"), mShutterGain.load(std::memory_order_relaxed));
     glUniform1f(glGetUniformLocation(mWarpingProgram, "uFlowScale"), mFlowScale.load(std::memory_order_relaxed));
+    glUniform1i(glGetUniformLocation(mWarpingProgram, "uDebugOverlay"), mDebugOverlay.load(std::memory_order_relaxed) ? 1 : 0);
 
     glBindVertexArray(mQuadVao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -815,19 +816,22 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
         // Run optical flow compute shaders between current and previous frame
         runComputePipeline(mCurrentCapturedTexture, mPreviousCapturedTexture, width, height);
 
-        // Present real frame to screen (zero lag, factor = 1.0)
-        runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, 1.0f, width, height);
-
-        mRealFramesCaptured.fetch_add(1, std::memory_order_relaxed);
+        int realCount = mRealFramesCaptured.fetch_add(1, std::memory_order_relaxed);
         mFramesSinceReal.store(0, std::memory_order_release);
         mRenderingGeneratedFrame.store(false, std::memory_order_release);
+
+        // Present smooth interpolated intermediate frame first (t = 0.5);
+        // on subsequent off-VSYNC pulse, the real frame (t = 1.0) is presented.
+        float factor = (realCount < 2) ? 1.0f : 0.5f;
+        runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, factor, width, height);
     } else {
-        // GENERATED FRAME: Synthesize intermediate frame using optical flow vectors
+        // GENERATED / OFF-VSYNC CADENCE: Present real frame (t = 1.0) or progressive multiplier steps
         mHeartbeatGenFrames++;
         mGeneratedFrameCount.fetch_add(1, std::memory_order_relaxed);
-        mFramesSinceReal.fetch_add(1, std::memory_order_relaxed);
+        int framesSince = mFramesSinceReal.fetch_add(1, std::memory_order_relaxed);
 
-        float factor = getInterpolationFactor(nowNanos);
+        int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
+        float factor = (framesSince + 1 >= mult - 1) ? 1.0f : (static_cast<float>(framesSince + 2) / static_cast<float>(mult));
         runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, factor, width, height);
         mRenderingGeneratedFrame.store(true, std::memory_order_release);
     }

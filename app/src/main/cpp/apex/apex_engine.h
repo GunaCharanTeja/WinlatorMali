@@ -11,10 +11,10 @@
 #include <cstdint>
 
 #define APEX_TAG "ApexEngine"
-#define APEX_LOGI(...) __android_log_print(ANDROID_LOG_INFO, APEX_TAG, __VA_ARGS__)
-#define APEX_LOGW(...) __android_log_print(ANDROID_LOG_WARN, APEX_TAG, __VA_ARGS__)
-#define APEX_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, APEX_TAG, __VA_ARGS__)
-#define APEX_LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, APEX_TAG, __VA_ARGS__)
+#define APEX_LOGI(...) if (apex::ApexEngine::getInstance().isLoggingEnabled()) __android_log_print(ANDROID_LOG_INFO, APEX_TAG, __VA_ARGS__)
+#define APEX_LOGW(...) if (apex::ApexEngine::getInstance().isLoggingEnabled()) __android_log_print(ANDROID_LOG_WARN, APEX_TAG, __VA_ARGS__)
+#define APEX_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, APEX_TAG, __VA_ARGS__) // Errors always logged
+#define APEX_LOGD(...) if (apex::ApexEngine::getInstance().isLoggingEnabled()) __android_log_print(ANDROID_LOG_DEBUG, APEX_TAG, __VA_ARGS__)
 
 namespace apex {
 
@@ -62,6 +62,9 @@ public:
     void setQualityPreset(int quality);
     int getQualityPreset() const;
 
+    void setLoggingEnabled(bool enabled);
+    bool isLoggingEnabled() const;
+
     void setTargetFPS(int fps);
     int getTargetFPS() const;
 
@@ -70,6 +73,9 @@ public:
 
     void setFlowScale(float scale);
     float getFlowScale() const;
+
+    void setDebugOverlay(bool enabled);
+    bool isDebugOverlay() const;
 
     // Telemetry & FPS Counters
     int getActualRealFrameCount();
@@ -96,10 +102,12 @@ private:
 
     // Atomic State & UI Configurations
     std::atomic<bool> mActive{false};
+    std::atomic<bool> mLoggingEnabled{true};
     std::atomic<int> mQualityPreset{QUALITY_PERFORMANCE};
     std::atomic<int> mTargetFPS{60};
     std::atomic<float> mShutterGain{0.5f};
     std::atomic<float> mFlowScale{1.0f};
+    std::atomic<bool> mDebugOverlay{false};
 
     // Pacing & Delta State
     std::atomic<bool> mPendingRealFrame{false};

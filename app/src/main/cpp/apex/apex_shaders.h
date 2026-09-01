@@ -127,7 +127,25 @@ void main() {
         }
     }
 
-    if (length(bestMV) < ts.x * 0.10) {
+    // Parabolic Subpixel Vector Refinement (Fractional sub-pixel accuracy)
+    vec2 subStep = ts * 0.5;
+    float sadLeft  = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + bestMV - vec2(subStep.x, 0.0), 0.0, 1.0), ts));
+    float sadRight = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + bestMV + vec2(subStep.x, 0.0), 0.0, 1.0), ts));
+    float sadUp    = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + bestMV - vec2(0.0, subStep.y), 0.0, 1.0), ts));
+    float sadDown  = length(currFeat - extractNeuralFeatures(prevFrame, clamp(uv + bestMV + vec2(0.0, subStep.y), 0.0, 1.0), ts));
+
+    float denomX = (sadLeft - 2.0 * bestSAD + sadRight);
+    float denomY = (sadUp   - 2.0 * bestSAD + sadDown);
+    vec2 subDelta = vec2(0.0);
+    if (abs(denomX) > 0.0001) {
+        subDelta.x = clamp((sadLeft - sadRight) / (2.0 * denomX), -0.5, 0.5) * subStep.x;
+    }
+    if (abs(denomY) > 0.0001) {
+        subDelta.y = clamp((sadUp - sadDown) / (2.0 * denomY), -0.5, 0.5) * subStep.y;
+    }
+    bestMV += subDelta;
+
+    if (length(bestMV) < ts.x * 0.05) {
         bestMV = vec2(0.0);
     }
 
@@ -135,6 +153,12 @@ void main() {
     float mvDiff = length(bestMV - medianMV) / max(ts.x * 3.0, length(bestMV) + 0.0001);
     float historyWeight = clamp(0.92 * confidence * exp(-pow(mvDiff, 2.0) * 6.0), 0.0, 0.92);
     vec2 stabilizedMV = mix(bestMV, medianMV, historyWeight);
+
+    // Temporal Vector Smoothing (stabilizes noisy textures, foliage, particles)
+    vec2 histMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
+    float histConfidence = textureLod(mvHistoryTexture, uv, 0.0).b;
+    float temporalWeight = clamp(histConfidence * confidence * 0.30 * exp(-length(stabilizedMV - histMV) * 12.0), 0.0, 0.30);
+    stabilizedMV = mix(stabilizedMV, histMV, temporalWeight);
     stabilizedMV = clamp(stabilizedMV, -maxVelocity, maxVelocity);
 
     imageStore(motionVectorOutput, pixelPos, vec4(stabilizedMV, confidence, 0.0, 1.0));
@@ -461,6 +485,7 @@ uniform float interpolationFactor;
 uniform float qualityMode;
 uniform float uBlurIntensity;
 uniform float uFlowScale;
+uniform int uDebugOverlay;
 
 in vec2 vUV;
 out vec4 outColor;
@@ -514,15 +539,32 @@ vec3 applyRCAS(sampler2D tex, vec2 uv, vec2 texSize) {
 void main() {
     float factor = interpolationFactor;
 
-    // Real Game Frame Pass: Pure 100% 1:1 bit-exact passthrough
+    // Real Game Frame Pass: Pure 100% bit-exact raw uncompressed texel passthrough
     if (factor >= 0.999) {
-        outColor = vec4(texture(currentCapturedTexture, vUV).rgb, 1.0);
+        outColor = vec4(texelFetch(currentCapturedTexture, ivec2(gl_FragCoord.xy), 0).rgb, 1.0);
         return;
     }
 
     vec4 mvSample = texture(motionVectorTexture, vUV);
     vec2 mv = mvSample.rg * uFlowScale;
     float confidence = clamp(mvSample.b, 0.0, 1.0);
+    vec3 nativeRaw = texelFetch(currentCapturedTexture, ivec2(gl_FragCoord.xy), 0).rgb;
+
+    // Real-Time Optical Flow Motion Vector Heatmap Debug Overlay
+    if (uDebugOverlay != 0) {
+        // Red = Horizontal Motion, Green = Vertical Motion, Blue = Neural Confidence
+        vec2 normMv = clamp(mv * 35.0 + 0.5, 0.0, 1.0);
+        vec3 mvHeatmap = vec3(normMv.x, normMv.y, confidence);
+        outColor = vec4(mix(nativeRaw, mvHeatmap, 0.70), 1.0);
+        return;
+    }
+
+    // 100% Bit-Exact Native Passthrough for Static Pixels, HUD, Text, Crosshair, and Mini-map
+    float mvLen = length(mv);
+    if (mvLen < (0.15 / resolution.x)) {
+        outColor = vec4(nativeRaw, 1.0);
+        return;
+    }
 
     // Bidirectional Optical Flow Trajectory (FSR3 / Bionic Cleanroom formulation):
     // mv maps currFrame to prevFrame: currFrame(uv) ≈ prevFrame(uv + mv).
@@ -567,18 +609,41 @@ void main() {
     float disocclusion = smoothstep(0.08, 0.32, lumaDiff) + smoothstep(0.12, 0.40, colorDist);
     disocclusion = clamp(disocclusion, 0.0, 1.0);
 
-    // Pure Natural Heavy-Smooth Midpoint Synthesis
-    float t = factor;
-    float inpaintWeight = max(disocclusion, 1.0 - confidence);
-    if (inpaintWeight > 0.20) {
-        t = mix(t, 1.0, smoothstep(0.20, 0.65, inpaintWeight));
+    // Pure Natural Smooth Midpoint Synthesis with Disocclusion Protection
+    vec3 baseSynthesized = mix(warpedPrev, warpedCurr, clamp(factor, 0.0, 1.0));
+    float disocclusionMask = clamp(disocclusion * (1.0 - confidence * 0.5), 0.0, 1.0);
+    vec3 synthesized = mix(baseSynthesized, warpedCurr, disocclusionMask * 0.5);
+
+    // Integrated 1:1 Native Edge Reconstruction (AMD RCAS)
+    if (qualityMode >= 1.0) {
+        vec2 ts = 1.0 / resolution;
+        vec3 c = synthesized;
+        vec3 n = mix(sampleCatmullRom(previousCapturedTexture, uvPrev + vec2(0.0, -ts.y), resolution),
+                     sampleCatmullRom(currentCapturedTexture,  uvCurr + vec2(0.0, -ts.y), resolution), clamp(factor, 0.0, 1.0));
+        vec3 s = mix(sampleCatmullRom(previousCapturedTexture, uvPrev + vec2(0.0,  ts.y), resolution),
+                     sampleCatmullRom(currentCapturedTexture,  uvCurr + vec2(0.0,  ts.y), resolution), clamp(factor, 0.0, 1.0));
+        vec3 e = mix(sampleCatmullRom(previousCapturedTexture, uvPrev + vec2( ts.x, 0.0), resolution),
+                     sampleCatmullRom(currentCapturedTexture,  uvCurr + vec2( ts.x, 0.0), resolution), clamp(factor, 0.0, 1.0));
+        vec3 w = mix(sampleCatmullRom(previousCapturedTexture, uvPrev + vec2(-ts.x, 0.0), resolution),
+                     sampleCatmullRom(currentCapturedTexture,  uvCurr + vec2(-ts.x, 0.0), resolution), clamp(factor, 0.0, 1.0));
+
+        float mn = min(c.g, min(min(n.g, s.g), min(e.g, w.g)));
+        float mx = max(c.g, max(max(n.g, s.g), max(e.g, w.g)));
+        float peak = -1.0 / mix(8.0, 5.0, clamp(mx - mn, 0.0, 1.0));
+        vec3 sharpened = (c + (n + s + e + w) * peak) / (1.0 + 4.0 * peak);
+
+        // FSR3 / DLSS Style 3x3 Neighborhood Color Bounding Box Clamping
+        vec3 minCol = min(c, min(min(n, s), min(e, w)));
+        vec3 maxCol = max(c, max(max(n, s), max(e, w)));
+        synthesized = clamp(sharpened, minCol, maxCol);
     }
 
-    vec3 synthesized = mix(warpedPrev, warpedCurr, clamp(t, 0.0, 1.0));
+    // Blend gently towards nativeRaw on low motion boundaries
+    float staticBlend = 1.0 - smoothstep(0.15 / resolution.x, 0.80 / resolution.x, mvLen);
+    synthesized = mix(synthesized, nativeRaw, staticBlend * 0.95);
+
     outColor = vec4(synthesized, 1.0);
 }
 )";
 
 } // namespace apex
-
-
