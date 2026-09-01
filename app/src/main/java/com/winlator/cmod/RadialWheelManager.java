@@ -111,7 +111,7 @@ public class RadialWheelManager {
      * Open a specific wheel centered on screen.
      */
     public boolean openWheel(RadialWheelConfig config) {
-        if (config == null) return false;
+        if (config == null || !config.enabled) return false;
         if (isOpen() && this.activeConfig == config) {
             return true; // Already open, preserve selection
         }

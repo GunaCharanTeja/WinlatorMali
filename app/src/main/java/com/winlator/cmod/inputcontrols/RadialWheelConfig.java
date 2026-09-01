@@ -15,7 +15,7 @@ public class RadialWheelConfig {
     public static final int MAX_SLICES = 8;
 
     public int id;
-    public boolean enabled = true;
+    public boolean enabled = false;
     public String name;
     public Binding triggerBinding;
     public Binding triggerBinding2;
@@ -23,7 +23,7 @@ public class RadialWheelConfig {
     public List<RadialWheelSlice> slices;
 
     public RadialWheelConfig() {
-        this.enabled = true;
+        this.enabled = false;
         this.name = "Wheel";
         this.triggerBinding = Binding.NONE;
         this.triggerBinding2 = Binding.NONE;
@@ -64,7 +64,7 @@ public class RadialWheelConfig {
         RadialWheelConfig cfg = new RadialWheelConfig();
         try {
             cfg.id = obj.optInt("id", 0);
-            cfg.enabled = obj.optBoolean("enabled", true);
+            cfg.enabled = obj.optBoolean("enabled", false);
             cfg.name = obj.optString("name", "Wheel");
             cfg.iconScale = (float) obj.optDouble("iconScale", 1.0);
             
@@ -113,8 +113,9 @@ public class RadialWheelConfig {
         }
         if (list.isEmpty()) {
             RadialWheelConfig defaultWheel = new RadialWheelConfig(1);
+            defaultWheel.enabled = false;
             defaultWheel.name = "Quick Actions";
-            defaultWheel.triggerBinding = Binding.GAMEPAD_BUTTON_L2;
+            defaultWheel.triggerBinding = Binding.NONE;
             list.add(defaultWheel);
         }
         return list;

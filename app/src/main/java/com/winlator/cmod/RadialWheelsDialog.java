@@ -46,8 +46,9 @@ public class RadialWheelsDialog {
 
         if (wheels.isEmpty()) {
             RadialWheelConfig defaultWheel = new RadialWheelConfig(1);
+            defaultWheel.enabled = false;
             defaultWheel.name = "Weapon Wheel";
-            defaultWheel.triggerBinding = Binding.GAMEPAD_BUTTON_L2;
+            defaultWheel.triggerBinding = Binding.NONE;
             wheels.add(defaultWheel);
         }
 
@@ -338,7 +339,9 @@ public class RadialWheelsDialog {
             }
             saveCurrentWheelFromUI.run();
             RadialWheelConfig newWheel = new RadialWheelConfig(wheels.size() + 1);
+            newWheel.enabled = false;
             newWheel.name = "Wheel " + (wheels.size() + 1);
+            newWheel.triggerBinding = Binding.NONE;
             wheels.add(newWheel);
             currentWheelIndex[0] = wheels.size() - 1;
             updateWheelSelector.run();
