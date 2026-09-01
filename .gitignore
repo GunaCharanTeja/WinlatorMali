@@ -30,3 +30,12 @@ output-metadata.json
 /app/build/
 build/
 bin/
+
+# Keystores & signing keys
+/keystore/
+*.jks
+*.keystore
+*.key
+*.p12
+*.pem
+
