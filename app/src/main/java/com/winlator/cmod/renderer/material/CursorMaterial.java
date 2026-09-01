@@ -1,8 +1,30 @@
 package com.winlator.cmod.renderer.material;
 
 public class CursorMaterial extends ShaderMaterial {
+    public int uXForm = -1;
+    public int uViewSize = -1;
+    public int uTexture = -1;
+
     public CursorMaterial() {
         setUniformNames("xform", "viewSize", "texture");
+    }
+
+    @Override
+    public void use() {
+        super.use();
+        if (uXForm == -1) {
+            uXForm = getUniformLocation("xform");
+            uViewSize = getUniformLocation("viewSize");
+            uTexture = getUniformLocation("texture");
+        }
+    }
+
+    @Override
+    public void destroy() {
+        super.destroy();
+        uXForm = -1;
+        uViewSize = -1;
+        uTexture = -1;
     }
 
     @Override

@@ -45,7 +45,7 @@ public class VertexAttribute {
 
     public void bind(int programId) {
         update();
-        int location = GLES20.glGetAttribLocation(programId, name);
+        location = GLES20.glGetAttribLocation(programId, name);
         if (location == -1) return;
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, bufferId);
         GLES20.glEnableVertexAttribArray(location);
@@ -55,6 +55,7 @@ public class VertexAttribute {
     public void disable() {
         if (location == -1) return;
         GLES20.glDisableVertexAttribArray(location);
+        location = -1;
     }
 
     public void destroy() {

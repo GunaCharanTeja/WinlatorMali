@@ -5,6 +5,9 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.os.Build;
+import android.os.PerformanceHintManager;
+import android.os.Process;
 import android.util.Log;
 
 import com.winlator.cmod.R;
@@ -27,6 +30,7 @@ import com.winlator.cmod.xserver.XServer;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.concurrent.locks.LockSupport;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -60,6 +64,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private float displayTotalFPS = 0;
     private boolean renderCursorEnabled = true;
     private int regularFrameCount = 0;
+    private PerformanceHintManager.Session performanceHintSession = null;
+    private boolean adpfInitialized = false;
+    private long frameStartNanos = 0;
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -85,14 +92,24 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
         GLES20.glDepthMask(false);
 
-        GLES20.glEnable(GLES20.GL_BLEND);
-        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        GLES20.glDisable(GLES20.GL_BLEND);
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
         if (surfaceWidth > 0 && surfaceHeight > 0) {
             ApexNativeBridge.nativeInit(surfaceWidth, surfaceHeight);
         }
         lastNanos = 0;
+
+        if (!adpfInitialized && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            adpfInitialized = true;
+            try {
+                Context context = xServerView.getContext();
+                PerformanceHintManager manager = context.getSystemService(PerformanceHintManager.class);
+                if (manager != null) {
+                    performanceHintSession = manager.createHintSession(new int[]{Process.myTid()}, 16666666L);
+                }
+            } catch (Throwable ignored) {}
+        }
     }
 
     @Override
@@ -115,6 +132,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
+        frameStartNanos = System.nanoTime();
         int fpsLimit = currentFpsLimit;
         if (ApexNativeBridge.nativeIsActive()) {
             fpsLimit = ApexNativeBridge.nativeGetTargetFPS();
@@ -122,18 +140,22 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
         if (fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
+            if (performanceHintSession != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    performanceHintSession.updateTargetWorkDuration(targetIntervalNanos);
+                } catch (Throwable ignored) {}
+            }
             long elapsed = System.nanoTime() - lastNanos;
             if (elapsed < targetIntervalNanos) {
                 long waitNanos = targetIntervalNanos - elapsed;
-                if (waitNanos > 1500000L) {
+                if (waitNanos > 2000000L) {
                     try {
-                        Thread.sleep((waitNanos - 1000000L) / 1000000L, (int) ((waitNanos - 1000000L) % 1000000L));
-                    } catch (InterruptedException e) {
-                        // Ignore
-                    }
+                        Thread.sleep((waitNanos - 1000000L) / 1000000L);
+                    } catch (InterruptedException ignored) {}
                 }
-                while (System.nanoTime() - lastNanos < targetIntervalNanos) {
-                    Thread.onSpinWait();
+                long remaining = targetIntervalNanos - (System.nanoTime() - lastNanos);
+                if (remaining > 50000L) {
+                    LockSupport.parkNanos(remaining - 30000L);
                 }
             }
         }
@@ -153,6 +175,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
         regularFrameCount++;
         updateFPS();
+
+        if (performanceHintSession != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            long workDuration = System.nanoTime() - frameStartNanos;
+            try {
+                performanceHintSession.reportActualWorkDuration(workDuration);
+            } catch (Throwable ignored) {}
+        }
     }
 
     public void drawFrame() {
@@ -226,8 +255,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     private void renderWindows() {
+        GLES20.glDisable(GLES20.GL_BLEND);
         windowMaterial.use();
-        GLES20.glUniform2f(windowMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
+        if (windowMaterial.uViewSize != -1) {
+            GLES20.glUniform2f(windowMaterial.uViewSize, xServer.screenInfo.width, xServer.screenInfo.height);
+        } else {
+            GLES20.glUniform2f(windowMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
+        }
         quadVertices.bind(windowMaterial.programId);
 
         try (XLock lock = xServer.lock(XServer.Lockable.DRAWABLE_MANAGER)) {
@@ -249,10 +283,23 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             XForm.multiply(tmpXForm1, tmpXForm1, tmpXForm2);
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture.getTextureId());
-            GLES20.glUniform1i(material.getUniformLocation("texture"), 0);
-            GLES20.glUniform1fv(material.getUniformLocation("xform"), tmpXForm1.length, tmpXForm1, 0);
+
+            if (material instanceof WindowMaterial) {
+                WindowMaterial wm = (WindowMaterial) material;
+                if (wm.uTexture != -1) GLES20.glUniform1i(wm.uTexture, 0);
+                if (wm.uXForm != -1) GLES20.glUniform1fv(wm.uXForm, tmpXForm1.length, tmpXForm1, 0);
+            } else if (material instanceof CursorMaterial) {
+                CursorMaterial cm = (CursorMaterial) material;
+                if (cm.uTexture != -1) GLES20.glUniform1i(cm.uTexture, 0);
+                if (cm.uXForm != -1) GLES20.glUniform1fv(cm.uXForm, tmpXForm1.length, tmpXForm1, 0);
+            } else {
+                int uTex = material.getUniformLocation("texture");
+                if (uTex != -1) GLES20.glUniform1i(uTex, 0);
+                int uXf = material.getUniformLocation("xform");
+                if (uXf != -1) GLES20.glUniform1fv(uXf, tmpXForm1.length, tmpXForm1, 0);
+            }
+
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, quadVertices.count());
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
         }
     }
 
@@ -365,8 +412,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     private void renderCursor() {
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         cursorMaterial.use();
-        GLES20.glUniform2f(cursorMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
+        if (cursorMaterial.uViewSize != -1) {
+            GLES20.glUniform2f(cursorMaterial.uViewSize, xServer.screenInfo.width, xServer.screenInfo.height);
+        } else {
+            GLES20.glUniform2f(cursorMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
+        }
         quadVertices.bind(cursorMaterial.programId);
 
         Window pointWindow = xServer.inputDeviceManager.getPointWindow();
@@ -380,6 +433,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             renderDrawable(rootCursorDrawable, x, y, cursorMaterial);
         }
         quadVertices.disable();
+        GLES20.glDisable(GLES20.GL_BLEND);
     }
 
     public void setCursorVisible(boolean cursorVisible) {
