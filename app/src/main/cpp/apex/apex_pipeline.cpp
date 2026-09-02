@@ -178,6 +178,65 @@ void ApexEngine::compileShaders() {
         APEX_LOGE("One or more Apex shaders failed to compile! (Fused: %u, Multi: %u, Warping: %u)",
                   mComputeProgramFused, mComputeProgramMulti, mWarpingProgram);
     }
+
+    // Cache all uniform locations and set sampler unit bindings once (Bug 3 fix)
+    if (mComputeProgramFused) {
+        mLocFused_currFrame = glGetUniformLocation(mComputeProgramFused, "currFrame");
+        mLocFused_prevFrame = glGetUniformLocation(mComputeProgramFused, "prevFrame");
+        mLocFused_mvHistory = glGetUniformLocation(mComputeProgramFused, "mvHistoryTexture");
+        glUseProgram(mComputeProgramFused);
+        glUniform1i(mLocFused_currFrame, 0);
+        glUniform1i(mLocFused_prevFrame, 1);
+        glUniform1i(mLocFused_mvHistory, 2);
+    }
+    if (mComputeProgramMulti) {
+        mLocMulti_quality    = glGetUniformLocation(mComputeProgramMulti, "quality");
+        mLocMulti_passIndex  = glGetUniformLocation(mComputeProgramMulti, "passIndex");
+        mLocMulti_currFrame  = glGetUniformLocation(mComputeProgramMulti, "currFrame");
+        mLocMulti_prevFrame  = glGetUniformLocation(mComputeProgramMulti, "prevFrame");
+        mLocMulti_mvHistory  = glGetUniformLocation(mComputeProgramMulti, "mvHistoryTexture");
+        mLocMulti_lumaL0     = glGetUniformLocation(mComputeProgramMulti, "lumaTexL0");
+        mLocMulti_lumaL1     = glGetUniformLocation(mComputeProgramMulti, "lumaTexL1");
+        mLocMulti_lumaL2     = glGetUniformLocation(mComputeProgramMulti, "lumaTexL2");
+        mLocMulti_coarseMV   = glGetUniformLocation(mComputeProgramMulti, "coarseMVTex");
+        mLocMulti_midMV      = glGetUniformLocation(mComputeProgramMulti, "midMVTex");
+        mLocMulti_rawMV      = glGetUniformLocation(mComputeProgramMulti, "rawMVTex");
+        mLocMulti_divergence = glGetUniformLocation(mComputeProgramMulti, "divergenceTex");
+        mLocMulti_filteredMV = glGetUniformLocation(mComputeProgramMulti, "filteredMVTex");
+        mLocMulti_lumaL3     = glGetUniformLocation(mComputeProgramMulti, "lumaTexL3");
+        mLocMulti_dilated    = glGetUniformLocation(mComputeProgramMulti, "dilatedMVTex");
+        glUseProgram(mComputeProgramMulti);
+        glUniform1i(mLocMulti_currFrame,  0);
+        glUniform1i(mLocMulti_prevFrame,  1);
+        glUniform1i(mLocMulti_mvHistory,  2);
+        glUniform1i(mLocMulti_lumaL0,     3);
+        glUniform1i(mLocMulti_lumaL1,     4);
+        glUniform1i(mLocMulti_lumaL2,     5);
+        glUniform1i(mLocMulti_coarseMV,   6);
+        glUniform1i(mLocMulti_midMV,      7);
+        glUniform1i(mLocMulti_rawMV,      8);
+        glUniform1i(mLocMulti_divergence, 9);
+        glUniform1i(mLocMulti_filteredMV, 10);
+        glUniform1i(mLocMulti_lumaL3,     11);
+        glUniform1i(mLocMulti_dilated,    15);
+    }
+    if (mWarpingProgram) {
+        mLocWarp_currCapture    = glGetUniformLocation(mWarpingProgram, "currentCapturedTexture");
+        mLocWarp_prevCapture    = glGetUniformLocation(mWarpingProgram, "previousCapturedTexture");
+        mLocWarp_motionVector   = glGetUniformLocation(mWarpingProgram, "motionVectorTexture");
+        mLocWarp_resolution     = glGetUniformLocation(mWarpingProgram, "resolution");
+        mLocWarp_interpolFactor = glGetUniformLocation(mWarpingProgram, "interpolationFactor");
+        mLocWarp_qualityMode    = glGetUniformLocation(mWarpingProgram, "qualityMode");
+        mLocWarp_blurIntensity  = glGetUniformLocation(mWarpingProgram, "uBlurIntensity");
+        mLocWarp_flowScale      = glGetUniformLocation(mWarpingProgram, "uFlowScale");
+        mLocWarp_debugOverlay   = glGetUniformLocation(mWarpingProgram, "uDebugOverlay");
+        glUseProgram(mWarpingProgram);
+        glUniform1i(mLocWarp_currCapture,  0);
+        glUniform1i(mLocWarp_prevCapture,  1);
+        glUniform1i(mLocWarp_motionVector, 2);
+    }
+    glUseProgram(0);
+    APEX_LOGI("Uniform locations cached and sampler units initialized.");
 }
 
 static void createStorageTexture(GLuint& tex, int width, int height, const char* name) {
@@ -225,6 +284,8 @@ static void createColorTexture(GLuint& tex, int width, int height, const char* n
 }
 
 void ApexEngine::ensureResources(int width, int height) {
+    int quality = mQualityPreset.load(std::memory_order_acquire);
+
     if (mSurfaceWidth != width || mSurfaceHeight != height) {
         APEX_LOGI("Dimension changed (%dx%d -> %dx%d), reallocating GPU resources...",
                   mSurfaceWidth, mSurfaceHeight, width, height);
@@ -233,86 +294,81 @@ void ApexEngine::ensureResources(int width, int height) {
         mSurfaceHeight = height;
     }
 
-    if (mCurrentCapturedTexture == 0) {
+    // Always-needed base resources
+    if (mCurrentCapturedTexture == 0)
         createColorTexture(mCurrentCapturedTexture, width, height, "CurrentCapturedTexture");
-    }
-    if (mPreviousCapturedTexture == 0) {
+    if (mPreviousCapturedTexture == 0)
         createColorTexture(mPreviousCapturedTexture, width, height, "PreviousCapturedTexture");
-    }
     if (mCaptureFbo == 0) {
         glGenFramebuffers(1, &mCaptureFbo);
         glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mCurrentCapturedTexture, 0);
         GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-        if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
+        if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
             APEX_LOGE("Capture FBO incomplete! Status: 0x%X", fboStatus);
-        } else {
+        else
             APEX_LOGI("Capture FBO created and verified complete (ID %u)", mCaptureFbo);
-        }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
-
-    if (mMotionVectorTexture == 0) {
+    if (mMotionVectorTexture == 0)
         createStorageTexture(mMotionVectorTexture, width, height, "MotionVectorTexture");
-    }
-    if (mMvHistoryTexture == 0) {
+    if (mMvHistoryTexture == 0)
         createStorageTexture(mMvHistoryTexture, width, height, "MvHistoryTexture");
+
+    // Compute pyramid dimensions
+    int wL1 = std::max(1, width / 2),  hL1 = std::max(1, height / 2);
+    int wL2 = std::max(1, width / 4),  hL2 = std::max(1, height / 4);
+    int wL3 = std::max(1, width / 8),  hL3 = std::max(1, height / 8);
+
+    // Quality-conditional intermediate pass textures (Bug 4: correct sizes per actual dispatch resolution)
+    if (quality >= QUALITY_PERFORMANCE) {
+        // [0] lumaTexL0 — L0 neural features (passIndex=1 output, full res)
+        if (mDesktopPassTextures[0] == 0)
+            createStorageTexture(mDesktopPassTextures[0], width, height, "Pass0_L0Features");
+        // [5] rawMVTex — forward MV field (passIndex=6 output, FULL res — was wrongly 1/8)
+        if (mDesktopPassTextures[5] == 0)
+            createStorageTexture(mDesktopPassTextures[5], width, height, "Pass5_RawForwardMV");
+        // [7] filteredMVTex — 7x7 filtered MV (passIndex=8 output, FULL res — was wrongly 1/2)
+        if (mDesktopPassTextures[7] == 0)
+            createStorageTexture(mDesktopPassTextures[7], width, height, "Pass7_FilteredMV");
+    }
+    if (quality >= QUALITY_BALANCED) {
+        // [1] lumaTexL1 — L1 half-scale features (passIndex=2 output)
+        if (mDesktopPassTextures[1] == 0)
+            createStorageTexture(mDesktopPassTextures[1], wL1, hL1, "Pass1_L1Features");
+        // [4] midMVTex — mid-scale MV (passIndex=5 output, L1 half res — was wrongly 1/16)
+        if (mDesktopPassTextures[4] == 0)
+            createStorageTexture(mDesktopPassTextures[4], wL1, hL1, "Pass4_MidScaleMV");
+        // [6] divergenceTex — backward flow MV (passIndex=7 output, FULL res — was wrongly 1/4)
+        if (mDesktopPassTextures[6] == 0)
+            createStorageTexture(mDesktopPassTextures[6], width, height, "Pass6_BackwardMV");
+    }
+    if (quality >= QUALITY_HIGH_QUALITY) {
+        // [2] lumaTexL2 — L2 quarter-scale features (passIndex=3 output)
+        if (mDesktopPassTextures[2] == 0)
+            createStorageTexture(mDesktopPassTextures[2], wL2, hL2, "Pass2_L2Features");
+        // [3] coarseMVTex — coarse MV (passIndex=4 output, L2 QUARTER res — was wrongly 1/8)
+        if (mDesktopPassTextures[3] == 0)
+            createStorageTexture(mDesktopPassTextures[3], wL2, hL2, "Pass3_CoarseMV");
+    }
+    if (quality == QUALITY_DESKTOP_QUALITY) {
+        // [8] lumaTexL3 — L3 1/8x features (passIndex=10 output, L3 res)
+        if (mDesktopPassTextures[8] == 0)
+            createStorageTexture(mDesktopPassTextures[8], wL3, hL3, "Pass8_L3Features");
+        // [10] coarseL3MVTex — L3 coarse MV (passIndex=11 output, L3 res)
+        if (mDesktopPassTextures[10] == 0)
+            createStorageTexture(mDesktopPassTextures[10], wL3, hL3, "Pass10_L3CoarseMV");
+        // [12] dilatedMVTex — dilation/inpainting buffer (passIndex=8 2nd call, full res)
+        if (mDesktopPassTextures[12] == 0)
+            createStorageTexture(mDesktopPassTextures[12], width, height, "Pass12_DilatedMV");
+        // [9],[11],[13],[14],[15] are never bound to any active pass — not allocated
     }
 
-    // Allocate Intermediate Multi-Pass Textures (GL_RGBA16F - 7 Hierarchical Pyramid Tiers)
-    int wL1 = std::max(1, width / 2);
-    int hL1 = std::max(1, height / 2);
-    int wL2 = std::max(1, width / 4);
-    int hL2 = std::max(1, height / 4);
-    int wL3 = std::max(1, width / 8);
-    int hL3 = std::max(1, height / 8);
-    int wL4 = std::max(1, width / 16);
-    int hL4 = std::max(1, height / 16);
-
-    // Pass 0 (L0 Full Neural Features / Gradients)
-    if (mDesktopPassTextures[0] == 0) createStorageTexture(mDesktopPassTextures[0], width, height, "Pass0_L0Features");
-    // Pass 1 (L1 Half Neural Features)
-    if (mDesktopPassTextures[1] == 0) createStorageTexture(mDesktopPassTextures[1], wL1, hL1,       "Pass1_L1Features");
-    // Pass 2 (L2 Quarter Neural Features)
-    if (mDesktopPassTextures[2] == 0) createStorageTexture(mDesktopPassTextures[2], wL2, hL2,       "Pass2_L2Features");
-    // Pass 3 (L3 1/8x Ultra-Coarse Features)
-    if (mDesktopPassTextures[3] == 0) createStorageTexture(mDesktopPassTextures[3], wL3, hL3,       "Pass3_L3Features");
-    // Pass 4 (L4 1/16x Deepest Features for 1024px Reach)
-    if (mDesktopPassTextures[4] == 0) createStorageTexture(mDesktopPassTextures[4], wL4, hL4,       "Pass4_L4Features");
-    // Pass 5 (L3 Ultra-Coarse 64-Point MV Field)
-    if (mDesktopPassTextures[5] == 0) createStorageTexture(mDesktopPassTextures[5], wL3, hL3,       "Pass5_L3CoarseMV");
-    // Pass 6 (L2 Coarse Guided MV Field)
-    if (mDesktopPassTextures[6] == 0) createStorageTexture(mDesktopPassTextures[6], wL2, hL2,       "Pass6_L2GuidedMV");
-    // Pass 7 (L1 Mid-Scale Refined MV Field)
-    if (mDesktopPassTextures[7] == 0) createStorageTexture(mDesktopPassTextures[7], wL1, hL1,       "Pass7_L1MidMV");
-    // Pass 8 (L0 Full Native Forward Optical Flow MV)
-    if (mDesktopPassTextures[8] == 0) createStorageTexture(mDesktopPassTextures[8], width, height, "Pass8_L0ForwardMV");
-    // Pass 9 (L0 Backward Reverse Optical Flow MV)
-    if (mDesktopPassTextures[9] == 0) createStorageTexture(mDesktopPassTextures[9], width, height, "Pass9_L0BackwardMV");
-    // Pass 10 (L0 Bidirectional Consistency & Occlusion Map)
-    if (mDesktopPassTextures[10] == 0) createStorageTexture(mDesktopPassTextures[10], width, height, "Pass10_L0Consistency");
-    // Pass 11 (L0 49-Sample 7x7 Bilateral Regularized MV)
-    if (mDesktopPassTextures[11] == 0) createStorageTexture(mDesktopPassTextures[11], width, height, "Pass11_L0FilteredMV");
-    // Pass 12 (L0 Vector Field Dilation & Inpainting Buffer)
-    if (mDesktopPassTextures[12] == 0) createStorageTexture(mDesktopPassTextures[12], width, height, "Pass12_L0DilatedMV");
-    // Pass 13 (L0 Neural Tensor Confidence Map)
-    if (mDesktopPassTextures[13] == 0) createStorageTexture(mDesktopPassTextures[13], width, height, "Pass13_L0Confidence");
-    // Pass 14 (L0 High-Momentum Reprojected MV Field)
-    if (mDesktopPassTextures[14] == 0) createStorageTexture(mDesktopPassTextures[14], width, height, "Pass14_L0StabilizedMV");
-    // Pass 15 (L0 Final Optical Flow Vector Output)
-    if (mDesktopPassTextures[15] == 0) createStorageTexture(mDesktopPassTextures[15], width, height, "Pass15_L0FinalMV");
-
-    // Setup Full-Screen Quad VAO & VBO
+    // Full-screen quad VAO & VBO
     if (mQuadVao == 0) {
-        const float quadVerts[] = {
-            0.0f, 0.0f,
-            1.0f, 0.0f,
-            0.0f, 1.0f,
-            1.0f, 1.0f
-        };
+        const float quadVerts[] = { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f };
         glGenVertexArrays(1, &mQuadVao);
         glGenBuffers(1, &mQuadVbo);
-
         glBindVertexArray(mQuadVao);
         glBindBuffer(GL_ARRAY_BUFFER, mQuadVbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
@@ -380,18 +436,10 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
     if (quality == QUALITY_ULTRA_PERFORMANCE) {
         // Preset 0: 1 Fused Pass (1:1 Native Resolution Evaluation)
         glUseProgram(mComputeProgramFused);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, currTex);
-        glUniform1i(glGetUniformLocation(mComputeProgramFused, "currFrame"), 0);
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, prevTex);
-        glUniform1i(glGetUniformLocation(mComputeProgramFused, "prevFrame"), 1);
-
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, mMvHistoryTexture);
-        glUniform1i(glGetUniformLocation(mComputeProgramFused, "mvHistoryTexture"), 2);
+        // Sampler unit bindings set once in compileShaders(); just rebind textures
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, currTex);
+        glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, prevTex);
+        glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mMvHistoryTexture);
 
         glBindImageTexture(0, mMotionVectorTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
         glDispatchCompute((width + 15) / 16, (height + 7) / 8, 1);
@@ -401,74 +449,26 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
 
     // Presets 1 - 4: Full Hierarchical Multi-Pass Optical Flow (Always 1:1 Native Output)
     glUseProgram(mComputeProgramMulti);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "quality"), quality);
+    glUniform1i(mLocMulti_quality, quality);
 
-    // Bind common samplers
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, currTex);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "currFrame"), 0);
+    // Bind textures to their pre-assigned sampler units (set once in compileShaders)
+    glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, currTex);
+    glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, prevTex);
+    glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, mMvHistoryTexture);
+    glActiveTexture(GL_TEXTURE3);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[0]);
+    glActiveTexture(GL_TEXTURE4);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[1]);
+    glActiveTexture(GL_TEXTURE5);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[2]);
+    glActiveTexture(GL_TEXTURE6);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[3]);
+    glActiveTexture(GL_TEXTURE7);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[4]);
+    glActiveTexture(GL_TEXTURE8);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[5]);
+    glActiveTexture(GL_TEXTURE9);  glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[6]);
+    glActiveTexture(GL_TEXTURE10); glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[7]);
+    glActiveTexture(GL_TEXTURE11); glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[8]);
+    // Slot 12 (lumaTexL4/[9]) and slot 14 (consistencyTex/[11]) are unused — skip
+    glActiveTexture(GL_TEXTURE13); glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[10]);
+    glActiveTexture(GL_TEXTURE15); glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[12]);
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, prevTex);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "prevFrame"), 1);
-
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, mMvHistoryTexture);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "mvHistoryTexture"), 2);
-
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[0]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL0"), 3);
-
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[1]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL1"), 4);
-
-    glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[2]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL2"), 5);
-
-    glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[3]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "coarseMVTex"), 6);
-
-    glActiveTexture(GL_TEXTURE7);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[4]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "midMVTex"), 7);
-
-    glActiveTexture(GL_TEXTURE8);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[5]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "rawMVTex"), 8);
-
-    glActiveTexture(GL_TEXTURE9);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[6]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "divergenceTex"), 9);
-
-    glActiveTexture(GL_TEXTURE10);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[7]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "filteredMVTex"), 10);
-
-    glActiveTexture(GL_TEXTURE11);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[8]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL3"), 11);
-
-    glActiveTexture(GL_TEXTURE12);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[9]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "lumaTexL4"), 12);
-
-    glActiveTexture(GL_TEXTURE13);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[10]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "coarseL3MVTex"), 13);
-
-    glActiveTexture(GL_TEXTURE14);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[11]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "consistencyTex"), 14);
-
-    glActiveTexture(GL_TEXTURE15);
-    glBindTexture(GL_TEXTURE_2D, mDesktopPassTextures[12]);
-    glUniform1i(glGetUniformLocation(mComputeProgramMulti, "dilatedMVTex"), 15);
-
-    GLint locPass = glGetUniformLocation(mComputeProgramMulti, "passIndex");
+    GLint locPass = mLocMulti_passIndex;
 
     int wL1 = std::max(1, width / 2);
     int hL1 = std::max(1, height / 2);
@@ -606,13 +606,13 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
         // Pass 4: L3 1/8x Ultra-Coarse Features (1024px Reach)
-        glUniform1i(locPass, 3);
+        glUniform1i(locPass, 10); // passIndex=10: L3 downsample from L2 (was erroneously 3)
         glBindImageTexture(0, mDesktopPassTextures[8], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
         glDispatchCompute((wL3 + 15) / 16, (hL3 + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
 
         // Pass 5: L3 Deep Coarse 64-Point Golden Spiral Search
-        glUniform1i(locPass, 4);
+        glUniform1i(locPass, 11); // passIndex=11: L3 coarse search (was duplicate 4)
         glBindImageTexture(0, mDesktopPassTextures[10], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
         glDispatchCompute((wL3 + 15) / 16, (hL3 + 7) / 8, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
@@ -666,25 +666,17 @@ void ApexEngine::runWarpingPass(GLuint currTex, GLuint prevTex, GLuint mvTex, GL
     glViewport(0, 0, width, height);
 
     glUseProgram(mWarpingProgram);
+    // Sampler unit bindings set once in compileShaders(); just rebind textures
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, currTex);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, prevTex);
+    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mvTex);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, currTex);
-    glUniform1i(glGetUniformLocation(mWarpingProgram, "currentCapturedTexture"), 0);
-
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, prevTex);
-    glUniform1i(glGetUniformLocation(mWarpingProgram, "previousCapturedTexture"), 1);
-
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, mvTex);
-    glUniform1i(glGetUniformLocation(mWarpingProgram, "motionVectorTexture"), 2);
-
-    glUniform2f(glGetUniformLocation(mWarpingProgram, "resolution"), static_cast<float>(width), static_cast<float>(height));
-    glUniform1f(glGetUniformLocation(mWarpingProgram, "interpolationFactor"), factor);
-    glUniform1f(glGetUniformLocation(mWarpingProgram, "qualityMode"), static_cast<float>(mQualityPreset.load(std::memory_order_relaxed)));
-    glUniform1f(glGetUniformLocation(mWarpingProgram, "uBlurIntensity"), mShutterGain.load(std::memory_order_relaxed));
-    glUniform1f(glGetUniformLocation(mWarpingProgram, "uFlowScale"), mFlowScale.load(std::memory_order_relaxed));
-    glUniform1i(glGetUniformLocation(mWarpingProgram, "uDebugOverlay"), mDebugOverlay.load(std::memory_order_relaxed) ? 1 : 0);
+    glUniform2f(mLocWarp_resolution, static_cast<float>(width), static_cast<float>(height));
+    glUniform1f(mLocWarp_interpolFactor, factor);
+    glUniform1f(mLocWarp_qualityMode, static_cast<float>(mQualityPreset.load(std::memory_order_relaxed)));
+    glUniform1f(mLocWarp_blurIntensity, mShutterGain.load(std::memory_order_relaxed));
+    glUniform1f(mLocWarp_flowScale, mFlowScale.load(std::memory_order_relaxed));
+    glUniform1i(mLocWarp_debugOverlay, mDebugOverlay.load(std::memory_order_relaxed) ? 1 : 0);
 
     glBindVertexArray(mQuadVao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -809,6 +801,35 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
                 float medianDelta = mSortedHistory[mSortedHistory.size() / 2];
 
                 mTypicalDeltaNanos = mTypicalDeltaNanos * 0.40f + medianDelta * 0.60f;
+
+                // Update adaptive frame multiplier (Bug 5 fix: onFrameCaptured() was dead code)
+                int target = mTargetFPS.load(std::memory_order_acquire);
+                if (mTypicalDeltaNanos >= 66666666.0f) {
+                    // Sub-15 FPS: hard-lock to 2x
+                    mAutoMultiplier.store(2, std::memory_order_release);
+                    mAutoMultiplierVal.store(2.0f, std::memory_order_release);
+                } else if (mTypicalDeltaNanos >= 33333333.0f) {
+                    // 15-30 FPS: 2x default, 3x if targeting 90+ FPS
+                    int mult = (target >= 90) ? 3 : 2;
+                    mAutoMultiplier.store(mult, std::memory_order_release);
+                    mAutoMultiplierVal.store(static_cast<float>(mult), std::memory_order_release);
+                } else if (target > 0) {
+                    // >30 FPS with a target: compute ratio
+                    float targetInterval = 1000000000.0f / static_cast<float>(target);
+                    if (mTypicalDeltaNanos <= targetInterval * 1.05f) {
+                        mAutoMultiplier.store(1, std::memory_order_release);
+                        mAutoMultiplierVal.store(mTypicalDeltaNanos / targetInterval, std::memory_order_release);
+                    } else {
+                        float val = mTypicalDeltaNanos / targetInterval;
+                        mAutoMultiplierVal.store(val, std::memory_order_release);
+                        mAutoMultiplier.store(std::clamp(static_cast<int>(std::ceil(val)), 2, 4), std::memory_order_release);
+                    }
+                } else {
+                    // Unlimited: dynamic high-refresh
+                    int mult = (mTypicalDeltaNanos > 25000000.0f) ? 3 : 2;
+                    mAutoMultiplier.store(mult, std::memory_order_release);
+                    mAutoMultiplierVal.store(static_cast<float>(mult), std::memory_order_release);
+                }
             }
         }
         mLastRealFrameTimeNanos.store(nowNanos, std::memory_order_release);

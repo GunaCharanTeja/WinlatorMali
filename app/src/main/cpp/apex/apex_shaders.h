@@ -104,7 +104,7 @@ void main() {
     float dominance = clamp((secondBestSAD - bestSAD) / (bestSAD + 0.005), 0.0, 1.0);
     float trust = smoothstep(0.04, 0.45, dominance);
 
-    // 5x5 Spatial-Temporal Bilateral Median Filter (25 Samples)
+    // 5x5 Spatial-Temporal Fast Geometric Median (Weiszfeld, 4 iterations — O(N*iter) vs O(N^2))
     vec2 mvs[25];
     int idx = 0;
     for (int dy = -2; dy <= 2; dy++) {
@@ -113,18 +113,20 @@ void main() {
             mvs[idx++] = textureLod(mvHistoryTexture, sUV, 0.0).rg;
         }
     }
-    float minTotalDist = 1e10;
-    vec2 medianMV = mvs[12];
-    for (int i = 0; i < 25; i++) {
-        float distSum = 0.0;
-        for (int j = 0; j < 25; j++) {
-            vec2 d = mvs[i] - mvs[j];
-            distSum += dot(d, d);
+    // Seed from arithmetic mean, then converge via weighted Weiszfeld iterations
+    vec2 medianMV = vec2(0.0);
+    for (int i = 0; i < 25; i++) medianMV += mvs[i];
+    medianMV /= 25.0;
+    for (int iter = 0; iter < 4; iter++) {
+        vec2 wNum = vec2(0.0);
+        float wDen = 0.0;
+        for (int i = 0; i < 25; i++) {
+            float d = max(length(mvs[i] - medianMV), 1e-6);
+            float w = 1.0 / d;
+            wNum += mvs[i] * w;
+            wDen += w;
         }
-        if (distSum < minTotalDist) {
-            minTotalDist = distSum;
-            medianMV = mvs[i];
-        }
+        medianMV = wNum / wDen;
     }
 
     // Parabolic Subpixel Vector Refinement (Fractional sub-pixel accuracy)
@@ -401,18 +403,20 @@ void main() {
                 mvs[idx++] = textureLod(srcTex, sUV, 0.0).rg;
             }
         }
-        float minTotalDist = 1e10;
-        vec2 filteredMV = mvs[24];
-        for (int i = 0; i < 49; i++) {
-            float distSum = 0.0;
-            for (int j = 0; j < 49; j++) {
-                vec2 d = mvs[i] - mvs[j];
-                distSum += dot(d, d);
+        // Fast approximate geometric median (Weiszfeld, 4 iterations — O(N*iter) vs O(N^2))
+        vec2 filteredMV = vec2(0.0);
+        for (int i = 0; i < 49; i++) filteredMV += mvs[i];
+        filteredMV /= 49.0;
+        for (int iter = 0; iter < 4; iter++) {
+            vec2 wNum = vec2(0.0);
+            float wDen = 0.0;
+            for (int i = 0; i < 49; i++) {
+                float d = max(length(mvs[i] - filteredMV), 1e-6);
+                float w = 1.0 / d;
+                wNum += mvs[i] * w;
+                wDen += w;
             }
-            if (distSum < minTotalDist) {
-                minTotalDist = distSum;
-                filteredMV = mvs[i];
-            }
+            filteredMV = wNum / wDen;
         }
 
         filteredMV = clamp(filteredMV, -maxVelocity, maxVelocity);
@@ -451,6 +455,44 @@ void main() {
         stabilizedMV = clamp(stabilizedMV, -maxVelocity, maxVelocity);
 
         imageStore(motionVectorOutput, pixelPos, vec4(stabilizedMV, confidence, 0.0, 1.0));
+        return;
+    }
+    else if (passIndex == 10) {
+        // PASS 10: L3 1/8x Tensor Average Downsample (from L2 quarter features)
+        vec2 hts = ts * 0.5;
+        vec4 s0 = textureLod(lumaTexL2, uv + vec2(-hts.x, -hts.y), 0.0);
+        vec4 s1 = textureLod(lumaTexL2, uv + vec2( hts.x, -hts.y), 0.0);
+        vec4 s2 = textureLod(lumaTexL2, uv + vec2(-hts.x,  hts.y), 0.0);
+        vec4 s3 = textureLod(lumaTexL2, uv + vec2( hts.x,  hts.y), 0.0);
+        imageStore(motionVectorOutput, pixelPos, (s0 + s1 + s2 + s3) * 0.25);
+        return;
+    }
+    else if (passIndex == 11) {
+        // PASS 11: L3 Deep Coarse 64-Point Golden-Spiral Search (reads lumaTexL3)
+        vec4 fData = textureLod(lumaTexL3, uv, 0.0);
+        vec2 centerMV = textureLod(mvHistoryTexture, uv, 0.0).rg;
+        vec2 bestMV = centerMV;
+        float bestSAD = length(fData.rg - textureLod(lumaTexL3, clamp(uv + centerMV, 0.0, 1.0), 0.0).ba);
+        float secondBestSAD = 100.0;
+
+        float steps[5] = float[5](48.0, 24.0, 12.0, 4.0, 1.5);
+        for (int s = 0; s < 5; s++) {
+            float stepVal = steps[s];
+            for (int j = 0; j < 64; j++) {
+                vec2 off = clamp(centerMV + goldenSearch64[j] * (stepVal * ts), -maxVelocity, maxVelocity);
+                vec4 sData = textureLod(lumaTexL3, clamp(uv + off, 0.0, 1.0), 0.0);
+                float curSAD = length(fData.rg - sData.ba);
+                if (curSAD < bestSAD) {
+                    secondBestSAD = bestSAD;
+                    bestSAD = curSAD;
+                    bestMV = off;
+                } else if (curSAD < secondBestSAD && length(off - bestMV) > ts.x * 6.0) {
+                    secondBestSAD = curSAD;
+                }
+            }
+        }
+        float dominance = clamp((secondBestSAD - bestSAD) / (bestSAD + 0.005), 0.0, 1.0);
+        imageStore(motionVectorOutput, pixelPos, vec4(bestMV, bestSAD, dominance));
         return;
     }
 }

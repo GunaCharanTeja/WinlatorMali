@@ -161,6 +161,39 @@ private:
     GLuint mComputeProgramFused{0};   // Quality 0 (Ultra Perf)
     GLuint mComputeProgramMulti{0};   // Quality 1-4 (Multi-Pass)
     GLuint mWarpingProgram{0};        // Warping & Inpainting Fragment Program
+
+    // Cached Uniform Locations — mComputeProgramFused
+    GLint mLocFused_currFrame{-1};
+    GLint mLocFused_prevFrame{-1};
+    GLint mLocFused_mvHistory{-1};
+
+    // Cached Uniform Locations — mComputeProgramMulti
+    GLint mLocMulti_quality{-1};
+    GLint mLocMulti_passIndex{-1};
+    GLint mLocMulti_currFrame{-1};
+    GLint mLocMulti_prevFrame{-1};
+    GLint mLocMulti_mvHistory{-1};
+    GLint mLocMulti_lumaL0{-1};
+    GLint mLocMulti_lumaL1{-1};
+    GLint mLocMulti_lumaL2{-1};
+    GLint mLocMulti_coarseMV{-1};
+    GLint mLocMulti_midMV{-1};
+    GLint mLocMulti_rawMV{-1};
+    GLint mLocMulti_divergence{-1};
+    GLint mLocMulti_filteredMV{-1};
+    GLint mLocMulti_lumaL3{-1};
+    GLint mLocMulti_dilated{-1};
+
+    // Cached Uniform Locations — mWarpingProgram
+    GLint mLocWarp_currCapture{-1};
+    GLint mLocWarp_prevCapture{-1};
+    GLint mLocWarp_motionVector{-1};
+    GLint mLocWarp_resolution{-1};
+    GLint mLocWarp_interpolFactor{-1};
+    GLint mLocWarp_qualityMode{-1};
+    GLint mLocWarp_blurIntensity{-1};
+    GLint mLocWarp_flowScale{-1};
+    GLint mLocWarp_debugOverlay{-1};
 };
 
 } // namespace apex
