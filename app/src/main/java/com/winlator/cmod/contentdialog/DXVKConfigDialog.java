@@ -270,7 +270,7 @@ public class DXVKConfigDialog extends ContentDialog {
                              "dxvk.maxFrameLatency = 1\n" +
                              "dxvk.enableAsync = True\n" +
                              "dxvk.numCompilerThreads = 2\n" +
-                             "dxvk.memoryTrack = False\n" +
+                             "dxvk.memoryTrack = True\n" +
                              "dxvk.presentThrottle = 0\n" +
                              "dxvk.debugLayer = False\n";
 
