@@ -262,9 +262,11 @@ public class DirectGamepHidRumbleEngine {
                     inEp = ep;
                 }
             }
-            if (outEp != null || inEp != null) {
+            if (outEp != null && inEp != null) {
                 targetIface = iface;
                 break;
+            } else if (targetIface == null && (outEp != null || inEp != null)) {
+                targetIface = iface;
             }
         }
 
@@ -449,6 +451,10 @@ public class DirectGamepHidRumbleEngine {
         s8 = Math.max(0, Math.min(255, s8));
         w8 = Math.max(0, Math.min(255, w8));
 
+        // Ensure physical motor duty threshold when active so high-frequency motors spin
+        if (s8 > 0 && s8 < 50) s8 = 50;
+        if (w8 > 0 && w8 < 60) w8 = 60;
+
         boolean isStopping = (s8 == 0 && w8 == 0);
 
         boolean dispatched = false;
@@ -458,6 +464,7 @@ public class DirectGamepHidRumbleEngine {
             try {
                 int ifaceIndex = session.usbInterface != null ? session.usbInterface.getId() : 0;
 
+                // XInput 8-byte report: [0x00, 0x08, 0x00, Heavy_Left, Light_Right, 0x00, 0x00, 0x00]
                 byte[] xinput8 = new byte[]{
                     0x00, 0x08, 0x00,
                     (byte) (s8 & 0xFF),
@@ -465,10 +472,17 @@ public class DirectGamepHidRumbleEngine {
                     0x00, 0x00, 0x00
                 };
 
-                byte[] shanwan5 = new byte[]{
+                // ShanWan / Betop / PS2 adapter 5-byte report (Linux hid-betopff.c): [0x00, 0x51, 0x00, Light_Right, Heavy_Left]
+                byte[] shanwanWS = new byte[]{
                     0x00, 0x51, 0x00,
-                    (byte) (s8 & 0xFF),
-                    (byte) (w8 & 0xFF)
+                    (byte) (w8 & 0xFF),
+                    (byte) (s8 & 0xFF)
+                };
+
+                byte[] shanwan4WS = new byte[]{
+                    0x51, 0x00,
+                    (byte) (w8 & 0xFF),
+                    (byte) (s8 & 0xFF)
                 };
 
                 switch (session.protocol) {
@@ -483,11 +497,12 @@ public class DirectGamepHidRumbleEngine {
                     case SHANWAN_BETOP:
                     case GENERIC_HID: {
                         if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, shanwan5, shanwan5.length, 30);
+                            session.connection.bulkTransfer(session.outEndpoint, shanwanWS, shanwanWS.length, 30);
                             session.connection.bulkTransfer(session.outEndpoint, xinput8, xinput8.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, shanwan5, shanwan5.length, 30);
-                        session.connection.controlTransfer(0x21, 0x09, 0x0300, ifaceIndex, shanwan5, shanwan5.length, 30);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, shanwanWS, shanwanWS.length, 30);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0251, ifaceIndex, shanwan4WS, shanwan4WS.length, 30);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0300, ifaceIndex, shanwanWS, shanwanWS.length, 30);
                         session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, xinput8, xinput8.length, 30);
                         dispatched = true;
                         break;
@@ -526,9 +541,15 @@ public class DirectGamepHidRumbleEngine {
         }
 
         if (!isStopping) {
-            int autoStopMs = durationMs > 0 ? durationMs : 250;
             autoStopRunnable = () -> sendRumble(0, 0);
-            mainHandler.postDelayed(autoStopRunnable, autoStopMs);
+            if (durationMs > 0 && durationMs < 30000) {
+                // Finite test/effect duration (0.5s, 1.0s, 2.0s, 3.0s)
+                mainHandler.postDelayed(autoStopRunnable, durationMs);
+            } else {
+                // Continuous in-game XInput stream (durationMs == 0 or >= 30000).
+                // Do NOT prematurely stop after 250ms; keep running until game sends (0,0) or 10s safety watchdog.
+                mainHandler.postDelayed(autoStopRunnable, 10000);
+            }
         }
 
         return dispatched;

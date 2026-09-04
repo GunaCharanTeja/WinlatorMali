@@ -289,19 +289,19 @@ public class VibrationTestDialog {
 
                 Runnable pulseStep1 = () -> {
                     appendLog.accept("Pulse 1/3: Left Heavy Motor (300ms)");
-                    if (cbUsbDirect.isChecked()) usbRumble.sendRumble(finalStrong, 0);
+                    if (cbUsbDirect.isChecked()) usbRumble.sendRumble(finalStrong, 0, 300);
                     if (cbPhoneFallback.isChecked()) safeVibrateDevice.accept(phoneVibrator, 300);
                 };
 
                 Runnable pulseStep2 = () -> {
                     appendLog.accept("Pulse 2/3: Right Light Motor (300ms)");
-                    if (cbUsbDirect.isChecked()) usbRumble.sendRumble(0, finalWeak);
+                    if (cbUsbDirect.isChecked()) usbRumble.sendRumble(0, finalWeak, 300);
                     if (cbPhoneFallback.isChecked()) safeVibrateDevice.accept(phoneVibrator, 300);
                 };
 
                 Runnable pulseStep3 = () -> {
                     appendLog.accept("Pulse 3/3: Dual Motors Full Rumble (500ms)");
-                    if (cbUsbDirect.isChecked()) usbRumble.sendRumble(finalStrong, finalWeak);
+                    if (cbUsbDirect.isChecked()) usbRumble.sendRumble(finalStrong, finalWeak, 500);
                     if (cbPhoneFallback.isChecked()) safeVibrateDevice.accept(phoneVibrator, 500);
                 };
 
@@ -323,7 +323,7 @@ public class VibrationTestDialog {
 
             boolean usbOk = false;
             if (cbUsbDirect.isChecked()) {
-                usbOk = usbRumble.sendRumble(finalStrong, finalWeak);
+                usbOk = usbRumble.sendRumble(finalStrong, finalWeak, isContinuous ? 0 : finalDur);
                 appendLog.accept("USB Direct Engine: Dispatched (" + (usbOk ? "SUCCESS - Packet Sent to Controller" : "No active USB session") + ")");
             }
 

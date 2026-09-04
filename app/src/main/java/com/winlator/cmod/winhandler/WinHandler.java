@@ -366,22 +366,24 @@ public class WinHandler {
                     try {
                         java.io.InputStream is = client.getInputStream();
                         byte[] buf = new byte[8];
-                        int totalRead = 0;
-                        while (totalRead < 8) {
-                            int r = is.read(buf, totalRead, 8 - totalRead);
-                            if (r < 0) break;
-                            totalRead += r;
-                        }
-                        if (totalRead == 8) {
+                        while (vibrationRunning) {
+                            int totalRead = 0;
+                            while (totalRead < 8) {
+                                int r = is.read(buf, totalRead, 8 - totalRead);
+                                if (r < 0) break;
+                                totalRead += r;
+                            }
+                            if (totalRead < 8) break; // Client disconnected or EOF
                             int strong = (buf[0] & 0xFF) | ((buf[1] & 0xFF) << 8);
                             int weak = (buf[2] & 0xFF) | ((buf[3] & 0xFF) << 8);
                             int durationMs = (buf[4] & 0xFF) | ((buf[5] & 0xFF) << 8);
                             int slot = (buf[6] & 0xFF) | ((buf[7] & 0xFF) << 8);
                             triggerVibration(strong, weak, durationMs, slot);
                         }
-                        client.close();
                     } catch (IOException e) {
                         Log.e("WinHandler", "Vibration client error: " + e.getMessage());
+                    } finally {
+                        try { client.close(); } catch (Exception ignored) {}
                     }
                 }
             } catch (IOException e) {
