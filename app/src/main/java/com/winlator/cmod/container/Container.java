@@ -31,7 +31,7 @@ public class Container {
     public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1";
     public static final String DEFAULT_SCREEN_SIZE = "1280x720";
     public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
-    public static final String DEFAULT_AUDIO_DRIVER = "pulse-audio-gn";
+    public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio-gn";
     public static final String DEFAULT_EMULATOR = "FEXCore";
     public static final String DEFAULT_DXWRAPPER = "dxvk+vkd3d";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=0,asyncCache=0" + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1" + ",ddrawrapper=" + Container.DEFAULT_DDRAWRAPPER + ",csmt=3" + ",gpuName=NVIDIA GeForce GTX 480" + ",videoMemorySize=2048" + ",strict_shader_math=1" + ",OffscreenRenderingMode=fbo" + ",renderer=gl,dxvkConfig=1";
@@ -157,7 +157,7 @@ public class Container {
 
     public static String normalizeAudioDriver(String audioDriver) {
         if (audioDriver == null || audioDriver.isEmpty()) return DEFAULT_AUDIO_DRIVER;
-        if (audioDriver.equals("oboe")) return "pulse-audio-gn";
+        if (audioDriver.equals("oboe") || audioDriver.equals("pulse-audio-gn") || audioDriver.equals("pulseaudio_gn")) return "pulseaudio-gn";
         return audioDriver;
     }
 

@@ -71,17 +71,32 @@ public class PulseAudioComponent extends EnvironmentComponent {
     }
 
     private void copyFromLibraryDir(File dst) {
+        Context context = environment != null ? environment.getContext() : null;
         String[] sourceNames = gameNative ? GN_LIBRARY_NAMES : LIBRARY_NAMES;
         for (int i = 0; i < LIBRARY_NAMES.length; i++) {
             String path = "lib/arm64-v8a/" + sourceNames[i];
             ClassLoader loader = PulseAudioComponent.class.getClassLoader();
             URL resource = loader != null ? loader.getResource(path) : null;
             Path destination = Paths.get(dst.getAbsolutePath(), LIBRARY_NAMES[i]);
-            try (InputStream input = resource != null ? resource.openStream() : null) {
-                if (input == null) {
-                    throw new IllegalStateException("Missing PulseAudio library: " + sourceNames[i]);
+            InputStream input = null;
+            if (resource != null) {
+                try {
+                    input = resource.openStream();
+                } catch (IOException ignored) {}
+            }
+            if (input == null && context != null && context.getApplicationInfo() != null && context.getApplicationInfo().nativeLibraryDir != null) {
+                File nativeLibFile = new File(context.getApplicationInfo().nativeLibraryDir, sourceNames[i]);
+                if (nativeLibFile.isFile()) {
+                    try {
+                        input = Files.newInputStream(nativeLibFile.toPath());
+                    } catch (IOException ignored) {}
                 }
-                Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            if (input == null) {
+                throw new IllegalStateException("Missing PulseAudio library: " + sourceNames[i]);
+            }
+            try (InputStream in = input) {
+                Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
                 FileUtils.chmod(destination.toFile(), 0771);
             } catch (IOException error) {
                 throw new RuntimeException(error);

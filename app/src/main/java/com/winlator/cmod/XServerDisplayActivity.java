@@ -1450,6 +1450,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         );
 
         // Audio driver logic
+        boolean isPulseAudio = audioDriver.contains("pulse");
+        boolean isPulseAudioGN = audioDriver.contains("gn") || audioDriver.contains("gamenative");
         if (audioDriver.equals("alsa")) {
             envVars.put("ANDROID_ALSA_SERVER", rootPath + UnixSocketConfig.ALSA_SERVER_PATH);
             envVars.put("ANDROID_ASERVER_USE_SHM", "true");
@@ -1458,12 +1460,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                             UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.ALSA_SERVER_PATH)
                     )
             );
-        } else if (audioDriver.equals("pulseaudio") || audioDriver.equals("pulse-audio-gn")) {
+        } else if (isPulseAudio) {
             envVars.put("PULSE_SERVER", rootPath + UnixSocketConfig.PULSE_SERVER_PATH);
             environment.addComponent(
                     new PulseAudioComponent(
                             UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.PULSE_SERVER_PATH),
-                            audioDriver.equals("pulse-audio-gn")
+                            isPulseAudioGN
                     )
             );
         }
@@ -2652,7 +2654,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 if (audioDriver.equals("alsa")) {
                     registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "alsa");
                 }
-                else if (audioDriver.equals("pulseaudio") || audioDriver.equals("pulse-audio-gn")) {
+                else if (audioDriver.contains("pulse")) {
                     registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "pulse");
                 }
             }

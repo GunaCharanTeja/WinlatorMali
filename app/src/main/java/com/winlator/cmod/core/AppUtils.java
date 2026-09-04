@@ -266,8 +266,12 @@ public abstract class AppUtils {
 
     public static boolean setSpinnerSelectionFromIdentifier(Spinner spinner, String identifier) {
         spinner.setSelection(0, false);
+        if (identifier == null) return false;
+        String normalizedId = identifier.replace("_", "-");
+        if (normalizedId.equals("pulse-audio-gn") || normalizedId.equals("oboe")) normalizedId = "pulseaudio-gn";
         for (int i = 0; i < spinner.getCount(); i++) {
-            if (StringUtils.parseIdentifier(spinner.getItemAtPosition(i)).equals(identifier)) {
+            String itemIdentifier = StringUtils.parseIdentifier(spinner.getItemAtPosition(i));
+            if (itemIdentifier.equals(normalizedId) || itemIdentifier.equals(identifier)) {
                 spinner.setSelection(i, false);
                 return true;
             }
