@@ -82,14 +82,13 @@ void setup_signal_handler() {
 static std::unordered_map<int, struct ff_effect> ff_effects;
 static int next_ff_id = 0;
 
-static int vibration_sock = -1;
-static std::mutex vibration_mutex;
-
 void send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
   if (!vibration_enabled)
     return;
 
-  std::lock_guard<std::mutex> lock(vibration_mutex);
+  int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (sock < 0)
+    return;
 
   struct sockaddr_un addr;
   memset(&addr, 0, sizeof(addr));
@@ -98,37 +97,15 @@ void send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
   memcpy(addr.sun_path + 1, name, strlen(name));
   socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
 
-  if (vibration_sock < 0) {
-    vibration_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (vibration_sock < 0)
-      return;
-
-    if (connect(vibration_sock, (struct sockaddr *)&addr, addrlen) < 0) {
-      syscall(SYS_close, vibration_sock);
-      vibration_sock = -1;
-      return;
-    }
+  if (connect(sock, (struct sockaddr *)&addr, addrlen) == 0) {
+    uint16_t data[4];
+    data[0] = (uint16_t)strong;
+    data[1] = (uint16_t)weak;
+    data[2] = duration_ms;
+    data[3] = slot;
+    send(sock, data, sizeof(data), MSG_NOSIGNAL);
   }
-
-  uint16_t data[4];
-  data[0] = (uint16_t)strong;
-  data[1] = (uint16_t)weak;
-  data[2] = duration_ms;
-  data[3] = slot;
-
-  ssize_t sent = send(vibration_sock, data, sizeof(data), MSG_NOSIGNAL);
-  if (sent < 0) {
-    syscall(SYS_close, vibration_sock);
-    vibration_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (vibration_sock >= 0) {
-      if (connect(vibration_sock, (struct sockaddr *)&addr, addrlen) >= 0) {
-        send(vibration_sock, data, sizeof(data), MSG_NOSIGNAL);
-      } else {
-        syscall(SYS_close, vibration_sock);
-        vibration_sock = -1;
-      }
-    }
-  }
+  syscall(SYS_close, sock);
 }
 
 __attribute__((constructor))
