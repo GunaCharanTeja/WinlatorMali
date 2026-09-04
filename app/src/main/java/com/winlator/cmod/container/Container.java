@@ -610,13 +610,17 @@ public class Container {
                 }
             }
 
-            if (data.has("envVars") && data.has("extraData")) {
-                JSONObject extraData = data.getJSONObject("extraData");
-                int appVersion = Integer.parseInt(extraData.optString("appVersion", "0"));
-                if (appVersion < 16) {
-                    EnvVars defaultEnvVars = new EnvVars(DEFAULT_ENV_VARS);
-                    EnvVars envVars = new EnvVars(data.getString("envVars"));
-                    for (String name : defaultEnvVars) if (!envVars.has(name)) envVars.put(name, defaultEnvVars.get(name));
+            if (data.has("envVars")) {
+                EnvVars defaultEnvVars = new EnvVars(DEFAULT_ENV_VARS);
+                EnvVars envVars = new EnvVars(data.getString("envVars"));
+                boolean modified = false;
+                for (String name : defaultEnvVars) {
+                    if (!envVars.has(name)) {
+                        envVars.put(name, defaultEnvVars.get(name));
+                        modified = true;
+                    }
+                }
+                if (modified) {
                     data.put("envVars", envVars.toString());
                 }
             }
