@@ -176,8 +176,9 @@ public class WineDownloader {
         TextView tvProgressStatus = contentView.findViewById(R.id.TVProgressStatus);
         TextView tvProgressPercent = contentView.findViewById(R.id.TVProgressPercent);
 
-        // Exact same catalog sources as ContentsFragment
+        // Catalog sources in Container Wine Downloader
         String[] catalogs = {
+            "⭐ Winlator Mali (Official)",
             "☁️ Bannerlator Nightlies",
             "☁️ WinNative Components",
             "☁️ StevenMXZ Contents",
@@ -200,13 +201,13 @@ public class WineDownloader {
         sCatalogSource.setAdapter(catalogAdapter);
         sCatalogSource.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
-        final String[] activeCatalogUrl = new String[]{ContentsManager.BANNERLATOR_PROFILES};
+        final String[] activeCatalogUrl = new String[]{""};
 
         Runnable[] loaderHolder = new Runnable[1];
 
         loaderHolder[0] = () -> {
             int pos = sCatalogSource.getSelectedItemPosition();
-            if (pos == 4) {
+            if (pos == 5) {
                 // Installed on device
                 pbLoading.setVisibility(View.GONE);
                 List<String> installed = getInstalledWineVersions(activity);
@@ -232,6 +233,31 @@ public class WineDownloader {
                     });
                     lvWineList.setAdapter(installedAdapter);
                 }
+            } else if (pos == 0) {
+                // Official Winlator Mali Source
+                pbLoading.setVisibility(View.VISIBLE);
+                tvEmptyList.setVisibility(View.GONE);
+                lvWineList.setVisibility(View.GONE);
+
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    List<CloudWineOption> wineItems = fetchWinlatorMaliWineList();
+                    activity.runOnUiThread(() -> {
+                        pbLoading.setVisibility(View.GONE);
+                        if (wineItems.isEmpty()) {
+                            tvEmptyList.setText("No Winlator Mali runtimes found.");
+                            tvEmptyList.setVisibility(View.VISIBLE);
+                            lvWineList.setVisibility(View.GONE);
+                        } else {
+                            tvEmptyList.setVisibility(View.GONE);
+                            lvWineList.setVisibility(View.VISIBLE);
+                            List<String> currentInstalled = getInstalledWineVersions(activity);
+                            WinePackageAdapter adapter = new WinePackageAdapter(activity, wineItems, currentInstalled, (option) -> {
+                                startDownload(activity, option.title, option.targetVersionName, option.runtimeUrl, dialog, llProgress, tvProgressTitle, pbDownload, tvProgressStatus, tvProgressPercent, onInstalledCallback);
+                            });
+                            lvWineList.setAdapter(adapter);
+                        }
+                    });
+                });
             } else {
                 // Online Content Source
                 pbLoading.setVisibility(View.VISIBLE);
@@ -265,15 +291,17 @@ public class WineDownloader {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (position == 0) {
-                    activeCatalogUrl[0] = ContentsManager.BANNERLATOR_PROFILES;
                     loaderHolder[0].run();
                 } else if (position == 1) {
-                    activeCatalogUrl[0] = ContentsManager.WINNATIVE_PROFILES;
+                    activeCatalogUrl[0] = ContentsManager.BANNERLATOR_PROFILES;
                     loaderHolder[0].run();
                 } else if (position == 2) {
-                    activeCatalogUrl[0] = ContentsManager.STEVENMXZ_PROFILES;
+                    activeCatalogUrl[0] = ContentsManager.WINNATIVE_PROFILES;
                     loaderHolder[0].run();
                 } else if (position == 3) {
+                    activeCatalogUrl[0] = ContentsManager.STEVENMXZ_PROFILES;
+                    loaderHolder[0].run();
+                } else if (position == 4) {
                     // Custom Catalog URL prompt
                     String saved = sp.getString("downloadable_contents_url", ContentsManager.BANNERLATOR_PROFILES);
                     final EditText input = new EditText(activity);
@@ -295,7 +323,7 @@ public class WineDownloader {
                             sCatalogSource.setSelection(0);
                         })
                         .show();
-                } else if (position == 4) {
+                } else if (position == 5) {
                     loaderHolder[0].run();
                 }
             }
@@ -390,6 +418,96 @@ public class WineDownloader {
                 });
             }
         });
+    }
+
+    private static List<CloudWineOption> fetchWinlatorMaliWineList() {
+        List<CloudWineOption> list = new ArrayList<>();
+        try {
+            URL url = new URL("https://api.github.com/repos/GunaCharanTeja/Winlator-Extras/releases");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 WinlatorMali");
+            conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(15000);
+
+            if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+
+                JSONArray releases = new JSONArray(sb.toString());
+                for (int i = 0; i < releases.length(); i++) {
+                    JSONObject rel = releases.getJSONObject(i);
+                    JSONArray assets = rel.optJSONArray("assets");
+                    if (assets == null) continue;
+
+                    for (int j = 0; j < assets.length(); j++) {
+                        JSONObject asset = assets.getJSONObject(j);
+                        String assetName = asset.optString("name", "");
+                        String downloadUrl = asset.optString("browser_download_url", "");
+                        if (downloadUrl.isEmpty()) continue;
+
+                        String lower = assetName.toLowerCase(Locale.US);
+                        // Exclude non-wine packages
+                        if (lower.contains("container_pattern") || lower.contains("imagefs") ||
+                            lower.endsWith(".exe") || lower.endsWith(".msi") || lower.endsWith(".reg") ||
+                            lower.contains("dll.7z") || lower.contains("fonts.7z")) {
+                            continue;
+                        }
+
+                        if ((lower.contains("proton") || lower.contains("wine")) &&
+                            (lower.endsWith(".tzst") || lower.endsWith(".txz") || lower.endsWith(".wcp") || lower.endsWith(".tar.xz"))) {
+
+                            String verName = assetName.replace(".tzst", "").replace(".txz", "").replace(".wcp", "").replace(".tar.xz", "");
+                            String title = verName.replace("-", " ");
+                            if (title.startsWith("proton")) {
+                                title = "Proton " + title.substring(6).trim();
+                            } else if (title.startsWith("wine")) {
+                                title = "Wine " + title.substring(4).trim();
+                            }
+                            title += " (Winlator Mali)";
+
+                            String desc = "Official Winlator Mali " + verName + " runtime";
+                            list.add(new CloudWineOption(title, verName, downloadUrl, desc));
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "GitHub API fetch failed, using fallback list: " + e.getMessage());
+        }
+
+        // Fallback curated official Winlator Mali runtimes
+        if (list.isEmpty()) {
+            list.add(new CloudWineOption(
+                "Proton 10.0 Arm64ec (Winlator Mali)",
+                "proton-10-arm64ec",
+                "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-10-arm64ec.tzst",
+                "Official Winlator Mali Proton 10 ARM64EC High Performance Runtime"
+            ));
+            list.add(new CloudWineOption(
+                "Proton 9.0 Arm64ec (Winlator Mali)",
+                "proton-9.0-arm64ec",
+                "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-arm64ec.tzst",
+                "Official Winlator Mali Proton 9.0 ARM64EC Runtime"
+            ));
+            list.add(new CloudWineOption(
+                "Proton 9.0 x86_64 (Winlator Mali)",
+                "proton-9.0-x86_64",
+                "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-x86_64.tzst",
+                "Official Winlator Mali Proton 9.0 64-bit Runtime"
+            ));
+            list.add(new CloudWineOption(
+                "Proton 9.0 Arm64ec (TXZ) (Winlator Mali)",
+                "proton-9.0-arm64ec",
+                "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-9-arm64ec/proton-9.0-arm64ec.txz",
+                "Official Winlator Mali Proton 9.0 TXZ Package"
+            ));
+        }
+
+        return list;
     }
 
     private static List<CloudWineOption> fetchRemoteWineList(String repoUrl) {

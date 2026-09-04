@@ -21,13 +21,17 @@
         android:elevation="8dp"
         android:background="@drawable/bordered_panel_dark">
 
-        <ProgressBar
-            android:id="@+id/ProgressBar"
-            style="?android:attr/progressBarStyle"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/CircularProgressIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:indeterminate="true"
-            android:layout_marginEnd="14dp" />
+            app:indicatorSize="32dp"
+            app:trackThickness="3.5dp"
+            app:trackColor="#33888888"
+            app:indicatorColor="?attr/colorAccent"
+            android:layout_marginEnd="14dp"
+            android:layout_gravity="center_vertical" />
 
         <TextView
             android:id="@+id/TextView"
