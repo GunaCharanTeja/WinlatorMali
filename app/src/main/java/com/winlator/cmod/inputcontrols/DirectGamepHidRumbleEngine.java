@@ -453,7 +453,12 @@ public class DirectGamepHidRumbleEngine {
 
         // Ensure physical motor duty threshold when active so high-frequency motors spin
         if (s8 > 0 && s8 < 50) s8 = 50;
-        if (w8 > 0 && w8 < 60) w8 = 60;
+        if (w8 > 0 && w8 < 70) w8 = 70;
+
+        // On gamepads with shared power rails / master PWM on channel 1 (Redgear Elite, Betop, clone XInput),
+        // ensure primary rail has base power so the right light motor can spin when isolated.
+        int xinputLeft = s8 > 0 ? s8 : (w8 > 0 ? Math.max(30, (int) (w8 * 0.5f)) : 0);
+        int xinputRight = w8;
 
         boolean isStopping = (s8 == 0 && w8 == 0);
 
@@ -467,22 +472,22 @@ public class DirectGamepHidRumbleEngine {
                 // XInput 8-byte report: [0x00, 0x08, 0x00, Heavy_Left, Light_Right, 0x00, 0x00, 0x00]
                 byte[] xinput8 = new byte[]{
                     0x00, 0x08, 0x00,
-                    (byte) (s8 & 0xFF),
-                    (byte) (w8 & 0xFF),
+                    (byte) (xinputLeft & 0xFF),
+                    (byte) (xinputRight & 0xFF),
                     0x00, 0x00, 0x00
                 };
 
-                // ShanWan / Betop / PS2 adapter 5-byte report (Linux hid-betopff.c): [0x00, 0x51, 0x00, Light_Right, Heavy_Left]
+                // ShanWan / Betop / PS2 adapter 5-byte report: [0x00, 0x51, 0x00, Light_Right, Heavy_Left]
                 byte[] shanwanWS = new byte[]{
                     0x00, 0x51, 0x00,
-                    (byte) (w8 & 0xFF),
-                    (byte) (s8 & 0xFF)
+                    (byte) (w8 > 0 ? w8 : s8),
+                    (byte) (s8 > 0 ? s8 : w8)
                 };
 
                 byte[] shanwan4WS = new byte[]{
                     0x51, 0x00,
-                    (byte) (w8 & 0xFF),
-                    (byte) (s8 & 0xFF)
+                    (byte) (w8 > 0 ? w8 : s8),
+                    (byte) (s8 > 0 ? s8 : w8)
                 };
 
                 switch (session.protocol) {
