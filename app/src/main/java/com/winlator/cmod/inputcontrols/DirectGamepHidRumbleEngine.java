@@ -15,7 +15,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.InputDevice;
+
+import com.winlator.cmod.winhandler.WinHandler;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,11 +25,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Winlator Direct USB HID Hardware Force-Feedback Engine.
+ * Winlator Direct USB HID Hardware Force-Feedback and Input Engine.
  * 
- * Communicates with external physical controllers (Redgear Elite, Xbox, PlayStation, Switch,
- * ShanWan, Betop) without force-detaching the kernel input driver, allowing both full vibration
- * force-feedback and 100% continuous responsive button/stick controls!
+ * Provides:
+ * 1. Zero-latency raw USB hardware input reading (bypassing Android framework).
+ * 2. Direct hardware force-feedback rumble to physical controller motors (Redgear Elite, Xbox, etc.).
+ * 3. Never freezes or disconnects controls during force-feedback.
  */
 public class DirectGamepHidRumbleEngine {
     private static final String TAG = "DirectHidRumbleEngine";
@@ -40,6 +42,7 @@ public class DirectGamepHidRumbleEngine {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private final Map<String, GamepadUsbSession> activeSessions = new HashMap<>();
+    private WinHandler winHandler;
     private Runnable onPermissionGrantedCallback;
     private Runnable autoStopRunnable;
 
@@ -47,9 +50,12 @@ public class DirectGamepHidRumbleEngine {
         public UsbDevice device;
         public UsbDeviceConnection connection;
         public UsbInterface usbInterface;
+        public UsbEndpoint inEndpoint;
         public UsbEndpoint outEndpoint;
         public ControllerProtocol protocol;
-        public String status = "Active";
+        public int slot = 0;
+        public volatile boolean readerRunning = false;
+        public Thread readerThread;
     }
 
     public static class UsbDeviceInfo {
@@ -83,6 +89,10 @@ public class DirectGamepHidRumbleEngine {
             instance = new DirectGamepHidRumbleEngine(context);
         }
         return instance;
+    }
+
+    public void setWinHandler(WinHandler winHandler) {
+        this.winHandler = winHandler;
     }
 
     private void registerUsbReceiver() {
@@ -128,9 +138,6 @@ public class DirectGamepHidRumbleEngine {
         }
     };
 
-    /**
-     * Scans all connected USB devices and connects to gamepads.
-     */
     public void scanAndConnectGamepads() {
         if (usbManager == null) return;
         HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
@@ -141,9 +148,6 @@ public class DirectGamepHidRumbleEngine {
         }
     }
 
-    /**
-     * Determines if a USB device is an external controller or gamepad.
-     */
     public boolean isSupportedGamepad(UsbDevice device) {
         if (device == null) return false;
         int vid = device.getVendorId();
@@ -245,43 +249,166 @@ public class DirectGamepHidRumbleEngine {
         }
 
         UsbInterface targetIface = null;
+        UsbEndpoint inEp = null;
         UsbEndpoint outEp = null;
 
         for (int i = 0; i < device.getInterfaceCount(); i++) {
             UsbInterface iface = device.getInterface(i);
             for (int e = 0; e < iface.getEndpointCount(); e++) {
                 UsbEndpoint ep = iface.getEndpoint(e);
-                if (ep.getDirection() == UsbConstants.USB_DIR_OUT) {
-                    targetIface = iface;
+                if (ep.getDirection() == UsbConstants.USB_DIR_OUT && outEp == null) {
                     outEp = ep;
-                    break;
+                } else if (ep.getDirection() == UsbConstants.USB_DIR_IN && inEp == null) {
+                    inEp = ep;
                 }
             }
-            if (targetIface != null) break;
+            if (outEp != null || inEp != null) {
+                targetIface = iface;
+                break;
+            }
         }
 
         if (targetIface == null && device.getInterfaceCount() > 0) {
             targetIface = device.getInterface(0);
         }
 
-        // CRITICAL FIX: Claim non-exclusively without force=true so Android OS kernel input driver
-        // remains attached to the controller! This ensures buttons and sticks continue working!
         if (targetIface != null) {
             try {
-                conn.claimInterface(targetIface, false);
-            } catch (Exception ignored) {}
+                conn.claimInterface(targetIface, true);
+            } catch (Exception e) {
+                Log.w(TAG, "Interface claim notice: " + e.getMessage());
+            }
         }
 
         GamepadUsbSession session = new GamepadUsbSession();
         session.device = device;
         session.connection = conn;
         session.usbInterface = targetIface;
+        session.inEndpoint = inEp;
         session.outEndpoint = outEp;
         session.protocol = detectProtocol(device);
+        session.slot = activeSessions.size();
 
         activeSessions.put(device.getDeviceName(), session);
-        Log.i(TAG, "Direct USB Gamepad Connected: " + getDeviceDisplayName(device) + " (Protocol: " + session.protocol + ", OUT EP: " + (outEp != null ? outEp.getAddress() : "Control EP0") + ")");
+        Log.i(TAG, "Direct USB Gamepad Connected: " + getDeviceDisplayName(device) + " (Protocol: " + session.protocol + ", IN EP: " + (inEp != null ? inEp.getAddress() : "None") + ", OUT EP: " + (outEp != null ? outEp.getAddress() : "None") + ")");
+
+        // Start dedicated raw USB input reader thread
+        if (inEp != null) {
+            startInputReaderThread(session);
+        }
+
         return true;
+    }
+
+    private void startInputReaderThread(GamepadUsbSession session) {
+        session.readerRunning = true;
+        session.readerThread = new Thread(() -> {
+            byte[] buffer = new byte[64];
+            GamepadState state = new GamepadState();
+            while (session.readerRunning && session.connection != null && session.inEndpoint != null) {
+                int read = session.connection.bulkTransfer(session.inEndpoint, buffer, buffer.length, 50);
+                if (read >= 8) {
+                    parseUsbReport(buffer, read, session.protocol, state);
+                    if (winHandler != null) {
+                        winHandler.sendDirectGamepadState(session.slot, state);
+                    }
+                }
+            }
+        }, "USB-Gamepad-Reader-" + session.device.getDeviceName());
+        session.readerThread.start();
+    }
+
+    private void parseUsbReport(byte[] b, int len, ControllerProtocol proto, GamepadState s) {
+        switch (proto) {
+            case XINPUT_XBOX360:
+                parseXInputReport(b, len, s);
+                break;
+            case SHANWAN_BETOP:
+            case GENERIC_HID:
+            default:
+                if (len >= 14 && b[0] == 0x00 && b[1] == 0x14) {
+                    parseXInputReport(b, len, s);
+                } else {
+                    parseDInputReport(b, len, s);
+                }
+                break;
+        }
+    }
+
+    private void parseXInputReport(byte[] b, int len, GamepadState s) {
+        if (len < 14) return;
+        int b2 = b[2] & 0xFF;
+        int b3 = b[3] & 0xFF;
+
+        // D-Pad
+        s.dpad[0] = (b2 & 0x01) != 0; // Up
+        s.dpad[2] = (b2 & 0x02) != 0; // Down
+        s.dpad[3] = (b2 & 0x04) != 0; // Left
+        s.dpad[1] = (b2 & 0x08) != 0; // Right
+
+        // Buttons
+        s.setPressed((byte) 7, (b2 & 0x10) != 0); // Start
+        s.setPressed((byte) 6, (b2 & 0x20) != 0); // Select / Back
+        s.setPressed((byte) 8, (b2 & 0x40) != 0); // L3 (Left thumb)
+        s.setPressed((byte) 9, (b2 & 0x80) != 0); // R3 (Right thumb)
+
+        s.setPressed((byte) 4, (b3 & 0x01) != 0); // LB (L1)
+        s.setPressed((byte) 5, (b3 & 0x02) != 0); // RB (R1)
+        s.setPressed((byte) 0, (b3 & 0x10) != 0); // A
+        s.setPressed((byte) 1, (b3 & 0x20) != 0); // B
+        s.setPressed((byte) 2, (b3 & 0x40) != 0); // X
+        s.setPressed((byte) 3, (b3 & 0x80) != 0); // Y
+
+        // Triggers
+        s.triggerL = (b[4] & 0xFF) / 255.0f;
+        s.triggerR = (b[5] & 0xFF) / 255.0f;
+
+        // Sticks (signed 16-bit little endian)
+        short lx = (short) ((b[6] & 0xFF) | ((b[7] & 0xFF) << 8));
+        short ly = (short) ((b[8] & 0xFF) | ((b[9] & 0xFF) << 8));
+        short rx = (short) ((b[10] & 0xFF) | ((b[11] & 0xFF) << 8));
+        short ry = (short) ((b[12] & 0xFF) | ((b[13] & 0xFF) << 8));
+
+        s.thumbLX = lx / 32768.0f;
+        s.thumbLY = -ly / 32768.0f; // Invert Y
+        s.thumbRX = rx / 32768.0f;
+        s.thumbRY = -ry / 32768.0f;
+    }
+
+    private void parseDInputReport(byte[] b, int len, GamepadState s) {
+        if (len < 6) return;
+        int lx = b[0] & 0xFF;
+        int ly = b[1] & 0xFF;
+        int rx = b[2] & 0xFF;
+        int ry = b[3] & 0xFF;
+
+        s.thumbLX = (lx - 128) / 128.0f;
+        s.thumbLY = -(ly - 128) / 128.0f;
+        s.thumbRX = (rx - 128) / 128.0f;
+        s.thumbRY = -(ry - 128) / 128.0f;
+
+        int b4 = b[4] & 0xFF;
+        int b5 = b[5] & 0xFF;
+
+        int hat = b4 & 0x0F;
+        s.dpad[0] = (hat == 0 || hat == 1 || hat == 7);
+        s.dpad[1] = (hat == 1 || hat == 2 || hat == 3);
+        s.dpad[2] = (hat == 3 || hat == 4 || hat == 5);
+        s.dpad[3] = (hat == 5 || hat == 6 || hat == 7);
+
+        s.setPressed((byte) 0, (b4 & 0x10) != 0); // A
+        s.setPressed((byte) 1, (b4 & 0x20) != 0); // B
+        s.setPressed((byte) 2, (b4 & 0x40) != 0); // X
+        s.setPressed((byte) 3, (b4 & 0x80) != 0); // Y
+
+        s.setPressed((byte) 4, (b5 & 0x01) != 0); // L1
+        s.setPressed((byte) 5, (b5 & 0x02) != 0); // R1
+        s.triggerL = (b5 & 0x04) != 0 ? 1.0f : 0.0f; // L2
+        s.triggerR = (b5 & 0x08) != 0 ? 1.0f : 0.0f; // R2
+        s.setPressed((byte) 6, (b5 & 0x10) != 0); // Select
+        s.setPressed((byte) 7, (b5 & 0x20) != 0); // Start
+        s.setPressed((byte) 8, (b5 & 0x40) != 0); // L3
+        s.setPressed((byte) 9, (b5 & 0x80) != 0); // R3
     }
 
     private ControllerProtocol detectProtocol(UsbDevice device) {
@@ -298,17 +425,10 @@ public class DirectGamepHidRumbleEngine {
         } else if (vid == 0x11ff || vid == 0x20d6 || vid == 0x0e8f || vid == 0x0079) {
             return ControllerProtocol.SHANWAN_BETOP;
         } else {
-            return ControllerProtocol.XINPUT_XBOX360; // Microsoft Xbox 360 / Redgear XInput mode
+            return ControllerProtocol.XINPUT_XBOX360;
         }
     }
 
-    /**
-     * Sends force-feedback vibration to all connected USB gamepads cleanly.
-     * 
-     * @param strong 0-65535 or 0-255 left heavy motor
-     * @param weak 0-65535 or 0-255 right light motor
-     * @return true if vibration packet was sent successfully
-     */
     public boolean sendRumble(int strong, int weak) {
         return sendRumble(strong, weak, 0);
     }
@@ -319,7 +439,6 @@ public class DirectGamepHidRumbleEngine {
             if (activeSessions.isEmpty()) return false;
         }
 
-        // Cancel previous auto-stop timer
         if (autoStopRunnable != null) {
             mainHandler.removeCallbacks(autoStopRunnable);
             autoStopRunnable = null;
@@ -339,7 +458,6 @@ public class DirectGamepHidRumbleEngine {
             try {
                 int ifaceIndex = session.usbInterface != null ? session.usbInterface.getId() : 0;
 
-                // 1. Standard XInput 8-byte rumble packet
                 byte[] xinput8 = new byte[]{
                     0x00, 0x08, 0x00,
                     (byte) (s8 & 0xFF),
@@ -347,7 +465,6 @@ public class DirectGamepHidRumbleEngine {
                     0x00, 0x00, 0x00
                 };
 
-                // 2. ShanWan / Betop 5-byte rumble packet (Redgear Elite DInput Mode)
                 byte[] shanwan5 = new byte[]{
                     0x00, 0x51, 0x00,
                     (byte) (s8 & 0xFF),
@@ -367,9 +484,11 @@ public class DirectGamepHidRumbleEngine {
                     case GENERIC_HID: {
                         if (session.outEndpoint != null) {
                             session.connection.bulkTransfer(session.outEndpoint, shanwan5, shanwan5.length, 30);
+                            session.connection.bulkTransfer(session.outEndpoint, xinput8, xinput8.length, 30);
                         }
                         session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, shanwan5, shanwan5.length, 30);
                         session.connection.controlTransfer(0x21, 0x09, 0x0300, ifaceIndex, shanwan5, shanwan5.length, 30);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, xinput8, xinput8.length, 30);
                         dispatched = true;
                         break;
                     }
@@ -406,7 +525,6 @@ public class DirectGamepHidRumbleEngine {
             }
         }
 
-        // Auto-stop safety timeout if a non-zero rumble was triggered
         if (!isStopping) {
             int autoStopMs = durationMs > 0 ? durationMs : 250;
             autoStopRunnable = () -> sendRumble(0, 0);
@@ -444,6 +562,10 @@ public class DirectGamepHidRumbleEngine {
     public void closeSession(String deviceName) {
         GamepadUsbSession session = activeSessions.remove(deviceName);
         if (session != null) {
+            session.readerRunning = false;
+            if (session.readerThread != null) {
+                session.readerThread.interrupt();
+            }
             try {
                 if (session.connection != null) {
                     if (session.usbInterface != null) session.connection.releaseInterface(session.usbInterface);

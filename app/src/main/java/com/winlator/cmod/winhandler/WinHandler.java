@@ -139,7 +139,7 @@ public class WinHandler {
         }
 
         // Initialize Direct USB HID Force Feedback Engine immediately so controllers are ready
-        DirectGamepHidRumbleEngine.getInstance(activity);
+        DirectGamepHidRumbleEngine.getInstance(activity).setWinHandler(this);
     }
 
     private boolean sendPacket(int port) {
@@ -832,6 +832,18 @@ public void setVibrationEnabledForSlot(int slot, boolean enabled) {
         if (slot >= 0 && writers[slot] != null) {
             // Apply per-slot deadzone before writing
             GamepadState finalState = applyDeadzones(gamepadState, slot);
+            writers[slot].writeGamepadState(finalState);
+        }
+    }
+
+    public void sendDirectGamepadState(int slot, GamepadState state) {
+        if (!isValidSlot(slot) || state == null) return;
+        if (writers[slot] == null && fakeInputBasePath != null) {
+            writers[slot] = new FakeInputWriter(fakeInputBasePath, slot);
+            writers[slot].open();
+        }
+        if (writers[slot] != null) {
+            GamepadState finalState = applyDeadzones(state, slot);
             writers[slot].writeGamepadState(finalState);
         }
     }
