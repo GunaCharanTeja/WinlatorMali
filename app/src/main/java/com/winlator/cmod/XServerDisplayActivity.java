@@ -1229,7 +1229,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
                 cbEnable.setChecked(true);
                 cbVert.setChecked(false);
-                if (spStyle != null) spStyle.setSelection(WinlatorHUD.STYLE_CLASSIC);
+                if (spStyle != null) spStyle.setSelection(WinlatorHUD.STYLE_ADAPTIVE);
                 
                 int alphaVal = (int)(frameRating.getHudAlpha() * 100);
                 sbAlpha.setProgress(alphaVal);
@@ -1239,7 +1239,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 sbScale.setProgress((int)((scaleValue - 0.5f) / 1.5f * 100));
                 tvScale.setText(String.format(Locale.US, "%.1fx", scaleValue));
                 
-                spPreset.setSelection(2);
+                spPreset.setSelection(1);
             }, 50);
         });
 

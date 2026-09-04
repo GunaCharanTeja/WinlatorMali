@@ -36,7 +36,7 @@ public class WinlatorHUD extends View {
     public static final int STYLE_MONO     = 1;
     public static final int STYLE_TILES    = 2;
     public static final int STYLE_ADAPTIVE = 3;
-    private int currentStyle = STYLE_CLASSIC;
+    private int currentStyle = STYLE_ADAPTIVE;
 
     public static final int PRESET_CUSTOM        = -1;
     public static final int PRESET_TOP_LEFT      = 0;
@@ -48,7 +48,7 @@ public class WinlatorHUD extends View {
     public static final int PRESET_BOTTOM_LEFT   = 6;
     public static final int PRESET_BOTTOM_CENTER = 7;
     public static final int PRESET_BOTTOM_RIGHT  = 8;
-    private int activePositionPreset = PRESET_TOP_CENTER;
+    private int activePositionPreset = PRESET_TOP_LEFT;
 
     public static final int SHOW_FPS      = 1;
     public static final int SHOW_GPU      = 1<<1;
@@ -64,7 +64,7 @@ public class WinlatorHUD extends View {
     public static final int SHOW_WRAPPER  = 1<<11;
     public static final int SHOW_CPU_TEMP = 1<<12;
     public static final int SHOW_LOCKED   = 1<<13;
-    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_RENDERER | SHOW_WRAPPER | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER;
+    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_CPU | SHOW_RAM | SHOW_BORDER | SHOW_LOCKED;
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -1144,19 +1144,19 @@ public class WinlatorHUD extends View {
 
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
-        currentStyle = prefs.getInt(KEY_STYLE, (showMask & SHOW_MONO) != 0 ? STYLE_MONO : STYLE_CLASSIC);
+        currentStyle = prefs.getInt(KEY_STYLE, (showMask & SHOW_MONO) != 0 ? STYLE_MONO : STYLE_ADAPTIVE);
         hudAlpha = prefs.getInt(KEY_ALPHA, 55) / 100f;
         setAlpha(hudAlpha);
         vertical = prefs.getBoolean(KEY_VERT, false);
         float scale = prefs.getFloat(KEY_SCALE, 1f);
         setScaleX(scale); setScaleY(scale);
 
-        activePositionPreset = prefs.getInt(KEY_POS_PRESET, prefs.contains(KEY_X) ? PRESET_CUSTOM : PRESET_TOP_CENTER);
+        activePositionPreset = prefs.getInt(KEY_POS_PRESET, prefs.contains(KEY_X) ? PRESET_CUSTOM : PRESET_TOP_LEFT);
         if (activePositionPreset == PRESET_CUSTOM && prefs.contains(KEY_X)) {
             setX(prefs.getFloat(KEY_X, 16f));
             setY(prefs.getFloat(KEY_Y, 16f));
         } else {
-            post(() -> applyPositionPreset(activePositionPreset >= 0 ? activePositionPreset : PRESET_TOP_CENTER));
+            post(() -> applyPositionPreset(activePositionPreset >= 0 ? activePositionPreset : PRESET_TOP_LEFT));
         }
 
         userEnabled = prefs.getBoolean(KEY_VIS, false);
@@ -1355,7 +1355,7 @@ public class WinlatorHUD extends View {
             userEnabled = true;
             
             showMask = SHOW_DEFAULT;
-            currentStyle = STYLE_CLASSIC;
+            currentStyle = STYLE_ADAPTIVE;
             vertical = false;
             layoutDirty = true;
             
@@ -1363,7 +1363,7 @@ public class WinlatorHUD extends View {
             hudAlpha = 0.55f;
             setAlpha(hudAlpha);
 
-            activePositionPreset = PRESET_TOP_CENTER;
+            activePositionPreset = PRESET_TOP_LEFT;
 
             SharedPreferences.Editor ed = prefs.edit();
             ed.putBoolean(KEY_VIS, true);
@@ -1372,12 +1372,12 @@ public class WinlatorHUD extends View {
             ed.putBoolean(KEY_VERT, vertical);
             ed.putFloat(KEY_SCALE, 1.0f);
             ed.putInt(KEY_ALPHA, 55);
-            ed.putInt(KEY_POS_PRESET, PRESET_TOP_CENTER);
+            ed.putInt(KEY_POS_PRESET, PRESET_TOP_LEFT);
             ed.remove(KEY_X);
             ed.remove(KEY_Y);
             ed.apply();
 
-            post(() -> applyPositionPreset(PRESET_TOP_CENTER));
+            post(() -> applyPositionPreset(PRESET_TOP_LEFT));
 
             if (dataSource != null) dataSource.start();
             setVisibility(VISIBLE);
