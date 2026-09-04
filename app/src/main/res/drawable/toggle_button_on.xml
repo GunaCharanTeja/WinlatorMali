@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="32dp"
+    android:viewportWidth="64"
+    android:viewportHeight="32">
+    <!-- Pill Track On -->
+    <path
+        android:fillColor="?attr/colorAccent"
+        android:strokeColor="?attr/colorAccent"
+        android:strokeWidth="1.5"
+        android:pathData="M16,4 H48 A12,12 0 0 1 60,16 A12,12 0 0 1 48,28 H16 A12,12 0 0 1 4,16 A12,12 0 0 1 16,4 Z" />
+    <!-- Circle Thumb On -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,7 A9,9 0 1 0 48.001,7 Z" />
+</vector>

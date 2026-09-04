@@ -37,6 +37,7 @@ add_library(winlator SHARED
         apex/apex_pacing.cpp
         apex/apex_pipeline.cpp
         apex/apex_jni_bridge.cpp
+        apex/apex_vulkan_hook.cpp
 )
 
 target_compile_options(winlator PRIVATE -Wall -Wextra)

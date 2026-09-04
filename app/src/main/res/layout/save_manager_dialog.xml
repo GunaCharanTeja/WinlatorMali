@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- Subtitle -->
+    <TextView
+        android:id="@+id/TVSaveSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Discovered Game Saves"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="14.5sp"
+        android:textStyle="bold" />
+
+    <!-- Action Pill Row: Perfectly Aligned 50/50 Horizontal Buttons -->
+    <LinearLayout
+        android:id="@+id/LLActionPillRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="10dp">
+
+        <Button
+            android:id="@+id/BTRestoreSaves"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:background="@drawable/pill_button_background"
+            android:drawableStart="@drawable/icon_restore_backup"
+            android:drawablePadding="6dp"
+            android:text="Restore .zip"
+            android:textColor="#3D82FF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/BTToggleSelectAll"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:background="@drawable/pill_button_background"
+            android:drawableStart="@drawable/icon_select_all"
+            android:drawablePadding="6dp"
+            android:text="Select All"
+            android:textColor="#3D82FF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+
+    <!-- Scrollable Cards Container -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="270dp">
+
+        <LinearLayout
+            android:id="@+id/LLSaveLocations"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <!-- Destination Folder Note -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📁 Backups destination: Downloads/Winlator/Saves"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="11.5sp"
+        android:paddingTop="8dp" />
+
+</LinearLayout>

@@ -7,39 +7,48 @@
     android:orientation="vertical"
     android:padding="12dp">
 
-    <FrameLayout
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:layout_marginTop="8dp">
+        android:tag="section_header"
+        android:text="@string/about"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="?attr/colorAccent"
+        android:layout_marginBottom="8dp" />
 
-        <LinearLayout
-            style="@style/FieldSet"
-            android:padding="20dp"
-            android:background="@drawable/bordered_panel">
-
-            <TextView
-                android:id="@+id/TVDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:lineSpacingExtra="6dp"
-                android:textSize="16sp"
-                android:textStyle="italic"
-                android:textColor="?android:attr/textColorPrimary" />
-        </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bordered_panel_dark"
+        android:padding="14dp"
+        android:orientation="vertical"
+        android:layout_marginBottom="16dp">
 
         <TextView
-            style="@style/FieldSetLabel"
-            android:text="@string/about"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:textColor="@color/colorPrimary" />
-    </FrameLayout>
+            android:id="@+id/TVDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:lineSpacingExtra="4dp"
+            android:textSize="13sp"
+            android:textColor="?android:attr/textColorPrimary" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:tag="section_header"
+        android:text="@string/graphics_driver"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="?attr/colorAccent"
+        android:layout_marginBottom="8dp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/RecyclerView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:scrollbars="vertical"
         android:clipToPadding="false"
         android:paddingBottom="16dp"

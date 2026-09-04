@@ -12,7 +12,7 @@
         android:id="@+id/IVIcon"
         android:layout_width="40.0dip"
         android:layout_height="40.0dip"
-        android:src="@android:drawable/ic_menu_view"
+        android:src="@drawable/icon_folder"
         app:tint="?colorAccent" />
     <LinearLayout
         android:orientation="vertical"
@@ -41,6 +41,6 @@
         android:visibility="gone"
         android:layout_width="24.0dip"
         android:layout_height="24.0dip"
-        android:src="@android:drawable/ic_menu_more"
+        android:src="@drawable/icon_list_item_menu"
         app:tint="?android:textColorSecondary" />
 </LinearLayout>

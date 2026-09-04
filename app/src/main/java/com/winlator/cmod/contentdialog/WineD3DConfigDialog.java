@@ -56,8 +56,8 @@ public class WineD3DConfigDialog extends ContentDialog {
 
         KeyValueSet config = parseConfig(anchor.getTag());
 
-        sCSMT.setSelection(config.get("csmt").equals("3") ? 0 : 1);
-        sStrictShaderMath.setSelection(config.get("strict_shader_math").equals("1") ? 0 : 1);
+        sCSMT.setSelection("3".equals(config.get("csmt", "3")) ? 0 : 1);
+        sStrictShaderMath.setSelection("1".equals(config.get("strict_shader_math", "1")) ? 0 : 1);
         AppUtils.setSpinnerSelectionFromValue(sOffscreenRenderingMode, config.get("OffscreenRenderingMode"));
         AppUtils.setSpinnerSelectionFromValue(sGPUName, config.get("gpuName"));
         AppUtils.setSpinnerSelectionFromValue(sRenderer, config.get("renderer"));

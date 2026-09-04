@@ -614,14 +614,17 @@ public class PEParser {
             int limit = buf.limit();
             if (info.FileVersion.isEmpty()) {
                 String fv = findUtf16StringValue(data, limit, "FileVersion");
+                if (fv == null || fv.isEmpty()) fv = findAnsiStringValue(data, limit, "FileVersion");
                 if (fv != null && !fv.isEmpty()) info.FileVersion = fv;
             }
             if (info.ProductVersion.isEmpty()) {
                 String pv = findUtf16StringValue(data, limit, "ProductVersion");
+                if (pv == null || pv.isEmpty()) pv = findAnsiStringValue(data, limit, "ProductVersion");
                 if (pv != null && !pv.isEmpty()) info.ProductVersion = pv;
             }
             if (info.ProductName.isEmpty()) {
                 String pn = findUtf16StringValue(data, limit, "ProductName");
+                if (pn == null || pn.isEmpty()) pn = findAnsiStringValue(data, limit, "ProductName");
                 if (pn != null && !pn.isEmpty()) info.ProductName = pn;
             }
         } catch (Exception ignored) {}
@@ -649,7 +652,7 @@ public class PEParser {
                     }
                     if (pos > start) {
                         String val = new String(data, start, pos - start, StandardCharsets.UTF_16LE).trim();
-                        if (val.length() >= 1 && val.length() <= 64 && !val.contains("\ufffd")) {
+                        if (val.length() >= 1 && val.length() <= 64 && !val.contains("\ufffd") && isSensibleVersionString(val)) {
                             return val;
                         }
                     }
@@ -659,21 +662,98 @@ public class PEParser {
         return null;
     }
 
+    private static String findAnsiStringValue(byte[] data, int limit, String key) {
+        try {
+            byte[] keyBytes = key.getBytes(StandardCharsets.US_ASCII);
+            int keyLen = keyBytes.length;
+            for (int i = 0; i <= limit - keyLen - 2; i++) {
+                boolean match = true;
+                for (int k = 0; k < keyLen; k++) {
+                    if (data[i + k] != keyBytes[k]) { match = false; break; }
+                }
+                if (match) {
+                    int pos = i + keyLen;
+                    // Skip separators / padding
+                    while (pos < limit && (data[pos] == 0 || data[pos] == ' ' || data[pos] == '=' || data[pos] == ':')) {
+                        pos++;
+                    }
+                    if (pos >= limit) return null;
+                    int start = pos;
+                    while (pos < limit && data[pos] >= 32 && data[pos] <= 126 && data[pos] != '\r' && data[pos] != '\n') {
+                        pos++;
+                    }
+                    if (pos > start) {
+                        String val = new String(data, start, pos - start, StandardCharsets.US_ASCII).trim();
+                        if (val.length() >= 1 && val.length() <= 64 && isSensibleVersionString(val)) {
+                            return val;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static boolean isSensibleVersionString(String val) {
+        if (val == null) return false;
+        String s = val.trim();
+        if (s.isEmpty() || s.length() > 64) return false;
+        // Check for common words that aren't version values
+        String lower = s.toLowerCase(Locale.US);
+        if (lower.equals("stringfileinfo") || lower.equals("varfileinfo") || lower.equals("translation")) return false;
+        return true;
+    }
+
     private static FileVersionInfo scanFileForVersionFallback(File peFile) {
         try (InputStream in = new BufferedInputStream(new FileInputStream(peFile), 65536)) {
-            // Read up to first 2MB to search for version strings
-            int maxScan = (int) Math.min(peFile.length(), 2 * 1024 * 1024);
+            // Read up to first 8MB to search for version strings across PE sections
+            int maxScan = (int) Math.min(peFile.length(), 8 * 1024 * 1024);
             byte[] buf = new byte[maxScan];
             int read = in.read(buf);
             if (read > 1024) {
                 FileVersionInfo info = new FileVersionInfo();
                 info.FileVersion = findUtf16StringValue(buf, read, "FileVersion");
+                if (info.FileVersion == null || info.FileVersion.isEmpty()) {
+                    info.FileVersion = findAnsiStringValue(buf, read, "FileVersion");
+                }
                 if (info.FileVersion == null) info.FileVersion = "";
+
                 info.ProductVersion = findUtf16StringValue(buf, read, "ProductVersion");
+                if (info.ProductVersion == null || info.ProductVersion.isEmpty()) {
+                    info.ProductVersion = findAnsiStringValue(buf, read, "ProductVersion");
+                }
                 if (info.ProductVersion == null) info.ProductVersion = "";
+
                 info.ProductName = findUtf16StringValue(buf, read, "ProductName");
+                if (info.ProductName == null || info.ProductName.isEmpty()) {
+                    info.ProductName = findAnsiStringValue(buf, read, "ProductName");
+                }
                 if (info.ProductName == null) info.ProductName = "";
+
                 if (info.hasVersion()) return info;
+
+                // Regex fallback on raw binary bytes converted to ASCII
+                String asciiSample = new String(buf, 0, Math.min(read, 4 * 1024 * 1024), StandardCharsets.ISO_8859_1);
+
+                // Check for FILEVERSION 1,2,3,4 pattern common in resource-compiled binaries (e.g. AC2, Ubisoft, DX9/11 games)
+                java.util.regex.Matcher mFV = java.util.regex.Pattern.compile("(?i)(?:FILEVERSION|PRODUCTVERSION)\\s+(\\d+)[,\\s]+(\\d+)[,\\s]+(\\d+)[,\\s]+(\\d+)").matcher(asciiSample);
+                if (mFV.find()) {
+                    String fvVer = mFV.group(1) + "." + mFV.group(2) + "." + mFV.group(3) + "." + mFV.group(4);
+                    if (!fvVer.equals("0.0.0.0") && !fvVer.equals("1.0.0.0")) {
+                        info.ProductVersion = fvVer;
+                        return info;
+                    }
+                }
+
+                // Check for standard version patterns
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)(?:version|patch|build|rev|gameversion)[:=\\s]+([0-9]+(?:\\.[0-9]+)+(?:[a-z0-9_.-]*)?)").matcher(asciiSample);
+                if (m.find()) {
+                    String cand = m.group(1).trim();
+                    if (!cand.equals("0.0.0.0") && !cand.equals("1.0.0.0")) {
+                        info.ProductVersion = cand;
+                        return info;
+                    }
+                }
             }
         } catch (Exception ignored) {}
         return null;

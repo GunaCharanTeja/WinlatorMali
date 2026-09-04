@@ -3,60 +3,101 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingLeft="16dp"
-    android:paddingRight="16dp">
-
-    <ImageView
-        android:id="@+id/IVIcon"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="8dp"
-        app:tint="@color/colorPrimaryDark" />
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
 
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_weight="1"
-        android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:orientation="vertical">
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/TVVersionName"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_gravity="center"
-            android:gravity="start|center"
-            android:maxLines="1" />
+        <ImageView
+            android:id="@+id/IVIcon"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="14dp"
+            android:src="@drawable/icon_wine"
+            app:tint="?attr/colorAccent" />
 
-        <TextView
-            android:id="@+id/TVVersionCode"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_gravity="center"
-            android:gravity="start|center"
-            android:maxLines="1" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/TVVersionName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
+            <TextView
+                android:id="@+id/TVVersionCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/BTMenu"
+            style="@style/ListMenuButton"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
+            app:tint="?attr/colorAccent"
+            android:src="@drawable/icon_list_item_menu" />
+
+        <ImageButton
+            android:id="@+id/BTDownload"
+            style="@style/ListMenuButton"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
+            android:padding="6dp"
+            app:tint="?attr/colorAccent"
+            android:src="@drawable/icon_download"
+            android:contentDescription="Download Component" />
+
     </LinearLayout>
 
-    <ImageButton
-        android:id="@+id/BTMenu"
-        style="@style/ListMenuButton"
-        android:layout_marginStart="8dp"
-        android:src="@drawable/icon_list_item_menu" />
+    <LinearLayout
+        android:id="@+id/LLDownloadProgress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="8dp"
+        android:visibility="gone">
 
-    <ImageButton
-        android:id="@+id/BTDownload"
-        style="@style/ListMenuButton"
-        android:layout_marginStart="8dp"
-        android:src="@drawable/icon_popup_menu_download" />
-    <ProgressBar
-        android:id="@+id/Progress"
-        style="@style/ListMenuButton"
-        android:layout_marginStart="8dp"
-        android:visibility="gone" />
+        <ProgressBar
+            android:id="@+id/HorizontalProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/custom_progress_bar" />
+
+        <TextView
+            android:id="@+id/TVProgressDetails"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="11sp"
+            android:layout_marginTop="3dp"
+            android:gravity="end"
+            android:text="0%" />
+    </LinearLayout>
+
 </LinearLayout>

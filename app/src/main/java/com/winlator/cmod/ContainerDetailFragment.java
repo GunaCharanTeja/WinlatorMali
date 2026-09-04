@@ -121,17 +121,7 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     private static void applyFieldSetLabelStyle(TextView textView, boolean isDarkMode) {
-//        Context context = textView.getContext();
-
-        if (isDarkMode) {
-            // Apply dark mode-specific attributes
-            textView.setTextColor(Color.parseColor("#cccccc")); // Set text color to #cccccc
-            textView.setBackgroundResource(R.color.window_background_color_dark); // Set dark background color
-        } else {
-            // Apply light mode-specific attributes (original FieldSetLabel)
-            textView.setTextColor(Color.parseColor("#bdbdbd")); // Set text color to #bdbdbd
-            textView.setBackgroundResource(R.color.window_background_color); // Set light background color
-        }
+        ThemeManager.applyFieldSetLabelStyle(textView, isDarkMode);
     }
 
 
@@ -369,6 +359,8 @@ public class ContainerDetailFragment extends Fragment {
             BCNConfigDialog dialog = new BCNConfigDialog(vGraphicsDriverConfig);
             dialog.show();
         });
+        View vBCNRow = view.findViewById(R.id.LLBCNConfigRow);
+        if (vBCNRow != null) vBCNRow.setOnClickListener(v -> vBCNConfig.performClick());
 
         Spinner sAudioDriver = view.findViewById(R.id.SAudioDriver);
         AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, isEditMode() ? container.getAudioDriver() : Container.DEFAULT_AUDIO_DRIVER);
@@ -446,7 +438,7 @@ public class ContainerDetailFragment extends Fragment {
         createWinComponentsTab(view, isEditMode() ? container.getWinComponents() : Container.DEFAULT_WINCOMPONENTS);
         createDrivesTab(view);
 
-        AppUtils.setupTabLayout(view, R.id.TabLayout, R.id.LLTabWineConfiguration, R.id.LLTabWinComponents, R.id.LLTabEnvVars, R.id.LLTabDrives, R.id.LLTabAdvanced, R.id.LLTabXR);
+        AppUtils.setupTabLayout(view, R.id.TabLayout, R.id.LLTabGeneral, R.id.LLTabWineConfiguration, R.id.LLTabWinComponents, R.id.LLTabEnvVars, R.id.LLTabDrives, R.id.LLTabAdvanced, R.id.LLTabXR);
 
         TabLayout tabLayout = view.findViewById(R.id.TabLayout);
 
@@ -550,8 +542,16 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("box64Preset", box64Preset);
                     data.put("fexcoreVersion", fexcoreVersion);
                     data.put("fexcorePreset", fexcorePreset);
+                    String selectedWine = sWineVersion.getSelectedItem() != null ? sWineVersion.getSelectedItem().toString() : "";
+                    if (selectedWine.isEmpty() || selectedWine.contains("No Wine Installed")) {
+                        AppUtils.showToast(context, "Please download a Wine runtime first.");
+                        com.winlator.cmod.contents.WineDownloader.showDownloadDialog(getActivity(), () -> {
+                            loadWineVersionSpinner(view, sWineVersion, sBox64Version);
+                        });
+                        return;
+                    }
                     data.put("desktopTheme", desktopTheme);
-                    data.put("wineVersion", sWineVersion.getSelectedItem().toString());
+                    data.put("wineVersion", selectedWine);
                     data.put("midiSoundFont", midiSoundFont);
                     data.put("lc_all", lc_all);
                     data.put("primaryController", primaryController);
@@ -975,13 +975,17 @@ public class ContainerDetailFragment extends Fragment {
 
 
         view.findViewById(R.id.LLWineVersion).setVisibility(View.VISIBLE);
-        String[] versions = getResources().getStringArray(R.array.wine_entries);
-        ArrayList<String> wineVersions = new ArrayList<>();
-        wineVersions.addAll(Arrays.asList(versions));
-        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WINE))
-            wineVersions.add(ContentsManager.getEntryName(profile));
-        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON))                                                      
-        	wineVersions.add(ContentsManager.getEntryName(profile));
+        View btnDownload = view.findViewById(R.id.BTDownloadWine);
+        if (btnDownload != null) {
+            btnDownload.setOnClickListener(v -> com.winlator.cmod.contents.WineDownloader.showDownloadDialog(getActivity(), () -> {
+                loadWineVersionSpinner(view, sWineVersion, sBox64Version);
+            }));
+        }
+
+        List<String> wineVersions = com.winlator.cmod.contents.WineDownloader.getInstalledWineVersions(context);
+        if (wineVersions.isEmpty()) {
+            wineVersions.add("(No Wine Installed - Tap Download)");
+        }
         sWineVersion.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, wineVersions));
         if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, container.getWineVersion());
     }

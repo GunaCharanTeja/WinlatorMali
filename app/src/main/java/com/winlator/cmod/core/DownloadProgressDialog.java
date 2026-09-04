@@ -27,12 +27,25 @@ public class DownloadProgressDialog {
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.download_progress_dialog);
 
-        boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("dark_mode", true);
-        if (isDarkMode) {
-            dialog.findViewById(R.id.LLPreloaderBackground).setBackgroundResource(R.drawable.content_dialog_background_dark);
-            ((TextView)dialog.findViewById(R.id.TextView)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, R.color.colorAccent));
-            ((TextView)dialog.findViewById(R.id.TVProgress)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, android.R.color.white));
-        }
+        android.view.View bgView = dialog.findViewById(R.id.LLPreloaderBackground);
+        int surfaceColor = com.winlator.cmod.ThemeManager.getSurfaceColor(activity);
+        int accentColor = com.winlator.cmod.ThemeManager.getAccentColor(activity);
+        int onSurfaceColor = com.winlator.cmod.ThemeManager.getOnSurfaceTextColor(activity);
+
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(surfaceColor);
+        gd.setCornerRadius(UnitUtils.dpToPx(14));
+        gd.setStroke((int)UnitUtils.dpToPx(1), 0x33FFFFFF);
+        bgView.setBackground(gd);
+
+        TextView tv = dialog.findViewById(R.id.TextView);
+        if (tv != null) tv.setTextColor(onSurfaceColor);
+
+        TextView tvProg = dialog.findViewById(R.id.TVProgress);
+        if (tvProg != null) tvProg.setTextColor(onSurfaceColor);
+
+        CircularProgressIndicator cpi = dialog.findViewById(R.id.CircularProgressIndicator);
+        if (cpi != null) cpi.setIndicatorColor(accentColor);
 
         Window window = dialog.getWindow();
         if (window != null) {

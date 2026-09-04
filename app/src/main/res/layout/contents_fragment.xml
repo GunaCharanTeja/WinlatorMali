@@ -1,35 +1,116 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/content_type" />
-
+    <!-- Row 1: Type & Catalog Source -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <Spinner
-            android:id="@+id/SContentType"
-            style="@style/ComboBox"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginEnd="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/content_type"
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <Spinner
+                android:id="@+id/SContentType"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="38dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.4"
+            android:orientation="vertical"
+            android:layout_marginStart="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Catalog / Filter"
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <Spinner
+                android:id="@+id/SCatalogSource"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="38dp" />
+        </LinearLayout>
 
     </LinearLayout>
 
+    <!-- Row 2: Sort Selector + Refresh Button -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="bottom"
+        android:layout_marginTop="6dp">
 
-    <View style="@style/HorizontalLine" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginEnd="6dp">
 
-    <androidx.recyclerview.widget.RecyclerView xmlns:app="http://schemas.android.com/apk/res-auto"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sort Order"
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <Spinner
+                android:id="@+id/SSortBy"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="38dp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/BTRefresh"
+            style="@style/ButtonNeutral"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_refresh"
+            android:contentDescription="Refresh Catalog" />
+
+    </LinearLayout>
+
+    <View style="@style/HorizontalLine" android:layout_marginTop="8dp" android:layout_marginBottom="4dp" />
+
+    <ProgressBar
+        android:id="@+id/PBLoading"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:indeterminate="true"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/RecyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -44,23 +125,24 @@
         android:layout_weight="1"
         android:gravity="center"
         android:text="@string/no_items_to_display"
-        android:textSize="24sp"
+        android:textSize="18sp"
         android:visibility="gone" />
 
-    <View style="@style/HorizontalLine" />
+    <View style="@style/HorizontalLine" android:layout_marginTop="6dp" android:layout_marginBottom="6dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="end"
         android:orientation="horizontal">
 
         <Button
             android:id="@+id/BTInstallContent"
             style="@style/ButtonNeutral"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/install_content" />
+            android:text="Install File" />
 
     </LinearLayout>
+
 </LinearLayout>

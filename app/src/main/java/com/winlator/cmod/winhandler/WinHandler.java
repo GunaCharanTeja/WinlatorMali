@@ -389,6 +389,17 @@ public class WinHandler {
         // A duration of 0 means cancel, not vibrate
         boolean shouldCancel = (durationMs == 0 && strong == 0 && weak == 0);
 
+        // --- 1. Direct Hardware USB Force-Feedback (Redgear Elite / Xbox / PS / Switch Direct Motors) ---
+        if (activity != null) {
+            com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine usbRumble =
+                com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(activity);
+            if (!shouldCancel && (strong > 0 || weak > 0)) {
+                usbRumble.sendRumble(strong, weak);
+            } else if (shouldCancel) {
+                usbRumble.sendRumble(0, 0);
+            }
+        }
+
         Vibrator vibrator = null;
         android.os.VibratorManager vibratorManager = null;
         boolean hasMultiMotor = false;
@@ -433,6 +444,12 @@ public class WinHandler {
             }
         }
 
+        // FALLBACK: If physical controller (e.g. Redgear Elite, generic USB/BT) does not expose an Android framework motor,
+        // fallback to phone internal vibrator so force-feedback is never lost!
+        if (!hasMultiMotor && (vibrator == null || !vibrator.hasVibrator())) {
+            vibrator = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+        }
+
         // If vibration is disabled for this slot, cancel any active vibration and return
         if (!vibrationEnabledSlots[slot]) {
             if (hasMultiMotor && vibratorManager != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -445,52 +462,51 @@ public class WinHandler {
             return;
         }
 
+        int duration = durationMs > 0 ? durationMs : 250; // Continuous stream fallback (1ms was imperceptible)
+
         if (hasMultiMotor && vibratorManager != null
                 && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-        int[] vibratorIds = vibratorManager.getVibratorIds();
+            int[] vibratorIds = vibratorManager.getVibratorIds();
 
-        if (vibratorIds.length >= 1) {
-            Vibrator vStrong = vibratorManager.getVibrator(vibratorIds[0]);
-            if (!shouldCancel && strong > 0) {
-                int amplitude = clampAmplitude(strong);
-                int duration = Math.max(1, durationMs);
-                vStrong.vibrate(VibrationEffect.createOneShot(duration, amplitude));
-            } else {
-                vStrong.cancel();
+            if (vibratorIds.length >= 1) {
+                Vibrator vStrong = vibratorManager.getVibrator(vibratorIds[0]);
+                if (!shouldCancel && strong > 0) {
+                    int amplitude = clampAmplitude(strong);
+                    vStrong.vibrate(VibrationEffect.createOneShot(duration, amplitude));
+                } else {
+                    vStrong.cancel();
+                }
             }
+
+            if (vibratorIds.length >= 2) {
+                Vibrator vWeak = vibratorManager.getVibrator(vibratorIds[1]);
+                if (!shouldCancel && weak > 0) {
+                    int amplitude = clampAmplitude(weak);
+                    vWeak.vibrate(VibrationEffect.createOneShot(duration, amplitude));
+                } else {
+                    vWeak.cancel();
+                }
+            }
+            return;
         }
 
-        if (vibratorIds.length >= 2) {
-            Vibrator vWeak = vibratorManager.getVibrator(vibratorIds[1]);
-            if (!shouldCancel && weak > 0) {
-                int amplitude = clampAmplitude(weak);
-                int duration = Math.max(1, durationMs);
-                vWeak.vibrate(VibrationEffect.createOneShot(duration, amplitude));
+        // --- Single-motor path ---
+        if (vibrator == null || !vibrator.hasVibrator())
+            return;
+
+        if (!shouldCancel && (strong > 0 || weak > 0)) {
+            int intensity = Math.max(strong, weak);
+            int amplitude = clampAmplitude(intensity);
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(duration, amplitude));
             } else {
-                vWeak.cancel();
+                vibrator.vibrate(duration);
             }
-        }
-        return;
-    }
-
-    // --- Single-motor path ---
-    if (vibrator == null || !vibrator.hasVibrator())
-        return;
-
-    if (!shouldCancel && (strong > 0 || weak > 0)) {
-        int intensity = Math.max(strong, weak);
-        int amplitude = clampAmplitude(intensity);
-        int duration = Math.max(1, durationMs);
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createOneShot(duration, amplitude));
         } else {
-            vibrator.vibrate(duration);
+            vibrator.cancel();
         }
-    } else {
-        vibrator.cancel();
     }
-}
 
 /** Maps a 0–65535 intensity value to a 1–255 VibrationEffect amplitude. */
 private int clampAmplitude(int value) {

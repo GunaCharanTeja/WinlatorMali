@@ -109,7 +109,9 @@ public class EffectComposer {
                     GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
                 }
 
-                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                if (renderToScreen && !renderer.isFullscreen()) {
+                    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                }
                 renderEffect(effect);
 
                 if (!renderToScreen) swapBuffers();

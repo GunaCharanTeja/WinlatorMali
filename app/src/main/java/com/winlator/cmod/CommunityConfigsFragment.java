@@ -58,6 +58,7 @@ public class CommunityConfigsFragment extends Fragment {
             ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle("Community Configs");
         }
         
+        ThemeManager.applyThemeToView(view, getContext());
         loadGames();
         return view;
     }

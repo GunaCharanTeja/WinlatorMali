@@ -9,41 +9,43 @@
 
     <LinearLayout
         android:id="@+id/LLPreloaderBackground"
-        android:layout_width="300dp"
+        android:layout_width="280dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:padding="16dp"
         android:layout_gravity="center"
-        android:background="@drawable/preloader_background">
+        android:elevation="8dp"
+        android:background="@drawable/bordered_panel_dark">
 
         <TextView
             android:id="@+id/TVTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="18sp"
+            android:textSize="15sp"
             android:textStyle="bold"
-            android:textColor="@color/colorPrimaryDark"
+            android:textColor="?attr/colorAccent"
             android:text="Copying files..."
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="10dp" />
 
         <TextView
             android:id="@+id/TVFileName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:singleLine="true"
             android:ellipsize="middle"
             android:textColor="?android:textColorSecondary"
             android:text="filename.ext"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="6dp" />
 
         <ProgressBar
             android:id="@+id/ProgressBar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:progressTint="?attr/colorAccent"
             android:max="100"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="6dp" />
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -53,7 +55,8 @@
                 android:id="@+id/TVProgressPercentage"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="12sp"
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorPrimary"
                 android:text="0%"
                 android:layout_alignParentLeft="true" />
 
@@ -61,7 +64,8 @@
                 android:id="@+id/TVProgressSize"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="12sp"
+                android:textSize="11sp"
+                android:textColor="?android:textColorSecondary"
                 android:text="0 MB / 0 MB"
                 android:layout_alignParentRight="true" />
         </RelativeLayout>
@@ -70,16 +74,15 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="?android:listDivider"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:layout_marginBottom="8dp" />
 
         <Button
             android:id="@+id/BTCancel"
-            style="?android:attr/borderlessButtonStyle"
+            style="@style/ButtonNeutral"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="right"
-            android:text="@string/cancel"
-            android:textColor="@color/colorAccent" />
+            android:layout_height="36dp"
+            android:layout_gravity="end"
+            android:text="@string/cancel" />
     </LinearLayout>
 </FrameLayout>

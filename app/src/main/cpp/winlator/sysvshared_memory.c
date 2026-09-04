@@ -50,7 +50,7 @@ JNIEXPORT jint JNICALL
 Java_com_winlator_cmod_sysvshm_SysVSharedMemory_ashmemCreateRegion(JNIEnv *env, jobject obj, jint index,
                                                               jlong size) {
     char name[32];
-    sprintf(name, "sysvshm-%d", index);
+    snprintf(name, sizeof(name), "sysvshm-%d", index);
     return ashmemCreateRegion(name, size);
 }
 

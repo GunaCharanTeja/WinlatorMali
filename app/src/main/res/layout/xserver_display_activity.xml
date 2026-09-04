@@ -17,12 +17,18 @@
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:id="@+id/NavigationView"
-        android:background="#ffffff"
+        android:background="@drawable/content_dialog_background_dark"
         android:focusable="true"
         android:focusableInTouchMode="true"
         android:pointerIcon="arrow"
         app:headerLayout="@layout/main_menu_header"
-        app:itemIconTint="@color/colorAccent"
+        app:itemIconTint="?attr/colorAccent"
+        app:itemTextColor="#ffffff"
+        app:itemShapeInsetStart="10dp"
+        app:itemShapeInsetEnd="10dp"
+        app:itemHorizontalPadding="16dp"
+        app:itemIconPadding="14dp"
+        app:itemMaxLines="1"
         app:menu="@menu/xserver_menu"/>
 
     <EditText

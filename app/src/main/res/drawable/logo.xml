@@ -1,0 +1,21 @@
+﻿<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- Cyber Shield / Hex Base -->
+    <path
+        android:fillColor="?attr/colorAccent"
+        android:pathData="M32,4L8,16v18c0,16.5 10.2,31.8 24,36 13.8,-4.2 24,-19.5 24,-36V16L32,4z" />
+    <path
+        android:fillColor="#0A0E1A"
+        android:pathData="M32,8L12,18v16c0,14 8.7,27 20,30.5 11.3,-3.5 20,-16.5 20,-30.5V18L32,8z" />
+    <!-- Stylized Futuristic 'W' (Winlator) -->
+    <path
+        android:fillColor="?attr/colorAccent"
+        android:pathData="M18,22l4.5,18 5,-14h9l5,14 4.5,-18h5l-7,26h-8l-4.5,-13L26.5,48h-8L11.5,22H18z" />
+    <!-- Mali Accent Core Diamond -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,26L36,32L32,38L28,32Z" />
+</vector>

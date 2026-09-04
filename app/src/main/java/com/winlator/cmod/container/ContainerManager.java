@@ -3,6 +3,7 @@ package com.winlator.cmod.container;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.contents.ContentsManager;
@@ -274,20 +275,34 @@ public class ContainerManager {
         return null;
     }
 
-    private void extractCommonDlls(WineInfo wineInfo, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
+    private void extractCommonDlls(WineInfo wineInfo, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) {
+        if (wineInfo == null || wineInfo.path == null || wineInfo.path.isEmpty()) return;
+
         File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
+        if (!srcDir.exists()) {
+            srcDir = new File(wineInfo.path + "/lib64/wine/" + srcName);
+        }
+        if (!srcDir.exists()) {
+            srcDir = new File(wineInfo.path + "/lib/" + srcName);
+        }
 
         File[] srcfiles = srcDir.listFiles(file -> file.isFile());
+        if (srcfiles == null) {
+            Log.w("ContainerManager", "Common DLL directory does not exist or has no files: " + srcDir.getAbsolutePath());
+            return;
+        }
 
         for (File file : srcfiles) {
             String dllName = file.getName();
-            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows"))
-                file = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
+            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
+                File iexploreFile = new File(wineInfo.path + "/lib/wine/i386-windows/iexplore.exe");
+                if (iexploreFile.exists()) file = iexploreFile;
+            }
             if (dllName.equals("tabtip.exe") || dllName.equals("icu.dll"))
                 continue;
             File dstFile = new File(containerDir, ".wine/drive_c/windows/" + dstName + "/" + dllName);
             if (dstFile.exists()) continue;
-            if (onExtractFileListener != null ) {
+            if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
@@ -297,28 +312,52 @@ public class ContainerManager {
 
     public boolean extractContainerPatternFile(Container container, String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
+        Log.d("ContainerManager", "Extracting pattern for wine: " + wineVersion + " at path: " + wineInfo.path);
+
+        // 1. Extract container_pattern_common.tzst from assets if available
+        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "container_pattern_common.tzst", containerDir, onExtractFileListener);
+
+        // 2. Try extracting specific version container pattern from assets
         String containerPattern = wineVersion + "_container_pattern.tzst";
         boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
 
-        if (!result) {
-            File containerPatternFile = new File(wineInfo.path + "/prefixPack.txz");
-            result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, containerPatternFile, containerDir);
+        // 3. If not in assets, check local wine installation directory for pattern archives
+        if (!result && wineInfo.path != null && !wineInfo.path.isEmpty()) {
+            File[] possiblePatterns = new File[] {
+                new File(wineInfo.path, "prefixPack.tzst"),
+                new File(wineInfo.path, "prefixPack.txz"),
+                new File(wineInfo.path, containerPattern),
+                new File(wineInfo.path, "container_pattern.tzst"),
+                new File(wineInfo.path, "prefixPack")
+            };
+
+            for (File pFile : possiblePatterns) {
+                if (pFile.exists() && pFile.length() > 0) {
+                    Log.d("ContainerManager", "Found pattern file on disk: " + pFile.getAbsolutePath());
+                    // Try ZSTD extraction
+                    result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, pFile, containerDir);
+                    if (!result) {
+                        // Try XZ extraction
+                        result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, pFile, containerDir);
+                    }
+                    if (result) break;
+                }
+            }
         }
 
-        if (result) {
-            try {
-                if (wineInfo.isArm64EC())
-                    extractCommonDlls(wineInfo, "aarch64-windows", "system32", containerDir, onExtractFileListener); // arm64ec only
-                else
-                    extractCommonDlls(wineInfo, "x86_64-windows", "system32", containerDir, onExtractFileListener);
+        // 4. Extract common DLLs (system32 / syswow64) from Wine runtime
+        try {
+            if (wineInfo.isArm64EC())
+                extractCommonDlls(wineInfo, "aarch64-windows", "system32", containerDir, onExtractFileListener);
+            else
+                extractCommonDlls(wineInfo, "x86_64-windows", "system32", containerDir, onExtractFileListener);
 
-                extractCommonDlls(wineInfo, "i386-windows", "syswow64", containerDir, onExtractFileListener);
-            }
-            catch (JSONException e) {
-                return false;
-            }
+            extractCommonDlls(wineInfo, "i386-windows", "syswow64", containerDir, onExtractFileListener);
+            result = true;
+        } catch (Exception e) {
+            Log.e("ContainerManager", "Error extracting common DLLs", e);
         }
-   
+
         return result;
     }
 

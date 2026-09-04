@@ -56,42 +56,15 @@ public class RadialWheelsDialog {
         dialog.setTitle(profile != null ? "Radial Wheels (" + profile.getName() + ")" : "Radial Wheels (Controller)");
         dialog.setIcon(R.drawable.icon_radial_wheel);
 
-        android.content.SharedPreferences preferences = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = preferences.getBoolean("dark_mode", true);
-        int textColor = isDarkMode ? android.graphics.Color.WHITE : android.graphics.Color.BLACK;
-        int hintColor = isDarkMode ? 0x88FFFFFF : 0x88000000;
-        int editBgRes = isDarkMode ? R.drawable.edit_text_dark : R.drawable.edit_text;
-        int popupBgRes = isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background;
-
-        // Apply dark/light styling to labels
-        TextView tvWheelLabel = dialog.findViewById(R.id.TVWheelLabel);
-        TextView tvPropertiesLabel = dialog.findViewById(R.id.TVPropertiesLabel);
-        TextView tvSlicesLabel = dialog.findViewById(R.id.TVSlicesLabel);
-        if (isDarkMode) {
-            if (tvWheelLabel != null) { tvWheelLabel.setTextColor(android.graphics.Color.parseColor("#cccccc")); tvWheelLabel.setBackgroundColor(android.graphics.Color.parseColor("#424242")); }
-            if (tvPropertiesLabel != null) { tvPropertiesLabel.setTextColor(android.graphics.Color.parseColor("#cccccc")); tvPropertiesLabel.setBackgroundColor(android.graphics.Color.parseColor("#424242")); }
-            if (tvSlicesLabel != null) { tvSlicesLabel.setTextColor(android.graphics.Color.parseColor("#cccccc")); tvSlicesLabel.setBackgroundColor(android.graphics.Color.parseColor("#424242")); }
-        }
+        ThemeManager.applyThemeToView(dialog.getContentView(), context);
 
         Spinner spWheelSelect = dialog.findViewById(R.id.SPWheelSelect);
-        spWheelSelect.setPopupBackgroundResource(popupBgRes);
-
         View btAddWheel = dialog.findViewById(R.id.BTAddWheel);
         View btRemoveWheel = dialog.findViewById(R.id.BTRemoveWheel);
-
         android.widget.CheckBox cbEnableWheel = dialog.findViewById(R.id.CBEnableWheel);
-
         EditText etWheelName = dialog.findViewById(R.id.ETWheelName);
-        etWheelName.setBackgroundResource(editBgRes);
-        etWheelName.setTextColor(textColor);
-        etWheelName.setHintTextColor(hintColor);
-
         Spinner spTriggerBinding = dialog.findViewById(R.id.SPTriggerBinding);
-        spTriggerBinding.setPopupBackgroundResource(popupBgRes);
-
         Spinner spTriggerBinding2 = dialog.findViewById(R.id.SPTriggerBinding2);
-        spTriggerBinding2.setPopupBackgroundResource(popupBgRes);
-
         TextView tvWheelIconScale = dialog.findViewById(R.id.TVWheelIconScale);
         android.widget.SeekBar sbWheelIconScale = dialog.findViewById(R.id.SBWheelIconScale);
         LinearLayout llSlicesContainer = dialog.findViewById(R.id.LLSlicesContainer);
@@ -116,10 +89,10 @@ public class RadialWheelsDialog {
             bindingNames[i] = allBindings[i].toString();
         }
 
-        ArrayAdapter<String> triggerAdapter = createThemedAdapter(context, bindingNames, isDarkMode);
+        ArrayAdapter<String> triggerAdapter = createThemedAdapter(context, bindingNames);
         spTriggerBinding.setAdapter(triggerAdapter);
 
-        ArrayAdapter<String> triggerAdapter2 = createThemedAdapter(context, bindingNames, isDarkMode);
+        ArrayAdapter<String> triggerAdapter2 = createThemedAdapter(context, bindingNames);
         spTriggerBinding2.setAdapter(triggerAdapter2);
 
         sbWheelIconScale.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
@@ -190,7 +163,7 @@ public class RadialWheelsDialog {
                 RadialWheelConfig w = wheels.get(i);
                 wheelLabels.add((i + 1) + ". " + (w.name != null && !w.name.isEmpty() ? w.name : "Wheel " + (i + 1)));
             }
-            ArrayAdapter<String> adapter = createThemedAdapter(context, wheelLabels.toArray(new String[0]), isDarkMode);
+            ArrayAdapter<String> adapter = createThemedAdapter(context, wheelLabels.toArray(new String[0]));
             spWheelSelect.setAdapter(adapter);
             if (currentWheelIndex[0] < wheels.size()) {
                 spWheelSelect.setSelection(currentWheelIndex[0]);
@@ -238,25 +211,16 @@ public class RadialWheelsDialog {
             for (int i = 0; i < RadialWheelConfig.MAX_SLICES; i++) {
                 RadialWheelSlice slice = cfg.slices.get(i);
                 View sliceView = LayoutInflater.from(context).inflate(R.layout.radial_wheel_slice_item, llSlicesContainer, false);
+                ThemeManager.applyThemeToView(sliceView, context);
 
                 TextView tvIndex = sliceView.findViewById(R.id.TVSliceIndex);
                 ImageView ivIcon = sliceView.findViewById(R.id.IVSliceIcon);
                 EditText etLabel = sliceView.findViewById(R.id.ETSliceLabel);
-                etLabel.setBackgroundResource(editBgRes);
-                etLabel.setTextColor(textColor);
-                etLabel.setHintTextColor(hintColor);
-
                 Spinner spBinding = sliceView.findViewById(R.id.SPSliceBinding);
-                spBinding.setPopupBackgroundResource(popupBgRes);
-
                 ImageView btComboExpand = sliceView.findViewById(R.id.BTComboExpand);
                 LinearLayout llComboRow = sliceView.findViewById(R.id.LLComboRow);
-
                 Spinner spBinding2 = sliceView.findViewById(R.id.SPSliceBinding2);
-                spBinding2.setPopupBackgroundResource(popupBgRes);
-
                 Spinner spBinding3 = sliceView.findViewById(R.id.SPSliceBinding3);
-                spBinding3.setPopupBackgroundResource(popupBgRes);
 
                 tvIndex.setText(String.valueOf(i + 1));
                 etLabel.setText(slice.label != null ? slice.label : "");
@@ -264,7 +228,7 @@ public class RadialWheelsDialog {
                 updateSliceIconView(context, ivIcon, slice.iconId);
                 ivIcon.setOnClickListener(v -> showIconPickerDialog(context, slice, () -> updateSliceIconView(context, ivIcon, slice.iconId)));
 
-                ArrayAdapter<String> sliceBindingAdapter = createThemedAdapter(context, bindingNames, isDarkMode);
+                ArrayAdapter<String> sliceBindingAdapter = createThemedAdapter(context, bindingNames);
                 spBinding.setAdapter(sliceBindingAdapter);
                 spBinding2.setAdapter(sliceBindingAdapter);
                 spBinding3.setAdapter(sliceBindingAdapter);
@@ -383,7 +347,7 @@ public class RadialWheelsDialog {
             if (bmp != null) {
                 iv.setImageBitmap(bmp);
                 if (iconId <= com.winlator.cmod.inputcontrols.CustomIconManager.BUILTIN_ICON_MAX) {
-                    iv.setColorFilter(context.getResources().getColor(R.color.colorAccent));
+                    iv.setColorFilter(ThemeManager.getAccentColor(context));
                 } else {
                     iv.setColorFilter(null);
                 }
@@ -404,8 +368,8 @@ public class RadialWheelsDialog {
         });
     }
 
-    private static ArrayAdapter<String> createThemedAdapter(Context context, String[] items, boolean isDarkMode) {
-        int itemTextColor = isDarkMode ? android.graphics.Color.WHITE : android.graphics.Color.BLACK;
+    private static ArrayAdapter<String> createThemedAdapter(Context context, String[] items) {
+        int itemTextColor = ThemeManager.getOnSurfaceTextColor(context);
         return new ArrayAdapter<String>(context, android.R.layout.simple_spinner_dropdown_item, items) {
             @Override
             public View getView(int position, View convertView, android.view.ViewGroup parent) {

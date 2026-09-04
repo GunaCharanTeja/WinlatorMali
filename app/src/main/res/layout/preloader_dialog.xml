@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center"
@@ -11,26 +12,29 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="22dp"
-        android:paddingBottom="22dp"
-        android:paddingLeft="32dp"
-        android:paddingRight="32dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="24dp"
         android:gravity="center_vertical"
         android:layout_gravity="center"
-        android:background="@drawable/preloader_background">
+        android:elevation="8dp"
+        android:background="@drawable/bordered_panel_dark">
 
         <ProgressBar
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:id="@+id/ProgressBar"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:indeterminate="true"
-            android:layout_marginRight="16dp"
-            android:indeterminateDrawable="@drawable/progress_bar_indeterminate" />
+            android:layout_marginEnd="14dp"
+            android:indeterminateTint="?attr/colorAccent" />
 
         <TextView
             android:id="@+id/TextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="20dp"
-            android:textColor="@color/colorPrimaryDark" />
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary" />
     </LinearLayout>
 </FrameLayout>

@@ -1,161 +1,233 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
     <LinearLayout
         android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:padding="16dp">
 
+        <!-- SECTION 1: CONTROL PROFILE -->
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/profile" />
-
-        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <Spinner
-                style="@style/ComboBox"
-                android:id="@+id/SProfile"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:spinnerMode="dialog"/>
-
-            <ImageButton
-                style="@style/ListMenuButton"
-                android:id="@+id/BTAddProfile"
-                android:src="@drawable/icon_add" />
-
-            <ImageButton
-                style="@style/ListMenuButton"
-                android:id="@+id/BTEditProfile"
-                android:src="@drawable/icon_edit" />
-
-            <ImageButton
-                style="@style/ListMenuButton"
-                android:id="@+id/BTDuplicateProfile"
-                android:src="@drawable/icon_duplicate" />
-
-            <ImageButton
-                style="@style/ListMenuButton"
-                android:id="@+id/BTRemoveProfile"
-                android:layout_marginRight="0dp"
-                android:src="@drawable/icon_remove" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/overlay_opacity"/>
-
-            <TextView
-                android:id="@+id/TVUiOpacity"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <SeekBar
-            android:id="@+id/SBOverlayOpacity"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:min="10"
-            android:max="100" />
-
-
-
-
-
-        <View
-            style="@style/HorizontalLine"
-            android:layout_marginTop="16dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <Button
-                style="@style/ButtonNeutral"
-                android:id="@+id/BTImportProfile"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/import_profile" />
-
-            <Button
-                style="@style/ButtonNeutral"
-                android:id="@+id/BTExportProfile"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/export_profile" />
-        </LinearLayout>
-
-        <View style="@style/HorizontalLine" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <Button
-                style="@style/ButtonPositive"
-                android:id="@+id/BTControlsEditor"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="4dp"
-                android:text="@string/controls_editor" />
-
-            <Button
-                style="@style/ButtonNeutral"
-                android:id="@+id/BTRadialWheelSettings"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="4dp"
-                android:text="Radial Wheels" />
-        </LinearLayout>
-
-
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:tag="section_header"
+            android:text="@string/profile"
             android:textStyle="bold"
-            android:text="@string/external_controllers"
-            android:textColor="@color/colorPrimary"
-            android:layout_marginTop="8dp" />
-
-        <View style="@style/HorizontalLine" />
+            android:textSize="14sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="8dp" />
 
         <LinearLayout
-            android:id="@+id/LLExternalControllers"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="14dp"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/select_profile"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginBottom="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <Spinner
+                    style="@style/ComboBox"
+                    android:id="@+id/SProfile"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:spinnerMode="dropdown"/>
+
+                <ImageButton
+                    style="@style/ListMenuButton"
+                    android:id="@+id/BTAddProfile"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="4dp"
+                    android:padding="6dp"
+                    app:tint="?attr/colorAccent"
+                    android:src="@drawable/icon_add"
+                    android:contentDescription="Add" />
+
+                <ImageButton
+                    style="@style/ListMenuButton"
+                    android:id="@+id/BTEditProfile"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="4dp"
+                    android:padding="6dp"
+                    app:tint="?attr/colorAccent"
+                    android:src="@drawable/icon_edit"
+                    android:contentDescription="Edit" />
+
+                <ImageButton
+                    style="@style/ListMenuButton"
+                    android:id="@+id/BTDuplicateProfile"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="4dp"
+                    android:padding="6dp"
+                    app:tint="?attr/colorAccent"
+                    android:src="@drawable/icon_duplicate"
+                    android:contentDescription="Duplicate" />
+
+                <ImageButton
+                    style="@style/ListMenuButton"
+                    android:id="@+id/BTRemoveProfile"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="4dp"
+                    android:padding="6dp"
+                    app:tint="?attr/colorAccent"
+                    android:src="@drawable/icon_remove"
+                    android:contentDescription="Remove" />
+            </LinearLayout>
+
+            <!-- Overlay Opacity -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/overlay_opacity"
+                    android:textStyle="bold"
+                    android:textSize="13sp"
+                    android:textColor="?android:attr/textColorSecondary" />
+
+                <TextView
+                    android:id="@+id/TVUiOpacity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textStyle="bold"
+                    android:textSize="13sp"
+                    android:textColor="?attr/colorAccent" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/SBOverlayOpacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:min="10"
+                android:max="100" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginBottom="12dp" />
+
+            <!-- Import / Export Profile Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <Button
+                    style="@style/ButtonNeutral"
+                    android:id="@+id/BTImportProfile"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="@string/import_profile" />
+
+                <Button
+                    style="@style/ButtonNeutral"
+                    android:id="@+id/BTExportProfile"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/export_profile" />
+            </LinearLayout>
+
+            <!-- Controls Editor & Radial Wheels Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    style="@style/ButtonPositive"
+                    android:id="@+id/BTControlsEditor"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="@string/controls_editor" />
+
+                <Button
+                    style="@style/ButtonNeutral"
+                    android:id="@+id/BTRadialWheelSettings"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="Radial Wheels" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- SECTION 2: EXTERNAL CONTROLLERS -->
         <TextView
-            android:id="@+id/TVEmptyText"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="@string/no_items_to_display"
-            android:visibility="gone" />
+            android:layout_height="wrap_content"
+            android:tag="section_header"
+            android:text="@string/external_controllers"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="14dp"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:id="@+id/LLExternalControllers"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/TVEmptyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingVertical="16dp"
+                android:gravity="center"
+                android:text="@string/no_items_to_display"
+                android:textSize="13sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:visibility="gone" />
+        </LinearLayout>
+
     </LinearLayout>
 </ScrollView>

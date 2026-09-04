@@ -28,6 +28,7 @@
         <item name="semanticDivider">#e0e0e0</item>
         <item name="semanticAccentDim">#b30288d1</item>
         <item name="semanticSurfaceContainer">#f8f9fa</item>
+        <item name="tabStyle">@style/CustomTabLayout.Light</item>
     </style>
 
     <!-- Dark Theme -->
@@ -48,6 +49,7 @@
 
         <item name="gamingSurfaceColor">@color/gaming_surface_dark</item>
         <item name="gamingCardSubtitleColor">#b3ffffff</item>
+        <item name="tabStyle">@style/CustomTabLayout.Dark</item>
         <item name="gamingPopupColor">#f2263238</item>
         <item name="gamingToolbarColor">@color/colorPrimaryDarkMode</item>
 
@@ -82,12 +84,15 @@
         <item name="android:layout_height">42dp</item>
         <item name="android:focusable">true</item>
         <item name="android:clickable">true</item>
-        <item name="android:textSize">16sp</item>
-        <item name="android:gravity">left|center_vertical</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:gravity">start|center_vertical</item>
         <item name="android:paddingLeft">12dp</item>
-        <item name="android:paddingRight">36dp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingRight">42dp</item>
+        <item name="android:paddingEnd">42dp</item>
         <item name="android:paddingTop">0dp</item>
         <item name="android:paddingBottom">0dp</item>
+        <item name="android:singleLine">true</item>
         <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
         <item name="android:spinnerMode">dropdown</item>
@@ -257,23 +262,23 @@
     <style name="ToolButton" parent="BaseImageButton">
         <item name="android:layout_marginLeft">2dp</item>
         <item name="android:layout_marginRight">2dp</item>
-        <item name="android:tint">@color/colorPrimary</item>
+        <item name="android:tint">?attr/colorAccent</item>
     </style>
 
     <style name="ToolButton.Dark" parent="BaseImageButton">
-        <item name="android:tint">@color/colorPrimaryDarkMode</item>
+        <item name="android:tint">?attr/colorAccent</item>
     </style>
 
     <style name="ListMenuButton" parent="BaseImageButton">
         <item name="android:layout_width">34dp</item>
         <item name="android:layout_height">34dp</item>
-        <item name="android:tint">@color/colorPrimaryDark</item>
+        <item name="android:tint">?attr/colorAccent</item>
         <item name="android:layout_marginLeft">2dp</item>
         <item name="android:layout_marginRight">2dp</item>
     </style>
 
     <style name="ListMenuButton.Dark" parent="ListMenuButton">
-        <item name="android:tint">@color/colorPrimaryDarkModeDark</item>
+        <item name="android:tint">?attr/colorAccent</item>
     </style>
 
     <!-- Line Styles -->
@@ -387,6 +392,22 @@
 
     <style name="TabLayoutBackground.Dark" >
         <item name="android:background">@drawable/tab_layout_background_dark</item>
+    </style>
+
+    <style name="CustomTabLayout.Light" parent="Widget.Design.TabLayout">
+        <item name="tabTextColor">#121212</item>
+        <item name="tabSelectedTextColor">#121212</item>
+        <item name="tabIndicatorColor">?attr/colorAccent</item>
+        <item name="tabIndicatorHeight">3dp</item>
+        <item name="tabIndicatorFullWidth">false</item>
+    </style>
+
+    <style name="CustomTabLayout.Dark" parent="Widget.Design.TabLayout">
+        <item name="tabTextColor">#FFFFFF</item>
+        <item name="tabSelectedTextColor">#FFFFFF</item>
+        <item name="tabIndicatorColor">?attr/colorAccent</item>
+        <item name="tabIndicatorHeight">3dp</item>
+        <item name="tabIndicatorFullWidth">false</item>
     </style>
 
     <style name="SpinnerDialogDark" parent="Theme.AppCompat.Light.Dialog">
@@ -689,6 +710,14 @@
         <item name="windowNoTitle">false</item>
     </style>
 
+    <style name="TextAppearance.Winlator.Toolbar.Title" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
     <style name="Toolbox">
         <item name="android:gravity">center_vertical</item>
         <item name="android:orientation">horizontal</item>
@@ -706,7 +735,8 @@
         <item name="android:padding">6.0dip</item>
         <item name="android:layout_width">40.0dip</item>
         <item name="android:layout_height">36.0dip</item>
-        <item name="tint">@color/colorPrimary</item>
+        <item name="tint">?attr/colorAccent</item>
+        <item name="android:tint">?attr/colorAccent</item>
     </style>
 
     <style name="RightSideButton">
@@ -714,7 +744,8 @@
         <item name="android:padding">6.0dip</item>
         <item name="android:layout_width">40.0dip</item>
         <item name="android:layout_height">36.0dip</item>
-        <item name="tint">@color/colorPrimary</item>
+        <item name="tint">?attr/colorAccent</item>
+        <item name="android:tint">?attr/colorAccent</item>
     </style>
 
 
@@ -749,12 +780,15 @@
             <item name="android:layout_height">42dp</item>
             <item name="android:focusable">true</item>
             <item name="android:clickable">true</item>
-            <item name="android:textSize">16sp</item>
-            <item name="android:gravity">left|center_vertical</item>
+            <item name="android:textSize">14sp</item>
+            <item name="android:gravity">start|center_vertical</item>
             <item name="android:paddingLeft">12dp</item>
-            <item name="android:paddingRight">36dp</item>
+            <item name="android:paddingStart">12dp</item>
+            <item name="android:paddingRight">42dp</item>
+            <item name="android:paddingEnd">42dp</item>
             <item name="android:paddingTop">0dp</item>
             <item name="android:paddingBottom">0dp</item>
+            <item name="android:singleLine">true</item>
             <item name="android:maxLines">1</item>
             <item name="android:ellipsize">end</item>
             <item name="android:spinnerMode">dropdown</item>
@@ -766,13 +800,17 @@
             <item name="android:layout_height">42dp</item>
             <item name="android:focusable">true</item>
             <item name="android:clickable">true</item>
-            <item name="android:textSize">16sp</item>
-            <item name="android:gravity">left|center_vertical</item>
+            <item name="android:textSize">14sp</item>
+            <item name="android:gravity">start|center_vertical</item>
             <item name="android:paddingLeft">12dp</item>
-            <item name="android:paddingRight">36dp</item>
+            <item name="android:paddingStart">12dp</item>
+            <item name="android:paddingRight">42dp</item>
+            <item name="android:paddingEnd">42dp</item>
             <item name="android:paddingTop">0dp</item>
             <item name="android:paddingBottom">0dp</item>
+            <item name="android:singleLine">true</item>
             <item name="android:maxLines">1</item>
+            <item name="android:ellipsize">end</item>
             <item name="android:background">@drawable/combo_box</item>
         </style>
         <style name="ListPopupWindow" parent="@android:style/Widget.ListPopupWindow">
@@ -856,12 +894,12 @@
         <style name="ToolButton" parent="BaseImageButton">
             <item name="android:layout_marginLeft">2dp</item>
             <item name="android:layout_marginRight">2dp</item>
-            <item name="android:tint">@color/colorPrimary</item>
+            <item name="android:tint">?attr/colorAccent</item>
         </style>
         <style name="ListMenuButton" parent="BaseImageButton">
             <item name="android:layout_width">34dp</item>
             <item name="android:layout_height">34dp</item>
-            <item name="android:tint">@color/colorPrimaryDark</item>
+            <item name="android:tint">?attr/colorAccent</item>
             <item name="android:layout_marginLeft">2dp</item>
             <item name="android:layout_marginRight">2dp</item>
         </style>
@@ -902,12 +940,16 @@
         <style name="FieldSetLabel">
             <item name="android:layout_width">wrap_content</item>
             <item name="android:layout_height">wrap_content</item>
-            <item name="android:background">@color/window_background_color</item>
+            <item name="android:background">@android:color/transparent</item>
             <item name="android:orientation">vertical</item>
-            <item name="android:paddingLeft">4dp</item>
-            <item name="android:paddingRight">4dp</item>
-            <item name="android:layout_marginLeft">8dp</item>
-            <item name="android:textColor">#bdbdbd</item>
+            <item name="android:paddingLeft">6dp</item>
+            <item name="android:paddingRight">6dp</item>
+            <item name="android:paddingTop">2dp</item>
+            <item name="android:paddingBottom">2dp</item>
+            <item name="android:layout_marginLeft">12dp</item>
+            <item name="android:textColor">?attr/colorAccent</item>
+            <item name="android:textSize">13sp</item>
+            <item name="android:textStyle">bold</item>
         </style>
         <style name="TableHeadBackground">
             <item name="android:layout_width">wrap_content</item>

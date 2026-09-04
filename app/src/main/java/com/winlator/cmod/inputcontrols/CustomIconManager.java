@@ -53,13 +53,13 @@ public class CustomIconManager {
             customIconsDir.mkdirs();
         }
 
-        // Cache up to 150 icons in memory (~6-8 MB RAM)
-        final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
-        final int cacheSize = Math.min(maxMemory / 12, 150);
-        this.memoryCache = new LruCache<Integer, Bitmap>(cacheSize) {
+        // Cache up to 16 MB of icon bitmaps in memory (byte-accurate)
+        final int maxMemoryKb = (int) (Runtime.getRuntime().maxMemory() / 1024);
+        final int cacheSizeKb = Math.min(maxMemoryKb / 12, 16 * 1024);
+        this.memoryCache = new LruCache<Integer, Bitmap>(cacheSizeKb) {
             @Override
             protected int sizeOf(Integer key, Bitmap bitmap) {
-                return 1;
+                return (bitmap != null && !bitmap.isRecycled()) ? (bitmap.getByteCount() / 1024) : 1;
             }
         };
     }

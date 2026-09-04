@@ -334,11 +334,7 @@ EXPORT int ioctl(int fd, int op, ...) {
     }
     else if (type == 0x45 && number == 0x6) {
     	Logger::log("Hooking ioctl EVIOCGNAME for event %s\n", event);
-    	char *name;
-    	
-    	asprintf(&name, "Generic HID Gamepad %d", event_number);
-    	
-    	strcpy((char *)argp, name);
+    	snprintf((char *)argp, 256, "Generic HID Gamepad %d", event_number);
     	return 0;
     }
     else if (type == 0x45 && number == 0x9) {
@@ -464,9 +460,7 @@ EXPORT int ioctl(int fd, int op, ...) {
     }
     else if (type == 0x6A && number == 0x13) {
     	Logger::log("Hooking ioctl JSIOCGNAME(len) for event %s\n", event);
-    	char *name;
-        asprintf(&name, "Generic HID Gamepad %d", event_number);
-    	strcpy((char *)argp, name);
+        snprintf((char *)argp, 256, "Generic HID Gamepad %d", event_number);
     	return 0;
     }
     else {

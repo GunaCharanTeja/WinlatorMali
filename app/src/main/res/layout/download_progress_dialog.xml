@@ -12,13 +12,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingTop="22dp"
-        android:paddingBottom="22dp"
-        android:paddingLeft="32dp"
-        android:paddingRight="32dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="24dp"
         android:layout_gravity="center"
-        android:gravity="right"
-        android:background="@drawable/preloader_background">
+        android:gravity="end"
+        android:elevation="8dp"
+        android:background="@drawable/bordered_panel_dark">
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -29,23 +30,25 @@
             <FrameLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginRight="16dp">
+                android:layout_marginEnd="14dp">
 
                 <com.google.android.material.progressindicator.CircularProgressIndicator
                     android:id="@+id/CircularProgressIndicator"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    app:trackThickness="10dp"
-                    app:trackColor="#bdbdbd"
-                    app:indicatorColor="@color/colorAccent"
-                    app:indicatorSize="64dp"
+                    app:trackThickness="3dp"
+                    app:trackColor="#33888888"
+                    app:indicatorColor="?attr/colorAccent"
+                    app:indicatorSize="32dp"
                     android:layout_gravity="center" />
 
                 <TextView
                     android:id="@+id/TVProgress"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="14dp"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:layout_gravity="center" />
             </FrameLayout>
 
@@ -53,8 +56,9 @@
                 android:id="@+id/TextView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="20dp"
-                android:textColor="@color/colorPrimaryDark"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
                 android:text="@string/downloading_file" />
         </LinearLayout>
 
@@ -62,13 +66,14 @@
             android:id="@+id/LLBottomBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             android:visibility="gone">
-
-            <View style="@style/HorizontalLine" />
 
             <Button
                 style="@style/ButtonNeutral"
                 android:text="@string/cancel"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
                 android:id="@+id/BTCancel" />
         </LinearLayout>
     </LinearLayout>

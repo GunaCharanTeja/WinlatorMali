@@ -1,56 +1,83 @@
 <?xml version="1.0" encoding="utf-8"?>
 <HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content">
+    android:layout_height="240dp"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="horizontal">
 
+        <!-- Process List Table -->
         <LinearLayout
-            android:layout_width="430dp"
+            android:layout_width="400dp"
             android:layout_height="match_parent"
-            android:background="@drawable/bordered_panel"
+            android:background="@drawable/bordered_panel_dark"
             android:orientation="vertical"
             android:padding="8dp">
 
+            <!-- Unified Clean Table Header -->
             <LinearLayout
                 android:id="@+id/LLTableHead"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="4dp"
+                android:layout_height="32dp"
+                android:background="@drawable/badge_background"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:layout_marginBottom="6dp"
                 android:orientation="horizontal">
 
+                <View
+                    android:layout_width="30dp"
+                    android:layout_height="1dp" />
+
                 <TextView
-                    style="@style/TableHeadBackground"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:text="@string/process_name" />
+                    android:layout_height="wrap_content"
+                    android:text="@string/process_name"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorAccent"
+                    android:paddingStart="2dp" />
 
                 <TextView
-                    style="@style/TableHeadBackground"
                     android:layout_width="60dp"
-                    android:text="@string/pid" />
+                    android:layout_height="wrap_content"
+                    android:text="@string/pid"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:textColor="?attr/colorAccent" />
 
                 <TextView
-                    style="@style/TableHeadBackground"
-                    android:layout_width="110dp"
-                    android:text="@string/memory" />
+                    android:layout_width="90dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/memory"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:gravity="end"
+                    android:paddingEnd="8dp"
+                    android:textColor="?attr/colorAccent" />
 
                 <View
-                    style="@style/TableHeadBackground"
-                    android:layout_width="40dp" />
+                    android:layout_width="36dp"
+                    android:layout_height="1dp" />
             </LinearLayout>
 
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:minHeight="140dp">
 
                 <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent">
+                    android:layout_height="match_parent"
+                    android:scrollbars="vertical"
+                    android:scrollbarStyle="insideOverlay">
 
                     <LinearLayout
                         android:id="@+id/LLProcessList"
@@ -65,14 +92,17 @@
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:text="@string/no_items_to_display"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:visibility="gone" />
             </FrameLayout>
         </LinearLayout>
 
+        <!-- Right Info Panel (CPU + RAM) -->
         <ScrollView
-            android:layout_width="140dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp">
+            android:layout_width="150dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="8dp"
+            android:scrollbars="vertical">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -82,7 +112,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bordered_panel"
+                    android:background="@drawable/bordered_panel_dark"
                     android:orientation="vertical"
                     android:padding="8dp">
 
@@ -90,12 +120,14 @@
                         android:id="@+id/TVCPUTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/colorPrimary"
-                        android:textStyle="bold" />
+                        android:textColor="?attr/colorAccent"
+                        android:textStyle="bold"
+                        android:textSize="12.5sp"
+                        android:layout_marginBottom="4dp" />
 
                     <LinearLayout
                         android:id="@+id/LLCPUInfo"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical" />
                 </LinearLayout>
@@ -104,7 +136,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:background="@drawable/bordered_panel"
+                    android:background="@drawable/bordered_panel_dark"
                     android:orientation="vertical"
                     android:padding="8dp">
 
@@ -112,13 +144,18 @@
                         android:id="@+id/TVMemoryTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/colorPrimary"
-                        android:textStyle="bold" />
+                        android:textColor="?attr/colorAccent"
+                        android:textStyle="bold"
+                        android:textSize="12.5sp"
+                        android:layout_marginBottom="4dp" />
 
                     <TextView
                         android:id="@+id/TVMemoryInfo"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="11.5sp"
+                        android:singleLine="true"
+                        android:textColor="#FFFFFF" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>

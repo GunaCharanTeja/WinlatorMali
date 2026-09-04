@@ -197,6 +197,12 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         this.shortcut = shortcut;
     }
 
+    public static int getPid() {
+        synchronized (lock) {
+            return pid;
+        }
+    }
+
     @Override
     public void start() {
         synchronized (lock) {
@@ -206,6 +212,9 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
                 extractBox64Files();
             checkDependencies();
             pid = execGuestProgram();
+            if (pid > 0) {
+                com.winlator.cmod.perf.PerformanceManager.updateGuestPid(null, pid);
+            }
         }
     }
 
@@ -450,6 +459,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
         execEnvVars.put("FAKE_EVDEV_DIR", devInputDir.getAbsolutePath());
         execEnvVars.put("FAKE_EVDEV_VIBRATION", "1");
+        execEnvVars.put("ENABLE_APEX_DEPTH_HOOK", "1");
 
         Log.d("GuestLauncher", "Final LD_PRELOAD: " + ld_preload);
         execEnvVars.put("LD_PRELOAD", ld_preload);
@@ -492,6 +502,15 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         if (this.envVars != null) {
             execEnvVars.putAll(this.envVars);
         }
+
+        // Apex Depth Hook is always directly active in runtime
+        String existingLayers = execEnvVars.get("VK_INSTANCE_LAYERS");
+        if (existingLayers == null || existingLayers.isEmpty()) {
+            execEnvVars.put("VK_INSTANCE_LAYERS", "VK_LAYER_APEX_depthhook");
+        } else if (!existingLayers.contains("VK_LAYER_APEX_depthhook")) {
+            execEnvVars.put("VK_INSTANCE_LAYERS", existingLayers + ":VK_LAYER_APEX_depthhook");
+        }
+        execEnvVars.put("ENABLE_APEX_DEPTH_HOOK", "1");
 
         String emulator = container.getEmulator();
         if (shortcut != null)

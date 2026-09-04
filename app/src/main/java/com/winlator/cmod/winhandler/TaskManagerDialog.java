@@ -182,19 +182,33 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
 
     private void updateCPUInfoView() {
         LinearLayout llCPUInfo = findViewById(R.id.LLCPUInfo);
-        llCPUInfo.removeAllViews();
         short[] clockSpeeds = CPUStatus.getCurrentClockSpeeds();
+        if (clockSpeeds == null || clockSpeeds.length == 0) return;
+
         int totalClockSpeed = 0;
         short maxClockSpeed = 0;
+        int childCount = llCPUInfo.getChildCount();
 
         for (int i = 0; i < clockSpeeds.length; i++) {
-            TextView textView = new TextView(activity);
-            textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            TextView textView;
+            if (i < childCount) {
+                textView = (TextView) llCPUInfo.getChildAt(i);
+            } else {
+                textView = new TextView(activity);
+                textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11.5f);
+                textView.setTextColor(0xFFE0E0E0);
+                textView.setSingleLine(true);
+                textView.setPadding(0, 1, 0, 1);
+                llCPUInfo.addView(textView);
+            }
             short clockSpeed = CPUStatus.getMaxClockSpeed(i);
-            textView.setText(clockSpeeds[i]+"/"+clockSpeed+" MHz");
-            llCPUInfo.addView(textView);
+            textView.setText("CPU " + i + ": " + clockSpeeds[i] + "/" + clockSpeed + " MHz");
             totalClockSpeed += clockSpeeds[i];
             maxClockSpeed = (short)Math.max(maxClockSpeed, clockSpeed);
+        }
+
+        while (llCPUInfo.getChildCount() > clockSpeeds.length) {
+            llCPUInfo.removeViewAt(llCPUInfo.getChildCount() - 1);
         }
 
         int avgClockSpeed = totalClockSpeed / clockSpeeds.length;
@@ -214,6 +228,7 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
         tvMemoryTitle.setText(activity.getString(R.string.memory)+" ("+memUsagePercent+"%)");
 
         TextView tvMemoryInfo = findViewById(R.id.TVMemoryInfo);
-        tvMemoryInfo.setText(StringUtils.formatBytes(usedMem, false)+"/"+StringUtils.formatBytes(memoryInfo.totalMem));
+        tvMemoryInfo.setSingleLine(true);
+        tvMemoryInfo.setText(StringUtils.formatBytes(usedMem, false)+" / "+StringUtils.formatBytes(memoryInfo.totalMem));
     }
 }

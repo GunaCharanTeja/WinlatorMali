@@ -24,10 +24,12 @@ import org.json.JSONObject;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ImageFsInstaller {
     public static final byte LATEST_VERSION = 21;
+    private static final AtomicBoolean isInstalling = new AtomicBoolean(false);
 
     private static void resetContainerImgVersions(Context context) {
         ContainerManager manager = new ContainerManager(context);
@@ -47,9 +49,14 @@ public abstract class ImageFsInstaller {
         String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
         File rootDir = ImageFs.find(activity).getRootDir();
         for (String version : versions) {
-            File outFile = new File(rootDir, "/opt/" + version);
-            outFile.mkdirs();
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile);
+            String assetName = version + ".tzst";
+            try {
+                java.io.InputStream is = activity.getAssets().open(assetName);
+                is.close();
+                File outFile = new File(rootDir, "/opt/" + version);
+                outFile.mkdirs();
+                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, assetName, outFile);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -62,6 +69,7 @@ public abstract class ImageFsInstaller {
     }
 
     public static void installFromAssets(final MainActivity activity) {
+        if (!isInstalling.compareAndSet(false, true)) return;
         AppUtils.keepScreenOn(activity);
         ImageFs imageFs = ImageFs.find(activity);
         File rootDir = imageFs.getRootDir();
@@ -71,36 +79,49 @@ public abstract class ImageFsInstaller {
         final DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
         dialog.show(R.string.installing_system_files);
         Executors.newSingleThreadExecutor().execute(() -> {
-            clearRootDir(rootDir);
-            final byte compressionRatio = 30;
-            final long contentLength = (long)(FileUtils.getSize(activity, "imagefs.tzst") * (100.0f / compressionRatio));
-            AtomicLong totalSizeRef = new AtomicLong();
+            try {
+                clearRootDir(rootDir);
+                final byte compressionRatio = 30;
+                final long contentLength = (long)(FileUtils.getSize(activity, "imagefs.tzst") * (100.0f / compressionRatio));
+                AtomicLong totalSizeRef = new AtomicLong();
 
-            boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "imagefs.tzst", rootDir, (file, size) -> {
-                if (size > 0) {
-                    long totalSize = totalSizeRef.addAndGet(size);
-                    final int progress = (int)(((float)totalSize / contentLength) * 100);
-                    activity.runOnUiThread(() -> dialog.setProgress(progress));
+                boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "imagefs.tzst", rootDir, (file, size) -> {
+                    if (size > 0) {
+                        long totalSize = totalSizeRef.addAndGet(size);
+                        final int progress = (int)(((float)totalSize / contentLength) * 100);
+                        activity.runOnUiThread(() -> dialog.setProgress(progress));
+                    }
+                    return file;
+                });
+
+                if (success) {
+                    installWineFromAssets(activity);
+                    installDriversFromAssets(activity);
+                    imageFs.createImgVersionFile(LATEST_VERSION);
+                    FileUtils.symlink("libSDL2-2.0.so", new File(imageFs.getLibDir(), "libSDL2-2.0.so.0").getAbsolutePath());
+                    resetContainerImgVersions(activity);
                 }
-                return file;
-            });
-
-            if (success) {
-                installWineFromAssets(activity);
-                installDriversFromAssets(activity);
-                imageFs.createImgVersionFile(LATEST_VERSION);
-                FileUtils.symlink("libSDL2-2.0.so", new File(imageFs.getLibDir(), "libSDL2-2.0.so.0").getAbsolutePath());
-                resetContainerImgVersions(activity);
+                else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
+            } finally {
+                isInstalling.set(false);
+                dialog.closeOnUiThread();
+                activity.runOnUiThread(() -> {
+                    if (!activity.isFinishing() && !activity.isDestroyed()) {
+                        com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(activity);
+                    }
+                });
             }
-            else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
-
-            dialog.closeOnUiThread();
         });
     }
 
-    public static void installIfNeeded(final MainActivity activity) {
+    public static boolean installIfNeeded(final MainActivity activity) {
+        if (isInstalling.get()) return true;
         ImageFs imageFs = ImageFs.find(activity);
-        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION) installFromAssets(activity);
+        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION) {
+            installFromAssets(activity);
+            return true;
+        }
+        return false;
     }
 
     private static void clearOptDir(File optDir) {

@@ -696,10 +696,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="graphics_driver_astc_transcode">ASTC Transcode</string>
     <string name="graphics_driver_etc2_transcode">ETC2 Transcode</string>
     <string name="graphics_driver_bcn_skip_small_textures">Skip Compression on Small Textures</string>
-    <string name="vkbasalt">vkBasalt</string>
-    <string name="vkbasalt_sharpness_effects">Sharpness Effect</string>
-    <string name="vkbasalt_sharpness_level">Sharpness Level</string>
-    <string name="vkbasalt_sharpness_denoise">Sharpeness Denoise</string>
     <string name="shutdown">Shutdown</string>
     <string name="disable_mouse">Toggle Mouse</string>
     <string name="enable_mouse">Enable Mouse</string>
@@ -723,4 +719,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="search_cover_art">Search cover art</string>
     <string name="change_cover_art">Change cover art</string>
     <string name="reset_cover_art">Reset cover art</string>
+    <string name="search">Search</string>
+    <string name="refresh">Refresh</string>
 </resources>

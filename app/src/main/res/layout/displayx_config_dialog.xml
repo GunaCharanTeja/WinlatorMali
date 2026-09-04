@@ -1,47 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView
-	xmlns:android="http://schemas.android.com/apk/res/android"
-	android:layout_width="wrap_content"
-	android:layout_height="wrap_content">
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="320dp"
+    android:layout_height="220dp"
+    android:fillViewport="true"
+    android:scrollbars="vertical">
 
-	<LinearLayout
-		android:layout_width="300dp"
-		android:layout_height="wrap_content"
-		android:orientation="vertical">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="6dp">
 
-		<TextView
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:text="Surface Format"
-			android:textAppearance="?android:attr/textAppearanceMedium"
-			android:paddingBottom="8dp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Surface Format"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorSecondary"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp" />
 
-		<Spinner
-			style="@style/ComboBox"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:entries="@array/surface_format_entries"
-			android:id="@+id/SSurfaceFormat"
-			android:spinnerMode="dialog" />
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:entries="@array/surface_format_entries"
+            android:id="@+id/SSurfaceFormat"
+            android:spinnerMode="dropdown"
+            android:layout_marginBottom="12dp" />
 
-		<CheckBox
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:id="@+id/CBEnableTrueDisplayX"
-			android:text="Bypass X11 Protocol" />
+        <!-- Options Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="8dp">
 
-		<CheckBox
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:id="@+id/CBEnablePerfMode"
-			android:text="Enable Performance Mode" />
+            <CheckBox
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:id="@+id/CBEnableTrueDisplayX"
+                android:text="Bypass X11 Protocol"
+                android:textSize="13sp" />
 
-		<CheckBox
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:id="@+id/CBPresentRR"
-			android:text="Present at refresh rate" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp" />
 
-	</LinearLayout>
+            <CheckBox
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:id="@+id/CBEnablePerfMode"
+                android:text="Enable Performance Mode"
+                android:textSize="13sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp" />
+
+            <CheckBox
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:id="@+id/CBPresentRR"
+                android:text="Present at refresh rate"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+    </LinearLayout>
 
 </ScrollView>

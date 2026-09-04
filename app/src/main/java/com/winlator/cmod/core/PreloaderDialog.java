@@ -24,10 +24,25 @@ public class PreloaderDialog {
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.preloader_dialog);
 
-        boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("dark_mode", true);
-        if (isDarkMode) {
-            dialog.findViewById(R.id.LLPreloaderBackground).setBackgroundResource(R.drawable.content_dialog_background_dark);
-            ((TextView)dialog.findViewById(R.id.TextView)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, R.color.colorAccent));
+        android.view.View bgView = dialog.findViewById(R.id.LLPreloaderBackground);
+        int surfaceColor = com.winlator.cmod.ThemeManager.getSurfaceColor(activity);
+        int accentColor = com.winlator.cmod.ThemeManager.getAccentColor(activity);
+        int onSurfaceColor = com.winlator.cmod.ThemeManager.getOnSurfaceTextColor(activity);
+
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(surfaceColor);
+        gd.setCornerRadius(UnitUtils.dpToPx(14));
+        gd.setStroke((int)UnitUtils.dpToPx(1), 0x33FFFFFF);
+        bgView.setBackground(gd);
+
+        TextView tv = dialog.findViewById(R.id.TextView);
+        if (tv != null) {
+            tv.setTextColor(onSurfaceColor);
+        }
+
+        android.widget.ProgressBar pb = dialog.findViewById(R.id.ProgressBar);
+        if (pb != null) {
+            pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(accentColor));
         }
 
         Window window = dialog.getWindow();

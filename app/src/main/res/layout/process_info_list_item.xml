@@ -3,13 +3,15 @@
     android:orientation="horizontal"
     android:layout_width="match_parent"
     android:layout_height="38dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
     android:gravity="center_vertical">
 
     <ImageView
         android:id="@+id/IVIcon"
-        android:layout_width="26dp"
-        android:layout_height="26dp"
-        android:paddingLeft="4dp" />
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginEnd="8dp" />
 
     <TextView
         android:id="@+id/TVName"
@@ -18,28 +20,39 @@
         android:layout_weight="1"
         android:maxLines="1"
         android:ellipsize="end"
-        android:paddingLeft="6dp" />
+        android:paddingStart="2dp"
+        android:paddingEnd="4dp"
+        android:textSize="12sp"
+        android:textColor="?android:attr/textColorPrimary" />
 
     <TextView
         android:id="@+id/TVPID"
         android:layout_width="60dp"
         android:layout_height="wrap_content"
-        android:paddingLeft="4dp" />
+        android:gravity="center"
+        android:textSize="12sp"
+        android:textColor="?android:attr/textColorSecondary" />
 
     <TextView
         android:id="@+id/TVMemoryUsage"
-        android:layout_width="110dp"
+        android:layout_width="90dp"
         android:layout_height="wrap_content"
-        android:paddingLeft="4dp" />
+        android:gravity="end"
+        android:paddingEnd="8dp"
+        android:textSize="12sp"
+        android:textColor="?android:attr/textColorSecondary" />
 
     <RelativeLayout
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:gravity="center">
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:layout_marginEnd="4dp">
 
         <ImageButton
             style="@style/ListMenuButton"
             android:id="@+id/BTMenu"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:src="@drawable/icon_list_item_menu" />
     </RelativeLayout>
 </LinearLayout>

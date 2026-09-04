@@ -60,4 +60,8 @@ public class ContentProfile {
     public String wineBinPath;
     public String winePrefixPack;
     public String remoteUrl;
+    public long size;
+    public String sizeFormatted;
+    public long releaseDate;
+    public String releaseDateFormatted;
 }

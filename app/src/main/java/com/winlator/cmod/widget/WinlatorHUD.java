@@ -14,6 +14,9 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
+import com.winlator.cmod.ThemeManager;
+import com.winlator.cmod.ThemePreset;
+
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,9 +32,10 @@ public class WinlatorHUD extends View {
     private static final String KEY_STYLE      = "hud_style";
     private static final String KEY_POS_PRESET = "hud_pos_preset";
 
-    public static final int STYLE_CLASSIC = 0;
-    public static final int STYLE_MONO    = 1;
-    public static final int STYLE_TILES   = 2;
+    public static final int STYLE_CLASSIC  = 0;
+    public static final int STYLE_MONO     = 1;
+    public static final int STYLE_TILES    = 2;
+    public static final int STYLE_ADAPTIVE = 3;
     private int currentStyle = STYLE_CLASSIC;
 
     public static final int PRESET_CUSTOM        = -1;
@@ -359,13 +363,31 @@ public class WinlatorHUD extends View {
                 else          drawTilesHorizontal(c);
             } else {
                 bgRect.set(0, 0, getWidth(), getHeight());
-                float corner = vertical ? CORNER : (bgRect.height() / 2f);
-                pBg.setColor(Color.argb(180, 0, 0, 0));
-                pBg.setShadowLayer(4f, 0, 0, Color.BLACK);
-                c.drawRoundRect(bgRect, corner, corner, pBg);
-                pBg.clearShadowLayer();
+                float corner = vertical ? (currentStyle == STYLE_ADAPTIVE ? (8f * density) : CORNER) : (bgRect.height() / 2f);
 
-                if ((showMask & SHOW_BORDER) != 0) c.drawRoundRect(bgRect, corner, corner, pBorder);
+                if (currentStyle == STYLE_ADAPTIVE) {
+                    Context ctx = getContext();
+                    int surfaceCol = ThemeManager.getSurfaceColor(ctx);
+                    int accentCol = ThemeManager.getAccentColor(ctx);
+
+                    pBg.setColor(Color.argb(220, Color.red(surfaceCol), Color.green(surfaceCol), Color.blue(surfaceCol)));
+                    pBg.setShadowLayer(5f * density, 0, 1.5f * density, Color.argb(160, 0, 0, 0));
+                    c.drawRoundRect(bgRect, corner, corner, pBg);
+                    pBg.clearShadowLayer();
+
+                    if ((showMask & SHOW_BORDER) != 0) {
+                        pBorder.setColor(Color.argb(140, Color.red(accentCol), Color.green(accentCol), Color.blue(accentCol)));
+                        pBorder.setStrokeWidth(1.5f * density);
+                        c.drawRoundRect(bgRect, corner, corner, pBorder);
+                    }
+                } else {
+                    pBg.setColor(Color.argb(180, 0, 0, 0));
+                    pBg.setShadowLayer(4f, 0, 0, Color.BLACK);
+                    c.drawRoundRect(bgRect, corner, corner, pBg);
+                    pBg.clearShadowLayer();
+
+                    if ((showMask & SHOW_BORDER) != 0) c.drawRoundRect(bgRect, corner, corner, pBorder);
+                }
 
                 if (vertical) drawClassicVertical(c);
                 else          drawClassicHorizontal(c);
@@ -375,6 +397,33 @@ public class WinlatorHUD extends View {
     }
 
     private void updatePaintColors(boolean mono) {
+        if (currentStyle == STYLE_ADAPTIVE) {
+            Context ctx = getContext();
+            int accent = ThemeManager.getAccentColor(ctx);
+            int surface = ThemeManager.getSurfaceColor(ctx);
+            int onSurface = ThemeManager.getOnSurfaceTextColor(ctx);
+
+            float fps = apexActive ? snapTotalFps : snapFps;
+            int fpsColor = fps >= 55 ? 0xFF00E676 : (fps >= 25 ? accent : 0xFFFF5252);
+            pFps.setColor(fpsColor);
+            pGraph.setColor(accent);
+            pGraphBg.setColor(Color.argb(70, Color.red(surface), Color.green(surface), Color.blue(surface)));
+
+            pBorder.setColor(Color.argb(140, Color.red(accent), Color.green(accent), Color.blue(accent)));
+            pBorder.setStrokeWidth(1.5f * density);
+
+            pRend.setColor(accent);
+            pGpu.setColor(ThemePreset.lerp(accent, 0xFFE040FB, 0.40f));
+            pCpu.setColor(ThemePreset.lerp(accent, 0xFF00E5FF, 0.40f));
+            pRam.setColor(ThemePreset.lerp(accent, 0xFF69F0AE, 0.35f));
+            pBat.setColor(ThemePreset.lerp(accent, 0xFFFFAB40, 0.40f));
+            pTmp.setColor(ThemePreset.lerp(accent, 0xFFFF5252, 0.45f));
+            pSep.setColor(Color.argb(130, Color.red(accent), Color.green(accent), Color.blue(accent)));
+            pChg.setColor(0xFF00E676);
+            pVal.setColor(onSurface);
+            return;
+        }
+
         float fps = apexActive ? snapTotalFps : snapFps;
         int fpsColor = mono ? C_WHITE : (fps >= 55 ? C_FPS : (fps >= 25 ? C_REND : C_TEMP));
         pFps.setColor(fpsColor);
@@ -385,6 +434,11 @@ public class WinlatorHUD extends View {
         pTmp.setColor(mono ? C_WHITE : C_TEMP);
         pRend.setColor(mono ? C_WHITE : C_REND);
         pRam.setColor(mono ? C_WHITE : C_RAM);
+        pVal.setColor(C_WHITE);
+        pSep.setColor(C_SEP);
+        pChg.setColor(C_CHG);
+        pBorder.setColor(C_BORDER);
+        pBorder.setStrokeWidth(1.5f);
     }
 
     private void drawClassicHorizontal(Canvas c) {
@@ -1227,7 +1281,7 @@ public class WinlatorHUD extends View {
     public int getHudStyle() { return currentStyle; }
 
     public void setHudStyle(int style) {
-        this.currentStyle = Math.max(0, Math.min(2, style));
+        this.currentStyle = Math.max(0, Math.min(3, style));
         if (this.currentStyle == STYLE_MONO) showMask |= SHOW_MONO;
         else showMask &= ~SHOW_MONO;
         prefs.edit().putInt(KEY_STYLE, this.currentStyle).putInt(KEY_SHOW, showMask).apply();

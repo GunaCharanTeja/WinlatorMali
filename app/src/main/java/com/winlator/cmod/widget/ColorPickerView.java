@@ -27,7 +27,6 @@ import java.util.Locale;
 public class ColorPickerView extends View implements View.OnClickListener {
     private static final int[] colors = {0xff8f00, 0xd32f2f, 0x9575cd, 0x2e7d32, 0x00838f, 0x0277bd, 0x607d8b, 0x000000};
     private int currentColor = 0xffffff;
-    private final Bitmap colorFrame;
 
     public ColorPickerView(Context context) {
         this(context, null);
@@ -39,8 +38,6 @@ public class ColorPickerView extends View implements View.OnClickListener {
 
     public ColorPickerView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-
-        colorFrame = BitmapFactory.decodeResource(context.getResources(), R.drawable.color_frame);
 
         setBackgroundResource(R.drawable.combo_box);
         setClickable(true);
@@ -73,16 +70,18 @@ public class ColorPickerView extends View implements View.OnClickListener {
         float startX = (width - rectSize) * 0.5f - UnitUtils.dpToPx(16);
         float startY = (height - rectSize) * 0.5f;
 
-        Paint paint = new Paint();
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setColor(toARGB(currentColor));
         paint.setStyle(Paint.Style.FILL);
-        paint.setAntiAlias(false);
-        paint.setFilterBitmap(false);
-        canvas.drawRect(startX, startY, startX + rectSize, startY + rectSize, paint);
+        RectF rect = new RectF(startX, startY, startX + rectSize, startY + rectSize);
+        float radius = UnitUtils.dpToPx(6);
+        canvas.drawRoundRect(rect, radius, radius, paint);
 
-        Rect srcRect = new Rect(0, 0, colorFrame.getWidth(), colorFrame.getHeight());
-        RectF dstRect = new RectF(startX, startY, startX + rectSize, startY + rectSize);
-        canvas.drawBitmap(colorFrame, srcRect, dstRect, paint);
+        Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        strokePaint.setColor(0x40FFFFFF);
+        strokePaint.setStyle(Paint.Style.STROKE);
+        strokePaint.setStrokeWidth(UnitUtils.dpToPx(1.5f));
+        canvas.drawRoundRect(rect, radius, radius, strokePaint);
     }
 
     public static int toARGB(int rgb) {
@@ -101,24 +100,39 @@ public class ColorPickerView extends View implements View.OnClickListener {
         container.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, (int)UnitUtils.dpToPx(popupHeight)));
         container.setOrientation(LinearLayout.HORIZONTAL);
         container.setGravity(Gravity.CENTER_VERTICAL);
-        container.setPadding(0, 0, (int)UnitUtils.dpToPx(4), 0);
+        container.setPadding((int)UnitUtils.dpToPx(6), (int)UnitUtils.dpToPx(6), (int)UnitUtils.dpToPx(6), (int)UnitUtils.dpToPx(6));
 
-        Bitmap colorFrameSelected = BitmapFactory.decodeResource(context.getResources(), R.drawable.color_frame_selected);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams((int)UnitUtils.dpToPx(32), (int)UnitUtils.dpToPx(32));
-        params.setMargins((int)UnitUtils.dpToPx(4), 0, 0, 0);
+        int cardBg = com.winlator.cmod.ThemeManager.getSurfaceColor(context);
+        android.graphics.drawable.GradientDrawable containerBg = new android.graphics.drawable.GradientDrawable();
+        containerBg.setColor(cardBg);
+        containerBg.setCornerRadius(UnitUtils.dpToPx(12));
+        containerBg.setStroke((int)UnitUtils.dpToPx(1), 0x33FFFFFF);
+        container.setBackground(containerBg);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams((int)UnitUtils.dpToPx(34), (int)UnitUtils.dpToPx(34));
+        params.setMargins((int)UnitUtils.dpToPx(3), 0, (int)UnitUtils.dpToPx(3), 0);
         final PopupWindow[] popupWindow = {null};
 
         for (final int color : colors) {
-            ImageView imageView = new ImageView(context);
-            imageView.setLayoutParams(params);
-            imageView.setImageBitmap(color == currentColor ? colorFrameSelected : colorFrame);
-            imageView.setBackgroundColor(toARGB(color));
-            imageView.setOnClickListener((v) -> {
+            View swatch = new View(context);
+            swatch.setLayoutParams(params);
+
+            android.graphics.drawable.GradientDrawable swatchBg = new android.graphics.drawable.GradientDrawable();
+            swatchBg.setCornerRadius(UnitUtils.dpToPx(8));
+            swatchBg.setColor(toARGB(color));
+            if (color == currentColor) {
+                swatchBg.setStroke((int)UnitUtils.dpToPx(2.5f), 0xFFFFFFFF);
+            } else {
+                swatchBg.setStroke((int)UnitUtils.dpToPx(1), 0x33FFFFFF);
+            }
+            swatch.setBackground(swatchBg);
+
+            swatch.setOnClickListener((v) -> {
                 currentColor = color;
                 invalidate();
                 if (popupWindow[0] != null) popupWindow[0].dismiss();
             });
-            container.addView(imageView);
+            container.addView(swatch);
         }
         popupWindow[0] = AppUtils.showPopupWindow(anchor, container, 0, popupHeight);
     }

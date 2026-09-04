@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true"
+    android:scrollbars="vertical">
+
+    <LinearLayout
+        android:layout_width="340dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Non-Root Performance Boosts"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp">
+
+            <!-- Game Mode Signal -->
+            <CheckBox
+                android:id="@+id/CBDialogGameModeSignal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Game Mode Signal (API 33+)"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Alerts OEM Game Boosters (HyperBoost, Game Turbo, Samsung Game Booster, Pixel)."
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Thread Priority Boost -->
+            <CheckBox
+                android:id="@+id/CBDialogThreadPriority"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Thread Priority Boost"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Promotes Box64/Wine workers to urgent display priority (-8/-4/-2)."
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Prefer Big Cores -->
+            <CheckBox
+                android:id="@+id/CBDialogBigCores"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Prefer Big CPU Cores"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pins emulation &amp; game threads to Prime/Big CPU cluster via taskset."
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Sustained Performance Mode -->
+            <CheckBox
+                android:id="@+id/CBDialogSustainedPerf"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sustained Performance Mode"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Prevents sudden thermal throttling for consistent frame pacing."
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginStart="32dp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Samsung Galaxy Boost -->
+            <LinearLayout
+                android:id="@+id/LLDialogSamsungBoost"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <CheckBox
+                    android:id="@+id/CBDialogSamsungBoost"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Samsung Galaxy Game Turbo"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Activates Samsung SPerf SDK hardware clock boost."
+                    android:textSize="11sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:layout_marginStart="32dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

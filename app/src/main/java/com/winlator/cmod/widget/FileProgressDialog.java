@@ -33,14 +33,18 @@ public class FileProgressDialog {
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.file_progress_dialog);
 
-        boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("dark_mode", true);
-        if (isDarkMode) {
-            dialog.findViewById(R.id.LLPreloaderBackground).setBackgroundResource(R.drawable.content_dialog_background_dark);
-            ((TextView)dialog.findViewById(R.id.TVTitle)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, R.color.colorAccent));
-            ((TextView)dialog.findViewById(R.id.TVFileName)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, android.R.color.white));
-            ((TextView)dialog.findViewById(R.id.TVProgressPercentage)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, android.R.color.white));
-            ((TextView)dialog.findViewById(R.id.TVProgressSize)).setTextColor(androidx.core.content.ContextCompat.getColor(activity, android.R.color.white));
-        }
+        android.view.View bgView = dialog.findViewById(R.id.LLPreloaderBackground);
+        int surfaceColor = com.winlator.cmod.ThemeManager.getSurfaceColor(activity);
+        int accentColor = com.winlator.cmod.ThemeManager.getAccentColor(activity);
+        int onSurfaceColor = com.winlator.cmod.ThemeManager.getOnSurfaceTextColor(activity);
+
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setColor(surfaceColor);
+        gd.setCornerRadius(com.winlator.cmod.core.UnitUtils.dpToPx(14));
+        gd.setStroke((int)com.winlator.cmod.core.UnitUtils.dpToPx(1), 0x33FFFFFF);
+        bgView.setBackground(gd);
+
+        com.winlator.cmod.ThemeManager.applyThemeToView(bgView, activity);
 
         tvTitle = dialog.findViewById(R.id.TVTitle);
         tvFileName = dialog.findViewById(R.id.TVFileName);

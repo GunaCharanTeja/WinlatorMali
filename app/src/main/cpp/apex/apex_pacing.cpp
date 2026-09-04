@@ -8,17 +8,16 @@ void ApexEngine::setActive(bool isEnabled) {
         APEX_LOGI("ApexEngine::setActive(%s) - Previous state: %s",
                   isEnabled ? "TRUE" : "FALSE", prev ? "TRUE" : "FALSE");
     }
-    if (!isEnabled) {
-        mRenderingGeneratedFrame.store(false, std::memory_order_release);
-        mPendingRealFrame.store(false, std::memory_order_release);
-        mRealFramesCaptured.store(0, std::memory_order_release);
-        mFramesSinceReal.store(0, std::memory_order_release);
-        mLastHeartbeatTimeNanos = 0;
-        mHeartbeatRealFrames = 0;
-        mHeartbeatGenFrames = 0;
-        mMinFactor = 1.0f;
-        mMaxFactor = 0.0f;
-    }
+    mRenderingGeneratedFrame.store(false, std::memory_order_release);
+    mPendingRealFrame.store(true, std::memory_order_release);
+    mRealFramesCaptured.store(0, std::memory_order_release);
+    mFramesSinceReal.store(0, std::memory_order_release);
+    mLastRealFrameTimeNanos.store(0, std::memory_order_release);
+    mLastHeartbeatTimeNanos = 0;
+    mHeartbeatRealFrames = 0;
+    mHeartbeatGenFrames = 0;
+    mMinFactor = 1.0f;
+    mMaxFactor = 0.0f;
 }
 
 bool ApexEngine::isActive() const {

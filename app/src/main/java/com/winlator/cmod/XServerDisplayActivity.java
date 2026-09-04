@@ -205,7 +205,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private MidiHandler midiHandler;
     private String midiSoundFont = "";
     private String lc_all = "";
-    private String vkbasaltConfig = "";
     PreloaderDialog preloaderDialog = null;
     private Runnable configChangedCallback = null;
     private boolean isPaused = false;
@@ -336,9 +335,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        isDarkMode = preferences.getBoolean("dark_mode", true);
-        setTheme(isDarkMode ? R.style.AppThemeFullscreen_Dark : R.style.AppThemeFullscreen);
+        isDarkMode = true;
+        setTheme(R.style.AppThemeFullscreen_Dark);
         ThemeManager.applyTheme(this);
 
         super.onCreate(savedInstanceState);
@@ -434,10 +432,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
 
         NavigationView navigationView = findViewById(R.id.NavigationView);
-
-        if (isDarkMode) {
+        if (navigationView != null) {
+            int accent = ThemeManager.getAccentColor(this);
+            navigationView.setItemIconTintList(android.content.res.ColorStateList.valueOf(accent));
             navigationView.setItemTextColor(ContextCompat.getColorStateList(this, R.color.white));
-            navigationView.setBackgroundResource(R.color.content_dialog_background_dark);
+            navigationView.setBackgroundResource(R.drawable.content_dialog_background_dark);
         }
 
         boolean enableLogs = preferences.getBoolean("enable_wine_debug", false) || preferences.getBoolean("enable_box64_logs", false);
@@ -563,7 +562,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String graphicsDriverConfig = container.getGraphicsDriverConfig();
         displayDriver = container.getDisplayDriver();
         String displayxConfig = container.getDisplayxConfig();
-        audioDriver = container.getAudioDriver();
+        audioDriver = Container.normalizeAudioDriver(container.getAudioDriver());
         emulator = container.getEmulator();
         midiSoundFont = container.getMIDISoundFont();
         dxwrapper = container.getDXWrapper();
@@ -582,7 +581,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             graphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", container.getGraphicsDriverConfig());
             displayDriver = shortcut.getExtra("displayDriver", container.getDisplayDriver());
             displayxConfig = shortcut.getExtra("displayxConfig", container.getDisplayxConfig());
-            audioDriver = shortcut.getExtra("audioDriver", container.getAudioDriver());
+            audioDriver = Container.normalizeAudioDriver(shortcut.getExtra("audioDriver", container.getAudioDriver()));
             emulator = shortcut.getExtra("emulator", container.getEmulator());
             dxwrapper = shortcut.getExtra("dxwrapper", container.getDXWrapper());
             dxwrapperConfig = shortcut.getExtra("dxwrapperConfig", container.getDXWrapperConfig());
@@ -602,12 +601,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             xinputDisabledFromShortcut = parseBoolean(xinputDisabledString);
             // Pass the value to WinHandler
             winHandler.setXInputDisabled(xinputDisabledFromShortcut);
-            String sharpnessEffect = shortcut.getExtra("sharpnessEffect", "None");
-            if (!sharpnessEffect.equals("None")) {
-                double sharpnessLevel = Double.parseDouble(shortcut.getExtra("sharpnessLevel", "100"));
-                double sharpnessDenoise = Double.parseDouble(shortcut.getExtra("sharpnessDenoise", "100"));
-                vkbasaltConfig = "effects=" + sharpnessEffect.toLowerCase() + ";" + "casSharpness=" + sharpnessLevel / 100 + ";" + "dlsSharpness=" + sharpnessLevel / 100  + ";" + "dlsDenoise=" + sharpnessDenoise / 100 + ";" + "enableOnLaunch=True";
-            }
             Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
         }
 
@@ -855,6 +848,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         startTime = System.currentTimeMillis();
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
+
+        com.winlator.cmod.perf.PerformanceManager.onGameResume(this, com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent.getPid());
     }
 
     @Override
@@ -868,6 +863,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
+
+        com.winlator.cmod.perf.PerformanceManager.onGamePause(this);
     }
 
 
@@ -903,6 +900,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void exit() {
         preloaderDialog.showOnUiThread(R.string.shutdown);
+        com.winlator.cmod.perf.PerformanceManager.onGameStop(this);
         Executors.newSingleThreadExecutor().execute(() -> {
             savePlaytimeData();
             handler.removeCallbacks(savePlaytimeRunnable);
@@ -936,6 +934,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        com.winlator.cmod.perf.PerformanceManager.onGameStop(this);
         if (displayXView != null) displayXView.onDestroy();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         if (hudDataSource != null) {
@@ -956,6 +955,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         super.onStop();
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
+        com.winlator.cmod.perf.PerformanceManager.onGamePause(this);
     }
 
     @Override
@@ -1023,6 +1023,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 }
                 drawerLayout.closeDrawers();
                 break;
+            case R.id.main_menu_performance:
+                showPerformanceDialog();
+                drawerLayout.closeDrawers();
+                break;
             case R.id.main_menu_logs:
                 debugDialog.show();
                 drawerLayout.closeDrawers();
@@ -1033,6 +1037,43 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 break;
         }
         return true;
+    }
+
+    private void showPerformanceDialog() {
+        final ContentDialog dialog = new ContentDialog(this, R.layout.performance_dialog);
+        dialog.setTitle(R.string.performance);
+        dialog.setIcon(R.drawable.icon_cpu);
+
+        final CheckBox cbGameModeSignal = dialog.findViewById(R.id.CBDialogGameModeSignal);
+        final CheckBox cbThreadPriority = dialog.findViewById(R.id.CBDialogThreadPriority);
+        final CheckBox cbBigCores = dialog.findViewById(R.id.CBDialogBigCores);
+        final CheckBox cbSustainedPerf = dialog.findViewById(R.id.CBDialogSustainedPerf);
+        final CheckBox cbSamsungBoost = dialog.findViewById(R.id.CBDialogSamsungBoost);
+        final View llSamsungBoost = dialog.findViewById(R.id.LLDialogSamsungBoost);
+
+        if (cbGameModeSignal != null) cbGameModeSignal.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_GAME_MODE_SIGNAL, true));
+        if (cbThreadPriority != null) cbThreadPriority.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_THREAD_PRIORITY_BOOST, true));
+        if (cbBigCores != null) cbBigCores.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_PREFER_BIG_CORES, false));
+        if (cbSustainedPerf != null) cbSustainedPerf.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SUSTAINED_PERFORMANCE, false));
+        if (cbSamsungBoost != null) cbSamsungBoost.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SAMSUNG_PERF_BOOST, true));
+        if (llSamsungBoost != null) {
+            llSamsungBoost.setVisibility(com.winlator.cmod.perf.SamsungSPerfDriver.isSamsungDevice() ? View.VISIBLE : View.GONE);
+        }
+
+        dialog.setOnConfirmCallback(() -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            if (cbGameModeSignal != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_GAME_MODE_SIGNAL, cbGameModeSignal.isChecked());
+            if (cbThreadPriority != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_THREAD_PRIORITY_BOOST, cbThreadPriority.isChecked());
+            if (cbBigCores != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_PREFER_BIG_CORES, cbBigCores.isChecked());
+            if (cbSustainedPerf != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SUSTAINED_PERFORMANCE, cbSustainedPerf.isChecked());
+            if (cbSamsungBoost != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SAMSUNG_PERF_BOOST, cbSamsungBoost.isChecked());
+            editor.apply();
+
+            com.winlator.cmod.perf.PerformanceManager.applySettingsLive(this, preferences);
+            AppUtils.showToast(this, "Performance settings applied");
+        });
+
+        dialog.show();
     }
 
     private void showHUDConfigDialog() {
@@ -1100,10 +1141,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         Spinner spStyle = dialog.findViewById(R.id.SPHudStyle);
         if (spStyle != null) {
-            String[] styles = {"Classic (Multi-Color)", "Classic Monochrome", "Modular Glass Tiles"};
+            String[] styles = {"Classic (Multi-Color)", "Classic Monochrome", "Modular Glass Tiles", "Adaptive (Theme Dynamic)"};
             spStyle.setPopupBackgroundResource(popupBgRes);
             spStyle.setAdapter(createThemedSpinnerAdapter(this, styles, isDarkMode));
-            spStyle.setSelection(Math.min(2, frameRating.getHudStyle()));
+            spStyle.setSelection(Math.min(3, frameRating.getHudStyle()));
             spStyle.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
@@ -1405,11 +1446,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                             UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.ALSA_SERVER_PATH)
                     )
             );
-        } else if (audioDriver.equals("pulseaudio")) {
+        } else if (audioDriver.equals("pulseaudio") || audioDriver.equals("pulse-audio-gn")) {
             envVars.put("PULSE_SERVER", rootPath + UnixSocketConfig.PULSE_SERVER_PATH);
             environment.addComponent(
                     new PulseAudioComponent(
-                            UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.PULSE_SERVER_PATH)
+                            UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.PULSE_SERVER_PATH),
+                            audioDriver.equals("pulse-audio-gn")
                     )
             );
         }
@@ -1430,6 +1472,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Start all environment components (XServer, Audio, Wine, etc.)
         environment.startEnvironmentComponents();
+
+        com.winlator.cmod.perf.PerformanceManager.onGameStart(this, com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent.getPid(), preferences);
 
         // Start the WinHandler (writes events to the file)
         winHandler.start();
@@ -2273,11 +2317,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         envVars.put("BCN_SKIP_SMALL_TEXTURES", "1".equals(skipSmallTextures) ? "1" : "0");
-
-        if (!vkbasaltConfig.isEmpty()) {
-            envVars.put("ENABLE_VKBASALT", "1");
-            envVars.put("VKBASALT_CONFIG", vkbasaltConfig);
-        }
     }
 
     @Override
@@ -2592,7 +2631,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 if (audioDriver.equals("alsa")) {
                     registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "alsa");
                 }
-                else if (audioDriver.equals("pulseaudio")) {
+                else if (audioDriver.equals("pulseaudio") || audioDriver.equals("pulse-audio-gn")) {
                     registryEditor.setStringValue("Software\\Wine\\Drivers", "Audio", "pulse");
                 }
             }

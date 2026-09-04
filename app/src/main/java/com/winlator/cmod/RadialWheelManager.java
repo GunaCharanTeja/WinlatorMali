@@ -248,6 +248,7 @@ public class RadialWheelManager {
             }
             case MotionEvent.ACTION_POINTER_UP: {
                 int pointerIndex = event.getActionIndex();
+                if (pointerIndex < 0 || pointerIndex >= event.getPointerCount()) return true;
                 float px = event.getX(pointerIndex);
                 float py = event.getY(pointerIndex);
                 float dx = px - centerX;

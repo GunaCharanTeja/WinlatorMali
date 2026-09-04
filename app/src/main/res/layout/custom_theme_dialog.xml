@@ -173,7 +173,10 @@
                 <SeekBar
                     android:id="@+id/SBRed"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="36dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:splitTrack="false"
                     android:layout_weight="1"
                     android:max="255"
                     android:progress="255" />
@@ -198,7 +201,10 @@
                 <SeekBar
                     android:id="@+id/SBGreen"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="36dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:splitTrack="false"
                     android:layout_weight="1"
                     android:max="255"
                     android:progress="0" />
@@ -223,7 +229,10 @@
                 <SeekBar
                     android:id="@+id/SBBlue"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="36dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:splitTrack="false"
                     android:layout_weight="1"
                     android:max="255"
                     android:progress="85" />

@@ -12,7 +12,7 @@
         android:id="@+id/IVDeviceIcon"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:src="@android:drawable/ic_menu_info_details"
+        android:src="@drawable/icon_info"
         app:tint="?android:attr/textColorSecondary"
         android:layout_marginEnd="12dp"
         android:contentDescription="Device Icon"/>

@@ -29,16 +29,11 @@ public class CustomThemeDialog extends ContentDialog {
     };
 
     private static final int[] DARK_BG_SWATCHES = {
-        0xFF121212, 0xFF000000, 0xFF181A2F, 0xFF051F20, 0xFF0D0221
-    };
-
-    private static final int[] LIGHT_BG_SWATCHES = {
-        0xFFFAFAFA, 0xFFFFFFFF, 0xFFF5F0EB, 0xFFEEF2F6
+        0xFF121212, 0xFF000000, 0xFF181A2F, 0xFF051F20, 0xFF0D0221, 0xFF021024
     };
 
     private int selectedAccent;
     private int selectedBackground;
-    private final boolean isDarkMode;
     private boolean isUpdatingFromCode = false;
 
     private CardView cardPreview;
@@ -63,7 +58,6 @@ public class CustomThemeDialog extends ContentDialog {
         setTitle("Customize Theme");
         setIcon(R.drawable.icon_popup_menu_settings);
 
-        isDarkMode = ThemeManager.isDarkMode(context);
         selectedAccent = ThemeManager.getCustomAccentColor(context);
         selectedBackground = ThemeManager.getCustomBackgroundColor(context);
 
@@ -100,10 +94,10 @@ public class CustomThemeDialog extends ContentDialog {
         tvGreenLabel = root.findViewById(R.id.TVGreenLabel);
         tvBlueLabel = root.findViewById(R.id.TVBlueLabel);
 
-        // Ensure visible, high-contrast styling on EditText in both light and dark modes
-        etHexColor.setTextColor(isDarkMode ? 0xFFFFFFFF : 0xFF121212);
-        etHexColor.setHintTextColor(isDarkMode ? 0xFF888888 : 0xFF757575);
-        etHexColor.setBackgroundResource(isDarkMode ? R.drawable.edit_text_dark : R.drawable.edit_text);
+        // Ensure visible, high-contrast dark styling on EditText
+        etHexColor.setTextColor(0xFFFFFFFF);
+        etHexColor.setHintTextColor(0xFF888888);
+        etHexColor.setBackgroundResource(R.drawable.edit_text_dark);
 
         etHexColor.setText(String.format(Locale.ENGLISH, "#%06X", (0xFFFFFF & selectedAccent)));
         etHexColor.addTextChangedListener(new TextWatcher() {
@@ -200,8 +194,7 @@ public class CustomThemeDialog extends ContentDialog {
         }
 
         // Build Background Swatches
-        int[] bgList = isDarkMode ? DARK_BG_SWATCHES : LIGHT_BG_SWATCHES;
-        for (final int color : bgList) {
+        for (final int color : DARK_BG_SWATCHES) {
             View swatch = createSwatchView(color, sizePx, marginPx);
             swatch.setOnClickListener(v -> {
                 selectedBackground = color;
@@ -237,12 +230,12 @@ public class CustomThemeDialog extends ContentDialog {
         llPreviewToolbar.setBackgroundColor(selectedAccent);
 
         // Update card surface & background
-        int surfaceColor = isDarkMode ? ThemePreset.lerp(selectedBackground, 0xFFFFFFFF, 0.08f) : 0xFFFFFFFF;
+        int surfaceColor = ThemePreset.lerp(selectedBackground, 0xFFFFFFFF, 0.08f);
         cardPreview.setCardBackgroundColor(surfaceColor);
         llPreviewBody.setBackgroundColor(surfaceColor);
 
         // Derive high-contrast text color
-        int textColor = isDarkMode ? 0xFFE0E0E0 : 0xFF121212;
+        int textColor = 0xFFE0E0E0;
         tvPreviewText.setTextColor(textColor);
 
         // Update button

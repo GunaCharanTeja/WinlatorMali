@@ -140,11 +140,12 @@ public class InputControlsFragment extends Fragment {
         View view = inflater.inflate(R.layout.input_controls_fragment, container, false);
         final Context context = getContext();
 
+        ThemeManager.applyThemeToView(view, context);
+
         currentProfile = selectedProfileId > 0 ? manager.getProfile(selectedProfileId) : null;
 
         final Spinner sProfile = view.findViewById(R.id.SProfile);
-
-        sProfile.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+        sProfile.setPopupBackgroundResource(R.drawable.content_dialog_background_dark);
 
         loadProfileSpinner(sProfile);
 
@@ -372,13 +373,14 @@ public class InputControlsFragment extends Fragment {
             String bindingsText = context.getString(R.string.bindings);
             for (final ExternalController controller : controllers) {
                 View itemView = inflater.inflate(R.layout.external_controller_list_item, container, false);
+                ThemeManager.applyThemeToView(itemView, context);
                 ((TextView)itemView.findViewById(R.id.TVTitle)).setText(controller.getName());
 
                 int controllerBindingCount = controller.getControllerBindingCount();
                 ((TextView)itemView.findViewById(R.id.TVSubtitle)).setText(controllerBindingCount+" "+bindingsText);
 
                 ImageView imageView = itemView.findViewById(R.id.ImageView);
-                int tintColor = controller.isConnected() ? ContextCompat.getColor(context, R.color.colorAccent) : 0xffe57373;
+                int tintColor = controller.isConnected() ? ThemeManager.getAccentColor(context) : 0xffe57373;
                 ImageViewCompat.setImageTintList(imageView, ColorStateList.valueOf(tintColor));
 
                 if (controllerBindingCount > 0) {

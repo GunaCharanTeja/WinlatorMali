@@ -58,7 +58,7 @@ public class KeyValueSet implements Iterable<String[]> {
     public float getFloat(String key, float fallback) {
         String value = get(key);
         try {
-            if (!value.isEmpty()) return Float.parseFloat(value);
+            if (!value.isEmpty()) return Float.parseFloat(value.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
             // Ignore exception and return fallback
         }

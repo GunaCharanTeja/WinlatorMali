@@ -101,6 +101,28 @@ public class FileManagerFragment extends Fragment {
         recyclerViewFiles = view.findViewById(R.id.RecyclerViewFiles);
         recyclerViewFiles.setLayoutManager(new LinearLayoutManager(getContext()));
 
+        ThemeManager.applyThemeToView(view, getContext());
+        if (getContext() != null) {
+            int accent = ThemeManager.getAccentColor(getContext());
+            android.widget.ImageButton btUpDir = view.findViewById(R.id.BTUpDir);
+            if (btUpDir != null) btUpDir.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+
+            android.widget.ImageButton btSearch = view.findViewById(R.id.BTSearch);
+            if (btSearch != null) btSearch.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+
+            android.widget.ImageButton btInfo = view.findViewById(R.id.BTInfo);
+            if (btInfo != null) btInfo.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+
+            android.widget.ImageButton btNewFolder = view.findViewById(R.id.BTNewFolder);
+            if (btNewFolder != null) btNewFolder.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+
+            android.widget.ImageButton btCloseSearch = view.findViewById(R.id.BTCloseSearch);
+            if (btCloseSearch != null) btCloseSearch.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+
+            if (ivDriveIcon != null) ivDriveIcon.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+            if (tvDriveName != null) tvDriveName.setTextColor(accent);
+        }
+
         view.findViewById(R.id.BTUpDir).setOnClickListener(v -> navigateUp());
         view.findViewById(R.id.LLDriveSelect).setOnClickListener(v -> showDriveMenu());
         view.findViewById(R.id.BTNewFolder).setOnClickListener(v -> createNewFolder());
@@ -1069,6 +1091,11 @@ public class FileManagerFragment extends Fragment {
                 holder.ivIcon.setAlpha(0.5f);
             } else {
                 holder.ivIcon.setAlpha(1.0f);
+            }
+
+            if (getContext() != null) {
+                int accent = ThemeManager.getAccentColor(getContext());
+                holder.ivIcon.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
             }
 
             if (selectedFiles.contains(file)) {

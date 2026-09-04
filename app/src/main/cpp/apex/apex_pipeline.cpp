@@ -1,5 +1,6 @@
 #include "apex_engine.h"
 #include "apex_shaders.h"
+#include "apex_vulkan_hook.h"
 #include <vector>
 #include <cstring>
 #include <iomanip>
@@ -284,6 +285,7 @@ static void createColorTexture(GLuint& tex, int width, int height, const char* n
 }
 
 void ApexEngine::ensureResources(int width, int height) {
+    if (width <= 0 || height <= 0) return;
     int quality = mQualityPreset.load(std::memory_order_acquire);
 
     if (mSurfaceWidth != width || mSurfaceHeight != height) {
@@ -292,6 +294,11 @@ void ApexEngine::ensureResources(int width, int height) {
         cleanupResources();
         mSurfaceWidth = width;
         mSurfaceHeight = height;
+        mRealFramesCaptured.store(0, std::memory_order_release);
+        mFramesSinceReal.store(0, std::memory_order_release);
+        mLastRealFrameTimeNanos.store(0, std::memory_order_release);
+        mPendingRealFrame.store(true, std::memory_order_release);
+        mRenderingGeneratedFrame.store(false, std::memory_order_release);
     }
 
     // Always-needed base resources
@@ -476,8 +483,6 @@ void ApexEngine::runComputePipeline(GLuint currTex, GLuint prevTex, int width, i
     int hL2 = std::max(1, height / 4);
     int wL3 = std::max(1, width / 8);
     int hL3 = std::max(1, height / 8);
-    int wL4 = std::max(1, width / 16);
-    int hL4 = std::max(1, height / 16);
 
     if (quality == QUALITY_PERFORMANCE) {
         // Preset 1: 4 Passes (1:1 Neural Features -> 1:1 Guided Flow -> 7x7 Median -> 1:1 Output)
@@ -743,6 +748,9 @@ void ApexEngine::logHeartbeatIfDue(int64_t nowNanos) {
                   statusStr, typicalMs, mTargetFPS.load(), jitterMs);
         APEX_LOGI(" ◈ MOTION :: Phase: MONOTONIC (Factor: %.3f) | Reach: 256px Multi-Scale | Disocclusion: ACTIVE",
                   mLastFactor);
+        APEX_LOGI(" ◈ HOOK   :: Depth Hook: %s | HUD Pass: %s",
+                  VulkanDepthHookManager::getInstance().isHookEnabled() ? "ACTIVE (Vulkan Depth Target Bound)" : "OPTICAL FLOW BRIDGE",
+                  "DUAL-PASS ALPHA COMPOSITE");
         APEX_LOGI(" ◈ DELTAS :: History: %s min=%.1fms, avg=%.1fms, max=%.1fms | Range: [%.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.1f] ms",
                   sparkline, minDelta, meanDelta, maxDelta,
                   mDeltaHistory[0] / 1000000.0f, mDeltaHistory[1] / 1000000.0f,
@@ -764,16 +772,31 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
         return;
     }
 
+    if (width <= 0 || height <= 0 || inputTextureId == 0) {
+        return;
+    }
+
     if (!mInitialized || mSurfaceWidth != width || mSurfaceHeight != height) {
         init(width, height);
+    }
+
+    ensureResources(width, height);
+    if (mCurrentCapturedTexture == 0 || mPreviousCapturedTexture == 0) {
+        return;
     }
 
     int64_t nowNanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
 
+    int realCaptured = mRealFramesCaptured.load(std::memory_order_relaxed);
+    int framesSince = mFramesSinceReal.load(std::memory_order_relaxed);
+    int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
+
     // Consume pending real frame flag set when DXVK/Wine updates window content
     bool hasPendingReal = mPendingRealFrame.exchange(false, std::memory_order_acq_rel);
-    bool isReal = hasPendingReal || (mRealFramesCaptured.load(std::memory_order_relaxed) < 2);
+    // Safety: Treat as real frame if new frame signaled, or early initialization (< 2 frames),
+    // or if real frames stalled/game is loading (framesSince >= mult * 2 or framesSince >= 8)
+    bool isReal = hasPendingReal || (realCaptured < 2) || (framesSince >= mult * 2) || (framesSince >= 8);
 
     if (isReal) {
         // REAL GAME FRAME: Ingest to history, update optical flow, display real frame (factor = 1.0)
@@ -790,6 +813,14 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
         // Blit incoming game frame into current capture texture
         runWarpingPass(inputTextureId, inputTextureId, mMotionVectorTexture, mCaptureFbo, 1.0f, width, height);
 
+        if (realCaptured == 0) {
+            // First ever real frame: also initialize previous captured texture to prevent initial optical flow glitch
+            glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mPreviousCapturedTexture, 0);
+            glViewport(0, 0, width, height);
+            runWarpingPass(inputTextureId, inputTextureId, mMotionVectorTexture, mCaptureFbo, 1.0f, width, height);
+        }
+
         if (lastRealTime > 0) {
             float delta = static_cast<float>(nowNanos - lastRealTime);
             if (delta > 1000000.0f && delta < 300000000.0f) {
@@ -802,19 +833,16 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
 
                 mTypicalDeltaNanos = mTypicalDeltaNanos * 0.40f + medianDelta * 0.60f;
 
-                // Update adaptive frame multiplier (Bug 5 fix: onFrameCaptured() was dead code)
+                // Update adaptive frame multiplier
                 int target = mTargetFPS.load(std::memory_order_acquire);
                 if (mTypicalDeltaNanos >= 66666666.0f) {
-                    // Sub-15 FPS: hard-lock to 2x
                     mAutoMultiplier.store(2, std::memory_order_release);
                     mAutoMultiplierVal.store(2.0f, std::memory_order_release);
                 } else if (mTypicalDeltaNanos >= 33333333.0f) {
-                    // 15-30 FPS: 2x default, 3x if targeting 90+ FPS
-                    int mult = (target >= 90) ? 3 : 2;
-                    mAutoMultiplier.store(mult, std::memory_order_release);
-                    mAutoMultiplierVal.store(static_cast<float>(mult), std::memory_order_release);
+                    int m = (target >= 90) ? 3 : 2;
+                    mAutoMultiplier.store(m, std::memory_order_release);
+                    mAutoMultiplierVal.store(static_cast<float>(m), std::memory_order_release);
                 } else if (target > 0) {
-                    // >30 FPS with a target: compute ratio
                     float targetInterval = 1000000000.0f / static_cast<float>(target);
                     if (mTypicalDeltaNanos <= targetInterval * 1.05f) {
                         mAutoMultiplier.store(1, std::memory_order_release);
@@ -825,39 +853,68 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
                         mAutoMultiplier.store(std::clamp(static_cast<int>(std::ceil(val)), 2, 4), std::memory_order_release);
                     }
                 } else {
-                    // Unlimited: dynamic high-refresh
-                    int mult = (mTypicalDeltaNanos > 25000000.0f) ? 3 : 2;
-                    mAutoMultiplier.store(mult, std::memory_order_release);
-                    mAutoMultiplierVal.store(static_cast<float>(mult), std::memory_order_release);
+                    int m = (mTypicalDeltaNanos > 25000000.0f) ? 3 : 2;
+                    mAutoMultiplier.store(m, std::memory_order_release);
+                    mAutoMultiplierVal.store(static_cast<float>(m), std::memory_order_release);
                 }
             }
         }
         mLastRealFrameTimeNanos.store(nowNanos, std::memory_order_release);
 
         // Run optical flow compute shaders between current and previous frame
-        runComputePipeline(mCurrentCapturedTexture, mPreviousCapturedTexture, width, height);
+        if (realCaptured >= 1) {
+            runComputePipeline(mCurrentCapturedTexture, mPreviousCapturedTexture, width, height);
+        }
 
         int realCount = mRealFramesCaptured.fetch_add(1, std::memory_order_relaxed);
         mFramesSinceReal.store(0, std::memory_order_release);
         mRenderingGeneratedFrame.store(false, std::memory_order_release);
 
-        // Present smooth interpolated intermediate frame first (t = 0.5);
-        // on subsequent off-VSYNC pulse, the real frame (t = 1.0) is presented.
+        // Present real frame immediately on startup or first frames
         float factor = (realCount < 2) ? 1.0f : 0.5f;
-        runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, factor, width, height);
+        runWarpingPass(mCurrentCapturedTexture, (realCount < 2) ? mCurrentCapturedTexture : mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, factor, width, height);
     } else {
-        // GENERATED / OFF-VSYNC CADENCE: Present real frame (t = 1.0) or progressive multiplier steps
+        // GENERATED / OFF-VSYNC CADENCE:
+        if (realCaptured < 2 || mPreviousCapturedTexture == 0 || mCurrentCapturedTexture == 0) {
+            // Passthrough current frame if not enough history
+            runWarpingPass(inputTextureId, inputTextureId, mMotionVectorTexture, outputFboId, 1.0f, width, height);
+            return;
+        }
+
         mHeartbeatGenFrames++;
         mGeneratedFrameCount.fetch_add(1, std::memory_order_relaxed);
-        int framesSince = mFramesSinceReal.fetch_add(1, std::memory_order_relaxed);
+        int since = mFramesSinceReal.fetch_add(1, std::memory_order_relaxed);
 
-        int mult = std::max(2, mAutoMultiplier.load(std::memory_order_acquire));
-        float factor = (framesSince + 1 >= mult - 1) ? 1.0f : (static_cast<float>(framesSince + 2) / static_cast<float>(mult));
+        float factor = (since + 1 >= mult - 1) ? 1.0f : (static_cast<float>(since + 2) / static_cast<float>(mult));
         runWarpingPass(mCurrentCapturedTexture, mPreviousCapturedTexture, mMotionVectorTexture, outputFboId, factor, width, height);
         mRenderingGeneratedFrame.store(true, std::memory_order_release);
     }
 
     logHeartbeatIfDue(nowNanos);
+}
+
+void ApexEngine::processFrameWithData(GLuint inputTextureId, GLuint depthTextureId, GLuint hudTextureId, GLuint outputFboId, int width, int height) {
+    if (!mActive.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    if (depthTextureId == 0 && hudTextureId == 0) {
+        processFrame(inputTextureId, outputFboId, width, height);
+        return;
+    }
+
+    // Depth/HUD-aware execution path
+    processFrame(inputTextureId, outputFboId, width, height);
+
+    // If a clean separate HUD layer is present, stamp it with alpha blend over the generated frame
+    if (hudTextureId > 0) {
+        glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
+        glViewport(0, 0, width, height);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        runWarpingPass(hudTextureId, hudTextureId, mMotionVectorTexture, outputFboId, 1.0f, width, height);
+        glDisable(GL_BLEND);
+    }
 }
 
 } // namespace apex

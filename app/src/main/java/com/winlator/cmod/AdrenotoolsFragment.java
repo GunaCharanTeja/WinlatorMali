@@ -53,6 +53,7 @@ public class AdrenotoolsFragment extends Fragment {
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        ThemeManager.applyThemeToView(view, getContext());
         ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.adrenotools_gpu_drivers);
     }
     

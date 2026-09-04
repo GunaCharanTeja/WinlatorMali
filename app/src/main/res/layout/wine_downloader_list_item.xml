@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp">
+
+    <ImageView
+        android:id="@+id/IVWineItemIcon"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:src="@drawable/icon_wine"
+        app:tint="?attr/colorAccent"
+        android:layout_marginEnd="10dp" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/TVWineItemTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Proton 10.0-4 arm64ec"
+            android:textStyle="bold"
+            android:textSize="13.5sp"
+            android:textColor="?attr/semanticOnSurface"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/TVWineItemSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Official Bannerlator Proton 10 (SDK 35)"
+            android:textSize="11.5sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:layout_marginTop="2dp"
+            android:maxLines="2"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/BTWineItemAction"
+        style="@style/ButtonPositive"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:minWidth="76dp"
+        android:text="Get"
+        android:textSize="12sp"
+        android:layout_marginStart="8dp" />
+
+    <ImageButton
+        android:id="@+id/BTWineItemDelete"
+        style="@style/ToolButton"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:src="@drawable/icon_remove"
+        app:tint="#FF5252"
+        android:layout_marginStart="6dp"
+        android:visibility="gone"
+        android:contentDescription="Delete Runtime" />
+
+</LinearLayout>

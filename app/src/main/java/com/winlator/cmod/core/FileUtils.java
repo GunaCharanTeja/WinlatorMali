@@ -42,6 +42,20 @@ public abstract class FileUtils {
 
     private static final String TAG = "FileUtils";
 
+    public static long getDirectorySize(File dir) {
+        if (dir == null || !dir.exists()) return 0L;
+        if (dir.isFile()) return dir.length();
+        long size = 0;
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isFile()) size += f.length();
+                else if (f.isDirectory()) size += getDirectorySize(f);
+            }
+        }
+        return size;
+    }
+
     public static byte[] read(Context context, String assetFile) {
         try (InputStream inStream = context.getAssets().open(assetFile)) {
             return StreamUtils.copyToByteArray(inStream);

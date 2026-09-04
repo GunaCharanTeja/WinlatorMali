@@ -124,6 +124,19 @@ public abstract class ProcessHelper {
         return pid;
     }
 
+    public static boolean setLinuxAffinity(int linuxPid, int mask) {
+        if (linuxPid <= 0 || mask == 0) return false;
+        try {
+            java.lang.Process p = Runtime.getRuntime().exec(new String[]{
+                "/system/bin/taskset", "-a", "-p", Integer.toHexString(mask & 0xff), Integer.toString(linuxPid)
+            });
+            return p.waitFor() == 0;
+        } catch (Exception e) {
+            Log.w("ProcessHelper", "setLinuxAffinity failed pid=" + linuxPid, e);
+            return false;
+        }
+    }
+
     private static void createDebugThread(final InputStream inputStream) {
         Executors.newSingleThreadExecutor().execute(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {

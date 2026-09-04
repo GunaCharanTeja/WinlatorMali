@@ -26,6 +26,22 @@ Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeProcessFrame(
 }
 
 JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeProcessFrameWithData(
+    JNIEnv* env, jclass clazz, jint inputTextureId, jint depthTextureId, jint hudTextureId, jint outputFboId, jint width, jint height) {
+    (void)env; (void)clazz;
+    
+    if (apex::ApexEngine::getInstance().isActive()) {
+        apex::ApexEngine::getInstance().processFrameWithData(
+            static_cast<GLuint>(inputTextureId),
+            static_cast<GLuint>(depthTextureId),
+            static_cast<GLuint>(hudTextureId),
+            static_cast<GLuint>(outputFboId),
+            width, height
+        );
+    }
+}
+
+JNIEXPORT void JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeInit(JNIEnv* env, jclass clazz, jint width, jint height) {
     (void)env; (void)clazz;
     apex::ApexEngine::getInstance().init(width, height);

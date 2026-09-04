@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer Shield Contour / Gamepad Wing -->
+    <path
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M34,36 C30,42 28,48 30,58 C32,67 39,72 45,70 L54,67 L63,70 C69,72 76,67 78,58 C80,48 78,42 74,36 C70,30 63,28 54,28 C45,28 38,30 34,36 Z" />
+
+    <!-- Stylized Modern 'W' Emblem -->
+    <path
+        android:strokeWidth="3.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M37,42 L45,62 L54,48 L63,62 L71,42" />
+
+    <!-- D-Pad Left Accent -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,48 h-3 v2 h3 v3 h2 v-3 h3 v-2 h-3 v-3 h-2 z" />
+
+    <!-- Action Buttons Right Accent -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M69,45 A1.8,1.8 0 1 1 69,44.9 Z M73,49 A1.8,1.8 0 1 1 73,48.9 Z M65,49 A1.8,1.8 0 1 1 65,48.9 Z M69,53 A1.8,1.8 0 1 1 69,52.9 Z" />
+
+    <!-- Center Core Dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,37 A2.2,2.2 0 1 1 54,36.9 Z" />
+</vector>

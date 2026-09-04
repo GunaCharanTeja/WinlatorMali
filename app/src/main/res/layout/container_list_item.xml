@@ -4,8 +4,8 @@
     <ImageView android:id="@id/ImageView" android:layout_width="36.0dip" android:layout_height="36.0dip" android:layout_marginTop="8.0dip" android:layout_marginRight="16.0dip" android:layout_marginBottom="8.0dip" app:tint="?attr/colorAccent" />
     <TextView android:ellipsize="end" android:gravity="center_vertical" android:id="@id/TVTitle" android:layout_width="0.0dip" android:layout_height="fill_parent" android:maxLines="1" android:layout_weight="1.0" android:textColor="?attr/semanticOnSurface" />
     <LinearLayout android:orientation="horizontal" android:layout_width="wrap_content" android:layout_height="wrap_content">
-        <ImageView android:id="@+id/BTRun" android:layout_marginRight="2.0dip" android:src="@drawable/icon_run" style="@style/LeftSideButton" />
-        <ImageView android:id="@id/BTMenu" android:layout_marginLeft="2.0dip" android:src="@drawable/icon_list_item_menu" style="@style/RightSideButton" />
+        <ImageView android:id="@+id/BTRun" android:layout_marginRight="2.0dip" android:src="@drawable/icon_run" app:tint="?attr/colorAccent" style="@style/LeftSideButton" />
+        <ImageView android:id="@id/BTMenu" android:layout_marginLeft="2.0dip" android:src="@drawable/icon_list_item_menu" app:tint="?attr/colorAccent" style="@style/RightSideButton" />
     </LinearLayout>
 </LinearLayout>
 <!--

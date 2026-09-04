@@ -1,6 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android" >
-    <item android:state_pressed="true" android:drawable="@drawable/combo_box_pressed" />
-    <item android:state_focused="true" android:drawable="@drawable/combo_box_normal" />
-    <item android:drawable="@drawable/combo_box_normal" />
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="8dp" />
+                    <solid android:color="#332196F3" />
+                    <stroke android:width="1.5dp" android:color="?attr/colorAccent" />
+                </shape>
+            </item>
+            <item
+                android:gravity="end|center_vertical"
+                android:right="12dp"
+                android:width="18dp"
+                android:height="18dp"
+                android:drawable="@drawable/ic_arrow_drop_down" />
+        </layer-list>
+    </item>
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="8dp" />
+                    <solid android:color="#202196F3" />
+                    <stroke android:width="1.5dp" android:color="?attr/colorAccent" />
+                </shape>
+            </item>
+            <item
+                android:gravity="end|center_vertical"
+                android:right="12dp"
+                android:width="18dp"
+                android:height="18dp"
+                android:drawable="@drawable/ic_arrow_drop_down" />
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="8dp" />
+                    <solid android:color="#18FFFFFF" />
+                    <stroke android:width="1.2dp" android:color="#33FFFFFF" />
+                </shape>
+            </item>
+            <item
+                android:gravity="end|center_vertical"
+                android:right="12dp"
+                android:width="18dp"
+                android:height="18dp"
+                android:drawable="@drawable/ic_arrow_drop_down" />
+        </layer-list>
+    </item>
 </selector>

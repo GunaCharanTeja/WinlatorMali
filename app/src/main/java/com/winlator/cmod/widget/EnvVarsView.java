@@ -241,7 +241,12 @@ public class EnvVarsView extends FrameLayout {
     // Method to set the environment variables
     public void setEnvVars(EnvVars envVars) {
         container.removeAllViews();
-        for (String name : envVars) add(name, envVars.get(name));
+        for (String name : envVars) {
+            if (name.equalsIgnoreCase("VK_INSTANCE_LAYERS") || name.equalsIgnoreCase("ENABLE_APEX_DEPTH_HOOK")) {
+                continue;
+            }
+            add(name, envVars.get(name));
+        }
     }
 
     public void setDarkMode(boolean isDarkMode) {

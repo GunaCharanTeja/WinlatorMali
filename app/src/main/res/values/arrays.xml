@@ -38,8 +38,9 @@
         <item>turnip25.1.0</item>
     </string-array>
     <string-array name="audio_driver_entries">
-        <item>PulseAudio</item>
         <item>ALSA</item>
+        <item>PulseAudio</item>
+        <item>PulseAudio-GN</item>
     </string-array>
     <string-array name="binding_type_entries">
         <item>Keyboard</item>
@@ -347,11 +348,6 @@
         <item>proton-10-arm64ec</item>
         <item>proton-9.0-arm64ec</item>
         <item>proton-9.0-x86_64</item>
-    </string-array>
-    <string-array name="vkbasalt_sharpness_entries">
-        <item>None</item>
-        <item>AMD RCAS</item>
-        <item>AMD RCAS + Vibrance</item>
     </string-array>
     <string-array name="num_controllers_entries">
         <item>1</item>

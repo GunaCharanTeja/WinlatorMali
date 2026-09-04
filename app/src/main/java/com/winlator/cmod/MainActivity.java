@@ -8,6 +8,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,7 +18,7 @@ import android.text.Html;
 import android.text.SpannableString;
 import android.text.method.LinkMovementMethod;
 import android.text.style.ForegroundColorSpan;
-import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
@@ -38,6 +39,7 @@ import androidx.preference.PreferenceManager;
 import com.google.android.material.navigation.NavigationView;
 import com.winlator.cmod.R;
 import com.winlator.cmod.contentdialog.ContentDialog;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.ImageUtils;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -71,15 +73,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         // Get shared preferences
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        // Load the user's preferred theme
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", true);
-
-        // Apply the theme based on the preference
-        if (isDarkMode) {
-            setTheme(R.style.AppTheme_Dark);
-        } else {
-            setTheme(R.style.AppTheme);
-        }
+        isDarkMode = true;
+        setTheme(R.style.AppTheme_Dark);
         ThemeManager.applyTheme(this);
 
         setContentView(R.layout.main_activity);
@@ -95,17 +90,24 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             navigationView.getMenu().findItem(R.id.main_menu_adrenotools_gpu_drivers).setVisible(true);
         }
 
-        setSupportActionBar(findViewById(R.id.Toolbar));
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.Toolbar);
+        setSupportActionBar(toolbar);
         ActionBar actionBar = getSupportActionBar();
+        int accentColor = ThemeManager.getAccentColor(this);
         if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(true);
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
+            setActionBarHomeIcon(R.drawable.icon_action_bar_menu);
+        }
+        if (toolbar != null) {
+            toolbar.setTitleTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
+            if (toolbar.getOverflowIcon() != null) {
+                Drawable overflow = toolbar.getOverflowIcon().mutate();
+                overflow.setTint(accentColor);
+                toolbar.setOverflowIcon(overflow);
+            }
         }
 
-        // Determine text color based on theme
-        int textColor = isDarkMode ? ThemeManager.getOnSurfaceTextColor(this) : Color.parseColor("#212121");
-        setNavigationViewItemTextColor(navigationView, textColor);
-        navigationView.setItemIconTintList(android.content.res.ColorStateList.valueOf(ThemeManager.getAccentColor(this)));
+        applyDrawerStyling(navigationView);
 
         // Create Winlator folder if not present
         File winlatorDir = new File(SettingsFragment.DEFAULT_WINLATOR_PATH);
@@ -118,23 +120,27 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         editInputControls = intent.getBooleanExtra("edit_input_controls", false);
         if (editInputControls) {
             selectedProfileId = intent.getIntExtra("selected_profile_id", 0);
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
+            setActionBarHomeIcon(R.drawable.icon_action_bar_back);
             onNavigationItemSelected(navigationView.getMenu().findItem(R.id.main_menu_input_controls));
             navigationView.setCheckedItem(R.id.main_menu_input_controls);
         } else {
             int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
             int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : R.id.main_menu_containers;
 
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
+            setActionBarHomeIcon(R.drawable.icon_action_bar_menu);
             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
             navigationView.setCheckedItem(menuItemId);
 
-            if (!requestAppPermissions()) {
-                ImageFsInstaller.installIfNeeded(this);
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-                showAllFilesAccessDialog();
+            if (checkStoragePermissions()) {
+                if (!ImageFsInstaller.installIfNeeded(this)) {
+                    com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
+                }
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    showAllFilesAccessDialog();
+                } else {
+                    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE);
+                }
             }
 
             if (Build.VERSION.SDK_INT >= 33) {
@@ -151,11 +157,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     .setTitle("All Files Access Required")
                     .setMessage("In order to grant access to additional storage devices such as USB storage device, the All Files Access permission must be granted. Press Okay to grant All Files Access in your Android Settings.")
                     .setPositiveButton("Okay", (dialog, which) -> {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                            intent.setData(Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                            startActivity(intent);
+                        }
                     })
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton("Later", (dialog, which) -> {
+                        if (!ImageFsInstaller.installIfNeeded(this)) {
+                            com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
+                        }
+                    })
                     .show();
         }
     }
@@ -165,15 +180,26 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                ImageFsInstaller.installIfNeeded(this);
+                if (!ImageFsInstaller.installIfNeeded(this)) {
+                    com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
+                }
+            } else {
+                AppUtils.showToast(this, "Storage permission is recommended for container drives.");
+                if (!ImageFsInstaller.installIfNeeded(this)) {
+                    com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
+                }
             }
-            else finish();
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (checkStoragePermissions()) {
+            if (!ImageFsInstaller.installIfNeeded(this)) {
+                com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
+            }
+        }
         NavigationView navigationView = findViewById(R.id.NavigationView);
         if (navigationView != null) {
             boolean forceShowAdreno = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("show_adrenotools_unsupported", false);
@@ -207,21 +233,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             super.onBackPressed();
     }
 
-    private boolean requestAppPermissions() {
-        boolean hasWritePermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-        boolean hasReadPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-        boolean hasManageStoragePermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager();
-
-        if (hasWritePermission && hasReadPermission && hasManageStoragePermission) {
-            return false; // All permissions are granted
+    private boolean checkStoragePermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        } else {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
         }
-
-        if (!hasWritePermission || !hasReadPermission) {
-            String[] permissions = new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE};
-            ActivityCompat.requestPermissions(this, permissions, PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE);
-        }
-
-        return true; // Permissions are still being requested
     }
 
     @Override
@@ -241,6 +259,34 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         } else {
             return super.onOptionsItemSelected(menuItem);
         }
+    }
+
+    public void setActionBarHomeIcon(int resId) {
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            Drawable icon = ContextCompat.getDrawable(this, resId);
+            if (icon != null) {
+                icon = icon.mutate();
+                icon.setTint(ThemeManager.getAccentColor(this));
+                actionBar.setHomeAsUpIndicator(icon);
+            } else {
+                actionBar.setHomeAsUpIndicator(resId);
+            }
+        }
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        int accent = ThemeManager.getAccentColor(this);
+        for (int i = 0; i < menu.size(); i++) {
+            MenuItem item = menu.getItem(i);
+            if (item.getIcon() != null) {
+                Drawable icon = item.getIcon().mutate();
+                icon.setTint(accent);
+                item.setIcon(icon);
+            }
+        }
+        return super.onPrepareOptionsMenu(menu);
     }
 
     public void toggleDrawer() {
@@ -289,6 +335,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case R.id.main_menu_about:
                 showAboutDialog();
                 break;
+        }
+
+        if (item.getItemId() != R.id.main_menu_about) {
+            NavigationView navigationView = findViewById(R.id.NavigationView);
+            if (navigationView != null) {
+                navigationView.setCheckedItem(item.getItemId());
+            }
         }
         return true;
     }
@@ -377,25 +430,55 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         dialog.show();
     }
 
-    private void setNavigationViewItemTextColor(NavigationView navigationView, int color) {
-        for (int i = 0; i < navigationView.getMenu().size(); i++) {
-            MenuItem menuItem = navigationView.getMenu().getItem(i);
-            setMenuItemTextColor(menuItem, color);
+    private void applyDrawerStyling(NavigationView navigationView) {
+        int accentColor = ThemeManager.getAccentColor(this);
+        int onSurfaceColor = ThemeManager.getOnSurfaceTextColor(this);
+        int surfaceColor = ThemeManager.getSurfaceColor(this);
 
-            // If the menu item has sub-items, iterate through them
-            if (menuItem.hasSubMenu()) {
-                for (int j = 0; j < menuItem.getSubMenu().size(); j++) {
-                    MenuItem subMenuItem = menuItem.getSubMenu().getItem(j);
-                    setMenuItemTextColor(subMenuItem, color);
-                }
-            }
-        }
+        navigationView.setBackgroundColor(surfaceColor);
+
+        int[][] states = new int[][]{
+            new int[]{android.R.attr.state_checked},
+            new int[]{android.R.attr.state_pressed},
+            new int[]{}
+        };
+        int[] textColors = new int[]{
+            accentColor,
+            accentColor,
+            onSurfaceColor
+        };
+        android.content.res.ColorStateList textStateList = new android.content.res.ColorStateList(states, textColors);
+        navigationView.setItemTextColor(textStateList);
+        navigationView.setItemIconTintList(textStateList);
+
+        // Dynamic theme accent pill highlight
+        int pillAlpha = 0x2A; // ~16.5% alpha
+        int pillColor = (accentColor & 0x00FFFFFF) | (pillAlpha << 24);
+        int rippleColor = (accentColor & 0x00FFFFFF) | (0x33 << 24);
+
+        android.graphics.drawable.GradientDrawable checkedDrawable = new android.graphics.drawable.GradientDrawable();
+        checkedDrawable.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        checkedDrawable.setCornerRadius(dpToPx(24));
+        checkedDrawable.setColor(pillColor);
+
+        android.graphics.drawable.GradientDrawable transparentDrawable = new android.graphics.drawable.GradientDrawable();
+        transparentDrawable.setColor(android.graphics.Color.TRANSPARENT);
+
+        android.graphics.drawable.StateListDrawable stateListDrawable = new android.graphics.drawable.StateListDrawable();
+        stateListDrawable.addState(new int[]{android.R.attr.state_checked}, checkedDrawable);
+        stateListDrawable.addState(new int[]{}, transparentDrawable);
+
+        android.graphics.drawable.RippleDrawable rippleDrawable = new android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(rippleColor),
+            stateListDrawable,
+            null
+        );
+
+        navigationView.setItemBackground(rippleDrawable);
     }
 
-    private void setMenuItemTextColor(MenuItem menuItem, int color) {
-        SpannableString spanString = new SpannableString(menuItem.getTitle());
-        spanString.setSpan(new ForegroundColorSpan(color), 0, spanString.length(), 0);
-        menuItem.setTitle(spanString);
+    private float dpToPx(float dp) {
+        return dp * getResources().getDisplayMetrics().density;
     }
 
     public ContainerManager getContainerManager() {
@@ -405,11 +488,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == OPEN_IMAGE_REQUEST_CODE && resultCode == RESULT_OK) {
+        if (requestCode == OPEN_IMAGE_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
             Bitmap bitmap = ImageUtils.getBitmapFromUri(this, data.getData(), 1280);
             if (bitmap == null) return;
             File userWallpaperFile = WineThemeManager.getUserWallpaperFile(this);
             ImageUtils.save(bitmap, userWallpaperFile, Bitmap.CompressFormat.PNG, 100);
+        } else if (requestCode == com.winlator.cmod.saves.SaveManagerDialog.REQUEST_CODE_RESTORE_ZIP && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                com.winlator.cmod.saves.SaveManagerDialog dialog = com.winlator.cmod.saves.SaveManagerDialog.getActiveInstance();
+                if (dialog != null) {
+                    dialog.handlePickedUri(uri);
+                }
+            }
         }
     }
 }

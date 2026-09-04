@@ -22,7 +22,7 @@
 			android:layout_height="wrap_content"
 			android:entries="@array/surface_format_entries"
 			android:id="@+id/SSurfaceFormat"
-			android:spinnerMode="dialog" />
+			android:spinnerMode="dropdown" />
 
 		<org.appdevforall.codeonthego.layouteditor.editor.palette.buttons.CheckBoxDesign
 			android:layout_width="wrap_content"

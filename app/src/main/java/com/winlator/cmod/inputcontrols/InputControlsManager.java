@@ -240,10 +240,10 @@ public class InputControlsManager {
     }
 
     public static ControlsProfile loadProfile(Context context, File file) {
-        try {
-            return loadProfile(context, new FileInputStream(file));
+        try (InputStream is = new FileInputStream(file)) {
+            return loadProfile(context, is);
         }
-        catch (FileNotFoundException e) {
+        catch (IOException e) {
             return null;
         }
     }

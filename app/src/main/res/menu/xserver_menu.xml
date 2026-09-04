@@ -30,6 +30,10 @@
             android:id="@+id/main_menu_graphics_enhancements"
             android:title="@string/graphics_enhancements" />
         <item
+            android:icon="@drawable/icon_cpu"
+            android:id="@+id/main_menu_performance"
+            android:title="@string/performance" />
+        <item
             android:icon="@drawable/icon_debug"
             android:id="@+id/main_menu_logs"
             android:title="@string/logs" />

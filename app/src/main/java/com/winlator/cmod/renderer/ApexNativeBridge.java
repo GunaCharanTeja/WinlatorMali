@@ -31,4 +31,5 @@ public class ApexNativeBridge {
 
     // Direct GPU Frame Processing Hook on Render Thread
     public static native void nativeProcessFrame(int inputTextureId, int outputFboId, int width, int height);
+    public static native void nativeProcessFrameWithData(int inputTextureId, int depthTextureId, int hudTextureId, int outputFboId, int width, int height);
 }

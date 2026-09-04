@@ -10,7 +10,10 @@ import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.util.Log;
 
 import androidx.palette.graphics.Palette;
@@ -145,6 +148,17 @@ public class Shortcut {
         return fallbackCoverArt;
     }
 
+    private static final int[][] AAA_PALETTES = {
+        {0xFF0D47A1, 0xFF00E5FF, 0xFF040810}, // Cyber Ocean (Deep Blue -> Cyan -> Obsidian)
+        {0xFF4A148C, 0xFFFF007F, 0xFF080410}, // Neon Synthwave (Purple -> Hot Pink -> Dark)
+        {0xFF880E4F, 0xFFFF1744, 0xFF0A0306}, // Crimson Shadow (Wine -> Vivid Red -> Obsidian)
+        {0xFF004D40, 0xFF00E676, 0xFF030A06}, // Emerald Cyber (Dark Teal -> Bright Mint -> Dark)
+        {0xFFE65100, 0xFFFFB300, 0xFF0C0702}, // Amber Gold (Deep Orange -> Radiant Gold -> Dark)
+        {0xFF311B92, 0xFF7C4DFF, 0xFF06030E}, // Royal Velvet (Cosmic Indigo -> Violet -> Dark)
+        {0xFF01579B, 0xFF00B0FF, 0xFF03070C}, // Electric Azure (Navy -> Bright Azure -> Dark)
+        {0xFFBF360C, 0xFFFF6D00, 0xFF0A0502}  // Solar Sunset (Dark Rust -> Vivid Flame -> Dark)
+    };
+
     private Bitmap generateFallbackCoverArt(int width, int height) {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -154,11 +168,22 @@ public class Shortcut {
         int vibrantColor = Color.parseColor("#1A237E");
 
         if (icon != null) {
-            Palette palette = Palette.from(icon).generate();
-            vibrantColor = palette.getVibrantColor(vibrantColor);
-            vibrantColor = palette.getLightVibrantColor(vibrantColor);
-            vibrantColor = palette.getDominantColor(vibrantColor);
+            try {
+                Palette palette = Palette.from(icon).generate();
+                vibrantColor = palette.getVibrantColor(vibrantColor);
+                vibrantColor = palette.getLightVibrantColor(vibrantColor);
+                vibrantColor = palette.getDominantColor(vibrantColor);
 
+                float[] hsv = new float[3];
+                Color.colorToHSV(vibrantColor, hsv);
+                hsv[1] = Math.min(hsv[1], 0.6f);
+                hsv[2] *= 0.15f;
+                dominantColor = Color.HSVToColor(hsv);
+            } catch (Exception ignored) {}
+        } else {
+            int paletteIdx = Math.abs(this.name.hashCode()) % AAA_PALETTES.length;
+            vibrantColor = AAA_PALETTES[paletteIdx][1];
+            dominantColor = AAA_PALETTES[paletteIdx][0];
             float[] hsv = new float[3];
             Color.colorToHSV(vibrantColor, hsv);
             hsv[1] = Math.min(hsv[1], 0.6f);
@@ -166,7 +191,7 @@ public class Shortcut {
             dominantColor = Color.HSVToColor(hsv);
         }
 
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         Shader gradient = new LinearGradient(0, 0, 0, height, dominantColor, darkColor, Shader.TileMode.CLAMP);
         paint.setShader(gradient);
         canvas.drawRect(0, 0, width, height, paint);
@@ -214,10 +239,47 @@ public class Shortcut {
             canvas.drawCircle(width / 2.0f, top + scaledHeight / 2.0f + 20, scaledWidth * 0.55f, blackShadowPaint);
 
             canvas.drawBitmap(scaledIcon, left, top, new Paint(Paint.FILTER_BITMAP_FLAG));
+        } else {
+            float centerX = width / 2.0f;
+            float centerY = height * 0.42f;
+            float badgeRadius = width * 0.22f;
+
+            Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            shadowPaint.setColor(vibrantColor);
+            shadowPaint.setAlpha(90);
+            shadowPaint.setMaskFilter(new BlurMaskFilter(width * 0.16f, BlurMaskFilter.Blur.NORMAL));
+            canvas.drawCircle(centerX, centerY, badgeRadius * 1.25f, shadowPaint);
+
+            Paint blackShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            blackShadowPaint.setColor(Color.BLACK);
+            blackShadowPaint.setAlpha(160);
+            blackShadowPaint.setMaskFilter(new BlurMaskFilter(width * 0.05f, BlurMaskFilter.Blur.NORMAL));
+            canvas.drawCircle(centerX, centerY + 20, badgeRadius * 1.1f, blackShadowPaint);
+
+            Paint corePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            corePaint.setColor(0xEE141A26);
+            canvas.drawCircle(centerX, centerY, badgeRadius, corePaint);
+
+            Paint ringPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            ringPaint.setStyle(Paint.Style.STROKE);
+            ringPaint.setStrokeWidth(4.0f);
+            ringPaint.setColor(vibrantColor);
+            canvas.drawCircle(centerX, centerY, badgeRadius, ringPaint);
+
+            String initials = extractInitials(this.name);
+            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            textPaint.setColor(Color.WHITE);
+            textPaint.setTextSize(badgeRadius * 0.85f);
+            textPaint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+            textPaint.setTextAlign(Paint.Align.CENTER);
+            textPaint.setShadowLayer(10f, 0, 4f, 0xCC000000);
+            Paint.FontMetrics fm = textPaint.getFontMetrics();
+            float textY = centerY - (fm.ascent + fm.descent) / 2f;
+            canvas.drawText(initials, centerX, textY, textPaint);
         }
 
-        Random random = new Random();
-        Paint starPaint = new Paint();
+        Random random = new Random(this.name != null ? this.name.hashCode() : 42);
+        Paint starPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         starPaint.setColor(Color.WHITE);
         for (int i = 0; i < 5000; i++) {
             starPaint.setAlpha(random.nextInt(15) + 3);
@@ -240,12 +302,29 @@ public class Shortcut {
         return bitmap;
     }
 
+    private String extractInitials(String title) {
+        if (title == null || title.trim().isEmpty()) return "G";
+        String clean = title.replaceAll("(?i)\\b(the|a|an|of|in|and|for)\\b", " ")
+                            .replaceAll("[^a-zA-Z0-9\\s]", " ")
+                            .replaceAll("\\s+", " ").trim();
+        String[] words = clean.split(" ");
+        if (words.length == 0 || words[0].isEmpty()) return "G";
+        if (words.length == 1) {
+            String w = words[0];
+            return w.length() >= 2 ? w.substring(0, 2).toUpperCase(java.util.Locale.ROOT) : w.toUpperCase(java.util.Locale.ROOT);
+        } else if (words.length == 2) {
+            return ("" + words[0].charAt(0) + words[1].charAt(0)).toUpperCase(java.util.Locale.ROOT);
+        } else {
+            return ("" + words[0].charAt(0) + words[1].charAt(0) + words[2].charAt(0)).toUpperCase(java.util.Locale.ROOT);
+        }
+    }
+
     private void saveFallbackCoverArt(Bitmap bitmap) {
         try {
             File dir = new File(container.getRootDir(), FALLBACK_COVER_ART_DIR);
             if (!dir.exists() && !dir.mkdirs()) return;
             File file = new File(dir, this.name + ".png");
-            ImageUtils.save(bitmap, file, Bitmap.CompressFormat.PNG, 90);
+            ImageUtils.save(bitmap, file, Bitmap.CompressFormat.PNG, 100);
         } catch (Exception e) {}
     }
 
@@ -258,23 +337,28 @@ public class Shortcut {
                 changed = true;
             }
 
-            if (this.icon == null) {
-                File exeFile = resolveExeFile();
-                if (exeFile != null) {
-                    File iconDir64 = container.getIconsDir(64);
-                    if (!iconDir64.exists()) iconDir64.mkdirs();
-                    File iconDest = new File(iconDir64, this.name + ".png");
-                    
-                    if (!iconDest.exists()) {
-                        ExeIconExtractor.extractIcon(exeFile, iconDest);
-                    }
-                    
-                    if (iconDest.isFile()) {
-                        this.icon = BitmapFactory.decodeFile(iconDest.getPath());
+            File exeFile = resolveExeFile();
+            if (exeFile != null && (this.icon == null || this.icon.getWidth() < 256)) {
+                File iconDir = container.getIconsDir(256);
+                if (!iconDir.exists()) iconDir.mkdirs();
+                File iconDest = new File(iconDir, this.name + ".png");
+
+                if (!iconDest.exists() || iconDest.length() == 0) {
+                    ExeIconExtractor.extractIcon(exeFile, iconDest);
+                }
+
+                if (iconDest.isFile()) {
+                    Bitmap highRes = BitmapFactory.decodeFile(iconDest.getPath());
+                    if (highRes != null) {
+                        this.icon = highRes;
                         this.iconFile = iconDest;
                         changed = true;
                     }
                 }
+            }
+
+            if (this.icon != null && this.icon.getWidth() < 512) {
+                this.icon = ExeIconExtractor.upscaleIfNecessary(this.icon, 512);
             }
 
             String path = null;
@@ -309,7 +393,7 @@ public class Shortcut {
                 }
             }
 
-            String detectedVer = getGameVersion();
+            String detectedVer = com.winlator.cmod.core.GameVersionDetector.detect(this);
             if (detectedVer != null && !detectedVer.isEmpty()) {
                 changed = true;
             }
@@ -642,6 +726,8 @@ public class Shortcut {
     }
 
     public String getGameVersion() {
-        return com.winlator.cmod.core.GameVersionDetector.detect(this);
+        String saved = getExtra("gameVersion");
+        if (!saved.isEmpty()) return saved;
+        return null;
     }
 }

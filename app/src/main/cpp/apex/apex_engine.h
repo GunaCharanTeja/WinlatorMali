@@ -54,6 +54,7 @@ public:
 
     // Frame Execution
     void processFrame(GLuint inputTextureId, GLuint outputFboId, int width, int height);
+    void processFrameWithData(GLuint inputTextureId, GLuint depthTextureId, GLuint hudTextureId, GLuint outputFboId, int width, int height);
 
     // Atomic Settings (Thread-Safe UI Controls)
     void setActive(bool isEnabled);

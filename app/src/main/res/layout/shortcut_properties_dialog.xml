@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
+    android:layout_width="320dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="8dp">
 
     <TextView
         android:id="@+id/play_count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Number of times played: 0"
-        android:textSize="15sp"
+        android:textSize="14sp"
         android:paddingBottom="6dp" />
 
     <TextView
@@ -18,22 +18,23 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Playtime: 0d 00h 00m 00s"
-        android:textSize="15sp"
+        android:textSize="14sp"
         android:paddingBottom="12dp" />
 
     <TextView
         android:id="@+id/shortcut_details"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:lineSpacingMultiplier="1.2"
-        android:textSize="13.5sp"
+        android:lineSpacingMultiplier="1.25"
+        android:textSize="13sp"
         android:paddingBottom="16dp" />
 
     <Button
         android:id="@+id/reset_properties"
+        style="@style/ButtonNeutral"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Reset Properties"
-        android:textSize="15sp" />
+        android:layout_height="40dp"
+        android:text="Reset Statistics"
+        android:textSize="14sp" />
 
 </LinearLayout>

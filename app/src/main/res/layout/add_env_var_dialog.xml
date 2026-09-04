@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="280dp"
+    android:layout_width="320dp"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:padding="4dp">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/name" />
+        android:text="@string/name"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,23 +22,36 @@
         <EditText
             style="@style/EditText"
             android:layout_width="0dp"
+            android:layout_height="42dp"
             android:layout_weight="1"
-            android:id="@+id/ETName" />
+            android:id="@+id/ETName"
+            android:hint="VARIABLE_NAME"
+            android:singleLine="true" />
 
         <ImageButton
             style="@style/ListMenuButton"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
             android:id="@+id/BTMenu"
-            android:src="@drawable/icon_menu" />
+            android:src="@drawable/icon_menu"
+            android:contentDescription="Select predefined variable" />
     </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/value"
-        android:layout_marginTop="8dp" />
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp" />
 
     <EditText
         style="@style/EditText"
         android:layout_width="match_parent"
-        android:id="@+id/ETValue" />
+        android:layout_height="42dp"
+        android:id="@+id/ETValue"
+        android:hint="Value"
+        android:singleLine="true" />
 </LinearLayout>

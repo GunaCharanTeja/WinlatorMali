@@ -31,9 +31,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.documentfile.provider.DocumentFile;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import android.content.SharedPreferences;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.container.Container;
@@ -70,9 +73,21 @@ public class ContainersFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        ThemeManager.applyThemeToView(view, getContext());
         manager = new ContainerManager(getContext());
         loadContainersList();
-        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.containers);
+        androidx.appcompat.app.ActionBar actionBar = ((AppCompatActivity) getActivity()).getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setTitle("");
+        }
+
+        checkFirstLaunchWineSetup();
+    }
+
+    private void checkFirstLaunchWineSetup() {
+        if (getActivity() != null) {
+            com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(getActivity());
+        }
     }
 
     @Nullable
@@ -97,6 +112,17 @@ public class ContainersFragment extends Fragment {
         // Clear any existing menu items to prevent duplication
         menu.clear();
         menuInflater.inflate(R.menu.containers_menu, menu);
+        if (getContext() != null) {
+            int accent = ThemeManager.getAccentColor(getContext());
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItem item = menu.getItem(i);
+                if (item.getIcon() != null) {
+                    Drawable icon = item.getIcon().mutate();
+                    icon.setTint(accent);
+                    item.setIcon(icon);
+                }
+            }
+        }
     }
 
     @Override
@@ -104,6 +130,32 @@ public class ContainersFragment extends Fragment {
         switch (menuItem.getItemId()) {
             case R.id.containers_menu_add:
                 if (!ImageFs.find(getContext()).isValid()) return false;
+                List<String> installed = com.winlator.cmod.contents.WineDownloader.getInstalledWineVersions(getContext());
+                if (installed.isEmpty()) {
+                    new AlertDialog.Builder(getContext())
+                        .setTitle("Wine Runtime Required")
+                        .setMessage("No Wine or Proton runtimes are installed yet.\n\nWould you like to download Proton 10 arm64ec (Recommended) now?")
+                        .setPositiveButton("Download Runtime", (dialog, which) -> {
+                            com.winlator.cmod.contents.WineDownloader.showDownloadDialog(getActivity(), () -> {
+                                FragmentManager fm = getParentFragmentManager();
+                                fm.beginTransaction()
+                                    .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down, R.anim.slide_in_down, R.anim.slide_out_up)
+                                    .addToBackStack(null)
+                                    .replace(R.id.FLFragmentContainer, new ContainerDetailFragment())
+                                    .commit();
+                            });
+                        })
+                        .setNegativeButton("Configure Manually", (dialog, which) -> {
+                            FragmentManager fm = getParentFragmentManager();
+                            fm.beginTransaction()
+                                .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down, R.anim.slide_in_down, R.anim.slide_out_up)
+                                .addToBackStack(null)
+                                .replace(R.id.FLFragmentContainer, new ContainerDetailFragment())
+                                .commit();
+                        })
+                        .show();
+                    return true;
+                }
                 FragmentManager fragmentManager = getParentFragmentManager();
                 fragmentManager.beginTransaction()
                         .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down, R.anim.slide_in_down, R.anim.slide_out_up)
@@ -158,6 +210,13 @@ public class ContainersFragment extends Fragment {
             holder.imageView.setImageResource(R.drawable.icon_container);
             holder.title.setText(item.getName());
 
+            if (getContext() != null) {
+                int accent = ThemeManager.getAccentColor(getContext());
+                holder.imageView.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+                holder.runButton.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+                holder.menuButton.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+            }
+
             holder.runButton.setOnClickListener(view -> runContainer(item)); // Correct item reference
 
             holder.menuButton.setOnClickListener(view -> showListItemMenu(view, item));
@@ -184,6 +243,17 @@ public class ContainersFragment extends Fragment {
             PopupMenu listItemMenu = new PopupMenu(context, anchorView);
             listItemMenu.inflate(R.menu.container_popup_menu);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
+
+            Menu menu = listItemMenu.getMenu();
+            int accent = ThemeManager.getAccentColor(context);
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItem item = menu.getItem(i);
+                if (item.getIcon() != null) {
+                    Drawable icon = item.getIcon().mutate();
+                    icon.setTint(accent);
+                    item.setIcon(icon);
+                }
+            }
 
             listItemMenu.setOnMenuItemClickListener((menuItem) -> {
                 switch (menuItem.getItemId()) {
@@ -216,6 +286,9 @@ public class ContainersFragment extends Fragment {
                                 loadContainersList();
                             });
                         });
+                        break;
+                    case R.id.container_save_manager:
+                        new com.winlator.cmod.saves.SaveManagerDialog(getActivity(), container).show();
                         break;
                     case R.id.container_info:
                         (new StorageInfoDialog(getActivity(), container)).show();

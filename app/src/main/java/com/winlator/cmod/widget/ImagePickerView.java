@@ -27,7 +27,7 @@ import com.winlator.cmod.core.WineThemeManager;
 import java.io.File;
 
 public class ImagePickerView extends View implements View.OnClickListener {
-    private final Bitmap icon;
+    private final android.graphics.drawable.Drawable iconDrawable;
 
     public ImagePickerView(Context context) {
         this(context, null);
@@ -40,7 +40,7 @@ public class ImagePickerView extends View implements View.OnClickListener {
     public ImagePickerView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
 
-        icon = BitmapFactory.decodeResource(context.getResources(), R.drawable.icon_image_picker);
+        iconDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.icon_image_picker);
 
         setBackgroundResource(R.drawable.combo_box);
         setClickable(true);
@@ -54,16 +54,14 @@ public class ImagePickerView extends View implements View.OnClickListener {
 
         int width = getWidth();
         int height = getHeight();
-        if (width == 0 || height == 0) return;
+        if (width == 0 || height == 0 || iconDrawable == null) return;
 
         float rectSize = height - UnitUtils.dpToPx(12);
         float startX = (width - rectSize) * 0.5f - UnitUtils.dpToPx(16);
         float startY = (height - rectSize) * 0.5f;
 
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        Rect srcRect = new Rect(0, 0, icon.getWidth(), icon.getHeight());
-        RectF dstRect = new RectF(startX, startY, startX + rectSize, startY + rectSize);
-        canvas.drawBitmap(icon, srcRect, dstRect, paint);
+        iconDrawable.setBounds((int) startX, (int) startY, (int) (startX + rectSize), (int) (startY + rectSize));
+        iconDrawable.draw(canvas);
     }
 
     @Override
