@@ -862,6 +862,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
 
         com.winlator.cmod.perf.PerformanceManager.onGameResume(this, com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent.getPid());
+        com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this).scanAndConnectGamepads();
     }
 
     @Override

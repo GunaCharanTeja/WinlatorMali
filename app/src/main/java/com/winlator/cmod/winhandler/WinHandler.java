@@ -455,12 +455,6 @@ public class WinHandler {
             }
         }
 
-        // FALLBACK: If physical controller (e.g. Redgear Elite, generic USB/BT) does not expose an Android framework motor,
-        // fallback to phone internal vibrator so force-feedback is never lost!
-        if (!hasMultiMotor && (vibrator == null || !vibrator.hasVibrator())) {
-            vibrator = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
-        }
-
         // If vibration is disabled for this slot, cancel any active vibration and return
         if (!vibrationEnabledSlots[slot]) {
             if (hasMultiMotor && vibratorManager != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {

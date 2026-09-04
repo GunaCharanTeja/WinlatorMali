@@ -218,7 +218,7 @@ public class DirectGamepHidRumbleEngine {
         if (usbManager.hasPermission(device)) {
             openGamepadConnection(device);
         } else {
-            int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0;
+            int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0;
             PendingIntent pi = PendingIntent.getBroadcast(context, 0, new Intent(ACTION_USB_PERMISSION), flags);
             usbManager.requestPermission(device, pi);
         }
