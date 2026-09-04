@@ -56,12 +56,18 @@ public class WineDownloader {
         public String runtimeUrl;
         public String targetVersionName;
         public String description;
+        public String patternUrl;
 
         public CloudWineOption(String title, String targetVersionName, String runtimeUrl, String description) {
+            this(title, targetVersionName, runtimeUrl, description, null);
+        }
+
+        public CloudWineOption(String title, String targetVersionName, String runtimeUrl, String description, String patternUrl) {
             this.title = title;
             this.targetVersionName = targetVersionName;
             this.runtimeUrl = runtimeUrl;
             this.description = description;
+            this.patternUrl = patternUrl;
         }
     }
 
@@ -252,7 +258,7 @@ public class WineDownloader {
                             lvWineList.setVisibility(View.VISIBLE);
                             List<String> currentInstalled = getInstalledWineVersions(activity);
                             WinePackageAdapter adapter = new WinePackageAdapter(activity, wineItems, currentInstalled, (option) -> {
-                                startDownload(activity, option.title, option.targetVersionName, option.runtimeUrl, dialog, llProgress, tvProgressTitle, pbDownload, tvProgressStatus, tvProgressPercent, onInstalledCallback);
+                                startDownload(activity, option, dialog, llProgress, tvProgressTitle, pbDownload, tvProgressStatus, tvProgressPercent, onInstalledCallback);
                             });
                             lvWineList.setAdapter(adapter);
                         }
@@ -278,7 +284,7 @@ public class WineDownloader {
                             lvWineList.setVisibility(View.VISIBLE);
                             List<String> currentInstalled = getInstalledWineVersions(activity);
                             WinePackageAdapter adapter = new WinePackageAdapter(activity, wineItems, currentInstalled, (option) -> {
-                                startDownload(activity, option.title, option.targetVersionName, option.runtimeUrl, dialog, llProgress, tvProgressTitle, pbDownload, tvProgressStatus, tvProgressPercent, onInstalledCallback);
+                                startDownload(activity, option, dialog, llProgress, tvProgressTitle, pbDownload, tvProgressStatus, tvProgressPercent, onInstalledCallback);
                             });
                             lvWineList.setAdapter(adapter);
                         }
@@ -337,9 +343,14 @@ public class WineDownloader {
         dialog.show();
     }
 
-    private static void startDownload(Activity activity, String title, String versionName, String urlStr, ContentDialog dialog,
+    private static void startDownload(Activity activity, CloudWineOption option, ContentDialog dialog,
                                       LinearLayout llProgress, TextView tvProgressTitle, ProgressBar pbDownload,
                                       TextView tvProgressStatus, TextView tvProgressPercent, Runnable onInstalledCallback) {
+
+        String title = option.title;
+        String versionName = option.targetVersionName;
+        String urlStr = option.runtimeUrl;
+        String patternUrl = option.patternUrl;
 
         llProgress.setVisibility(View.VISIBLE);
         tvProgressTitle.setText("Downloading " + title);
@@ -350,6 +361,7 @@ public class WineDownloader {
 
         Executors.newSingleThreadExecutor().execute(() -> {
             File wcpFile = null;
+            File patternFile = null;
             try {
                 File cacheDir = activity.getCacheDir();
                 String ext = urlStr.endsWith(".tzst") ? ".tzst" : (urlStr.endsWith(".tar.xz") ? ".tar.xz" : ".wcp");
@@ -361,9 +373,32 @@ public class WineDownloader {
                         pbDownload.setProgress(progress);
                         tvProgressPercent.setText(progress + "%");
                         String statusStr = String.format(Locale.US, "%.1f MB / %.1f MB", (readBytes / (1024.0 * 1024.0)), (totalBytes / (1024.0 * 1024.0)));
-                        tvProgressStatus.setText("Downloading: " + statusStr);
+                        tvProgressStatus.setText("Downloading runtime: " + statusStr);
                     });
                 });
+
+                // Download container pattern if URL provided
+                if (patternUrl != null && !patternUrl.isEmpty()) {
+                    activity.runOnUiThread(() -> {
+                        tvProgressTitle.setText("Downloading container pattern for " + title);
+                        tvProgressStatus.setText("Connecting to pattern archive...");
+                        pbDownload.setProgress(0);
+                        tvProgressPercent.setText("0%");
+                    });
+
+                    patternFile = new File(cacheDir, versionName + "_container_pattern_" + System.currentTimeMillis() + ".tzst");
+                    File finalPatternFile = patternFile;
+                    downloadFileWithDetailedProgress(patternUrl, patternFile, (progress, readBytes, totalBytes) -> {
+                        activity.runOnUiThread(() -> {
+                            pbDownload.setProgress(progress);
+                            tvProgressPercent.setText(progress + "%");
+                            String statusStr = String.format(Locale.US, "%.1f MB / %.1f MB", (readBytes / (1024.0 * 1024.0)), (totalBytes / (1024.0 * 1024.0)));
+                            tvProgressStatus.setText("Downloading pattern: " + statusStr);
+                        });
+                    });
+                }
+
+                File finalSavedPatternFile = patternFile;
 
                 activity.runOnUiThread(() -> {
                     pbDownload.setIndeterminate(true);
@@ -376,6 +411,7 @@ public class WineDownloader {
                     @Override
                     public void onFailed(ContentsManager.InstallFailedReason reason, Exception e) {
                         FileUtils.delete(finalWcpFile);
+                        if (finalSavedPatternFile != null) FileUtils.delete(finalSavedPatternFile);
                         activity.runOnUiThread(() -> {
                             llProgress.setVisibility(View.GONE);
                             AppUtils.showToast(activity, "Installation failed: " + reason);
@@ -388,6 +424,7 @@ public class WineDownloader {
                             @Override
                             public void onFailed(ContentsManager.InstallFailedReason reason, Exception e) {
                                 FileUtils.delete(finalWcpFile);
+                                if (finalSavedPatternFile != null) FileUtils.delete(finalSavedPatternFile);
                                 activity.runOnUiThread(() -> {
                                     llProgress.setVisibility(View.GONE);
                                     AppUtils.showToast(activity, "Installation failed: " + reason);
@@ -397,6 +434,29 @@ public class WineDownloader {
                             @Override
                             public void onSucceed(ContentProfile profile) {
                                 FileUtils.delete(finalWcpFile);
+
+                                // Cache container pattern to disk
+                                if (finalSavedPatternFile != null && finalSavedPatternFile.exists()) {
+                                    File patternsDir = new File(activity.getFilesDir(), "contents/patterns");
+                                    if (!patternsDir.exists()) patternsDir.mkdirs();
+                                    FileUtils.copy(finalSavedPatternFile, new File(patternsDir, versionName + "_container_pattern.tzst"));
+
+                                    File optDir = new File(activity.getFilesDir(), "imagefs/opt/" + versionName);
+                                    if (optDir.exists()) {
+                                        FileUtils.copy(finalSavedPatternFile, new File(optDir, "prefixPack.tzst"));
+                                        FileUtils.copy(finalSavedPatternFile, new File(optDir, "container_pattern.tzst"));
+                                    }
+
+                                    if (profile != null) {
+                                        File installDir = ContentsManager.getInstallDir(activity, profile);
+                                        if (installDir.exists()) {
+                                            FileUtils.copy(finalSavedPatternFile, new File(installDir, "prefixPack.tzst"));
+                                            FileUtils.copy(finalSavedPatternFile, new File(installDir, "container_pattern.tzst"));
+                                        }
+                                    }
+                                    FileUtils.delete(finalSavedPatternFile);
+                                }
+
                                 contentsManager.syncContents();
                                 activity.runOnUiThread(() -> {
                                     llProgress.setVisibility(View.GONE);
@@ -412,6 +472,7 @@ public class WineDownloader {
             } catch (Exception e) {
                 Log.e(TAG, "Download error", e);
                 if (wcpFile != null) FileUtils.delete(wcpFile);
+                if (patternFile != null) FileUtils.delete(patternFile);
                 activity.runOnUiThread(() -> {
                     llProgress.setVisibility(View.GONE);
                     AppUtils.showToast(activity, "Download failed: " + e.getMessage());
@@ -426,19 +487,22 @@ public class WineDownloader {
             "Proton 10.0-4 arm64ec (Winlator Mali)",
             "proton-10-arm64ec",
             "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-10-arm64ec.tzst",
-            "Official Winlator Mali Proton 10 ARM64EC High Performance Runtime"
+            "Official Winlator Mali Proton 10 ARM64EC High Performance Runtime",
+            "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-10-arm64ec_container_pattern.tzst"
         ));
         list.add(new CloudWineOption(
             "Proton 9.0 arm64ec (Winlator Mali)",
             "proton-9.0-arm64ec",
             "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-arm64ec.tzst",
-            "Official Winlator Mali Proton 9.0 ARM64EC Runtime"
+            "Official Winlator Mali Proton 9.0 ARM64EC Runtime",
+            "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-9-arm64ec/proton-9.0-arm64ec_container_pattern.tzst"
         ));
         list.add(new CloudWineOption(
             "Proton 9.0 x86_64 (Winlator Mali)",
             "proton-9.0-x86_64",
             "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-x86_64.tzst",
-            "Official Winlator Mali Proton 9.0 64-bit Runtime"
+            "Official Winlator Mali Proton 9.0 64-bit Runtime",
+            "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-x86_64_container_pattern.tzst"
         ));
         return list;
     }

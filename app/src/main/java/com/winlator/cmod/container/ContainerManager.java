@@ -16,6 +16,12 @@ import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.InputStream;
+import java.io.FileOutputStream;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -310,42 +316,153 @@ public class ContainerManager {
         }
     }
 
+    public static String getPatternUrlForWineVersion(String wineVersion) {
+        if (wineVersion == null) return null;
+        String lower = wineVersion.toLowerCase(Locale.US);
+        if (lower.contains("proton-9.0-arm64ec") || lower.contains("proton-9-arm64ec")) {
+            return "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/proton-9-arm64ec/proton-9.0-arm64ec_container_pattern.tzst";
+        } else if (lower.contains("proton-10-arm64ec") || lower.contains("proton-10.0-4-arm64ec") || lower.contains("proton-10")) {
+            return "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-10-arm64ec_container_pattern.tzst";
+        } else if (lower.contains("proton-9.0-x86_64") || lower.contains("proton-9-x86_64")) {
+            return "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/proton-9.0-x86_64_container_pattern.tzst";
+        }
+        return null;
+    }
+
+    private static File downloadContainerPatternSync(Context context, String urlStr, String versionName) {
+        try {
+            File patternsDir = new File(context.getFilesDir(), "contents/patterns");
+            if (!patternsDir.exists()) patternsDir.mkdirs();
+            File dest = new File(patternsDir, versionName + "_container_pattern.tzst");
+
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 WinlatorMali");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(30000);
+
+            int status = conn.getResponseCode();
+            if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM || status == 307 || status == 308) {
+                String newUrl = conn.getHeaderField("Location");
+                conn = (HttpURLConnection) new URL(newUrl).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 WinlatorMali");
+            }
+
+            try (InputStream is = conn.getInputStream(); FileOutputStream fos = new FileOutputStream(dest)) {
+                byte[] buffer = new byte[65536];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, read);
+                }
+            }
+            if (dest.exists() && dest.length() > 0) {
+                return dest;
+            }
+        } catch (Exception e) {
+            Log.e("ContainerManager", "Failed to download pattern for " + versionName, e);
+        }
+        return null;
+    }
+
+    private void ensureWineRegistryExists(File containerDir) {
+        File wineDir = new File(containerDir, ".wine");
+        if (!wineDir.exists()) wineDir.mkdirs();
+
+        File systemReg = new File(wineDir, "system.reg");
+        if (!systemReg.exists() || systemReg.length() == 0) {
+            FileUtils.writeString(systemReg, "WINE REGISTRY Version 2\n;; All keys relative to \\\\Machine\n\n#arch=win64\n\n");
+        }
+
+        File userReg = new File(wineDir, "user.reg");
+        if (!userReg.exists() || userReg.length() == 0) {
+            FileUtils.writeString(userReg, "WINE REGISTRY Version 2\n;; All keys relative to \\\\User\n\n#arch=win64\n\n");
+        }
+
+        File userDefReg = new File(wineDir, "userdef.reg");
+        if (!userDefReg.exists() || userDefReg.length() == 0) {
+            FileUtils.writeString(userDefReg, "WINE REGISTRY Version 2\n;; All keys relative to \\\\User\n\n#arch=win64\n\n");
+        }
+
+        File dosdevices = new File(wineDir, "dosdevices");
+        if (!dosdevices.exists()) dosdevices.mkdirs();
+
+        File driveC = new File(wineDir, "drive_c");
+        if (!driveC.exists()) driveC.mkdirs();
+
+        File windows = new File(driveC, "windows");
+        if (!windows.exists()) windows.mkdirs();
+
+        File system32 = new File(windows, "system32");
+        if (!system32.exists()) system32.mkdirs();
+
+        File syswow64 = new File(windows, "syswow64");
+        if (!syswow64.exists()) syswow64.mkdirs();
+    }
+
     public boolean extractContainerPatternFile(Container container, String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
         Log.d("ContainerManager", "Extracting pattern for wine: " + wineVersion + " at path: " + wineInfo.path);
 
-        // 1. Extract container_pattern_common.tzst from assets if available
-        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "container_pattern_common.tzst", containerDir, onExtractFileListener);
+        boolean patternExtracted = false;
+
+        // 1. Check if specific container pattern exists on disk
+        List<File> candidatePatterns = new ArrayList<>();
+        if (wineInfo.path != null && !wineInfo.path.isEmpty()) {
+            candidatePatterns.add(new File(wineInfo.path, "prefixPack.tzst"));
+            candidatePatterns.add(new File(wineInfo.path, "prefixPack.txz"));
+            candidatePatterns.add(new File(wineInfo.path, "container_pattern.tzst"));
+            candidatePatterns.add(new File(wineInfo.path, wineVersion + "_container_pattern.tzst"));
+            candidatePatterns.add(new File(wineInfo.path, "proton-9.0-arm64ec_container_pattern.tzst"));
+            candidatePatterns.add(new File(wineInfo.path, "proton-10-arm64ec_container_pattern.tzst"));
+            candidatePatterns.add(new File(wineInfo.path, "proton-9.0-x86_64_container_pattern.tzst"));
+        }
+        File patternsDir = new File(context.getFilesDir(), "contents/patterns");
+        candidatePatterns.add(new File(patternsDir, wineVersion + "_container_pattern.tzst"));
+        candidatePatterns.add(new File(patternsDir, wineVersion.replace("-", ".") + "_container_pattern.tzst"));
+        candidatePatterns.add(new File(patternsDir, "proton-9.0-arm64ec_container_pattern.tzst"));
+        candidatePatterns.add(new File(patternsDir, "proton-10-arm64ec_container_pattern.tzst"));
+        candidatePatterns.add(new File(patternsDir, "proton-9.0-x86_64_container_pattern.tzst"));
+        candidatePatterns.add(new File(context.getFilesDir(), "imagefs/opt/" + wineVersion + "/prefixPack.tzst"));
+        candidatePatterns.add(new File(context.getFilesDir(), "imagefs/opt/" + wineVersion + "/container_pattern.tzst"));
+
+        for (File pFile : candidatePatterns) {
+            if (pFile != null && pFile.exists() && pFile.length() > 0) {
+                Log.d("ContainerManager", "Found specific container pattern on disk: " + pFile.getAbsolutePath());
+                patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, pFile, containerDir, onExtractFileListener);
+                if (!patternExtracted) {
+                    patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, pFile, containerDir, onExtractFileListener);
+                }
+                if (patternExtracted) break;
+            }
+        }
 
         // 2. Try extracting specific version container pattern from assets
-        String containerPattern = wineVersion + "_container_pattern.tzst";
-        boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
+        if (!patternExtracted) {
+            String containerPattern = wineVersion + "_container_pattern.tzst";
+            patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
+        }
 
-        // 3. If not in assets, check local wine installation directory for pattern archives
-        if (!result && wineInfo.path != null && !wineInfo.path.isEmpty()) {
-            File[] possiblePatterns = new File[] {
-                new File(wineInfo.path, "prefixPack.tzst"),
-                new File(wineInfo.path, "prefixPack.txz"),
-                new File(wineInfo.path, containerPattern),
-                new File(wineInfo.path, "container_pattern.tzst"),
-                new File(wineInfo.path, "prefixPack")
-            };
-
-            for (File pFile : possiblePatterns) {
-                if (pFile.exists() && pFile.length() > 0) {
-                    Log.d("ContainerManager", "Found pattern file on disk: " + pFile.getAbsolutePath());
-                    // Try ZSTD extraction
-                    result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, pFile, containerDir);
-                    if (!result) {
-                        // Try XZ extraction
-                        result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, pFile, containerDir);
+        // 3. If STILL not found, check if it's a known official Winlator Mali Proton version and download the specific container pattern on the fly!
+        if (!patternExtracted) {
+            String patternUrl = getPatternUrlForWineVersion(wineVersion);
+            if (patternUrl != null) {
+                Log.d("ContainerManager", "Downloading specific container pattern on-the-fly from: " + patternUrl);
+                File downloadedPattern = downloadContainerPatternSync(context, patternUrl, wineVersion);
+                if (downloadedPattern != null && downloadedPattern.exists() && downloadedPattern.length() > 0) {
+                    patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, downloadedPattern, containerDir, onExtractFileListener);
+                    // Also cache to wineInfo.path so subsequent creations are instant
+                    if (wineInfo.path != null && new File(wineInfo.path).exists()) {
+                        FileUtils.copy(downloadedPattern, new File(wineInfo.path, "prefixPack.tzst"));
+                        FileUtils.copy(downloadedPattern, new File(wineInfo.path, "container_pattern.tzst"));
                     }
-                    if (result) break;
                 }
             }
         }
 
-        // 4. Extract common DLLs (system32 / syswow64) from Wine runtime
+        // 4. Extract container_pattern_common.tzst from assets as baseline
+        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "container_pattern_common.tzst", containerDir, onExtractFileListener);
+
+        // 5. Extract common DLLs (system32 / syswow64) from Wine runtime
         try {
             if (wineInfo.isArm64EC())
                 extractCommonDlls(wineInfo, "aarch64-windows", "system32", containerDir, onExtractFileListener);
@@ -353,12 +470,14 @@ public class ContainerManager {
                 extractCommonDlls(wineInfo, "x86_64-windows", "system32", containerDir, onExtractFileListener);
 
             extractCommonDlls(wineInfo, "i386-windows", "syswow64", containerDir, onExtractFileListener);
-            result = true;
         } catch (Exception e) {
             Log.e("ContainerManager", "Error extracting common DLLs", e);
         }
 
-        return result;
+        // 6. Ensure Wine registry files are initialized and valid
+        ensureWineRegistryExists(containerDir);
+
+        return true;
     }
 
     public Container getContainerForShortcut(Shortcut shortcut) {
