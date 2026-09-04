@@ -610,19 +610,29 @@ public class Container {
                 }
             }
 
-            if (data.has("envVars")) {
-                EnvVars defaultEnvVars = new EnvVars(DEFAULT_ENV_VARS);
-                EnvVars envVars = new EnvVars(data.getString("envVars"));
-                boolean modified = false;
-                for (String name : defaultEnvVars) {
-                    if (!envVars.has(name)) {
-                        envVars.put(name, defaultEnvVars.get(name));
+            JSONObject extraData = data.optJSONObject("extraData");
+            int envMigrationVersion = extraData != null ? extraData.optInt("maliEnvMigration", 0) : 0;
+            if (envMigrationVersion < 1) {
+                if (data.has("envVars")) {
+                    EnvVars envVars = new EnvVars(data.getString("envVars"));
+                    boolean modified = false;
+                    if (!envVars.has("MALI_NO_DEFERRED_CTX")) {
+                        envVars.put("MALI_NO_DEFERRED_CTX", "1");
                         modified = true;
                     }
+                    if (!envVars.has("GALLIUM_THREAD")) {
+                        envVars.put("GALLIUM_THREAD", "1");
+                        modified = true;
+                    }
+                    if (modified) {
+                        data.put("envVars", envVars.toString());
+                    }
                 }
-                if (modified) {
-                    data.put("envVars", envVars.toString());
+                if (extraData == null) {
+                    extraData = new JSONObject();
+                    data.put("extraData", extraData);
                 }
+                extraData.put("maliEnvMigration", 1);
             }
 
             KeyValueSet wincomponents1 = new KeyValueSet(DEFAULT_WINCOMPONENTS);
