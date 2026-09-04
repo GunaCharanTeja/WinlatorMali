@@ -366,8 +366,13 @@ public class WinHandler {
                     try {
                         java.io.InputStream is = client.getInputStream();
                         byte[] buf = new byte[8];
-                        int read = is.read(buf);
-                        if (read == 8) {
+                        int totalRead = 0;
+                        while (totalRead < 8) {
+                            int r = is.read(buf, totalRead, 8 - totalRead);
+                            if (r < 0) break;
+                            totalRead += r;
+                        }
+                        if (totalRead == 8) {
                             int strong = (buf[0] & 0xFF) | ((buf[1] & 0xFF) << 8);
                             int weak = (buf[2] & 0xFF) | ((buf[3] & 0xFF) << 8);
                             int durationMs = (buf[4] & 0xFF) | ((buf[5] & 0xFF) << 8);
@@ -390,16 +395,16 @@ public class WinHandler {
     private void triggerVibration(int strong, int weak, int durationMs, int slot) {
         if (!isValidSlot(slot)) return;
 
-        // A duration of 0 means cancel, not vibrate
-        boolean shouldCancel = (durationMs == 0 && strong == 0 && weak == 0);
+        // A duration of 0 or zero magnitudes means cancel, not vibrate
+        boolean shouldCancel = (durationMs == 0 && strong == 0 && weak == 0) || (strong == 0 && weak == 0);
 
         // --- 1. Direct Hardware USB Force-Feedback (Redgear Elite / Xbox / PS / Switch Direct Motors) ---
         if (activity != null) {
             com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine usbRumble =
                 com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(activity);
-            if (!shouldCancel && (strong > 0 || weak > 0)) {
-                usbRumble.sendRumble(strong, weak);
-            } else if (shouldCancel) {
+            if (!shouldCancel) {
+                usbRumble.sendRumble(strong, weak, durationMs);
+            } else {
                 usbRumble.sendRumble(0, 0);
             }
         }

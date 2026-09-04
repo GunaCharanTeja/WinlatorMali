@@ -26,10 +26,9 @@ import java.util.Map;
 /**
  * Winlator Direct USB HID Hardware Force-Feedback Engine.
  * 
- * Bypasses Android's broken framework gamepad vibrator limits by establishing direct
- * USB HID Host connections to physical controllers (Redgear Elite, Xbox 360/One, PS4/PS5,
- * Switch, ShanWan, Betop, DragonRise, GameSir, 8BitDo) and sending raw hardware vibration
- * reports directly to the physical controller motors!
+ * Communicates with external physical controllers (Redgear Elite, Xbox, PlayStation, Switch,
+ * ShanWan, Betop) without force-detaching the kernel input driver, allowing both full vibration
+ * force-feedback and 100% continuous responsive button/stick controls!
  */
 public class DirectGamepHidRumbleEngine {
     private static final String TAG = "DirectHidRumbleEngine";
@@ -42,6 +41,7 @@ public class DirectGamepHidRumbleEngine {
 
     private final Map<String, GamepadUsbSession> activeSessions = new HashMap<>();
     private Runnable onPermissionGrantedCallback;
+    private Runnable autoStopRunnable;
 
     public static class GamepadUsbSession {
         public UsbDevice device;
@@ -147,7 +147,6 @@ public class DirectGamepHidRumbleEngine {
     public boolean isSupportedGamepad(UsbDevice device) {
         if (device == null) return false;
         int vid = device.getVendorId();
-        int pid = device.getProductId();
 
         // 1. Redgear / ShanWan / Betop / DragonRise / Generic PC Gamepads
         if (vid == 0x2563 || vid == 0x11ff || vid == 0x20d6 || vid == 0x12ab || vid == 0x0e8f ||
@@ -265,12 +264,12 @@ public class DirectGamepHidRumbleEngine {
             targetIface = device.getInterface(0);
         }
 
+        // CRITICAL FIX: Claim non-exclusively without force=true so Android OS kernel input driver
+        // remains attached to the controller! This ensures buttons and sticks continue working!
         if (targetIface != null) {
             try {
-                conn.claimInterface(targetIface, true);
-            } catch (Exception e) {
-                Log.w(TAG, "Interface claim notice: " + e.getMessage());
-            }
+                conn.claimInterface(targetIface, false);
+            } catch (Exception ignored) {}
         }
 
         GamepadUsbSession session = new GamepadUsbSession();
@@ -294,32 +293,44 @@ public class DirectGamepHidRumbleEngine {
             return ControllerProtocol.SONY_DS4;
         } else if (vid == 0x057e) {
             return ControllerProtocol.NINTENDO_SWITCH;
-        } else if (vid == 0x2563 || vid == 0x11ff || vid == 0x20d6 || vid == 0x0e8f || vid == 0x0079) {
-            return ControllerProtocol.SHANWAN_BETOP; // Redgear Elite / ShanWan / Betop / DragonRise
+        } else if (vid == 0x2563 && (pid == 0x0523 || pid == 0x0555 || pid == 0x0571)) {
+            return ControllerProtocol.SHANWAN_BETOP;
+        } else if (vid == 0x11ff || vid == 0x20d6 || vid == 0x0e8f || vid == 0x0079) {
+            return ControllerProtocol.SHANWAN_BETOP;
         } else {
-            return ControllerProtocol.XINPUT_XBOX360; // Microsoft Xbox 360 / Xbox One / Clones
+            return ControllerProtocol.XINPUT_XBOX360; // Microsoft Xbox 360 / Redgear XInput mode
         }
     }
 
     /**
-     * Sends raw force-feedback vibration OUT packets to all connected USB gamepads.
-     * Dual-dispatches XInput and ShanWan/Betop formats so Redgear Elite vibrates in ANY mode!
+     * Sends force-feedback vibration to all connected USB gamepads cleanly.
      * 
      * @param strong 0-65535 or 0-255 left heavy motor
      * @param weak 0-65535 or 0-255 right light motor
      * @return true if vibration packet was sent successfully
      */
     public boolean sendRumble(int strong, int weak) {
+        return sendRumble(strong, weak, 0);
+    }
+
+    public boolean sendRumble(int strong, int weak, int durationMs) {
         if (activeSessions.isEmpty()) {
-            // Attempt auto re-scan if sessions are empty
             scanAndConnectGamepads();
             if (activeSessions.isEmpty()) return false;
+        }
+
+        // Cancel previous auto-stop timer
+        if (autoStopRunnable != null) {
+            mainHandler.removeCallbacks(autoStopRunnable);
+            autoStopRunnable = null;
         }
 
         int s8 = strong > 255 ? (int) ((strong / 65535.0f) * 255) : strong;
         int w8 = weak > 255 ? (int) ((weak / 65535.0f) * 255) : weak;
         s8 = Math.max(0, Math.min(255, s8));
         w8 = Math.max(0, Math.min(255, w8));
+
+        boolean isStopping = (s8 == 0 && w8 == 0);
 
         boolean dispatched = false;
         for (GamepadUsbSession session : new ArrayList<>(activeSessions.values())) {
@@ -343,47 +354,22 @@ public class DirectGamepHidRumbleEngine {
                     (byte) (w8 & 0xFF)
                 };
 
-                // 3. ShanWan / Betop 4-byte rumble packet
-                byte[] shanwan4 = new byte[]{
-                    0x51, 0x00,
-                    (byte) (s8 & 0xFF),
-                    (byte) (w8 & 0xFF)
-                };
-
-                // 4. Generic DInput 4-byte report
-                byte[] dinput4 = new byte[]{
-                    (byte) (w8 & 0xFF),
-                    (byte) (s8 & 0xFF),
-                    0x00, 0x00
-                };
-
-                // 5. Xbox 360 Wireless 12-byte packet
-                byte[] wireless12 = new byte[]{
-                    0x00, 0x01, 0x0f, (byte) 0xc0,
-                    0x00, (byte) (s8 & 0xFF), (byte) (w8 & 0xFF),
-                    0x00, 0x00, 0x00, 0x00, 0x00
-                };
-
                 switch (session.protocol) {
-                    case XINPUT_XBOX360:
+                    case XINPUT_XBOX360: {
+                        if (session.outEndpoint != null) {
+                            session.connection.bulkTransfer(session.outEndpoint, xinput8, xinput8.length, 30);
+                        }
+                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, xinput8, xinput8.length, 30);
+                        dispatched = true;
+                        break;
+                    }
                     case SHANWAN_BETOP:
                     case GENERIC_HID: {
-                        // Send XInput 8-byte
                         if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, xinput8, xinput8.length, 50);
+                            session.connection.bulkTransfer(session.outEndpoint, shanwan5, shanwan5.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, xinput8, xinput8.length, 50);
-
-                        // Dual-dispatch ShanWan/Betop packets for Redgear in DInput mode
-                        if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, shanwan5, shanwan5.length, 50);
-                            session.connection.bulkTransfer(session.outEndpoint, wireless12, wireless12.length, 50);
-                        }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, shanwan5, shanwan5.length, 50);
-                        session.connection.controlTransfer(0x21, 0x09, 0x0300, ifaceIndex, shanwan5, shanwan5.length, 50);
-                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, shanwan4, shanwan4.length, 50);
-                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, dinput4, dinput4.length, 50);
-
+                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, shanwan5, shanwan5.length, 30);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0300, ifaceIndex, shanwan5, shanwan5.length, 30);
                         dispatched = true;
                         break;
                     }
@@ -394,9 +380,9 @@ public class DirectGamepHidRumbleEngine {
                         report[4] = (byte) (w8 & 0xFF);
                         report[5] = (byte) (s8 & 0xFF);
                         if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, report, report.length, 50);
+                            session.connection.bulkTransfer(session.outEndpoint, report, report.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0205, ifaceIndex, report, report.length, 50);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0205, ifaceIndex, report, report.length, 30);
                         dispatched = true;
                         break;
                     }
@@ -408,9 +394,9 @@ public class DirectGamepHidRumbleEngine {
                         report[3] = (byte) (w8 & 0xFF);
                         report[4] = (byte) (s8 & 0xFF);
                         if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, report, report.length, 50);
+                            session.connection.bulkTransfer(session.outEndpoint, report, report.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0202, ifaceIndex, report, report.length, 50);
+                        session.connection.controlTransfer(0x21, 0x09, 0x0202, ifaceIndex, report, report.length, 30);
                         dispatched = true;
                         break;
                     }
@@ -419,6 +405,14 @@ public class DirectGamepHidRumbleEngine {
                 Log.e(TAG, "Error sending USB rumble packet: " + e.getMessage());
             }
         }
+
+        // Auto-stop safety timeout if a non-zero rumble was triggered
+        if (!isStopping) {
+            int autoStopMs = durationMs > 0 ? durationMs : 250;
+            autoStopRunnable = () -> sendRumble(0, 0);
+            mainHandler.postDelayed(autoStopRunnable, autoStopMs);
+        }
+
         return dispatched;
     }
 
@@ -460,6 +454,11 @@ public class DirectGamepHidRumbleEngine {
     }
 
     public void release() {
+        if (autoStopRunnable != null) {
+            mainHandler.removeCallbacks(autoStopRunnable);
+            autoStopRunnable = null;
+        }
+        sendRumble(0, 0);
         for (String devName : new HashMap<>(activeSessions).keySet()) {
             closeSession(devName);
         }
