@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.InputDevice;
@@ -253,9 +254,23 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem menuItem) {
-        finish();
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuItem testItem = menu.add(0, 1001, 0, R.string.test_vibration);
+        testItem.setIcon(R.drawable.icon_vibration);
+        testItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
         return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem menuItem) {
+        if (menuItem.getItemId() == 1001) {
+            com.winlator.cmod.contentdialog.VibrationTestDialog.show(this, controller);
+            return true;
+        } else if (menuItem.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(menuItem);
     }
 
     private class ControllerBindingsAdapter extends RecyclerView.Adapter<ControllerBindingsAdapter.ViewHolder> {

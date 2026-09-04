@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <!-- SECTION 1: DETECTED HARDWARE STATUS -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Detected Devices"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:textColor="?attr/colorAccent" />
+
+            <Button
+                style="@style/ButtonNeutral"
+                android:id="@+id/BTRescanDevices"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:textSize="11sp"
+                android:paddingHorizontal="10dp"
+                android:text="Re-scan USB" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="10dp"
+            android:orientation="vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/TVDeviceStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:text="Scanning for connected controllers..." />
+
+            <Button
+                style="@style/ButtonPositive"
+                android:id="@+id/BTGrantUsbPermission"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/grant_usb_permission"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- SECTION 2: TEST MODE / MOTOR SELECTION -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Motor Mode"
+            android:textStyle="bold"
+            android:textSize="13sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="10dp"
+            android:orientation="vertical"
+            android:layout_marginBottom="12dp">
+
+            <Spinner
+                style="@style/ComboBox"
+                android:id="@+id/SMotorMode"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:spinnerMode="dropdown" />
+        </LinearLayout>
+
+        <!-- SECTION 3: INTENSITY & DURATION -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="6dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Vibration Intensity"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:textColor="?attr/colorAccent" />
+
+            <TextView
+                android:id="@+id/TVIntensityPercent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="100%"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:textColor="?android:attr/textColorPrimary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="10dp"
+            android:orientation="vertical"
+            android:layout_marginBottom="12dp">
+
+            <SeekBar
+                android:id="@+id/SBIntensity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="100" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Duration: "
+                    android:textSize="12sp"
+                    android:textColor="?android:attr/textColorSecondary" />
+
+                <Spinner
+                    style="@style/ComboBox"
+                    android:id="@+id/SDuration"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:spinnerMode="dropdown" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- SECTION 4: TARGET DISPATCH -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Dispatch Targets"
+            android:textStyle="bold"
+            android:textSize="13sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="10dp"
+            android:orientation="vertical"
+            android:layout_marginBottom="12dp">
+
+            <CheckBox
+                android:id="@+id/CBUsbDirect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:textSize="12sp"
+                android:text="Direct USB HID Motors (Redgear / OTG Controllers)" />
+
+            <CheckBox
+                android:id="@+id/CBAndroidInputDevice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:textSize="12sp"
+                android:text="Android Framework InputDevice Vibrator" />
+
+            <CheckBox
+                android:id="@+id/CBPhoneFallback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="false"
+                android:textSize="12sp"
+                android:text="Phone Internal Vibrator (Fallback / Verification)" />
+        </LinearLayout>
+
+        <!-- ACTION BUTTONS -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                style="@style/ButtonPositive"
+                android:id="@+id/BTStartTest"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="2"
+                android:layout_marginEnd="6dp"
+                android:text="@string/start_vibration_test" />
+
+            <Button
+                style="@style/ButtonNeutral"
+                android:id="@+id/BTStopTest"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:text="@string/stop_vibration" />
+        </LinearLayout>
+
+        <!-- SECTION 5: LIVE LOG -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Diagnostic Output"
+            android:textStyle="bold"
+            android:textSize="13sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="130dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:padding="8dp"
+            android:orientation="vertical">
+
+            <ScrollView
+                android:id="@+id/SVLog"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <TextView
+                    android:id="@+id/TVLog"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:typeface="monospace"
+                    android:textSize="11sp"
+                    android:textColor="#E0E0E0"
+                    android:text="Ready for testing." />
+            </ScrollView>
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

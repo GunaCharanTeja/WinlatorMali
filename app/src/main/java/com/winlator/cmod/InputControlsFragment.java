@@ -266,6 +266,11 @@ public class InputControlsFragment extends Fragment {
             }
         });
 
+        View btTestVibration = view.findViewById(R.id.BTTestVibration);
+        if (btTestVibration != null) {
+            btTestVibration.setOnClickListener((v) -> com.winlator.cmod.contentdialog.VibrationTestDialog.show(context));
+        }
+
         return view;
     }
 

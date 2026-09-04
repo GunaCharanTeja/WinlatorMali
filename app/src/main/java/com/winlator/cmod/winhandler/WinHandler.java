@@ -10,6 +10,7 @@ import androidx.preference.PreferenceManager;
 import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
+import com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine;
 import com.winlator.cmod.inputcontrols.ExternalController;
 import com.winlator.cmod.inputcontrols.FakeInputWriter;
 import com.winlator.cmod.inputcontrols.GamepadState;
@@ -136,6 +137,9 @@ public class WinHandler {
                 // manualSlotMap is keyed by deviceId so we skip pre-loading here.
             }
         }
+
+        // Initialize Direct USB HID Force Feedback Engine immediately so controllers are ready
+        DirectGamepHidRumbleEngine.getInstance(activity);
     }
 
     private boolean sendPacket(int port) {
@@ -471,9 +475,8 @@ public class WinHandler {
             if (vibratorIds.length >= 1) {
                 Vibrator vStrong = vibratorManager.getVibrator(vibratorIds[0]);
                 if (!shouldCancel && strong > 0) {
-                    int amplitude = clampAmplitude(strong);
-                    vStrong.vibrate(VibrationEffect.createOneShot(duration, amplitude));
-                } else {
+                    safeVibrate(vStrong, duration, clampAmplitude(strong));
+                } else if (vStrong != null) {
                     vStrong.cancel();
                 }
             }
@@ -481,9 +484,8 @@ public class WinHandler {
             if (vibratorIds.length >= 2) {
                 Vibrator vWeak = vibratorManager.getVibrator(vibratorIds[1]);
                 if (!shouldCancel && weak > 0) {
-                    int amplitude = clampAmplitude(weak);
-                    vWeak.vibrate(VibrationEffect.createOneShot(duration, amplitude));
-                } else {
+                    safeVibrate(vWeak, duration, clampAmplitude(weak));
+                } else if (vWeak != null) {
                     vWeak.cancel();
                 }
             }
@@ -496,15 +498,28 @@ public class WinHandler {
 
         if (!shouldCancel && (strong > 0 || weak > 0)) {
             int intensity = Math.max(strong, weak);
-            int amplitude = clampAmplitude(intensity);
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(duration, amplitude));
-            } else {
-                vibrator.vibrate(duration);
-            }
+            safeVibrate(vibrator, duration, clampAmplitude(intensity));
         } else {
             vibrator.cancel();
+        }
+    }
+
+    private void safeVibrate(Vibrator v, int duration, int amplitude) {
+        if (v == null || !v.hasVibrator()) return;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (v.hasAmplitudeControl()) {
+                    v.vibrate(VibrationEffect.createOneShot(duration, amplitude));
+                } else {
+                    v.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+            } else {
+                v.vibrate(duration);
+            }
+        } catch (Exception e) {
+            try {
+                v.vibrate(duration);
+            } catch (Exception ignored) {}
         }
     }
 

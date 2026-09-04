@@ -140,6 +140,11 @@ public class PlayerSlotsDialog {
             slotsSection.addView(row);
         }
 
+        View btTestVib = dialog.findViewById(R.id.BTTestVibration);
+        if (btTestVib != null) {
+            btTestVib.setOnClickListener((v) -> com.winlator.cmod.contentdialog.VibrationTestDialog.show(context));
+        }
+
         dialog.show();
     }
 }

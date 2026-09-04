@@ -227,6 +227,17 @@
                 android:textSize="13sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:visibility="gone" />
+
+            <Button
+                style="@style/ButtonNeutral"
+                android:id="@+id/BTTestVibration"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="8dp"
+                android:drawableStart="@drawable/icon_vibration"
+                android:drawablePadding="8dp"
+                android:gravity="center"
+                android:text="@string/test_vibration" />
         </LinearLayout>
 
     </LinearLayout>

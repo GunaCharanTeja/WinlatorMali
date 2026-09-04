@@ -68,6 +68,7 @@ namespace Logger {
 }
 
 void handle_sigint(int sig)  { 
+    (void)sig;
     stop_flag = 1;
 } 
 
@@ -353,6 +354,9 @@ EXPORT int ioctl(int fd, int op, ...) {
         bitmask[EV_SYN / 8] |= (1 << (EV_SYN % 8));
         bitmask[EV_KEY / 8] |= (1 << (EV_KEY % 8));
         bitmask[EV_ABS / 8] |= (1 << (EV_ABS % 8));
+        if (vibration_enabled) {
+            bitmask[EV_FF / 8] |= (1 << (EV_FF % 8));
+        }
     	memcpy(argp, (void *)&bitmask, sizeof(bitmask));
     	return 0;	
     }
@@ -553,15 +557,18 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
 
   auto controller = controller_map.find(fd);
   if (controller != controller_map.end()) {
-    if (count == sizeof(struct input_event)) {
-      const struct input_event *ev = (const struct input_event *)buf;
+    if (count >= sizeof(struct input_event) && (count % sizeof(struct input_event) == 0)) {
+      const struct input_event *evs = (const struct input_event *)buf;
+      size_t num_events = count / sizeof(struct input_event);
       uint16_t slot = (uint16_t)get_event_number(controller->second);
-      check_ff_event(ev, slot);
-      // EV_FF events are FF control commands sent by Wine to the fake device.
-      // Writing them to the fake evdev file causes Wine to read them back as
-      // input events, corrupting controller state and blocking input. Consume
-      // them here and return success without writing to the file.
-      if (ev->type == EV_FF)
+      bool all_ff = true;
+      for (size_t i = 0; i < num_events; i++) {
+        check_ff_event(&evs[i], slot);
+        if (evs[i].type != EV_FF) {
+          all_ff = false;
+        }
+      }
+      if (all_ff)
         return (ssize_t)count;
     }
   }
@@ -574,8 +581,8 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
     uint16_t slot = (uint16_t)get_event_number(controller->second);
     // Separate FF control events from regular input events.
     // FF events must not be written to the fake evdev file (see write() above).
-    struct iovec filtered[iovcnt];
-    int filtered_count = 0;
+    std::vector<struct iovec> filtered;
+    filtered.reserve(iovcnt);
     for (int i = 0; i < iovcnt; i++) {
       if (iov[i].iov_len == sizeof(struct input_event)) {
         const struct input_event *ev = (const struct input_event *)iov[i].iov_base;
@@ -583,11 +590,11 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
         if (ev->type == EV_FF)
           continue;
       }
-      filtered[filtered_count++] = iov[i];
+      filtered.push_back(iov[i]);
     }
-    if (filtered_count == 0)
+    if (filtered.empty())
       return (ssize_t)(iovcnt * sizeof(struct input_event));
-    return syscall(SYS_writev, fd, filtered, filtered_count);
+    return syscall(SYS_writev, fd, filtered.data(), (int)filtered.size());
   }
   return syscall(SYS_writev, fd, iov, iovcnt);
 }

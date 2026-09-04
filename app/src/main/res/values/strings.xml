@@ -343,6 +343,15 @@
     <string name="game_controller">Unified Control System</string>
     <string name="vibration">Vibration</string>
     <string name="vibration_slot">Slot %1$d</string>
+    <string name="test_vibration">Test Vibration</string>
+    <string name="controller_vibration_test">Controller Vibration Test</string>
+    <string name="left_motor_heavy">Heavy Left Motor (Rumble)</string>
+    <string name="right_motor_light">Light Right Motor (Buzz)</string>
+    <string name="both_motors">Both Motors (Full Rumble)</string>
+    <string name="pulse_pattern">Pulse Pattern Test</string>
+    <string name="start_vibration_test">Start Vibration Test</string>
+    <string name="stop_vibration">Stop Vibration</string>
+    <string name="grant_usb_permission">Grant USB Permission</string>
 
     <string name="experimental">Experimental</string>
     <string name="glibc_exp_edition">Based On</string>
