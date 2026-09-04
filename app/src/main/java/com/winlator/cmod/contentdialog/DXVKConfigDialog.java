@@ -258,21 +258,7 @@ public class DXVKConfigDialog extends ContentDialog {
             }
 
             // Initialize default global optimizations for DXVK
-            String content = "dxgi.nvapiHack = True\n" +
-                             "dxvk.useRawSsbo = True\n" +
-                             "d3d11.allowMapFlagNoWait = True\n" +
-                             "d3d11.dcSingleUseMode = True\n" +
-                             "d3d11.relaxedBarriers = True\n" +
-                             "d3d11.forceFormat = DXGI_FORMAT_B8G8R8A8_UNORM\n" +
-                             "d3d9.allowDirectBufferMapping = True\n" +
-                             "d3d9.maxFrameLatency = 1\n" +
-                             "dxvk.deferSurfaceCreation = True\n" +
-                             "dxvk.maxFrameLatency = 1\n" +
-                             "dxvk.enableAsync = True\n" +
-                             "dxvk.numCompilerThreads = 2\n" +
-                             "dxvk.memoryTrack = True\n" +
-                             "dxvk.presentThrottle = 0\n" +
-                             "dxvk.debugLayer = False\n";
+            String content = "dxvk.memoryTrack = True\n";
 
             if (!maxDeviceMemoryValue.isEmpty()) {
                 content += "dxgi.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
