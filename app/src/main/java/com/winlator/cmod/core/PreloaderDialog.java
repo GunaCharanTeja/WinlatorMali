@@ -42,13 +42,32 @@ public class PreloaderDialog {
 
         android.widget.ProgressBar pb = dialog.findViewById(R.id.ProgressBar);
         if (pb != null) {
+            pb.setIndeterminate(true);
             pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(accentColor));
+            pb.setIndeterminateTintMode(android.graphics.PorterDuff.Mode.SRC_IN);
         }
 
         Window window = dialog.getWindow();
         if (window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+        }
+    }
+
+    private void updateProgressBarAnimation() {
+        if (dialog == null) return;
+        android.widget.ProgressBar pb = dialog.findViewById(R.id.ProgressBar);
+        if (pb != null) {
+            pb.setVisibility(android.view.View.VISIBLE);
+            pb.setIndeterminate(true);
+            int accentColor = com.winlator.cmod.ThemeManager.getAccentColor(activity);
+            pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(accentColor));
+            pb.setIndeterminateTintMode(android.graphics.PorterDuff.Mode.SRC_IN);
+            android.graphics.drawable.Drawable d = pb.getIndeterminateDrawable();
+            if (d instanceof android.graphics.drawable.Animatable) {
+                ((android.graphics.drawable.Animatable) d).start();
+            }
         }
     }
 
@@ -57,6 +76,7 @@ public class PreloaderDialog {
         close();
         if (dialog == null) create();
         ((TextView)dialog.findViewById(R.id.TextView)).setText(textResId);
+        updateProgressBarAnimation();
         dialog.show();
     }
 
@@ -65,6 +85,7 @@ public class PreloaderDialog {
         close();
         if (dialog == null) create();
         ((TextView)dialog.findViewById(R.id.TextView)).setText(text);
+        updateProgressBarAnimation();
         dialog.show();
     }
 

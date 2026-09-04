@@ -581,10 +581,17 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     private void saveWineRegistryKeys(View view) {
+        if (container == null || container.getRootDir() == null) return;
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
+        File wineDir = userRegFile.getParentFile();
+        if (wineDir != null && !wineDir.exists()) wineDir.mkdirs();
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
             Spinner sMouseWarpOverride = view.findViewById(R.id.SMouseWarpOverride);
-            registryEditor.setStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", sMouseWarpOverride.getSelectedItem().toString().toLowerCase(Locale.ENGLISH));
+            if (sMouseWarpOverride != null && sMouseWarpOverride.getSelectedItem() != null) {
+                registryEditor.setStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", sMouseWarpOverride.getSelectedItem().toString().toLowerCase(Locale.ENGLISH));
+            }
+        } catch (Exception e) {
+            Log.w("ContainerDetailFragment", "Failed to save user.reg keys: " + e.getMessage());
         }
     }
 

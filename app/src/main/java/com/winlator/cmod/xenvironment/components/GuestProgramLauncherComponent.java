@@ -540,12 +540,23 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
                 command = imageFs.getBinDir() + "/box64 " + guestExecutable;
         }
 
-        // **Maybe remove this: Set execute permissions for box64 if necessary (Glibc/Proot artifact)
+        // Set execute permissions for Wine and emulator binaries
+        File wineBinDir = new File(winePath);
+        if (wineBinDir.exists() && wineBinDir.isDirectory()) {
+            File[] binFiles = wineBinDir.listFiles();
+            if (binFiles != null) {
+                for (File f : binFiles) {
+                    FileUtils.chmod(f, 0755);
+                }
+            }
+        }
+
         File box64File = new File(rootDir, "/usr/bin/box64");
         if (box64File.exists()) {
             FileUtils.chmod(box64File, 0755);
         }
 
+        Log.d("GuestLauncher", "Executing command: " + command);
         return ProcessHelper.exec(command, execEnvVars.toStringArray(), rootDir, (status) -> {
             synchronized (lock) {
                 pid = -1;

@@ -630,12 +630,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         xServer.windowManager.addOnWindowModificationListener(new WindowManager.OnWindowModificationListener() {
             @Override
             public void onUpdateWindowContentDirect(Window window, Drawable drawable) {
+                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
+                    if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
+                    else if (displayXView != null) displayXView.setCursorVisible(true);
+                    preloaderDialog.closeOnUiThread();
+                    winStarted[0] = true;
+                }
                 if (!xServer.isDisplayX()) updateFrameRating(window);
             }
 
             @Override
             public void onUpdateWindowContent(Window window) {
-                if (!winStarted[0] && window.isApplicationWindow()) {
+                if (!winStarted[0] && window != null && (window.isApplicationWindow() || (window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10))) {
                     if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
                     else if (displayXView != null) displayXView.setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
@@ -648,6 +654,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             public void onMapWindow(Window window) {
                 // Log the class name of the mapped window
                 Log.d("XServerDisplayActivity", "onMapWindow: Mapping window: " + window.getClassName());
+                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
+                    if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
+                    else if (displayXView != null) displayXView.setCursorVisible(true);
+                    preloaderDialog.closeOnUiThread();
+                    winStarted[0] = true;
+                }
                 assignTaskAffinity(window);
             }
 
@@ -1479,6 +1491,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         winHandler.start();
 
         if (wineRequestHandler != null) wineRequestHandler.start();
+
+        // Startup watchdog: guarantees preloader dialog dismisses once environment is running
+        handler.postDelayed(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
+                else if (displayXView != null) displayXView.setCursorVisible(true);
+                preloaderDialog.closeOnUiThread();
+            }
+        }, 8000);
 
         // Reset dxwrapper config
         dxwrapperConfig = null;

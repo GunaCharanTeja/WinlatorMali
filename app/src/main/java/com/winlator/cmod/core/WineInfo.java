@@ -142,11 +142,60 @@ public class WineInfo implements Parcelable {
         // Resolve absolute path on disk
         String path = "";
         File optPath = new File(imageFs.getRootDir(), "opt/" + cleanId);
-        if (optPath.exists()) {
+        File optRaw = new File(imageFs.getRootDir(), "opt/" + identifier);
+        if (optPath.exists() && (new File(optPath, "bin").exists() || new File(optPath, "lib").exists())) {
             path = optPath.getAbsolutePath();
+        } else if (optRaw.exists() && (new File(optRaw, "bin").exists() || new File(optRaw, "lib").exists())) {
+            path = optRaw.getAbsolutePath();
         } else if (wineProfile != null) {
             File installDir = ContentsManager.getInstallDir(context, wineProfile);
             if (installDir.exists()) path = installDir.getAbsolutePath();
+        }
+
+        if (path.isEmpty()) {
+            File protonContents = ContentsManager.getContentTypeDir(context, ContentProfile.ContentType.CONTENT_TYPE_PROTON);
+            File wineContents = ContentsManager.getContentTypeDir(context, ContentProfile.ContentType.CONTENT_TYPE_WINE);
+            File[] searchDirs = new File[] { protonContents, wineContents };
+            for (File parentDir : searchDirs) {
+                if (parentDir == null || !parentDir.exists()) continue;
+                File direct = new File(parentDir, identifier);
+                if (direct.exists() && (new File(direct, "bin").exists() || new File(direct, "lib").exists())) {
+                    path = direct.getAbsolutePath();
+                    break;
+                }
+                File directClean = new File(parentDir, cleanId);
+                if (directClean.exists() && (new File(directClean, "bin").exists() || new File(directClean, "lib").exists())) {
+                    path = directClean.getAbsolutePath();
+                    break;
+                }
+                File[] children = parentDir.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isDirectory() && (child.getName().equalsIgnoreCase(identifier) || child.getName().equalsIgnoreCase(cleanId) || child.getName().startsWith(cleanId + "-") || cleanId.startsWith(child.getName()))) {
+                            if (new File(child, "bin").exists() || new File(child, "lib").exists()) {
+                                path = child.getAbsolutePath();
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!path.isEmpty()) break;
+            }
+        }
+
+        if (path.isEmpty()) {
+            File optDir = new File(imageFs.getRootDir(), "opt");
+            File[] optChildren = optDir.listFiles();
+            if (optChildren != null) {
+                for (File child : optChildren) {
+                    if (child.isDirectory() && (child.getName().equalsIgnoreCase(identifier) || child.getName().equalsIgnoreCase(cleanId) || child.getName().startsWith(cleanId + "-") || cleanId.startsWith(child.getName()))) {
+                        if (new File(child, "bin").exists() || new File(child, "lib").exists()) {
+                            path = child.getAbsolutePath();
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         if (path.isEmpty()) {

@@ -44,10 +44,14 @@ public class WineRegistryEditor implements Closeable {
 
     public WineRegistryEditor(File file) {
         this.file = file;
-        cloneFile = FileUtils.createTempFile(file.getParentFile(), FileUtils.getBasename(file.getPath()));
-        if (!file.isFile()) {
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists()) parent.mkdirs();
+        cloneFile = FileUtils.createTempFile(parent, FileUtils.getBasename(file.getPath()));
+        if (!file.isFile() || file.length() == 0) {
             try {
+                if (cloneFile.exists()) cloneFile.delete();
                 cloneFile.createNewFile();
+                FileUtils.writeString(cloneFile, "WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\...\n\n");
             } catch (IOException e) {
             }
         } else FileUtils.copy(file, cloneFile);
@@ -211,6 +215,8 @@ public class WineRegistryEditor implements Closeable {
             } else return;
         }
 
+        if (keyLocation == null) return;
+
         Location valueLocation = getValueLocation(keyLocation, name);
         char[] buffer = new char[StreamUtils.BUFFER_SIZE];
         boolean success = false;
@@ -364,7 +370,7 @@ public class WineRegistryEditor implements Closeable {
     }
 
     private Location getValueLocation(Location keyLocation, String name) {
-        if (keyLocation.start == keyLocation.end) return null;
+        if (keyLocation == null || keyLocation.start == keyLocation.end) return null;
         try (BufferedReader reader = new BufferedReader(new FileReader(cloneFile), StreamUtils.BUFFER_SIZE)) {
             reader.skip(keyLocation.start);
             name = name != null ? "\"" + escape(name) + "\"=" : "@=";

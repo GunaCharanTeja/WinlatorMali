@@ -23,11 +23,11 @@
 
         <ProgressBar
             android:id="@+id/ProgressBar"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            style="?android:attr/progressBarStyle"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:indeterminate="true"
-            android:layout_marginEnd="14dp"
-            android:indeterminateTint="?attr/colorAccent" />
+            android:layout_marginEnd="14dp" />
 
         <TextView
             android:id="@+id/TextView"
