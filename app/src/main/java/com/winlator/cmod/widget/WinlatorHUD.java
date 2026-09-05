@@ -257,6 +257,7 @@ public class WinlatorHUD extends View {
         String lower = s.toLowerCase(Locale.US);
         if (lower.equals("displayx")) return "DisplayX";
         if (lower.equals("opengl")) return "OpenGL";
+        if (lower.equals("gladio")) return "Gladio";
         if (lower.equals("vulkan")) return "Vulkan";
         if (lower.equals("virgl")) return "VirGL";
         if (lower.equals("zink")) return "Zink";

@@ -2227,6 +2227,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String skipSmallTextures = graphicsDriverConfig.get("skipSmallTextures");
         boolean transcodeEnabled = "1".equals(astcTranscode) || "1".equals(etc2Transcode);
 
+        File libDir = new File(rootDir, "usr/lib");
+        File gladioLib = new File(libDir, "libGL.so.1.7.0");
+        if (firstTimeBoot || !gladioLib.exists()) {
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/gladio-" + DefaultVersion.GLADIO + ".tzst", rootDir);
+        }
+        FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so.1").getAbsolutePath());
+        FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so").getAbsolutePath());
+        FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGLX.so.0").getAbsolutePath());
+        FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGLX.so").getAbsolutePath());
+
         if (firstTimeBoot) {
             Log.d("XServerDisplayActivity", "First time container boot, re-extracting layers and extra libs");
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "layers.tzst", rootDir);
@@ -2234,11 +2244,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             File internalExtraLibs = new File(getFilesDir(), "graphics_driver/extra_libs.tzst");
             if (internalExtraLibs.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalExtraLibs, rootDir);
             else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
-
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/gladio-" + DefaultVersion.GLADIO + ".tzst", rootDir);
-            File libDir = new File(rootDir, "usr/lib");
-            FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so.1").getAbsolutePath());
-            FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so").getAbsolutePath());
 
             if (transcodeEnabled) {
                 File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
