@@ -244,6 +244,8 @@ public class WinlatorHUD extends View {
             return "CnC-DDraw";
         } else if (lower.equalsIgnoreCase("nodraw")) {
             return "NoDraw";
+        } else if (lower.equalsIgnoreCase("gladio")) {
+            return "Gladio";
         }
         if (Character.isLowerCase(s.charAt(0))) {
             return Character.toUpperCase(s.charAt(0)) + s.substring(1);

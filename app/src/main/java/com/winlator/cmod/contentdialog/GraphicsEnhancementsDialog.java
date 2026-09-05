@@ -223,6 +223,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         lsfgPreviouslyEnabled = lsfgEnabled;
 
         com.winlator.cmod.renderer.ApexNativeBridge.nativeSetActive(lsfgEnabled);
+        activity.getXServerView().setApexMode(lsfgEnabled);
 
         if (lsfgEnabled) {
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetQuality(sLSFGQuality.getSelectedItemPosition());

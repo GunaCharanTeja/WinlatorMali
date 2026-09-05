@@ -28,7 +28,7 @@ public class Container {
         THUMBSTICK_UP, THUMBSTICK_DOWN, THUMBSTICK_LEFT, THUMBSTICK_RIGHT
     }
     public static final String DEFAULT_DISPLAY_DRIVER = "opengl";
-    public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1 MALI_NO_DEFERRED_CTX=1 GALLIUM_THREAD=1 GLADIO_NO_ERROR=1";
+    public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1 GLADIO_NO_ERROR=1";
     public static final String DEFAULT_SCREEN_SIZE = "1280x720";
     public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
     public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio-gn";
@@ -36,7 +36,7 @@ public class Container {
     public static final String DEFAULT_DXWRAPPER = "dxvk+vkd3d";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=0,asyncCache=0" + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1" + ",ddrawrapper=" + Container.DEFAULT_DDRAWRAPPER + ",csmt=3" + ",gpuName=NVIDIA GeForce GTX 480" + ",videoMemorySize=2048" + ",strict_shader_math=1" + ",OffscreenRenderingMode=fbo" + ",renderer=gl,dxvkConfig=1";
     public static final String DEFAULT_GRAPHICSDRIVERCONFIG =
-            "vulkanVersion=1.3" + ";version=" + ";blacklistedExtensions=" + ";maxDeviceMemory=0" + ";presentMode=mailbox" + ";syncFrame=0" + ";disablePresentWait=0" + ";astcTranscode=1" + ";etc2Transcode=0" + ";skipSmallTextures=0" + ";resourceType=auto" + ";bcnEmulation=auto" + ";bcnEmulationType=compute" + ";bcnEmulationCache=1" + ";bcnQualityPreset=auto" + ";gpuName=Device";
+            "vulkanVersion=1.3" + ";version=" + ";blacklistedExtensions=" + ";maxDeviceMemory=0" + ";presentMode=mailbox" + ";syncFrame=0" + ";disablePresentWait=0" + ";astcTranscode=1" + ";etc2Transcode=0" + ";resourceType=auto" + ";bcnEmulation=auto" + ";bcnEmulationType=compute" + ";bcnEmulationCache=1" + ";bcnQualityPreset=auto" + ";gpuName=Device";
     public static final String DEFAULT_DDRAWRAPPER = "none";
     public static final String DEFAULT_WINCOMPONENTS = "direct3d=1,directsound=0,directmusic=0,directshow=0,directplay=0,xaudio=0,vcrun2010=1,directinput=0";
     public static final String FALLBACK_WINCOMPONENTS = "direct3d=1,directsound=1,directmusic=1,directshow=1,directplay=1,xaudio=1,vcrun2010=1,directinput=1";
@@ -602,26 +602,44 @@ public class Container {
 
             if (data.has("graphicsDriver")) {
                 String graphicsDriver = data.getString("graphicsDriver");
-                if (graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("turnip")) {
-                    data.put("graphicsDriver", "wrapper");
-                }
-                else if (graphicsDriver.equals("llvmpipe")) {
+                if (graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("turnip") ||
+                    graphicsDriver.startsWith("wrapper-") || graphicsDriver.equals("llvmpipe")) {
                     data.put("graphicsDriver", "wrapper");
                 }
             }
 
             JSONObject extraData = data.optJSONObject("extraData");
             int envMigrationVersion = extraData != null ? extraData.optInt("maliEnvMigration", 0) : 0;
-            if (envMigrationVersion < 1) {
+            if (envMigrationVersion < 3) {
                 if (data.has("envVars")) {
                     EnvVars envVars = new EnvVars(data.getString("envVars"));
                     boolean modified = false;
-                    if (!envVars.has("MALI_NO_DEFERRED_CTX")) {
-                        envVars.put("MALI_NO_DEFERRED_CTX", "1");
+                    if (!envVars.has("GLADIO_NO_ERROR")) {
+                        envVars.put("GLADIO_NO_ERROR", "1");
                         modified = true;
                     }
-                    if (!envVars.has("GALLIUM_THREAD")) {
-                        envVars.put("GALLIUM_THREAD", "1");
+                    if (envVars.has("MALI_NO_DEFERRED_CTX")) {
+                        envVars.remove("MALI_NO_DEFERRED_CTX");
+                        modified = true;
+                    }
+                    if (envVars.has("GALLIUM_THREAD")) {
+                        envVars.remove("GALLIUM_THREAD");
+                        modified = true;
+                    }
+                    if (envVars.has("mesa_glthread")) {
+                        envVars.remove("mesa_glthread");
+                        modified = true;
+                    }
+                    if (envVars.has("MESA_SHADER_CACHE_DISABLE")) {
+                        envVars.remove("MESA_SHADER_CACHE_DISABLE");
+                        modified = true;
+                    }
+                    if (envVars.has("MESA_SHADER_CACHE_MAX_SIZE")) {
+                        envVars.remove("MESA_SHADER_CACHE_MAX_SIZE");
+                        modified = true;
+                    }
+                    if (envVars.has("TU_DEBUG")) {
+                        envVars.remove("TU_DEBUG");
                         modified = true;
                     }
                     if (modified) {
@@ -632,7 +650,7 @@ public class Container {
                     extraData = new JSONObject();
                     data.put("extraData", extraData);
                 }
-                extraData.put("maliEnvMigration", 1);
+                extraData.put("maliEnvMigration", 3);
             }
 
             KeyValueSet wincomponents1 = new KeyValueSet(DEFAULT_WINCOMPONENTS);

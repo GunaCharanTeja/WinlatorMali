@@ -1345,11 +1345,21 @@ static void injectBuiltinVariables(ShaderProgram* program, ShaderObject* shader)
 
     int head = 0;
     insertCodeLine(shader, head++, strdup("#version 320 es"));
+    insertCodeLine(shader, head++, strdup("precision highp float;"));
+    insertCodeLine(shader, head++, strdup("precision highp int;"));
     if (shader->type == GL_FRAGMENT_SHADER) {
-        insertCodeLine(shader, head++, strdup("precision highp float;"));
-        insertCodeLine(shader, head++, strdup("precision highp int;"));
+        insertCodeLine(shader, head++, strdup("precision highp sampler2D;"));
+        insertCodeLine(shader, head++, strdup("precision highp sampler2DArray;"));
+        insertCodeLine(shader, head++, strdup("precision highp samplerCube;"));
         insertCodeLine(shader, head++, strdup("precision highp sampler2DShadow;"));
+        insertCodeLine(shader, head++, strdup("precision highp sampler2DArrayShadow;"));
         insertCodeLine(shader, head++, strdup("precision highp sampler3D;"));
+        insertCodeLine(shader, head++, strdup("precision highp isampler2D;"));
+        insertCodeLine(shader, head++, strdup("precision highp usampler2D;"));
+        insertCodeLine(shader, head++, strdup("precision highp isampler2DArray;"));
+        insertCodeLine(shader, head++, strdup("precision highp usampler2DArray;"));
+        insertCodeLine(shader, head++, strdup("precision highp isampler3D;"));
+        insertCodeLine(shader, head++, strdup("precision highp usampler3D;"));
     }
 
     const char* prefix = shader->type == GL_VERTEX_SHADER ? "out" : "in";

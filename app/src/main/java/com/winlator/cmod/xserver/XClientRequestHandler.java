@@ -450,13 +450,19 @@ public class XClientRequestHandler implements RequestHandler {
                 default:
                     if (opcode < 0) {
                         Extension extension = client.xServer.extensions.get(opcode);
-                        if (extension != null) extension.handleRequest(client, inputStream, outputStream);
+                        if (extension != null) {
+                            extension.handleRequest(client, inputStream, outputStream);
+                        }
+                        else {
+                            Log.w("XClientRequestHandler", "Unhandled extension opcode: " + opcode + " (unsigned: " + (opcode & 0xFF) + "), seq=" + client.getSequenceNumber());
+                        }
                     }
                     else Log.d("XClientRequestHandler", "Unsupported opcode " + opcode);
                     break;
             }
         }
         catch (XRequestError e) {
+            Log.e("XClientRequestHandler", "XRequestError for opcode " + opcode + ": " + e.getClass().getSimpleName() + " - " + e.getMessage());
             client.skipRequest();
             e.sendError(client, opcode);
         }

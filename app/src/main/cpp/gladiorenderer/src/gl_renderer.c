@@ -297,7 +297,6 @@ void GLRenderer_drawImmediate(GLRenderer* renderer) {
         }
     }
 
-    glFlush();
     renderer->geometry.indices.position = 0;
     renderer->geometry.vertices.position = 0;
     GLRenderer_disableUnusedVertexAttributes(renderer);

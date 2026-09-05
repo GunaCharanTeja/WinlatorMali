@@ -20,6 +20,7 @@ public abstract class GPUInformation {
     public native static int getVendorID(String driverName, Context context);
     public native static String getRenderer(String driverName, Context context);
     public native static String[] enumerateExtensions(String driverName, Context context);
+    public native static void setGlobalEGLContext();
 
     static {
         System.loadLibrary("winlator");

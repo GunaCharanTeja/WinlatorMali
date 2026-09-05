@@ -28,6 +28,7 @@ import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.ExeIconExtractor;
 import com.winlator.cmod.widget.FileProgressDialog;
@@ -46,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class FileManagerFragment extends Fragment {
+    public enum ConflictResolution { OVERWRITE, KEEP_BOTH, SKIP }
     private File currentDir;
     private RecyclerView recyclerViewFiles;
     private TextView tvCurrentPath;
@@ -635,6 +637,17 @@ public class FileManagerFragment extends Fragment {
     private void renameFile(File file) {
         ContentDialog.prompt(getContext(), R.string.rename, file.getName(), newName -> {
             File newFile = new File(file.getParentFile(), newName);
+            if (newFile.exists() && !newFile.equals(file)) {
+                ContentDialog.confirm(getContext(), "A file or folder named '" + newName + "' already exists. Do you want to overwrite it?", () -> {
+                    deleteRecursiveSafe(newFile, new AtomicLong(0), 1);
+                    if (file.renameTo(newFile)) {
+                        loadFiles();
+                    } else {
+                        Toast.makeText(getContext(), "Rename failed", Toast.LENGTH_SHORT).show();
+                    }
+                });
+                return;
+            }
             if (file.renameTo(newFile)) {
                 loadFiles();
             } else {
@@ -704,16 +717,83 @@ public class FileManagerFragment extends Fragment {
         }
     }
 
+    private static File getUniqueDestination(File file) {
+        if (!file.exists()) return file;
+        File parent = file.getParentFile();
+        String name = file.getName();
+        String baseName = name;
+        String extension = "";
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex > 0 && !file.isDirectory()) {
+            baseName = name.substring(0, dotIndex);
+            extension = name.substring(dotIndex);
+        }
+        int count = 1;
+        File newFile;
+        do {
+            newFile = new File(parent, baseName + " (" + count + ")" + extension);
+            count++;
+        } while (newFile.exists());
+        return newFile;
+    }
+
+    private void showConflictDialog(List<File> conflicts, Callback<ConflictResolution> callback) {
+        String message;
+        if (conflicts.size() == 1) {
+            message = "<b>" + conflicts.get(0).getName() + "</b> already exists in this folder.<br/><br/>Choose an action:";
+        } else {
+            message = "<b>" + conflicts.size() + " items</b> already exist in this destination folder.<br/><br/>Choose an action for conflicting items:";
+        }
+
+        String[] options = new String[]{
+            "Overwrite (Replace existing)",
+            "Keep Both (Auto-rename)",
+            "Skip (Do not replace)"
+        };
+
+        ContentDialog dialog = new ContentDialog(requireContext());
+        dialog.setTitle("File Conflict");
+        dialog.setMessage(message);
+
+        android.widget.ListView listView = dialog.findViewById(R.id.ListView);
+        listView.getLayoutParams().width = AppUtils.getPreferredDialogWidth(requireContext());
+        listView.setChoiceMode(android.widget.ListView.CHOICE_MODE_SINGLE);
+        listView.setAdapter(new android.widget.ArrayAdapter<>(requireContext(), android.R.layout.simple_list_item_single_choice, options));
+        listView.setItemChecked(0, true);
+        listView.setVisibility(View.VISIBLE);
+
+        dialog.setOnConfirmCallback(() -> {
+            int position = listView.getCheckedItemPosition();
+            if (position == 0) callback.call(ConflictResolution.OVERWRITE);
+            else if (position == 1) callback.call(ConflictResolution.KEEP_BOTH);
+            else if (position == 2) callback.call(ConflictResolution.SKIP);
+        });
+
+        dialog.show();
+    }
+
     private void pasteFiles() {
         if (clipboardFiles.isEmpty()) {
             fabPaste.setVisibility(View.GONE);
             return;
         }
 
-        executePaste(currentDir);
+        List<File> conflicts = new ArrayList<>();
+        for (File file : clipboardFiles) {
+            File dest = new File(currentDir, file.getName());
+            if (dest.exists()) {
+                conflicts.add(file);
+            }
+        }
+
+        if (conflicts.isEmpty()) {
+            executePaste(currentDir, ConflictResolution.OVERWRITE);
+        } else {
+            showConflictDialog(conflicts, resolution -> executePaste(currentDir, resolution));
+        }
     }
 
-    private void executePaste(File destinationDir) {
+    private void executePaste(File destinationDir, ConflictResolution resolution) {
         fileProgressDialog.show(isCutOperation ? R.string.moving_file : R.string.copying_file);
         isCancelled.set(false);
         if (getActivity() != null) AppUtils.keepScreenOn(getActivity());
@@ -735,13 +815,22 @@ public class FileManagerFragment extends Fragment {
             for (File file : sources) {
                 if (isCancelled.get()) break;
                 File destination = new File(destinationDir, file.getName());
-                
-                // Simple conflict handling: rename if exists
+
                 if (destination.exists()) {
-                    destination = new File(destinationDir, "Copy_of_" + file.getName());
+                    if (resolution == ConflictResolution.SKIP) {
+                        continue;
+                    } else if (resolution == ConflictResolution.KEEP_BOTH) {
+                        destination = getUniqueDestination(destination);
+                    } else if (resolution == ConflictResolution.OVERWRITE) {
+                        if (destination.isDirectory() && !file.isDirectory()) {
+                            deleteRecursiveSafe(destination, new AtomicLong(0), 1);
+                        } else if (destination.isFile() && file.isDirectory()) {
+                            destination.delete();
+                        }
+                    }
                 }
 
-                boolean success = copyWithProgress(file, destination, copiedSize, totalSize.get());
+                boolean success = copyWithProgress(file, destination, resolution, copiedSize, totalSize.get());
                 if (success && isCutOperation && !isCancelled.get()) {
                     deleteRecursiveSafe(file, new AtomicLong(0), 1);
                 }
@@ -839,14 +928,23 @@ public class FileManagerFragment extends Fragment {
         popupMenu.show();
     }
 
-    private boolean copyWithProgress(File src, File dst, AtomicLong copiedSize, long totalSize) {
+    private boolean copyWithProgress(File src, File dst, ConflictResolution resolution, AtomicLong copiedSize, long totalSize) {
         if (isCancelled.get()) return false;
         if (src.isDirectory()) {
             if (!dst.exists() && !dst.mkdirs()) return false;
             File[] files = src.listFiles();
             if (files != null) {
                 for (File file : files) {
-                    if (!copyWithProgress(file, new File(dst, file.getName()), copiedSize, totalSize)) return false;
+                    if (isCancelled.get()) return false;
+                    File childDst = new File(dst, file.getName());
+                    if (childDst.exists()) {
+                        if (resolution == ConflictResolution.SKIP) {
+                            continue;
+                        } else if (resolution == ConflictResolution.KEEP_BOTH) {
+                            childDst = getUniqueDestination(childDst);
+                        }
+                    }
+                    if (!copyWithProgress(file, childDst, resolution, copiedSize, totalSize)) return false;
                 }
             }
             return true;
@@ -889,7 +987,11 @@ public class FileManagerFragment extends Fragment {
     private void createNewFolder(File parentDir) {
         ContentDialog.prompt(getContext(), R.string.new_folder, "", folderName -> {
             File newDir = new File(parentDir, folderName);
-            if (!newDir.exists() && newDir.mkdirs()) {
+            if (newDir.exists()) {
+                Toast.makeText(getContext(), "A folder with this name already exists", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (newDir.mkdirs()) {
                 loadFiles();
             } else {
                 Toast.makeText(getContext(), "Failed to create folder", Toast.LENGTH_SHORT).show();

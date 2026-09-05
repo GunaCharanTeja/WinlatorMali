@@ -20,14 +20,12 @@ public class BCNConfigDialog extends ContentDialog {
     private final Spinner sBCnQualityPreset;
     private final CheckBox cbASTCTranscode;
     private final CheckBox cbETC2Transcode;
-    private final CheckBox cbSkipSmallTextures;
     private String selectedBCnEmulation;
     private String selectedBCnEmulationType;
     private String isBCnCacheEnabled;
     private String selectedBCnQualityPreset;
     private String isASTCTranscode;
     private String isETC2Transcode;
-    private String isSkipSmallTextures;
 
     public BCNConfigDialog(View anchor) {
         super(anchor.getContext(), R.layout.bcn_config_dialog);
@@ -40,7 +38,6 @@ public class BCNConfigDialog extends ContentDialog {
         sBCnQualityPreset = findViewById(R.id.SGraphicsDriverBCnQualityPreset);
         cbASTCTranscode = findViewById(R.id.CBASTCTranscode);
         cbETC2Transcode = findViewById(R.id.CBETC2Transcode);
-        cbSkipSmallTextures = findViewById(R.id.CBSkipSmallTextures);
 
         String graphicsDriverConfig = anchor.getTag().toString();
         HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
@@ -51,7 +48,6 @@ public class BCNConfigDialog extends ContentDialog {
         selectedBCnQualityPreset = config.getOrDefault("bcnQualityPreset", "auto");
         isASTCTranscode = config.getOrDefault("astcTranscode", "1");
         isETC2Transcode = config.getOrDefault("etc2Transcode", "0");
-        isSkipSmallTextures = config.getOrDefault("skipSmallTextures", "0");
 
         AppUtils.setSpinnerSelectionFromValue(sBCnEmulation, selectedBCnEmulation);
         AppUtils.setSpinnerSelectionFromValue(sBCnEmulationType, selectedBCnEmulationType);
@@ -60,7 +56,6 @@ public class BCNConfigDialog extends ContentDialog {
         
         cbASTCTranscode.setChecked("1".equals(isASTCTranscode));
         cbETC2Transcode.setChecked("1".equals(isETC2Transcode));
-        cbSkipSmallTextures.setChecked("1".equals(isSkipSmallTextures));
 
         sBCnEmulation.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -147,16 +142,6 @@ public class BCNConfigDialog extends ContentDialog {
             updateTranscodeCheckboxes();
         });
 
-        cbSkipSmallTextures.setOnClickListener(v -> {
-            boolean isTranscodeOn = cbASTCTranscode.isChecked() || cbETC2Transcode.isChecked();
-            if (!isTranscodeOn) {
-                cbSkipSmallTextures.setChecked(false);
-                AppUtils.showToast(getContext(), "Skip Compression requires ASTC or ETC2 Transcode to be enabled");
-                return;
-            }
-            isSkipSmallTextures = cbSkipSmallTextures.isChecked() ? "1" : "0";
-        });
-
         findViewById(R.id.IVTranscodeInfo).setOnClickListener(v -> showTranscodeInfo());
         findViewById(R.id.IVQualityPresetInfo).setOnClickListener(v -> showQualityInfo());
 
@@ -169,7 +154,6 @@ public class BCNConfigDialog extends ContentDialog {
             config.put("bcnQualityPreset", selectedBCnQualityPreset);
             config.put("astcTranscode", isASTCTranscode);
             config.put("etc2Transcode", isETC2Transcode);
-            config.put("skipSmallTextures", isSkipSmallTextures);
             anchor.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
         });
     }
@@ -183,9 +167,6 @@ public class BCNConfigDialog extends ContentDialog {
             cbETC2Transcode.setChecked(false);
             isETC2Transcode = "0";
             cbETC2Transcode.setAlpha(0.5f);
-            cbSkipSmallTextures.setChecked(false);
-            isSkipSmallTextures = "0";
-            cbSkipSmallTextures.setAlpha(0.5f);
         } else {
             if (cbASTCTranscode.isChecked() && cbETC2Transcode.isChecked()) {
                 cbETC2Transcode.setChecked(false);
@@ -201,11 +182,6 @@ public class BCNConfigDialog extends ContentDialog {
         if (!isTranscodeActive) {
             selectedBCnQualityPreset = "auto";
             AppUtils.setSpinnerSelectionFromValue(sBCnQualityPreset, "auto");
-            cbSkipSmallTextures.setChecked(false);
-            isSkipSmallTextures = "0";
-            cbSkipSmallTextures.setAlpha(0.5f);
-        } else {
-            cbSkipSmallTextures.setAlpha(1.0f);
         }
         sBCnQualityPreset.setAlpha(isTranscodeActive ? 1.0f : 0.5f);
     }

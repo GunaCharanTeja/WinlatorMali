@@ -6,12 +6,11 @@ import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
-import android.os.PerformanceHintManager;
-import android.os.Process;
 import android.util.Log;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.XrActivity;
+import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.math.XForm;
 import com.winlator.cmod.renderer.material.CursorMaterial;
@@ -64,9 +63,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private float displayTotalFPS = 0;
     private boolean renderCursorEnabled = true;
     private int regularFrameCount = 0;
-    private PerformanceHintManager.Session performanceHintSession = null;
-    private boolean adpfInitialized = false;
-    private long frameStartNanos = 0;
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -87,6 +83,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+        GPUInformation.setGlobalEGLContext();
         GPUImage.checkIsSupported();
 
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
@@ -99,17 +96,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             ApexNativeBridge.nativeInit(surfaceWidth, surfaceHeight);
         }
         lastNanos = 0;
-
-        if (!adpfInitialized && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            adpfInitialized = true;
-            try {
-                Context context = xServerView.getContext();
-                PerformanceHintManager manager = context.getSystemService(PerformanceHintManager.class);
-                if (manager != null) {
-                    performanceHintSession = manager.createHintSession(new int[]{Process.myTid()}, 16666666L);
-                }
-            } catch (Throwable ignored) {}
-        }
     }
 
     @Override
@@ -132,7 +118,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
-        frameStartNanos = System.nanoTime();
         int fpsLimit = currentFpsLimit;
         if (ApexNativeBridge.nativeIsActive()) {
             fpsLimit = ApexNativeBridge.nativeGetTargetFPS();
@@ -140,11 +125,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
         if (fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
-            if (performanceHintSession != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                try {
-                    performanceHintSession.updateTargetWorkDuration(targetIntervalNanos);
-                } catch (Throwable ignored) {}
-            }
             long elapsed = System.nanoTime() - lastNanos;
             if (elapsed < targetIntervalNanos) {
                 long waitNanos = targetIntervalNanos - elapsed;
@@ -175,13 +155,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
         regularFrameCount++;
         updateFPS();
-
-        if (performanceHintSession != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            long workDuration = System.nanoTime() - frameStartNanos;
-            try {
-                performanceHintSession.reportActualWorkDuration(workDuration);
-            } catch (Throwable ignored) {}
-        }
     }
 
     public void drawFrame() {
@@ -219,6 +192,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public void setWinlatorHUD(com.winlator.cmod.widget.WinlatorHUD hud) {
         this.winlatorHUD = hud;
+    }
+
+    public com.winlator.cmod.widget.WinlatorHUD getWinlatorHUD() {
+        return this.winlatorHUD;
     }
 
     private void renderScene() {
@@ -279,7 +256,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         synchronized (drawable.renderLock) {
             Texture texture = drawable.getTexture();
             texture.updateFromDrawable(drawable);
-            XForm.set(tmpXForm1, x, y, drawable.width, drawable.height);
+            if (texture.isFlipY()) {
+                XForm.set(tmpXForm1, x, y + drawable.height, drawable.width, -drawable.height);
+            } else {
+                XForm.set(tmpXForm1, x, y, drawable.width, drawable.height);
+            }
             XForm.multiply(tmpXForm1, tmpXForm1, tmpXForm2);
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture.getTextureId());
@@ -389,7 +370,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onUpdateWindowContent(Window window) {
-        ApexNativeBridge.nativeOnFrameCaptured(true);
+        if (ApexNativeBridge.nativeIsActive()) {
+            ApexNativeBridge.nativeOnFrameCaptured(true);
+        }
         xServerView.requestRender();
     }
 
@@ -522,8 +505,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         if (!choreographerRunning) return;
         if (ApexNativeBridge.nativeIsActive()) {
             xServerView.requestRender();
+            android.view.Choreographer.getInstance().postFrameCallback(this);
+        } else {
+            choreographerRunning = false;
         }
-        android.view.Choreographer.getInstance().postFrameCallback(this);
     }
 
     public void setRenderCursorEnabled(boolean enabled) {

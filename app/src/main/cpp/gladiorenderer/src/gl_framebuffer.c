@@ -2,8 +2,6 @@
 #include "gl_context.h"
 #include "gl_formats.h"
 
-static GLuint maxFramebufferId = 1;
-
 static GLFramebuffer* createNamedFramebuffer(GLuint id) {
     GLFramebuffer* framebuffer = calloc(1, sizeof(GLFramebuffer));
     framebuffer->ownerId = currentRenderer->contextId;
@@ -14,7 +12,8 @@ static GLFramebuffer* createNamedFramebuffer(GLuint id) {
 
 GLuint GLFramebuffer_create() {
     GLX_CONTEXT_LOCK();
-    GLuint id = maxFramebufferId++;
+    GLuint id = 0;
+    glGenFramebuffers(1, &id);
     createNamedFramebuffer(id);
     GLX_CONTEXT_UNLOCK();
     return id;

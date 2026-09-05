@@ -106,23 +106,18 @@ public abstract class DrawRequests {
 
         Drawable srcDrawable = client.xServer.drawableManager.getDrawable(srcDrawableId);
         if (srcDrawable == null) throw new BadDrawable(srcDrawableId);
-        if (srcDrawable.getData() == null) {
-            throw new IllegalStateException("srcDrawable has null data!");
-        }
 
         Drawable dstDrawable = client.xServer.drawableManager.getDrawable(dstDrawableId);
         if (dstDrawable == null) throw new BadDrawable(dstDrawableId);
-        if (dstDrawable.getData() == null) {
-            throw new IllegalStateException("dstDrawable has null data!");
-        }
-
 
         GraphicsContext graphicsContext =  client.xServer.graphicsContextManager.getGraphicsContext(gcId);
         if (graphicsContext == null) throw new BadGraphicsContext(gcId);
 
         if (srcDrawable.visual.depth != dstDrawable.visual.depth) throw new BadMatch();
 
-        dstDrawable.copyArea(srcX, srcY, dstX, dstY, width, height, srcDrawable, graphicsContext.getFunction());
+        if (srcDrawable.getData() != null && dstDrawable.getData() != null) {
+            dstDrawable.copyArea(srcX, srcY, dstX, dstY, width, height, srcDrawable, graphicsContext.getFunction());
+        }
     }
 
     public static void polyLine(XClient client, XInputStream inputStream, XOutputStream outputStream) throws XRequestError {

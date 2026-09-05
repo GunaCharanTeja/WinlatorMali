@@ -90,9 +90,6 @@ public class Drawable extends XResource {
     }
 
     public void setData(ByteBuffer data) {
-        if (data == null) {
-            throw new IllegalArgumentException("Attempting to set Drawable.data to null!");
-        }
         this.data = data;
     }
 

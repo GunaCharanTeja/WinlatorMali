@@ -559,6 +559,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         graphicsDriver = container.getGraphicsDriver();
+        if (graphicsDriver == null || graphicsDriver.startsWith("wrapper-") || graphicsDriver.equals("turnip") || graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("llvmpipe")) {
+            graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
+        }
         String graphicsDriverConfig = container.getGraphicsDriverConfig();
         displayDriver = container.getDisplayDriver();
         String displayxConfig = container.getDisplayxConfig();
@@ -578,6 +581,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (shortcut != null) {
             graphicsDriver = shortcut.getExtra("graphicsDriver", container.getGraphicsDriver());
+            if (graphicsDriver == null || graphicsDriver.startsWith("wrapper-") || graphicsDriver.equals("turnip") || graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("llvmpipe")) {
+                graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
+            }
             graphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", container.getGraphicsDriverConfig());
             displayDriver = shortcut.getExtra("displayDriver", container.getDisplayDriver());
             displayxConfig = shortcut.getExtra("displayxConfig", container.getDisplayxConfig());
@@ -2204,16 +2210,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         Log.d("XServerDisplayActivity", "Extracting graphics driver files");
         String driverFile = "graphics_driver/wrapper.tzst";
-        String graphicsDriverLower = graphicsDriver.toLowerCase();
-        if (graphicsDriverLower.startsWith("wrapper-original")) {
-            driverFile = "graphics_driver/wrapper-original.tzst";
-        } else if (graphicsDriverLower.startsWith("wrapper-leegao")) {
-            driverFile = "graphics_driver/wrapper-leegao.tzst";
-        } else if (graphicsDriverLower.startsWith("wrapper-v2")) {
-            driverFile = "graphics_driver/wrapper-v2.tzst";
-        } else if (graphicsDriverLower.startsWith("wrapper-gamenative")) {
-            driverFile = "graphics_driver/wrapper-gamenative.tzst";
-        }
 
         File internalDriverFile = new File(getFilesDir(), driverFile);
         if (internalDriverFile.exists()) {
@@ -2224,7 +2220,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String astcTranscode = graphicsDriverConfig.get("astcTranscode");
         String etc2Transcode = graphicsDriverConfig.get("etc2Transcode");
-        String skipSmallTextures = graphicsDriverConfig.get("skipSmallTextures");
         boolean transcodeEnabled = "1".equals(astcTranscode) || "1".equals(etc2Transcode);
 
         File libDir = new File(rootDir, "usr/lib");
@@ -2350,8 +2345,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (!bcnQualityPreset.equals("auto")) {
             envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
         }
-
-        envVars.put("BCN_SKIP_SMALL_TEXTURES", "1".equals(skipSmallTextures) ? "1" : "0");
     }
 
     @Override

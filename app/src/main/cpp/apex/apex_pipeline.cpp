@@ -1,6 +1,5 @@
 #include "apex_engine.h"
 #include "apex_shaders.h"
-#include "apex_vulkan_hook.h"
 #include <vector>
 #include <cstring>
 #include <iomanip>
@@ -748,9 +747,7 @@ void ApexEngine::logHeartbeatIfDue(int64_t nowNanos) {
                   statusStr, typicalMs, mTargetFPS.load(), jitterMs);
         APEX_LOGI(" ◈ MOTION :: Phase: MONOTONIC (Factor: %.3f) | Reach: 256px Multi-Scale | Disocclusion: ACTIVE",
                   mLastFactor);
-        APEX_LOGI(" ◈ HOOK   :: Depth Hook: %s | HUD Pass: %s",
-                  VulkanDepthHookManager::getInstance().isHookEnabled() ? "ACTIVE (Vulkan Depth Target Bound)" : "OPTICAL FLOW BRIDGE",
-                  "DUAL-PASS ALPHA COMPOSITE");
+        APEX_LOGI(" ◈ PIPELINE :: Mode: OPTICAL FLOW BRIDGE | HUD Pass: DUAL-PASS ALPHA COMPOSITE");
         APEX_LOGI(" ◈ DELTAS :: History: %s min=%.1fms, avg=%.1fms, max=%.1fms | Range: [%.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.1f, %.1f] ms",
                   sparkline, minDelta, meanDelta, maxDelta,
                   mDeltaHistory[0] / 1000000.0f, mDeltaHistory[1] / 1000000.0f,

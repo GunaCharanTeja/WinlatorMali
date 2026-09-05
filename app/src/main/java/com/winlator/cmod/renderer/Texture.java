@@ -153,7 +153,6 @@ public class Texture {
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
         GLES20.glCopyTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 0, 0, width, height, 0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        GLES20.glFlush();
     }
 
     public void destroy() {

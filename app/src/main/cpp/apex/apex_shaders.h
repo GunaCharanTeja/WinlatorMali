@@ -578,6 +578,28 @@ vec3 applyRCAS(sampler2D tex, vec2 uv, vec2 texSize) {
     return clamp(sharpened, 0.0, 1.0);
 }
 
+// --- Global Motion Compensation (GMC) Robust Camera Pan Estimator ---
+vec2 estimateGlobalCameraMotion(sampler2D mvTex) {
+    // Sample a 5-point distributed grid at lod=3.0 (spatially pre-filtered coarse motion)
+    vec2 a0 = textureLod(mvTex, vec2(0.50, 0.50), 3.0).rg;
+    vec2 a1 = textureLod(mvTex, vec2(0.20, 0.20), 3.0).rg;
+    vec2 a2 = textureLod(mvTex, vec2(0.80, 0.20), 3.0).rg;
+    vec2 a3 = textureLod(mvTex, vec2(0.20, 0.80), 3.0).rg;
+    vec2 a4 = textureLod(mvTex, vec2(0.80, 0.80), 3.0).rg;
+
+    // Robust 5-element median filter on X to reject local moving object outliers
+    float min01X = min(a0.x, a1.x), max01X = max(a0.x, a1.x);
+    float min23X = min(a2.x, a3.x), max23X = max(a2.x, a3.x);
+    float medX = max(min01X, min(max01X, max(min23X, min(max23X, a4.x))));
+
+    // Robust 5-element median filter on Y
+    float min01Y = min(a0.y, a1.y), max01Y = max(a0.y, a1.y);
+    float min23Y = min(a2.y, a3.y), max23Y = max(a2.y, a3.y);
+    float medY = max(min01Y, min(max01Y, max(min23Y, min(max23Y, a4.y))));
+
+    return vec2(medX, medY);
+}
+
 void main() {
     float factor = interpolationFactor;
 
@@ -603,22 +625,33 @@ void main() {
 
     // 100% Bit-Exact Native Passthrough for Static Pixels, HUD, Text, Crosshair, and Mini-map
     float mvLen = length(mv);
-    if (mvLen < (0.15 / resolution.x)) {
+    if (mvLen < (0.20 / resolution.x)) {
         outColor = vec4(nativeRaw, 1.0);
         return;
     }
 
+    // Global Motion Compensation (GMC):
+    // Separates camera rotation (rigid background pan) from dynamic local object motion.
+    vec2 globalMV = estimateGlobalCameraMotion(motionVectorTexture) * uFlowScale;
+    vec2 residual = mv - globalMV;
+    float residualLen = length(residual);
+
+    // If residual is low, pixel is part of rigid background pan -> use global camera vector (0 jitter/ghosting)
+    // If residual is high, pixel is a moving character/object -> blend in local optical flow
+    float localMotionWeight = smoothstep(0.002, 0.020, residualLen);
+    vec2 effectiveMV = mix(globalMV, mv, localMotionWeight * confidence);
+
     // Bidirectional Optical Flow Trajectory (FSR3 / Bionic Cleanroom formulation):
     // mv maps currFrame to prevFrame: currFrame(uv) ≈ prevFrame(uv + mv).
     // An intermediate frame at factor 't' (e.g. 0.50):
-    //  - Backward ray to prevFrame: uvPrev = vUV + mv * (1.0 - factor)
-    //  - Forward ray to currFrame: uvCurr = vUV - mv * factor
-    vec2 uvPrev = clamp(vUV + mv * (1.0 - factor), 0.0, 1.0);
-    vec2 uvCurr = clamp(vUV - mv * factor, 0.0, 1.0);
+    //  - Backward ray to prevFrame: uvPrev = vUV + effectiveMV * (1.0 - factor)
+    //  - Forward ray to currFrame: uvCurr = vUV - effectiveMV * factor
+    vec2 uvPrev = clamp(vUV + effectiveMV * (1.0 - factor), 0.0, 1.0);
+    vec2 uvCurr = clamp(vUV - effectiveMV * factor, 0.0, 1.0);
 
     // Dynamic Adaptive Shutter Velocity (True Cinematic Motion Blur)
     float shutterGain = clamp(uBlurIntensity, 0.0, 1.0);
-    vec2 vel = mv * (shutterGain * 1.50 + 0.15);
+    vec2 vel = effectiveMV * (shutterGain * 1.50 + 0.15);
 
     vec3 warpedPrev;
     vec3 warpedCurr;

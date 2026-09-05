@@ -3,6 +3,7 @@ package com.winlator.cmod.xserver.extensions;
 import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_ERROR;
 import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCCESS;
 
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseLongArray;
 
@@ -26,7 +27,7 @@ import com.winlator.cmod.xserver.errors.XRequestError;
 import java.io.IOException;
 
 public class GLXExtension implements Extension {
-    public static final byte MAJOR_OPCODE = -99;
+    public static final byte MAJOR_OPCODE = -106;
     public static final byte MAJOR_VERSION = 1;
     public static final byte MINOR_VERSION = 4;
     private static final byte DEFAULT_FBCONFIG_ID = 1;
@@ -81,6 +82,7 @@ public class GLXExtension implements Extension {
 
     private void createGLContext(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int contextId = inputStream.readInt();
+        Log.i("GLXExtension", "createGLContext clientFd=" + client.fd + ", contextId=" + contextId);
 
         SparseLongArray contexts = clientGLContexts.get(client.fd);
         if (contexts == null) {
@@ -90,10 +92,12 @@ public class GLXExtension implements Extension {
 
         long context = createGLContext(client.fd);
         if (context != 0) contexts.put(contextId, context);
+        else Log.e("GLXExtension", "createGLContext native call returned 0 for clientFd=" + client.fd);
     }
 
     private void destroyGLContext(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int contextId = inputStream.readInt();
+        Log.i("GLXExtension", "destroyGLContext clientFd=" + client.fd + ", contextId=" + contextId);
 
         SparseLongArray contexts = clientGLContexts.get(client.fd);
         if (contexts == null) throw new GLXBadContext();
@@ -120,9 +124,52 @@ public class GLXExtension implements Extension {
 
             long sharedContextPtr = shareContextId > 0 ? contexts.get(shareContextId) : 0;
             long context = createGLXContext(contextId, sharedContextPtr);
-            if (context == 0) throw new BadAlloc();
+            Log.i("GLXExtension", "createGLXContextForClient clientFd=" + client.fd + ", contextId=" + contextId + ", shareId=" + shareContextId + " -> ptr=" + context);
+            if (context == 0) {
+                Log.e("GLXExtension", "createGLXContext failed to allocate context for contextId=" + contextId);
+                throw new BadAlloc();
+            }
             contexts.put(contextId, context);
+            updateHUD();
         }
+    }
+
+    private volatile boolean hudNotified = false;
+    private long nextFrameTime = 0;
+
+    private void updateHUD() {
+        if (!hudNotified && xServer != null && xServer.getRenderer() != null) {
+            com.winlator.cmod.widget.WinlatorHUD hud = xServer.getRenderer().getWinlatorHUD();
+            if (hud != null) {
+                hudNotified = true;
+                hud.onRendererDetected("Gladio");
+                hud.setWrapperName("Gladio");
+            }
+        }
+    }
+
+    private void paceFramerate() {
+        if (xServer == null || xServer.getRenderer() == null) return;
+        int targetFps = xServer.getRenderer().getFpsLimit();
+        if (targetFps <= 0) {
+            nextFrameTime = 0;
+            return;
+        }
+
+        long targetFrameTime = 1000000000L / targetFps;
+        long now = System.nanoTime();
+        if (nextFrameTime == 0 || now > nextFrameTime) nextFrameTime = now;
+        long sleepTime = nextFrameTime - now;
+        if (sleepTime > 0) {
+            long sleepMs = (sleepTime - 1500000L) / 1000000L;
+            if (sleepMs > 0) {
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException ignored) {}
+            }
+            while (System.nanoTime() < nextFrameTime);
+        }
+        nextFrameTime += targetFrameTime;
     }
 
     private void createContext(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -276,8 +323,10 @@ public class GLXExtension implements Extension {
             else if (name == GLXEnums.GLX_CONTEXT_MINOR_VERSION_ARB) glMinorVersion = value;
         }
 
-        boolean success = glMajorVersion <= 3 && glMinorVersion <= 3;
+        boolean success = glMajorVersion >= 1;
+        Log.i("GLXExtension", "createContextAttribsARB: requested GL " + glMajorVersion + "." + glMinorVersion + ", contextId=" + contextId + ", fbConfigId=" + fbConfigId + ", success=" + success);
         if (success) createGLXContextForClient(client, contextId, shareContext);
+        else Log.w("GLXExtension", "createContextAttribsARB: rejected GL version " + glMajorVersion + "." + glMinorVersion);
 
         try (XStreamLock lock = outputStream.lock()) {
             outputStream.writeByte(success ? RESPONSE_CODE_SUCCESS : RESPONSE_CODE_ERROR);
@@ -290,6 +339,7 @@ public class GLXExtension implements Extension {
     @Override
     public void handleRequest(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int opcode = client.getRequestData();
+        Log.d("GLXExtension", "handleRequest clientFd=" + client.fd + ", opcode=" + opcode);
         switch (opcode) {
             case ClientOpcodes.CREATE_GL_CONTEXT:
                 createGLContext(client, inputStream, outputStream);
@@ -319,35 +369,49 @@ public class GLXExtension implements Extension {
                 createContextAttribsARB(client, inputStream, outputStream);
                 break;
             default:
+                Log.e("GLXExtension", "Unsupported GLX client opcode: " + opcode);
                 throw new BadImplementation();
         }
     }
 
     @Keep
-    private short[] getWindowSize(int windowId) {
-        Window window = xServer.windowManager.getWindow(windowId);
-        return window != null ? new short[]{window.getWidth(), window.getHeight()} : new short[]{0, 0};
+    private short[] getWindowSize(int id) {
+        Window window = xServer.windowManager.getWindow(id);
+        if (window != null) {
+            return new short[]{window.getWidth(), window.getHeight()};
+        }
+        Drawable drawable = xServer.drawableManager.getDrawable(id);
+        if (drawable != null) {
+            return new short[]{drawable.width, drawable.height};
+        }
+        Log.w("GLXExtension", "getWindowSize: resource id " + id + " not found in WindowManager or DrawableManager");
+        return new short[]{0, 0};
     }
 
     @Keep
-    private void clearWindowContent(int windowId) {
-        Window window = xServer.windowManager.getWindow(windowId);
-        if (window != null) {
-            Drawable drawable = window.getContent();
-            if (drawable.getData() != null) {
-                drawable.setData(null);
-                drawable.getTexture().destroy();
-            }
+    private void clearWindowContent(int id) {
+        Window window = xServer.windowManager.getWindow(id);
+        Drawable drawable = window != null ? window.getContent() : xServer.drawableManager.getDrawable(id);
+        if (drawable != null) {
+            drawable.setData(null);
+            drawable.getTexture().destroy();
         }
     }
 
     @Keep
     private boolean updateWindowContent(int drawableId, short width, short height, boolean flipY) {
         Drawable drawable = xServer.drawableManager.getDrawable(drawableId);
+        if (drawable == null) {
+            Window window = xServer.windowManager.getWindow(drawableId);
+            if (window != null) drawable = window.getContent();
+        }
         if (drawable == null) return true;
 
         synchronized (drawable.renderLock) {
-            if (drawable.width != width || drawable.height != height) return false;
+            if (drawable.width != width || drawable.height != height) {
+                Log.i("GLXExtension", "updateWindowContent: resolution change detected (drawable=" + drawable.width + "x" + drawable.height + ", rendered=" + width + "x" + height + ")");
+                return false;
+            }
 
             drawable.setData(null);
             Texture texture = drawable.getTexture();
@@ -355,7 +419,10 @@ public class GLXExtension implements Extension {
             texture.copyFromReadBuffer(width, height);
             Runnable onDrawListener = drawable.getOnDrawListener();
             if (onDrawListener != null) onDrawListener.run();
+            updateHUD();
         }
+        paceFramerate();
+        Thread.yield();
         return true;
     }
 

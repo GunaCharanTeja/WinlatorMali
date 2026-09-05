@@ -125,6 +125,16 @@ done:
 }
 
 JNIEXPORT void JNICALL
+Java_com_winlator_cmod_core_GPUInformation_setGlobalEGLContext(JNIEnv *env, jclass obj) {
+    globalEGLContext = eglGetCurrentContext();
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_cmod_core_GPUHelper_setGlobalEGLContext(JNIEnv *env, jclass obj) {
+    globalEGLContext = eglGetCurrentContext();
+}
+
+JNIEXPORT void JNICALL
 Java_com_winlator_core_GPUHelper_setGlobalEGLContext(JNIEnv *env, jclass obj) {
     globalEGLContext = eglGetCurrentContext();
 }

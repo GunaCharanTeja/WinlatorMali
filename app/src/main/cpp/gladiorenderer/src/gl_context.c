@@ -37,8 +37,11 @@ static void createDisplayBuffer(GLContext* context) {
 
 static void destroyDisplayBuffer() {
     if (currentRenderer && currentRenderer->displayBuffer > 0) {
-        GLFramebuffer_delete(currentRenderer->displayBuffer);
+        GLuint displayBuffer = currentRenderer->displayBuffer;
         currentRenderer->displayBuffer = 0;
+        ARRAYS_FILL(currentRenderer->clientState.framebuffer, MAX_FRAMEBUFFER_TARGETS, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        GLFramebuffer_delete(displayBuffer);
     }
 }
 
@@ -78,35 +81,42 @@ static void destroyDisplayBufAttachment(GLContext* context) {
 }
 
 static void setCurrentRenderWindow(GLContext* context, int windowId) {
-    if (windowId == 0) return;
+    if (windowId == 0 || !currentRenderer) return;
     JMethods* jmethods = &context->jmethods;
-    (*jmethods->env)->CallVoidMethod(jmethods->env, jmethods->obj, jmethods->clearWindowContent, windowId);
-    if (currentRenderer->displayBuffer > 0) return;
 
-    short width;
-    short height;
-    getWindowSize(&context->jmethods, windowId, &width, &height);
-    if (width == 0 || height == 0) return;
+    short width = 0;
+    short height = 0;
+    getWindowSize(jmethods, windowId, &width, &height);
+    if (width <= 0 || height <= 0) return;
 
-    bool resized = currentRenderer->displaySize[0] != width || currentRenderer->displaySize[1] != height;
-    currentRenderer->displaySize[0] = width;
-    currentRenderer->displaySize[1] = height;
+    bool resized = currentRenderer->displayBuffer == 0 ||
+                   currentRenderer->displaySize[0] != width ||
+                   currentRenderer->displaySize[1] != height;
 
-    if (resized) destroyDisplayBufAttachment(context);
-    createDisplayBufAttachment(context);
-    createDisplayBuffer(context);
+    if (resized) {
+        destroyDisplayBuffer();
+        destroyDisplayBufAttachment(context);
+        (*jmethods->env)->CallVoidMethod(jmethods->env, jmethods->obj, jmethods->clearWindowContent, windowId);
 
-    ARRAYS_FILL(currentRenderer->clientState.framebuffer, MAX_FRAMEBUFFER_TARGETS, 0);
-    GLRenderer_setDrawBuffer(currentRenderer, GL_BACK);
+        currentRenderer->displaySize[0] = width;
+        currentRenderer->displaySize[1] = height;
 
-    GLTexture* texture = GLTexture_getBound(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, texture ? texture->id : 0);
+        createDisplayBufAttachment(context);
+        createDisplayBuffer(context);
 
-    glViewport(0, 0, width, height);
-    glScissor(0, 0, width, height);
+        ARRAYS_FILL(currentRenderer->clientState.framebuffer, MAX_FRAMEBUFFER_TARGETS, 0);
+        GLRenderer_setDrawBuffer(currentRenderer, GL_BACK);
+
+        GLTexture* texture = GLTexture_getBound(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, texture ? texture->id : 0);
+
+        glViewport(0, 0, width, height);
+        glScissor(0, 0, width, height);
+    }
 }
 
 static void swapDisplayBuffers(GLContext* context, int drawableId) {
+    if (!currentRenderer) return;
     GLuint framebuffer = currentRenderer->clientState.framebuffer[indexOfGLTarget(GL_FRAMEBUFFER)];
     GLuint drawFramebuffer = currentRenderer->clientState.framebuffer[indexOfGLTarget(GL_DRAW_FRAMEBUFFER)];
     if (framebuffer != drawFramebuffer) GLFramebuffer_bind(GL_FRAMEBUFFER, drawFramebuffer);
