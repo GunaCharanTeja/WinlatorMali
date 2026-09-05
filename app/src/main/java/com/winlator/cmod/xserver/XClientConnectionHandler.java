@@ -13,7 +13,7 @@ public class XClientConnectionHandler implements ConnectionHandler {
     @Override
     public void handleNewConnection(Client client) {
         client.createIOStreams();
-        client.setTag(new XClient(xServer, client.getInputStream(), client.getOutputStream()));
+        client.setTag(new XClient(xServer, client.getInputStream(), client.getOutputStream(), client.clientSocket.fd));
     }
 
     @Override

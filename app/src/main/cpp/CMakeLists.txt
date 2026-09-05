@@ -12,6 +12,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Add Winlator shared library
+include_directories(winlator/include)
+
 add_library(winlator SHARED
         xr/engine.c
         xr/framebuffer.c
@@ -21,10 +23,15 @@ add_library(winlator SHARED
         xr/renderer.c
         winlator/drawable.c
         winlator/gpu_image.c
+        winlator/gpu_helper.c
         winlator/sysvshared_memory.c
         winlator/xconnector_epoll.c
         winlator/alsa_client.c
         winlator/vulkan.c
+        winlator/arrays.c
+        winlator/ring_buffer.c
+        winlator/xinput_stream.c
+        winlator/xoutput_stream.c
         winlator/renderer/egl.cpp
         winlator/renderer/renderer_jni.cpp
         winlator/renderer/shader.cpp
@@ -65,4 +72,7 @@ target_link_libraries(fakeinput
         log
         dl
 )
+
+add_subdirectory(gladiorenderer)
+
 

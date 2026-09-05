@@ -9,4 +9,5 @@ public abstract class DefaultVersion {
     public static final String DXVK = "1.7.2";
     public static final String D8VK = "1.0";
     public static final String VKD3D = "None";
+    public static final String GLADIO = "1.1";
 }

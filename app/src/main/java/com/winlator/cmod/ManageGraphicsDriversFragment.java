@@ -122,8 +122,8 @@ public class ManageGraphicsDriversFragment extends Fragment {
             driverList.add(new DriverInfo("wrapper-leegao.tzst"));
             driverList.add(new DriverInfo("wrapper-v2.tzst"));
             driverList.add(new DriverInfo("wrapper-gamenative.tzst"));
-            driverList.add(new DriverInfo("zink_dlls.tzst"));
             driverList.add(new DriverInfo("leegao_bcn.tzst"));
+            driverList.add(new DriverInfo("gladio-1.1.tzst"));
             driverList.add(new DriverInfo("extra_libs.tzst"));
 
             android.content.Context context = getContext();

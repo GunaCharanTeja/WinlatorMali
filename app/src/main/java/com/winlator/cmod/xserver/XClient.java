@@ -2,6 +2,7 @@ package com.winlator.cmod.xserver;
 
 import androidx.collection.ArrayMap;
 
+import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
 import com.winlator.cmod.xserver.events.Event;
@@ -13,6 +14,7 @@ public class XClient implements XResourceManager.OnResourceLifecycleListener {
     public final XServer xServer;
     private boolean authenticated = false;
     public final Integer resourceIDBase;
+    public final int fd;
     private short sequenceNumber = 0;
     private int requestLength;
     private byte requestData;
@@ -21,11 +23,17 @@ public class XClient implements XResourceManager.OnResourceLifecycleListener {
     private final XOutputStream outputStream;
     private final ArrayMap<Window, EventListener> eventListeners = new ArrayMap<>();
     private final ArrayList<XResource> resources = new ArrayList<>();
+    private final ArrayList<Callback<XClient>> onDestroyListeners = new ArrayList<>();
 
     public XClient(XServer xServer, XInputStream inputStream, XOutputStream outputStream) {
+        this(xServer, inputStream, outputStream, 0);
+    }
+
+    public XClient(XServer xServer, XInputStream inputStream, XOutputStream outputStream, int fd) {
         this.xServer = xServer;
         this.inputStream = inputStream;
         this.outputStream = outputStream;
+        this.fd = fd;
 
         try (XLock lock = xServer.lockAll()) {
             resourceIDBase = xServer.resourceIDs.get();
@@ -100,6 +108,16 @@ public class XClient implements XResourceManager.OnResourceLifecycleListener {
             xServer.cursorManager.removeOnResourceLifecycleListener(this);
             xServer.resourceIDs.free(resourceIDBase);
         }
+
+        for (Callback<XClient> onDestroyListener : onDestroyListeners) onDestroyListener.call(this);
+    }
+
+    public void addOnDestroyListener(Callback<XClient> onDestroyListener) {
+        if (!onDestroyListeners.contains(onDestroyListener)) onDestroyListeners.add(onDestroyListener);
+    }
+
+    public void removeOnDestroyListener(Callback<XClient> onDestroyListener) {
+        onDestroyListeners.remove(onDestroyListener);
     }
 
     public void generateSequenceNumber() {

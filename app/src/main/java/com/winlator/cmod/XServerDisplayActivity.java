@@ -2200,8 +2200,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/wrapper_icd.aarch64.json");
-        envVars.put("GALLIUM_DRIVER", "zink");
-        envVars.put("MESA_LOADER_DRIVER_OVERRIDE", "zink");
+        envVars.put("GLADIO_NO_ERROR", "1");
 
         Log.d("XServerDisplayActivity", "Extracting graphics driver files");
         String driverFile = "graphics_driver/wrapper.tzst";
@@ -2236,10 +2235,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (internalExtraLibs.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalExtraLibs, rootDir);
             else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
 
-            File internalZinkDlls = new File(getFilesDir(), "graphics_driver/zink_dlls.tzst");
-            File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
-            if (internalZinkDlls.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalZinkDlls, windowsDir, onExtractFileListener);
-            else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/zink_dlls.tzst", windowsDir, onExtractFileListener);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/gladio-" + DefaultVersion.GLADIO + ".tzst", rootDir);
+            File libDir = new File(rootDir, "usr/lib");
+            FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so.1").getAbsolutePath());
+            FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so").getAbsolutePath());
 
             if (transcodeEnabled) {
                 File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
@@ -2247,18 +2246,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
             }
             container.putExtra("transcodeEnabled", transcodeEnabled ? "1" : "0");
-            container.putExtra("zinkDllsExtracted", "1");
         }
         else {
-            File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
-            if (container.getExtra("zinkDllsExtracted").isEmpty()) {
-                File internalZinkDlls = new File(getFilesDir(), "graphics_driver/zink_dlls.tzst");
-                if (internalZinkDlls.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalZinkDlls, windowsDir, onExtractFileListener);
-                else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/zink_dlls.tzst", windowsDir, onExtractFileListener);
-                container.putExtra("zinkDllsExtracted", "1");
-                container.saveData();
-            }
-
             boolean lastTranscodeEnabled = container.getExtra("transcodeEnabled", "0").equals("1");
             if (transcodeEnabled != lastTranscodeEnabled) {
                 File internalExtraLibs = new File(getFilesDir(), "graphics_driver/extra_libs.tzst");
