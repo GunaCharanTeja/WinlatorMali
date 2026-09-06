@@ -16,6 +16,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
+import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.VKD3DVersionItem;
@@ -37,6 +38,7 @@ public class DXVKConfigDialog extends ContentDialog {
     public static final int DXVK_TYPE_ASYNC = 1;
     public static final int DXVK_TYPE_GPLASYNC = 2;
     private final ToggleButton swAsync;
+    private final ToggleButton swDxvkConfig;
     private boolean isARM64EC = false;
     private final ToggleButton swAsyncCache;
     private final View llAsync;
@@ -89,6 +91,7 @@ public class DXVKConfigDialog extends ContentDialog {
         final Spinner sDDRAWrapper = findViewById(R.id.SDDRAWrapper);
         final Spinner sMaxDeviceMemory = findViewById(R.id.SMaxDeviceMemory);
         swAsync = findViewById(R.id.SWAsync);
+        swDxvkConfig = findViewById(R.id.SWDxvkConfig);
         swAsyncCache = findViewById(R.id.SWAsyncCache);
         llAsync = findViewById(R.id.LLAsync);
         llAsyncCache = findViewById(R.id.LLAsyncCache);
@@ -114,7 +117,29 @@ public class DXVKConfigDialog extends ContentDialog {
         } catch (NumberFormatException e) {}
 
         swAsync.setChecked("1".equals(config.get("async", "0")));
+        swDxvkConfig.setChecked("1".equals(config.get("dxvkConfig", "1")));
         swAsyncCache.setChecked("1".equals(config.get("asyncCache", "0")));
+
+        findViewById(R.id.BTHelpDxvkConfig).setOnClickListener(v -> {
+            ContentDialog dialog = new ContentDialog(getContext(), R.layout.bcn_info_dialog);
+            dialog.setTitle("Pre-Configured DXVK Config");
+            dialog.setIcon(R.drawable.ic_driver_info);
+
+            TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
+            String message = "<b>Pre-Configured DXVK Optimizations:</b><br/><br/>" +
+                    "&#8226; <b>memoryTrack:</b> Enables strict tracking of memory allocations. Prevents \"Out of Memory\" crashes by ensuring the heap is managed correctly on Android's shared RAM architecture.<br/><br/>" +
+                    "&#8226; <b>nvapiHack:</b> Disables NVIDIA-specific spoofing. Prevents games from attempting to call proprietary NVIDIA features that cause crashes on mobile hardware.<br/><br/>" +
+                    "&#8226; <b>numCompilerThreads:</b> Limits shader compilation to 4 threads. Prevents CPU cores from maxing out, reducing heat and avoiding thermal throttling for a stable framerate.<br/><br/>" +
+                    "<b>Mali Specialized (Non-Adreno):</b><br/><br/>" +
+                    "&#8226; <b>relaxedBarriers / ignoreGraphicsBarriers:</b> Reduces GPU \"sync points.\" Mali drivers struggle with frequent barriers; disabling non-essential ones significantly boosts FPS by letting the GPU work continuously.<br/><br/>" +
+                    "&#8226; <b>useEarlyDiscard:</b> Discards hidden pixels early in the pipeline. Ideal for Mali's Tile-Based architecture, reducing \"overdraw\" to save GPU power and battery.<br/><br/>" +
+                    "&#8226; <b>shrinkBindingSlots:</b> Minimizes the internal resource table size. Reduces the overall VRAM footprint, leaving more memory available for actual game assets.<br/><br/>" +
+                    "&#8226; <b>maxQueuedFrames:</b> Limits the CPU to preparing only 1 frame ahead. Prevents input lag (latency) and avoids large memory backlogs that can lead to crashes.<br/><br/>" +
+                    "&#8226; <b>allowMapFlagNoWait:</b> Allows the CPU to update resources without waiting for GPU confirmation. Eliminates \"CPU stalls\" and micro-stutters.";
+            tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
+            dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+            dialog.show();
+        });
 
         updateConfigVisibility(getDXVKType(sDXVKVersion.getSelectedItemPosition()));
 
@@ -180,7 +205,7 @@ public class DXVKConfigDialog extends ContentDialog {
             if (sDXVKVersion.getSelectedItem() != null) config.put("version", sDXVKVersion.getSelectedItem().toString());
             config.put("async", ((swAsync.isChecked())&&(llAsync.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("asyncCache", ((swAsyncCache.isChecked())&&(llAsyncCache.getVisibility()==View.VISIBLE))?"1":"0");
-            config.put("dxvkConfig", "1");
+            config.put("dxvkConfig", swDxvkConfig.isChecked() ? "1" : "0");
             Object selectedItem = sVKD3DVersion.getSelectedItem();
             if (selectedItem instanceof VKD3DVersionItem) {
                 config.put("vkd3dVersion", ((VKD3DVersionItem) selectedItem).getIdentifier());
@@ -273,13 +298,26 @@ public class DXVKConfigDialog extends ContentDialog {
             }
 
             // Initialize default global optimizations for DXVK
-            String content = "dxvk.memoryTrack = True\n";
+            StringBuilder content = new StringBuilder();
+            content.append("dxvk.memoryTrack = True\n");
+            content.append("dxgi.nvapiHack = False\n");
+            content.append("dxvk.numCompilerThreads = 4\n");
+
+            // Mali and non-Adreno specialized optimizations
+            if (!GPUInformation.isAdrenoGPU(context)) {
+                content.append("d3d11.relaxedBarriers = True\n");
+                content.append("d3d11.ignoreGraphicsBarriers = True\n");
+                content.append("dxvk.useEarlyDiscard = True\n");
+                content.append("d3d11.allowMapFlagNoWait = True\n");
+                content.append("dxvk.shrinkBindingSlots = True\n");
+                content.append("d3d11.maxQueuedFrames = 1\n");
+            }
 
             if (!maxDeviceMemoryValue.isEmpty()) {
-                content += "dxgi.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
-                content += "dxgi.maxSharedMemory = " + maxDeviceMemoryValue + "\n";
-                content += "d3d9.maxDeviceMemory = " + maxDeviceMemoryValue + "\n";
-                content += "d3d9.maxAvailableMemory = " + maxDeviceMemoryValue + "\n";
+                content.append("dxgi.maxDeviceMemory = ").append(maxDeviceMemoryValue).append("\n");
+                content.append("dxgi.maxSharedMemory = ").append(maxDeviceMemoryValue).append("\n");
+                content.append("d3d9.maxDeviceMemory = ").append(maxDeviceMemoryValue).append("\n");
+                content.append("d3d9.maxAvailableMemory = ").append(maxDeviceMemoryValue).append("\n");
             }
 
             try {
@@ -287,7 +325,7 @@ public class DXVKConfigDialog extends ContentDialog {
                 if (configFile.exists()) configFile.delete();
                 try (FileOutputStream fos = new FileOutputStream(configFile);
                      OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
-                    osw.write(content);
+                    osw.write(content.toString());
                 }
                 envVars.put("DXVK_CONFIG_FILE", configFile.getAbsolutePath());
             } catch (Exception e) {}

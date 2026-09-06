@@ -42,10 +42,6 @@ public class ContentsManager {
             "${system32}/libwow64fex.dll", "${system32}/libarm64ecfex.dll",
             "${libdir}/wine/aarch64-unix/libwow64fex.so", "${libdir}/wine/aarch64-unix/libarm64ecfex.so"
     };
-    private Map<String, String> dirTemplateMap;
-    private Map<ContentProfile.ContentType, List<String>> trustedFilesMap;
-
-    private SharedPreferences preferences;
 
     public enum InstallFailedReason {
         ERROR_NOSPACE,
@@ -64,7 +60,9 @@ public class ContentsManager {
         CONTENT_PROTON_DIR_NAME("proton"),
         CONTENT_DXVK_DIR_NAME("dxvk"),
         CONTENT_VKD3D_DIR_NAME("vkd3d"),
-        CONTENT_BOX64_DIR_NAME("box64");
+        CONTENT_BOX64_DIR_NAME("box64"),
+        CONTENT_WOWBOX64_DIR_NAME("wowbox64"),
+        CONTENT_FEXCORE_DIR_NAME("fexcore");
 
         private String name;
 
@@ -80,6 +78,7 @@ public class ContentsManager {
     }
 
     private final Context context;
+    private final SharedPreferences preferences;
     private HashMap<ContentProfile.ContentType, List<ContentProfile>> profilesMap;
     private ArrayList<ContentProfile> remoteProfiles = new ArrayList<>();
 
@@ -124,25 +123,30 @@ public class ContentsManager {
                         remoteProfile.verName = verName;
 
                         String typeStr = object.optString("type", "").trim();
-                        String lowerAll = (typeStr + " " + verName + " " + url).toLowerCase();
+                        ContentProfile.ContentType explicitType = ContentProfile.ContentType.getTypeByName(typeStr);
 
-                        if (lowerAll.contains("vkd3d") || lowerAll.contains("d3d12")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
-                        } else if (lowerAll.contains("dxvk") || lowerAll.contains("d7vk") || lowerAll.contains("d8vk") || lowerAll.contains("d9vk") || lowerAll.contains("d3d9") || lowerAll.contains("d3d11") || lowerAll.contains("dxgi")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
-                        } else if (lowerAll.contains("wowbox64")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64;
-                        } else if (lowerAll.contains("box64")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_BOX64;
-                        } else if (lowerAll.contains("fexcore") || lowerAll.contains("fex")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
-                        } else if (typeStr.equalsIgnoreCase("Proton") || lowerAll.contains("proton") || lowerAll.contains("wine-ge") || lowerAll.contains("winege")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
-                        } else if (typeStr.equalsIgnoreCase("Wine") || lowerAll.contains("wine")) {
-                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WINE;
+                        if (explicitType != null) {
+                            remoteProfile.type = explicitType;
                         } else {
-                            remoteProfile.type = ContentProfile.ContentType.getTypeByName(typeStr);
-                            if (remoteProfile.type == null) {
+                            String lowerAll = (typeStr + " " + verName + " " + url).toLowerCase();
+
+                            if (lowerAll.contains("vkd3d") || lowerAll.contains("d3d12")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
+                            } else if (lowerAll.contains("dxvk") || lowerAll.contains("d7vk") || lowerAll.contains("d8vk") || lowerAll.contains("d9vk") || lowerAll.contains("d3d9") || lowerAll.contains("d3d11") || lowerAll.contains("dxgi")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
+                            } else if (lowerAll.contains("fexcore") || lowerAll.contains("fex-core") || lowerAll.contains("wow64fex")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+                            } else if (lowerAll.contains("wowbox64") || lowerAll.contains("wow-box64")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64;
+                            } else if (lowerAll.contains("box64") && !lowerAll.contains("fex")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_BOX64;
+                            } else if (lowerAll.contains("fex-") || lowerAll.contains("_fex") || lowerAll.contains("-fex") || lowerAll.contains("/fex")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+                            } else if (typeStr.equalsIgnoreCase("Proton") || lowerAll.contains("proton") || lowerAll.contains("wine-ge") || lowerAll.contains("winege")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                            } else if (typeStr.equalsIgnoreCase("Wine") || lowerAll.contains("wine")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WINE;
+                            } else {
                                 remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WINE;
                             }
                         }
@@ -323,10 +327,20 @@ public class ContentsManager {
             File[] fileList = typeFile.listFiles();
             if (fileList != null) {
                 for (File file : fileList) {
+                    if (!file.isDirectory()) continue;
                     File proFile = new File(file, PROFILE_NAME);
+                    ContentProfile profile = null;
                     if (proFile.exists() && proFile.isFile()) {
-                        ContentProfile profile = readProfile(proFile);
-                        if (profile != null) profiles.add(profile);
+                        profile = readProfile(proFile);
+                    }
+
+                    if (profile == null) {
+                        profile = createFallbackProfile(type, file);
+                    }
+
+                    if (profile != null) {
+                        if (profile.type == null) profile.type = type;
+                        if (profile.type == type) profiles.add(profile);
                     }
                 }
             }
@@ -374,6 +388,22 @@ public class ContentsManager {
                     }
                 }
             }
+        }
+    }
+
+    private ContentProfile createFallbackProfile(ContentProfile.ContentType type, File installDir) {
+        String dirName = installDir.getName();
+        int dashIndex = dirName.lastIndexOf('-');
+        if (dashIndex <= 0 || dashIndex >= dirName.length() - 1) return null;
+
+        try {
+            ContentProfile profile = new ContentProfile();
+            profile.type = type;
+            profile.verName = dirName.substring(0, dashIndex);
+            profile.verCode = Integer.parseInt(dirName.substring(dashIndex + 1));
+            return profile;
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -541,10 +571,10 @@ public class ContentsManager {
         try {
             ContentProfile profile = new ContentProfile();
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
-            String typeName = profileJSONObject.getString(ContentProfile.MARK_TYPE);
-            String verName = profileJSONObject.getString(ContentProfile.MARK_VERSION_NAME);
-            int verCode = profileJSONObject.getInt(ContentProfile.MARK_VERSION_CODE);
-            String desc = profileJSONObject.optString(ContentProfile.MARK_DESC, "");
+            String typeName = profileJSONObject.optString(ContentProfile.MARK_TYPE, "");
+            String verName = profileJSONObject.optString(ContentProfile.MARK_VERSION_NAME, profileJSONObject.optString("verName", profileJSONObject.optString("name", "")));
+            int verCode = profileJSONObject.optInt(ContentProfile.MARK_VERSION_CODE, profileJSONObject.optInt("verCode", 0));
+            String desc = profileJSONObject.optString(ContentProfile.MARK_DESC, profileJSONObject.optString("description", ""));
 
             profile.type = ContentProfile.ContentType.getTypeByName(typeName);
             profile.verName = verName;
@@ -599,8 +629,8 @@ public class ContentsManager {
             case CONTENT_TYPE_DXVK -> ContentDirName.CONTENT_DXVK_DIR_NAME.toString();
             case CONTENT_TYPE_VKD3D -> ContentDirName.CONTENT_VKD3D_DIR_NAME.toString();
             case CONTENT_TYPE_BOX64 -> ContentDirName.CONTENT_BOX64_DIR_NAME.toString();
-            case CONTENT_TYPE_WOWBOX64 -> "wowbox64";
-            case CONTENT_TYPE_FEXCORE -> "fexcore";
+            case CONTENT_TYPE_WOWBOX64 -> ContentDirName.CONTENT_WOWBOX64_DIR_NAME.toString();
+            case CONTENT_TYPE_FEXCORE -> ContentDirName.CONTENT_FEXCORE_DIR_NAME.toString();
             default -> "misc";
         };
         File dir = new File(getContentDir(context), subName);
@@ -631,6 +661,44 @@ public class ContentsManager {
     public ContentProfile getProfileByEntryName(String entryName) {
         if (entryName == null || entryName.isEmpty()) return null;
         if (profilesMap == null) syncContents();
+
+        String lowerEntry = entryName.toLowerCase();
+        ContentProfile.ContentType preferredType = null;
+        String queryVersion = entryName;
+
+        if (lowerEntry.startsWith("fexcore-") || lowerEntry.startsWith("fex-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("wowbox64-") || lowerEntry.startsWith("wow-box64-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64;
+            queryVersion = entryName.substring(entryName.indexOf('-', entryName.indexOf('-') + 1) + 1); // Handles wow-box64-
+            if (lowerEntry.startsWith("wowbox64-")) queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("box64-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_BOX64;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("dxvk-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("vkd3d-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("proton-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("wine-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_WINE;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        }
+
+        if (preferredType != null) {
+            List<ContentProfile> list = profilesMap.get(preferredType);
+            if (list != null) {
+                for (ContentProfile p : list) {
+                    if (getEntryName(p).equalsIgnoreCase(entryName) || p.verName.equalsIgnoreCase(queryVersion) || getEntryName(p).equalsIgnoreCase(preferredType.toString() + "-" + queryVersion)) return p;
+                }
+            }
+        }
+
         String normalizedQuery = entryName.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
 
         for (List<ContentProfile> list : profilesMap.values()) {
@@ -656,7 +724,7 @@ public class ContentsManager {
 
     public static String getEntryName(ContentProfile profile) {
         if (profile == null) return "";
-        return profile.verName + (profile.verCode > 0 ? "-" + profile.verCode : "");
+        return profile.type.toString() + '-' + profile.verName + (profile.verCode > 0 ? "-" + profile.verCode : "");
     }
 
     public List<ContentProfile> getInstalledProfiles(ContentProfile.ContentType type) {
@@ -667,10 +735,20 @@ public class ContentsManager {
         File[] fileList = typeFile.listFiles();
         if (fileList != null) {
             for (File file : fileList) {
+                if (!file.isDirectory()) continue;
                 File proFile = new File(file, PROFILE_NAME);
+                ContentProfile profile = null;
                 if (proFile.exists() && proFile.isFile()) {
-                    ContentProfile profile = readProfile(proFile);
-                    if (profile != null) {
+                    profile = readProfile(proFile);
+                }
+
+                if (profile == null) {
+                    profile = createFallbackProfile(type, file);
+                }
+
+                if (profile != null) {
+                    if (profile.type == null) profile.type = type;
+                    if (profile.type == type) {
                         profile.size = FileUtils.getDirectorySize(file);
                         profile.sizeFormatted = Downloader.formatFileSize(profile.size);
                         profile.releaseDate = estimateReleaseDate(profile.verName, "");

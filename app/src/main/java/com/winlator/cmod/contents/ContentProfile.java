@@ -39,8 +39,13 @@ public class ContentProfile {
         }
 
         public static ContentType getTypeByName(String name) {
+            if (name == null || name.isEmpty()) return null;
+            String lowerName = name.toLowerCase();
+            if (lowerName.equals("fex") || lowerName.equals("fexcore") || lowerName.equals("fex-core")) return CONTENT_TYPE_FEXCORE;
+            if (lowerName.equals("wow64") || lowerName.equals("wowbox64") || lowerName.equals("wow-box64")) return CONTENT_TYPE_WOWBOX64;
+            if (lowerName.equals("box64")) return CONTENT_TYPE_BOX64;
             for (ContentType type : ContentType.values())
-                if (type.typeName.toLowerCase().equals(name.toLowerCase()))
+                if (type.typeName.toLowerCase().equals(lowerName))
                     return type;
             return null;
         }

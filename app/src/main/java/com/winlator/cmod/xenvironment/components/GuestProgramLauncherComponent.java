@@ -84,7 +84,8 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         File rootDir = imageFs.getRootDir();
 
         if (!box64Version.equals(container.getExtra("box64Version"))) {
-            ContentProfile profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            ContentProfile profile = contentsManager.getProfileByEntryName("Box64-" + box64Version);
+            if (profile == null) profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
             if (profile != null)
                 contentsManager.applyContent(profile);
             else
@@ -118,7 +119,8 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         Log.d("GuestProgramLauncherComponent", "fexcoreVersion in use: " + fexcoreVersion);
 
         if (!wowbox64Version.equals(container.getExtra("box64Version"))) {
-            ContentProfile profile = contentsManager.getProfileByEntryName("wowbox64-" + wowbox64Version);
+            ContentProfile profile = contentsManager.getProfileByEntryName("WOWBox64-" + wowbox64Version);
+            if (profile == null) profile = contentsManager.getProfileByEntryName("wowbox64-" + wowbox64Version);
             if (profile != null)
                 contentsManager.applyContent(profile);
             else
@@ -128,7 +130,8 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         }
 
         if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion"))) {
-            ContentProfile profile = contentsManager.getProfileByEntryName("fexcore-" + fexcoreVersion);
+            ContentProfile profile = contentsManager.getProfileByEntryName("FEXCore-" + fexcoreVersion);
+            if (profile == null) profile = contentsManager.getProfileByEntryName("fexcore-" + fexcoreVersion);
             if (profile != null)
                 contentsManager.applyContent(profile);
             else

@@ -524,6 +524,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             for (ContentProfile profile : manager.getInstalledProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64)) {
                 String ver = profile.verName != null ? profile.verName : "";
                 if (ver.startsWith("wowbox64-")) ver = ver.substring("wowbox64-".length());
+                else if (ver.startsWith("wow-box64-")) ver = ver.substring("wow-box64-".length());
                 if (!itemList.contains(ver)) itemList.add(ver);
             }
         }

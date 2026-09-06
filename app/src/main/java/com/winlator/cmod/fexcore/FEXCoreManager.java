@@ -23,6 +23,7 @@ public abstract class FEXCoreManager {
         for (ContentProfile profile : contentsManager.getInstalledProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
             String ver = profile.verName != null ? profile.verName : "";
             if (ver.startsWith("fexcore-")) ver = ver.substring("fexcore-".length());
+            else if (ver.startsWith("fex-")) ver = ver.substring("fex-".length());
             if (!itemList.contains(ver)) itemList.add(ver);
         }
         spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));

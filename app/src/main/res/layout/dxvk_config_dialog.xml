@@ -69,6 +69,45 @@
             android:spinnerMode="dropdown"
             android:layout_marginBottom="10dp" />
 
+        <!-- Auto Config Toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="13sp"
+                android:text="Enable Pre-Configured DXVK Config" />
+
+            <ImageView
+                android:id="@+id/BTHelpDxvkConfig"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_driver_info"
+                app:tint="?android:attr/textColorSecondary"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:padding="4dp"
+                android:contentDescription="Information" />
+
+            <ToggleButton
+                android:id="@+id/SWDxvkConfig"
+                android:layout_width="56dp"
+                android:layout_height="30dp"
+                android:background="@drawable/toggle_button_selector"
+                android:textOn=""
+                android:textOff="" />
+        </LinearLayout>
+
         <!-- Async Toggle -->
         <LinearLayout
             android:id="@+id/LLAsync"
