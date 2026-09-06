@@ -1058,16 +1058,16 @@ public class ContainerDetailFragment extends Fragment {
             itemList = new ArrayList<>(Arrays.asList(originalItems));
         }
         if (!isArm64EC) {
-            for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
-                String entryName = ContentsManager.getEntryName(profile);
-                int firstDashIndex = entryName.indexOf('-');
-                itemList.add(entryName.substring(firstDashIndex + 1));
+            for (ContentProfile profile : manager.getInstalledProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
+                String ver = profile.verName != null ? profile.verName : "";
+                if (ver.startsWith("box64-")) ver = ver.substring("box64-".length());
+                if (!itemList.contains(ver)) itemList.add(ver);
             }
         } else {
-            for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64)) {
-                String entryName = ContentsManager.getEntryName(profile);
-                int firstDashIndex = entryName.indexOf('-');
-                itemList.add(entryName.substring(firstDashIndex + 1));
+            for (ContentProfile profile : manager.getInstalledProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64)) {
+                String ver = profile.verName != null ? profile.verName : "";
+                if (ver.startsWith("wowbox64-")) ver = ver.substring("wowbox64-".length());
+                if (!itemList.contains(ver)) itemList.add(ver);
             }
         }
         spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));

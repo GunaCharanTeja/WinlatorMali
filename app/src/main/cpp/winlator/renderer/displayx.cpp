@@ -426,10 +426,6 @@ void DisplayX::onCompleteCallback(void *context, ASurfaceTransactionStats *stats
     std::unique_ptr<OnCompleteContext> completeContext(static_cast<OnCompleteContext *>(context));
     
     for (auto &request : completeContext->requests) {
-        if (request->slot) {
-            request->slot->inUse = false;
-        }
-
         if (request->presentId >= 0 && request->clientFd >= 0) {
             int requestCode = 4;
             write(request->clientFd, &requestCode, 4);
@@ -536,8 +532,7 @@ void DisplayX::presentThreadLoop() {
                 AHardwareBuffer* ahbToPresent = drawable->ahb;
                 int fenceToPresent = presentRequest->sync_fence;
                 
-                if (blitConverter && drawable->ahb && drawable->isDirectContent &&
-                    drawable->format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM) {
+                if (blitConverter && drawable->ahb && (drawable->isDirectContent || drawable->isDisplayX)) {
                     auto slot = acquireConvertedSlot(drawable->width, drawable->height);
                     if (slot && slot->buffer) {
                         int destAcquireFenceFd = slot->releaseFenceFd;
@@ -553,7 +548,7 @@ void DisplayX::presentThreadLoop() {
                         );
                         fenceToPresent = future.get();
                         ahbToPresent = slot->buffer;
-                        presentRequest->slot = slot;
+                        slot->inUse = false;
                         slot->releaseFenceFd = (fenceToPresent >= 0) ? dup(fenceToPresent) : -1;
                     }
                 }
@@ -564,7 +559,9 @@ void DisplayX::presentThreadLoop() {
                     pfnASurfaceTransactionSetBufferTransparency(presentTransaction, window->control, ASURFACE_TRANSACTION_TRANSPARENCY_OPAQUE);
                 }
                 env->CallVoidMethod(xServer->xserverDisplayActivity, cache->updateFrameRating, window->windowObj);
-                completeContext->requests.push_back(std::move(presentRequest));
+                if (drawable->isDisplayX) {
+                    completeContext->requests.push_back(std::move(presentRequest));
+                }
             }
         }
         
@@ -625,15 +622,6 @@ void DisplayX::stop() {
     stopped = true;
     eventLock.notify();
     presentLock.notify();
-    
-    if (blitConverter) {
-        blitConverter->shutdown();
-        blitConverter.reset();
-    }
-    {
-        std::lock_guard<std::mutex> lock(convertedSlotsMutex);
-        convertedSlots.clear();
-    }
 }
 
 void DisplayX::pause() {

@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
+import com.winlator.cmod.xenvironment.ImageFs;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -435,8 +436,11 @@ public class ContentsManager {
     public void applyContent(ContentProfile profile) {
         if (profile == null) return;
         File installDir = getInstallDir(context, profile);
-        if (profile.fileList != null) {
+        if (!installDir.exists() || !installDir.isDirectory()) return;
+
+        if (profile.fileList != null && !profile.fileList.isEmpty()) {
             for (ContentProfile.ContentFile file : profile.fileList) {
+                if (file.source == null || file.target == null) continue;
                 File src = new File(installDir, file.source);
                 String targetPath = getPathFromTemplate(file.target);
                 File dst = new File(targetPath);
@@ -446,14 +450,63 @@ public class ContentsManager {
                     FileUtils.copy(src, dst);
                 }
             }
+        } else {
+            // Fallback for directory structures without explicit profile file lists
+            File rootDir = new File(context.getFilesDir(), "imagefs");
+            File sys32 = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows/system32");
+            File syswow64 = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows/syswow64");
+            File binDir = new File(rootDir, "usr/local/bin");
+
+            if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_DXVK || profile.type == ContentProfile.ContentType.CONTENT_TYPE_VKD3D) {
+                // Check x64 / x86 / x32 subfolders
+                File x64Dir = new File(installDir, "x64");
+                File x32Dir = new File(installDir, "x32");
+                if (!x32Dir.exists()) x32Dir = new File(installDir, "x86");
+
+                if (x64Dir.exists() && x64Dir.isDirectory()) {
+                    if (!sys32.exists()) sys32.mkdirs();
+                    FileUtils.copy(x64Dir, sys32);
+                }
+                if (x32Dir.exists() && x32Dir.isDirectory()) {
+                    if (!syswow64.exists()) syswow64.mkdirs();
+                    FileUtils.copy(x32Dir, syswow64);
+                }
+
+                // If DLLs are placed directly in the install directory root
+                File[] rootFiles = installDir.listFiles();
+                if (rootFiles != null) {
+                    for (File f : rootFiles) {
+                        if (f.isFile() && f.getName().toLowerCase().endsWith(".dll")) {
+                            if (!sys32.exists()) sys32.mkdirs();
+                            if (!syswow64.exists()) syswow64.mkdirs();
+                            FileUtils.copy(f, new File(sys32, f.getName()));
+                            FileUtils.copy(f, new File(syswow64, f.getName()));
+                        }
+                    }
+                }
+            } else if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_BOX64) {
+                File box64Bin = new File(installDir, "box64");
+                if (box64Bin.exists()) {
+                    if (!binDir.exists()) binDir.mkdirs();
+                    File dst = new File(binDir, "box64");
+                    FileUtils.copy(box64Bin, dst);
+                    FileUtils.chmod(dst, 0755);
+                }
+            } else if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64) {
+                File wowDll = new File(installDir, "wowbox64.dll");
+                if (wowDll.exists()) {
+                    if (!sys32.exists()) sys32.mkdirs();
+                    FileUtils.copy(wowDll, new File(sys32, "wowbox64.dll"));
+                }
+            }
         }
     }
 
     public String getPathFromTemplate(String template) {
         if (template == null) return "";
         File rootDir = new File(context.getFilesDir(), "imagefs");
-        String sys32 = rootDir.getAbsolutePath() + "/usr/lib/wine";
-        String syswow64 = rootDir.getAbsolutePath() + "/usr/lib64/wine";
+        String sys32 = rootDir.getAbsolutePath() + "/" + ImageFs.WINEPREFIX + "/drive_c/windows/system32";
+        String syswow64 = rootDir.getAbsolutePath() + "/" + ImageFs.WINEPREFIX + "/drive_c/windows/syswow64";
         String bin = rootDir.getAbsolutePath() + "/usr/local/bin";
         String lib = rootDir.getAbsolutePath() + "/usr/local/lib";
 
@@ -499,6 +552,25 @@ public class ContentsManager {
             profile.desc = desc;
             profile.releaseDate = estimateReleaseDate(verName, "");
 
+            if (profileJSONObject.has(ContentProfile.MARK_FILE_LIST)) {
+                JSONArray filesArray = profileJSONObject.optJSONArray(ContentProfile.MARK_FILE_LIST);
+                if (filesArray != null) {
+                    List<ContentProfile.ContentFile> fileList = new ArrayList<>();
+                    for (int i = 0; i < filesArray.length(); i++) {
+                        JSONObject fileObj = filesArray.optJSONObject(i);
+                        if (fileObj != null) {
+                            ContentProfile.ContentFile cf = new ContentProfile.ContentFile();
+                            cf.source = fileObj.optString(ContentProfile.MARK_FILE_SOURCE, "");
+                            cf.target = fileObj.optString(ContentProfile.MARK_FILE_TARGET, "");
+                            if (!cf.source.isEmpty() && !cf.target.isEmpty()) {
+                                fileList.add(cf);
+                            }
+                        }
+                    }
+                    profile.fileList = fileList;
+                }
+            }
+
             if (typeName.equals(ContentProfile.ContentType.CONTENT_TYPE_WINE.toString()) || typeName.equals(ContentProfile.ContentType.CONTENT_TYPE_PROTON.toString())) {
                 JSONObject wineJSONObject = profileJSONObject.optJSONObject(ContentProfile.MARK_WINE);
                 if (wineJSONObject != null) {
@@ -527,6 +599,8 @@ public class ContentsManager {
             case CONTENT_TYPE_DXVK -> ContentDirName.CONTENT_DXVK_DIR_NAME.toString();
             case CONTENT_TYPE_VKD3D -> ContentDirName.CONTENT_VKD3D_DIR_NAME.toString();
             case CONTENT_TYPE_BOX64 -> ContentDirName.CONTENT_BOX64_DIR_NAME.toString();
+            case CONTENT_TYPE_WOWBOX64 -> "wowbox64";
+            case CONTENT_TYPE_FEXCORE -> "fexcore";
             default -> "misc";
         };
         File dir = new File(getContentDir(context), subName);
@@ -555,10 +629,24 @@ public class ContentsManager {
     }
 
     public ContentProfile getProfileByEntryName(String entryName) {
+        if (entryName == null || entryName.isEmpty()) return null;
         if (profilesMap == null) syncContents();
+        String normalizedQuery = entryName.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+
         for (List<ContentProfile> list : profilesMap.values()) {
             for (ContentProfile p : list) {
-                if (getEntryName(p).equalsIgnoreCase(entryName) || p.verName.equalsIgnoreCase(entryName)) {
+                if (p == null) continue;
+                String entry = getEntryName(p);
+                String ver = p.verName != null ? p.verName : "";
+
+                if (entry.equalsIgnoreCase(entryName) || ver.equalsIgnoreCase(entryName)) {
+                    return p;
+                }
+
+                String normalizedEntry = entry.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+                String normalizedVer = ver.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+
+                if (!normalizedQuery.isEmpty() && (normalizedEntry.equalsIgnoreCase(normalizedQuery) || normalizedVer.equalsIgnoreCase(normalizedQuery))) {
                     return p;
                 }
             }

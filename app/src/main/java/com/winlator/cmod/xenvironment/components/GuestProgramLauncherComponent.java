@@ -495,6 +495,12 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
                 execEnvVars.put("WRAPPER_SURFACE_FORMAT", "bgra8");
                 execEnvVars.put("DISPLAYX_SURFACE_FORMAT", "bgra8");
             }
+            String colorConversion = displayxConfig.get("colorConversion");
+            if ("0".equals(colorConversion)) {
+                execEnvVars.put("DISPLAYX_COLOR_CONVERSION", "0");
+            } else {
+                execEnvVars.put("DISPLAYX_COLOR_CONVERSION", "1");
+            }
         }
 
         // Merge any additional environment variables from external sources

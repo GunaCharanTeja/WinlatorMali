@@ -2,7 +2,7 @@
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="320dp"
-    android:layout_height="220dp"
+    android:layout_height="260dp"
     android:fillViewport="true"
     android:scrollbars="vertical">
 
@@ -48,6 +48,20 @@
                 android:layout_height="36dp"
                 android:id="@+id/CBEnableTrueDisplayX"
                 android:text="Bypass X11 Protocol"
+                android:textSize="13sp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp" />
+
+            <CheckBox
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:id="@+id/CBColorConversion"
+                android:text="In-Layer Color Conversion (Safe AHB)"
                 android:textSize="13sp" />
 
             <View

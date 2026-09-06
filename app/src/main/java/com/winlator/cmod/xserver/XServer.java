@@ -57,10 +57,10 @@ public class XServer {
         this.displayDriver = displayDriver != null ? displayDriver : "opengl";
         if (isDisplayX() && displayxConfig != null) {
             String sf = displayxConfig.get("surfaceFormat");
-            if (sf.equals("rgba8")) {
-                this.surfaceFormat = 1; // HardwareBuffer.RGBA_8888
-            } else {
+            if ("bgra8".equalsIgnoreCase(sf)) {
                 this.surfaceFormat = 5; // HAL_PIXEL_FORMAT_BGRA_8888
+            } else {
+                this.surfaceFormat = 1; // HardwareBuffer.RGBA_8888
             }
         }
         cursorLocker = new CursorLocker(this);

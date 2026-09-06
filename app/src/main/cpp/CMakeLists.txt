@@ -39,8 +39,8 @@ add_library(winlator SHARED
         winlator/renderer/cursor.cpp
         winlator/renderer/xform.cpp
         winlator/renderer/view_transformation.cpp
-        winlator/renderer/displayx.cpp
         winlator/renderer/blit_converter.cpp
+        winlator/renderer/displayx.cpp
         apex/apex_pacing.cpp
         apex/apex_pipeline.cpp
         apex/apex_jni_bridge.cpp

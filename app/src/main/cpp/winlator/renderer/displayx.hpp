@@ -16,7 +16,6 @@
 #include "view_transformation.hpp"
 #include "window.hpp"
 #include "cursor.hpp"
-
 #include "blit_converter.h"
 
 class DisplayX {
@@ -47,19 +46,6 @@ class DisplayX {
                cv.notify_all();
            }
         };
-        
-        struct ConvertedBufferSlot {
-            AHardwareBuffer* buffer = nullptr;
-            uint32_t width = 0;
-            uint32_t height = 0;
-            bool inUse = false;
-            int releaseFenceFd = -1;
-
-            ~ConvertedBufferSlot() {
-                if (releaseFenceFd >= 0) close(releaseFenceFd);
-                if (buffer) AHardwareBuffer_release(buffer);
-            }
-        };
 
         struct PresentRequest {
             Drawable *drawable;
@@ -68,7 +54,6 @@ class DisplayX {
             uint8_t swapchainId;
             int clientFd;
             Window *window;
-            ConvertedBufferSlot* slot = nullptr;
         };
         
         class PresentQueue {
@@ -106,8 +91,20 @@ class DisplayX {
         struct OnCompleteContext {
             std::vector<std::unique_ptr<PresentRequest>> requests;
         };
-        
 
+        struct ConvertedBufferSlot {
+            AHardwareBuffer* buffer = nullptr;
+            uint32_t width = 0;
+            uint32_t height = 0;
+            bool inUse = false;
+            int releaseFenceFd = -1;
+            
+            ~ConvertedBufferSlot() {
+                if (releaseFenceFd >= 0) close(releaseFenceFd);
+                if (buffer) AHardwareBuffer_release(buffer);
+            }
+        };
+        
         std::unique_ptr<BlitConverter> blitConverter;
         std::vector<std::unique_ptr<ConvertedBufferSlot>> convertedSlots;
         std::mutex convertedSlotsMutex;
