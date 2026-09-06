@@ -68,6 +68,10 @@ public class Container {
     private String fexcoreVersion;
     private String fexcorePreset = FEXCorePreset.INTERMEDIATE;
     private String box64Preset = Box64Preset.COMPATIBILITY;
+    private boolean ramBoosterEnabled = false;
+    private String ramBoosterProfile = "smart";
+    private int ramBoosterCrisisThreshold = 90;
+    private int ramBoosterPreCrisisThreshold = 83;
     private File rootDir;
     private JSONObject extraData;
     private String midiSoundFont = "";
@@ -289,6 +293,42 @@ public class Container {
         this.box64Preset = box64Preset;
     }
 
+    public boolean isRamBoosterEnabled() {
+        return ramBoosterEnabled;
+    }
+
+    public void setRamBoosterEnabled(boolean ramBoosterEnabled) {
+        this.ramBoosterEnabled = ramBoosterEnabled;
+    }
+
+    public String getRamBoosterProfile() {
+        return ramBoosterProfile;
+    }
+
+    public void setRamBoosterProfile(String profile) {
+        this.ramBoosterProfile = profile;
+    }
+
+    public boolean isRamBoosterSmartMode() {
+        return ramBoosterProfile.equals("smart");
+    }
+
+    public int getRamBoosterCrisisThreshold() {
+        return ramBoosterCrisisThreshold;
+    }
+
+    public void setRamBoosterCrisisThreshold(int threshold) {
+        this.ramBoosterCrisisThreshold = threshold;
+    }
+
+    public int getRamBoosterPreCrisisThreshold() {
+        return ramBoosterPreCrisisThreshold;
+    }
+
+    public void setRamBoosterPreCrisisThreshold(int threshold) {
+        this.ramBoosterPreCrisisThreshold = threshold;
+    }
+
     public String getBox64Version() { return box64Version; }
 
     public void setBox64Version(String version) { this.box64Version = version; }
@@ -452,6 +492,10 @@ public class Container {
             data.put("fexcorePreset", fexcorePreset);
             data.put("fexcoreVersion", fexcoreVersion);
             data.put("box64Preset", box64Preset);
+            data.put("ramBoosterEnabled", ramBoosterEnabled);
+            data.put("ramBoosterProfile", ramBoosterProfile);
+            data.put("ramBoosterCrisisThreshold", ramBoosterCrisisThreshold);
+            data.put("ramBoosterPreCrisisThreshold", ramBoosterPreCrisisThreshold);
             data.put("desktopTheme", desktopTheme);
             data.put("extraData", extraData);
             data.put("midiSoundFont", midiSoundFont);
@@ -549,6 +593,18 @@ public class Container {
                     break;
                 case "box64Preset" :
                     setBox64Preset(data.getString(key));
+                    break;
+                case "ramBoosterEnabled":
+                    setRamBoosterEnabled(data.optBoolean(key, false));
+                    break;
+                case "ramBoosterProfile":
+                    setRamBoosterProfile(data.optString(key, "smart"));
+                    break;
+                case "ramBoosterCrisisThreshold":
+                    setRamBoosterCrisisThreshold(data.optInt(key, 90));
+                    break;
+                case "ramBoosterPreCrisisThreshold":
+                    setRamBoosterPreCrisisThreshold(data.optInt(key, 83));
                     break;
                 case "audioDriver" :
                     setAudioDriver(data.getString(key));

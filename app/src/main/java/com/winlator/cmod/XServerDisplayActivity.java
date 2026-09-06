@@ -125,6 +125,7 @@ import com.winlator.cmod.xenvironment.ImageFs;
 import com.winlator.cmod.xenvironment.XEnvironment;
 import com.winlator.cmod.xenvironment.components.ALSAServerComponent;
 import com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent;
+import com.winlator.cmod.xenvironment.components.RamBoosterComponent;
 import com.winlator.cmod.xenvironment.components.PulseAudioComponent;
 import com.winlator.cmod.xenvironment.components.SysVSharedMemoryComponent;
 import com.winlator.cmod.contentdialog.DisplayXConfigDialog;
@@ -1111,6 +1112,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRating.setDisplayDriver(xServer.getDisplayDriver());
             if (renderer != null) renderer.setWinlatorHUD(frameRating);
             rootView.addView(frameRating);
+
+            if (environment != null) {
+                RamBoosterComponent ramBoosterComponent = environment.getComponent(RamBoosterComponent.class);
+                if (ramBoosterComponent != null) ramBoosterComponent.setHUD(frameRating);
+            }
         }
         frameRating.enableByUser();
 
@@ -1483,6 +1489,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Add the launcher to our environment
         environment.addComponent(guestProgramLauncherComponent);
+        RamBoosterComponent ramBoosterComponent = new RamBoosterComponent(container, shortcut);
+        environment.addComponent(ramBoosterComponent);
+
+        if (frameRating != null) {
+            ramBoosterComponent.setHUD(frameRating);
+        }
 
         // Initialize fake input for controller emulation - MUST be before Wine starts! Deleting old ones should also be done here ofc.
         // Initialize fake input for controller emulation - MUST be before Wine starts!

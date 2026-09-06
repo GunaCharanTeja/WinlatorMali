@@ -22,6 +22,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -251,6 +252,26 @@ public class ContainerDetailFragment extends Fragment {
         TextView fexCoreLabel = view.findViewById(R.id.TVFEXCore);
         applyFieldSetLabelStyle(fexCoreLabel, isDarkMode);
 
+        TextView ramBoosterLabel = view.findViewById(R.id.TVRamBooster);
+        applyFieldSetLabelStyle(ramBoosterLabel, isDarkMode);
+
+        view.findViewById(R.id.BTHelpRamBooster).setOnClickListener(v -> {
+            ContentDialog dialog = new ContentDialog(getContext(), R.layout.bcn_info_dialog);
+            dialog.setTitle("RAM Booster (LMK Trigger)");
+            dialog.setIcon(R.drawable.ic_driver_info);
+
+            TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
+            String message = "<b>RAM Booster (Guide):</b><br/><br/>" +
+                    "This tool manages Android's memory by intentionally creating pressure to trigger the <b>Low Memory Killer (LMK)</b>. This helps prevent crashes and stuttering in heavy games.<br/><br/>" +
+                    "&#8226; <b>Crisis Threshold:</b> This is the 'Emergency' limit. When RAM usage hits this point (e.g., 90%), a heavy boost is applied to force immediate background cleanup. <b>How to use:</b> Set this to the level where your device usually feels unstable.<br/><br/>" +
+                    "&#8226; <b>Pre-Crisis Level:</b> This is the 'Preventive' limit. It applies a lighter pulse <i>before</i> RAM gets critical. <b>How to use:</b> Set this 5-10% lower than Crisis to maintain a smooth experience.<br/><br/>" +
+                    "&#8226; <b>Smart Auto:</b> (Recommended) Automatically adjusts thresholds based on your device RAM size and learns from every boost result. It also detects sudden RAM spikes.<br/><br/>" +
+                    "&#8226; <b>Safety Floor:</b> Automatically stops pressure if available RAM is too low (12% Adreno / 15% Mali) to protect the emulator.";
+            tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
+            dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+            dialog.show();
+        });
+
         TextView systemLabel = view.findViewById(R.id.TVSystem);
         applyFieldSetLabelStyle(systemLabel, isDarkMode);  // Apply the dark or light mode styles
     }
@@ -408,6 +429,52 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, isEditMode() ? container.getFEXCorePreset() : preferences.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE));
 
+        final CheckBox cbRamBooster = view.findViewById(R.id.CBRamBooster);
+        final Spinner sRamBoosterProfile = view.findViewById(R.id.SRamBoosterProfile);
+        final View llRamBoosterThresholds = view.findViewById(R.id.LLRamBoosterThresholds);
+        final SeekBar sbRamBoosterCrisis = view.findViewById(R.id.SBRamBoosterCrisis);
+        final TextView tvRamBoosterCrisis = view.findViewById(R.id.TVRamBoosterCrisis);
+        final SeekBar sbRamBoosterPreCrisis = view.findViewById(R.id.SBRamBoosterPreCrisis);
+        final TextView tvRamBoosterPreCrisis = view.findViewById(R.id.TVRamBoosterPreCrisis);
+
+        cbRamBooster.setChecked(isEditMode() && container.isRamBoosterEnabled());
+
+        final String[] ramBoosterProfileValues = getResources().getStringArray(R.array.ram_booster_profile_values);
+        AppUtils.setSpinnerSelectionFromValue(sRamBoosterProfile, isEditMode() ? container.getRamBoosterProfile() : "smart");
+
+        llRamBoosterThresholds.setVisibility(sRamBoosterProfile.getSelectedItemPosition() == 6 ? View.VISIBLE : View.GONE);
+        sRamBoosterProfile.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                llRamBoosterThresholds.setVisibility(position == 6 ? View.VISIBLE : View.GONE);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        int initialCrisis = isEditMode() ? container.getRamBoosterCrisisThreshold() : 90;
+        sbRamBoosterCrisis.setProgress(initialCrisis - 50);
+        tvRamBoosterCrisis.setText(initialCrisis + "%");
+        sbRamBoosterCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterCrisis.setText((progress + 50) + "%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        int initialPreCrisis = isEditMode() ? container.getRamBoosterPreCrisisThreshold() : 83;
+        sbRamBoosterPreCrisis.setProgress(initialPreCrisis - 50);
+        tvRamBoosterPreCrisis.setText(initialPreCrisis + "%");
+        sbRamBoosterPreCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterPreCrisis.setText((progress + 50) + "%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
         String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
         List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
         sGraphicsDriver.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, sGraphicsItemsList));
@@ -485,6 +552,10 @@ public class ContainerDetailFragment extends Fragment {
                 String lc_all = etLC_ALL.getText().toString();
                 int primaryController = sPrimaryController.getSelectedItemPosition();
                 String controllerMapping = getControllerMapping(view);
+                boolean ramBoosterEnabled = cbRamBooster.isChecked();
+                String ramBoosterProfile = ramBoosterProfileValues[sRamBoosterProfile.getSelectedItemPosition()];
+                int ramBoosterCrisis = sbRamBoosterCrisis.getProgress() + 50;
+                int ramBoosterPreCrisis = sbRamBoosterPreCrisis.getProgress() + 50;
 
                 if (isEditMode()) {
                     // Update existing container properties
@@ -509,6 +580,10 @@ public class ContainerDetailFragment extends Fragment {
                     container.setBox64Preset(box64Preset);
                     container.setFEXCoreVersion(fexcoreVersion);
                     container.setFEXCorePreset(fexcorePreset);
+                    container.setRamBoosterEnabled(ramBoosterEnabled);
+                    container.setRamBoosterProfile(ramBoosterProfile);
+                    container.setRamBoosterCrisisThreshold(ramBoosterCrisis);
+                    container.setRamBoosterPreCrisisThreshold(ramBoosterPreCrisis);
                     container.setDesktopTheme(desktopTheme);
                     container.setMidiSoundFont(midiSoundFont);
                     container.setLC_ALL(lc_all);
@@ -542,6 +617,10 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("box64Preset", box64Preset);
                     data.put("fexcoreVersion", fexcoreVersion);
                     data.put("fexcorePreset", fexcorePreset);
+                    data.put("ramBoosterEnabled", ramBoosterEnabled);
+                    data.put("ramBoosterProfile", ramBoosterProfile);
+                    data.put("ramBoosterCrisisThreshold", ramBoosterCrisis);
+                    data.put("ramBoosterPreCrisisThreshold", ramBoosterPreCrisis);
                     String selectedWine = sWineVersion.getSelectedItem() != null ? sWineVersion.getSelectedItem().toString() : "";
                     if (selectedWine.isEmpty() || selectedWine.contains("No Wine Installed")) {
                         AppUtils.showToast(context, "Please download a Wine runtime first.");

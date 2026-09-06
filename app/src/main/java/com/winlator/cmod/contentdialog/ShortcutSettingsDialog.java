@@ -248,6 +248,69 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final Spinner sFEXCorePreset = findViewById(R.id.SFEXCorePreset);
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset()));
 
+        final CheckBox cbRamBooster = findViewById(R.id.CBRamBooster);
+        final Spinner sRamBoosterProfile = findViewById(R.id.SRamBoosterProfile);
+        final View llRamBoosterThresholds = findViewById(R.id.LLRamBoosterThresholds);
+        final SeekBar sbRamBoosterCrisis = findViewById(R.id.SBRamBoosterCrisis);
+        final TextView tvRamBoosterCrisis = findViewById(R.id.TVRamBoosterCrisis);
+        final SeekBar sbRamBoosterPreCrisis = findViewById(R.id.SBRamBoosterPreCrisis);
+        final TextView tvRamBoosterPreCrisis = findViewById(R.id.TVRamBoosterPreCrisis);
+
+        findViewById(R.id.BTHelpRamBooster).setOnClickListener(v -> {
+            ContentDialog dialog = new ContentDialog(getContext(), R.layout.bcn_info_dialog);
+            dialog.setTitle("RAM Booster (LMK Trigger)");
+            dialog.setIcon(R.drawable.ic_driver_info);
+
+            TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
+            String message = "<b>RAM Booster (Guide):</b><br/><br/>" +
+                    "This tool manages Android's memory by intentionally creating pressure to trigger the <b>Low Memory Killer (LMK)</b>. This helps prevent crashes and stuttering in heavy games.<br/><br/>" +
+                    "&#8226; <b>Crisis Threshold:</b> This is the 'Emergency' limit. When RAM usage hits this point (e.g., 90%), a heavy boost is applied to force immediate background cleanup. <b>How to use:</b> Set this to the level where your device usually feels unstable.<br/><br/>" +
+                    "&#8226; <b>Pre-Crisis Level:</b> This is the 'Preventive' limit. It applies a lighter pulse <i>before</i> RAM gets critical. <b>How to use:</b> Set this 5-10% lower than Crisis to maintain a smooth experience.<br/><br/>" +
+                    "&#8226; <b>Smart Auto:</b> (Recommended) Automatically adjusts thresholds based on your device RAM size and learns from every boost result. It also detects sudden RAM spikes.<br/><br/>" +
+                    "&#8226; <b>Safety Floor:</b> Automatically stops pressure if available RAM is too low (12% Adreno / 15% Mali) to protect the emulator.";
+            tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
+            dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+            dialog.show();
+        });
+
+        cbRamBooster.setChecked(shortcut.getExtra("ramBoosterEnabled", shortcut.container.isRamBoosterEnabled() ? "1" : "0").equals("1"));
+
+        final String[] ramBoosterProfileValues = getContext().getResources().getStringArray(R.array.ram_booster_profile_values);
+        AppUtils.setSpinnerSelectionFromValue(sRamBoosterProfile, shortcut.getExtra("ramBoosterProfile", shortcut.container.getRamBoosterProfile()));
+
+        llRamBoosterThresholds.setVisibility(sRamBoosterProfile.getSelectedItemPosition() == 6 ? View.VISIBLE : View.GONE);
+        sRamBoosterProfile.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                llRamBoosterThresholds.setVisibility(position == 6 ? View.VISIBLE : View.GONE);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        int initialCrisis = Integer.parseInt(shortcut.getExtra("ramBoosterCrisisThreshold", String.valueOf(shortcut.container.getRamBoosterCrisisThreshold())));
+        sbRamBoosterCrisis.setProgress(initialCrisis - 50);
+        tvRamBoosterCrisis.setText(initialCrisis + "%");
+        sbRamBoosterCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterCrisis.setText((progress + 50) + "%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        int initialPreCrisis = Integer.parseInt(shortcut.getExtra("ramBoosterPreCrisisThreshold", String.valueOf(shortcut.container.getRamBoosterPreCrisisThreshold())));
+        sbRamBoosterPreCrisis.setProgress(initialPreCrisis - 50);
+        tvRamBoosterPreCrisis.setText(initialPreCrisis + "%");
+        sbRamBoosterPreCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterPreCrisis.setText((progress + 50) + "%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
         final Spinner sControlsProfile = findViewById(R.id.SControlsProfile);
         loadControlsProfileSpinner(sControlsProfile, shortcut.getExtra("controlsProfile", "0"));
 
@@ -362,6 +425,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 String box64Preset = Box64PresetManager.getSpinnerSelectedId(sBox64Preset);
                 shortcut.putExtra("box64Preset", box64Preset);
+
+                shortcut.putExtra("ramBoosterEnabled", cbRamBooster.isChecked() ? "1" : "0");
+                shortcut.putExtra("ramBoosterProfile", ramBoosterProfileValues[sRamBoosterProfile.getSelectedItemPosition()]);
+                shortcut.putExtra("ramBoosterCrisisThreshold", String.valueOf(sbRamBoosterCrisis.getProgress() + 50));
+                shortcut.putExtra("ramBoosterPreCrisisThreshold", String.valueOf(sbRamBoosterPreCrisis.getProgress() + 50));
 
                 byte startupSelection = (byte)sStartupSelection.getSelectedItemPosition();
                 shortcut.putExtra("startupSelection", String.valueOf(startupSelection));

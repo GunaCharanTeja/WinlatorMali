@@ -929,6 +929,135 @@
                         </LinearLayout>
                     </FrameLayout>
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:id="@+id/TVRamBooster"
+                            android:tag="section_header"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/ram_booster"
+                            android:textStyle="bold"
+                            android:textSize="14sp"
+                            android:textColor="?attr/colorAccent" />
+
+                        <ImageView
+                            android:id="@+id/BTHelpRamBooster"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:src="@drawable/ic_driver_info"
+                            app:tint="?android:attr/textColorSecondary"
+                            android:background="?android:attr/selectableItemBackgroundBorderless"
+                            android:padding="4dp"
+                            android:contentDescription="Info" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <CheckBox
+                            android:id="@+id/CBRamBooster"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_ram_booster"
+                            android:textSize="14sp"
+                            android:layout_marginBottom="8dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/booster_profile"
+                            android:textSize="13sp"
+                            android:layout_marginBottom="4dp" />
+
+                        <Spinner
+                            style="@style/ComboBox"
+                            android:id="@+id/SRamBoosterProfile"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:entries="@array/ram_booster_profile_entries"
+                            android:layout_marginBottom="12dp" />
+
+                        <LinearLayout
+                            android:id="@+id/LLRamBoosterThresholds"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/crisis_threshold"
+                                android:textSize="13sp"
+                                android:layout_marginBottom="4dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="12dp">
+
+                                <SeekBar
+                                    android:id="@+id/SBRamBoosterCrisis"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:max="50"
+                                    android:progress="40" />
+
+                                <TextView
+                                    android:id="@+id/TVRamBoosterCrisis"
+                                    android:layout_width="40dp"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="end"
+                                    android:text="90%"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/pre_crisis_level"
+                                android:textSize="13sp"
+                                android:layout_marginBottom="4dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <SeekBar
+                                    android:id="@+id/SBRamBoosterPreCrisis"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:max="50"
+                                    android:progress="33" />
+
+                                <TextView
+                                    android:id="@+id/TVRamBoosterPreCrisis"
+                                    android:layout_width="40dp"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="end"
+                                    android:text="83%"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
                     <TextView
                         android:id="@+id/TVSystem"
                         android:tag="section_header"

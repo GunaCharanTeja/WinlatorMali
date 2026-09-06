@@ -182,6 +182,26 @@
         <item>Essential (Load only essential services)</item>
         <item>Aggressive (Stop services on startup)</item>
     </string-array>
+
+    <string-array name="ram_booster_profile_entries">
+        <item>Smart Auto</item>
+        <item>Low</item>
+        <item>Medium</item>
+        <item>High</item>
+        <item>Aggressive</item>
+        <item>Max</item>
+        <item>Manual</item>
+    </string-array>
+
+    <string-array name="ram_booster_profile_values">
+        <item>smart</item>
+        <item>low</item>
+        <item>medium</item>
+        <item>high</item>
+        <item>aggressive</item>
+        <item>max</item>
+        <item>manual</item>
+    </string-array>
     <string-array name="vkd3d_version_entries">
         <item>None</item>
         <item>2.8</item>

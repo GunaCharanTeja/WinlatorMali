@@ -107,7 +107,7 @@ public class WinlatorHUD extends View {
 
     private String strGpu = "N/A", strCpu = "N/A", strRam = "N/A";
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strFps = "0", strPct = "";
-    private String strRend = "OpenGL", strWrapper = "WineD3D";
+    private String strRend = "OpenGL", strWrapper = "WineD3D", strRamBooster = "";
     private boolean snapCharging = false;
 
     private final SharedPreferences prefs;
@@ -451,6 +451,13 @@ public class WinlatorHUD extends View {
         float x = radius;
         boolean first = true;
 
+        if (!strRamBooster.isEmpty()) {
+            float baseline = getBaseline(pRam, 0, rowH);
+            c.drawText(strRamBooster, x, baseline, pRam);
+            x += pRam.measureText(strRamBooster) + (compact ? PAD / 2f : wSep);
+            first = false;
+        }
+
         if ((showMask & SHOW_RENDERER) != 0) {
             if (!first) x += drawSep(c, x, 0);
             float baseline = getBaseline(pRend, 0, rowH);
@@ -549,6 +556,14 @@ public class WinlatorHUD extends View {
         float tilePad = 7f * density;
         float tileRadius = 5f * density;
         boolean drawBorder = (showMask & SHOW_BORDER) != 0;
+
+        if (!strRamBooster.isEmpty()) {
+            float tw = pRam.measureText(strRamBooster) + tilePad * 2;
+            c.drawRoundRect(new RectF(x, 0, x + tw, rowH), tileRadius, tileRadius, pTileBg);
+            if (drawBorder) c.drawRoundRect(new RectF(x, 0, x + tw, rowH), tileRadius, tileRadius, pTileBorder);
+            c.drawText(strRamBooster, x + tilePad, getBaseline(pRam, 0, rowH), pRam);
+            x += tw + tileGap;
+        }
 
         if ((showMask & SHOW_RENDERER) != 0) {
             float tw = pRend.measureText(strRend) + tilePad * 2;
@@ -668,6 +683,11 @@ public class WinlatorHUD extends View {
         float y     = 0;
         float sidePad = 8f * density;
 
+        if (!strRamBooster.isEmpty()) {
+            c.drawText(strRamBooster, sidePad, getBaseline(pRam, y, lineH), pRam);
+            y += lineH;
+        }
+
         if ((showMask & SHOW_RENDERER) != 0) {
             c.drawText(strRend, sidePad, getBaseline(pRend, y, lineH), pRend);
             y += lineH;
@@ -732,6 +752,13 @@ public class WinlatorHUD extends View {
         float tileRadius = 5f * density;
         float sidePad = 8f * density;
         boolean drawBorder = (showMask & SHOW_BORDER) != 0;
+
+        if (!strRamBooster.isEmpty()) {
+            c.drawRoundRect(new RectF(0, y, w, y + lineH), tileRadius, tileRadius, pTileBg);
+            if (drawBorder) c.drawRoundRect(new RectF(0, y, w, y + lineH), tileRadius, tileRadius, pTileBorder);
+            c.drawText(strRamBooster, sidePad, getBaseline(pRam, y, lineH), pRam);
+            y += lineH + tileGap;
+        }
 
         if ((showMask & SHOW_RENDERER) != 0) {
             c.drawRoundRect(new RectF(0, y, w, y + lineH), tileRadius, tileRadius, pTileBg);
@@ -848,6 +875,11 @@ public class WinlatorHUD extends View {
         float w = 0;
         boolean first = true;
 
+        if (!strRamBooster.isEmpty()) {
+            w += pRam.measureText(strRamBooster);
+            first = false;
+        }
+
         if ((showMask & SHOW_RENDERER) != 0) {
             if (!first) w += (compact ? PAD / 2f : wSep);
             w += pRend.measureText(strRend);
@@ -907,6 +939,11 @@ public class WinlatorHUD extends View {
         float tileGap = 5f * density;
         float tilePad = 7f * density;
         int tileCount = 0;
+
+        if (!strRamBooster.isEmpty()) {
+            w += pRam.measureText(strRamBooster) + tilePad * 2;
+            tileCount++;
+        }
 
         if ((showMask & SHOW_RENDERER) != 0) {
             w += pRend.measureText(strRend) + tilePad * 2;
@@ -971,6 +1008,7 @@ public class WinlatorHUD extends View {
         boolean compact = (showMask & SHOW_COMPACT) != 0;
         float sidePad = 8f * density;
         float w = sidePad * 2;
+        if (!strRamBooster.isEmpty()) w = Math.max(w, sidePad * 2 + pRam.measureText(strRamBooster));
         if ((showMask & SHOW_RENDERER) != 0) w = Math.max(w, sidePad * 2 + pRend.measureText(strRend));
         if ((showMask & SHOW_WRAPPER)  != 0) w = Math.max(w, sidePad * 2 + pRend.measureText(strWrapper));
         if ((showMask & SHOW_GPU)      != 0) w = Math.max(w, sidePad * 2 + (compact ? 0 : wLabelGpu) + Math.max(pVal.measureText(strGpu), wVal100pct));
@@ -1018,6 +1056,7 @@ public class WinlatorHUD extends View {
     private float countVerticalRows() {
         boolean compact = (showMask & SHOW_COMPACT) != 0;
         float r = 0;
+        if (!strRamBooster.isEmpty()) r++;
         if ((showMask & SHOW_RENDERER) != 0) r++;
         if ((showMask & SHOW_WRAPPER)  != 0) r++;
         if ((showMask & SHOW_GPU)      != 0) r++;
@@ -1264,6 +1303,14 @@ public class WinlatorHUD extends View {
         this.strWrapper = formatWrapperName(name);
         this.layoutDirty = true;
         postInvalidate();
+    }
+
+    public void setRamBoosterStatus(String status) {
+        uiHandler.post(() -> {
+            this.strRamBooster = status;
+            this.layoutDirty = true;
+            postInvalidate();
+        });
     }
 
     public void setGpuName(String name) {}
