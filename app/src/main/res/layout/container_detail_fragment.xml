@@ -974,6 +974,14 @@
                             android:textSize="14sp"
                             android:layout_marginBottom="8dp" />
 
+                        <CheckBox
+                            android:id="@+id/CBRamBoosterToast"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_ram_booster_toast"
+                            android:textSize="14sp"
+                            android:layout_marginBottom="8dp" />
+
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
@@ -1053,6 +1061,68 @@
                                     android:layout_height="wrap_content"
                                     android:gravity="end"
                                     android:text="83%"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/crisis_intensity"
+                                android:textSize="13sp"
+                                android:layout_marginTop="12dp"
+                                android:layout_marginBottom="4dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:layout_marginBottom="12dp">
+
+                                <SeekBar
+                                    android:id="@+id/SBRamBoosterCrisisIntensity"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:max="60"
+                                    android:progress="45" />
+
+                                <TextView
+                                    android:id="@+id/TVRamBoosterCrisisIntensity"
+                                    android:layout_width="40dp"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="end"
+                                    android:text="45%"
+                                    android:textSize="14sp" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/pre_crisis_intensity"
+                                android:textSize="13sp"
+                                android:layout_marginBottom="4dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <SeekBar
+                                    android:id="@+id/SBRamBoosterPreCrisisIntensity"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:max="40"
+                                    android:progress="20" />
+
+                                <TextView
+                                    android:id="@+id/TVRamBoosterPreCrisisIntensity"
+                                    android:layout_width="40dp"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="end"
+                                    android:text="20%"
                                     android:textSize="14sp" />
                             </LinearLayout>
                         </LinearLayout>

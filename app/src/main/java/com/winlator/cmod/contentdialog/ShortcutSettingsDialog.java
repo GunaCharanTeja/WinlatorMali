@@ -249,12 +249,17 @@ public class ShortcutSettingsDialog extends ContentDialog {
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset()));
 
         final CheckBox cbRamBooster = findViewById(R.id.CBRamBooster);
+        final CheckBox cbRamBoosterToast = findViewById(R.id.CBRamBoosterToast);
         final Spinner sRamBoosterProfile = findViewById(R.id.SRamBoosterProfile);
         final View llRamBoosterThresholds = findViewById(R.id.LLRamBoosterThresholds);
         final SeekBar sbRamBoosterCrisis = findViewById(R.id.SBRamBoosterCrisis);
         final TextView tvRamBoosterCrisis = findViewById(R.id.TVRamBoosterCrisis);
         final SeekBar sbRamBoosterPreCrisis = findViewById(R.id.SBRamBoosterPreCrisis);
         final TextView tvRamBoosterPreCrisis = findViewById(R.id.TVRamBoosterPreCrisis);
+        final SeekBar sbRamBoosterCrisisIntensity = findViewById(R.id.SBRamBoosterCrisisIntensity);
+        final TextView tvRamBoosterCrisisIntensity = findViewById(R.id.TVRamBoosterCrisisIntensity);
+        final SeekBar sbRamBoosterPreCrisisIntensity = findViewById(R.id.SBRamBoosterPreCrisisIntensity);
+        final TextView tvRamBoosterPreCrisisIntensity = findViewById(R.id.TVRamBoosterPreCrisisIntensity);
 
         findViewById(R.id.BTHelpRamBooster).setOnClickListener(v -> {
             ContentDialog dialog = new ContentDialog(getContext(), R.layout.bcn_info_dialog);
@@ -264,16 +269,21 @@ public class ShortcutSettingsDialog extends ContentDialog {
             TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
             String message = "<b>RAM Booster (Guide):</b><br/><br/>" +
                     "This tool manages Android's memory by intentionally creating pressure to trigger the <b>Low Memory Killer (LMK)</b>. This helps prevent crashes and stuttering in heavy games.<br/><br/>" +
-                    "&#8226; <b>Crisis Threshold:</b> This is the 'Emergency' limit. When RAM usage hits this point (e.g., 90%), a heavy boost is applied to force immediate background cleanup. <b>How to use:</b> Set this to the level where your device usually feels unstable.<br/><br/>" +
-                    "&#8226; <b>Pre-Crisis Level:</b> This is the 'Preventive' limit. It applies a lighter pulse <i>before</i> RAM gets critical. <b>How to use:</b> Set this 5-10% lower than Crisis to maintain a smooth experience.<br/><br/>" +
-                    "&#8226; <b>Smart Auto:</b> (Recommended) Automatically adjusts thresholds based on your device RAM size and learns from every boost result. It also detects sudden RAM spikes.<br/><br/>" +
-                    "&#8226; <b>Safety Floor:</b> Automatically stops pressure if available RAM is too low (12% Adreno / 15% Mali) to protect the emulator.";
+                    "&#8226; <b>Crisis Threshold:</b> This is the 'Emergency' limit. When RAM usage hits this point (e.g., 90%), a heavy boost is applied. <b>How to use:</b> Set this to the level where your device usually feels unstable.<br/><br/>" +
+                    "&#8226; <b>Pre-Crisis Level:</b> This is the 'Preventive' limit. It applies a lighter pulse <i>before</i> RAM gets critical. <b>How to use:</b> Set this 5-10% lower than Crisis.<br/><br/>" +
+                    "&#8226; <b>Boost Intensity:</b> Defines how much 'fake' RAM demand is created. Higher intensity (e.g., 60%) clears more background apps but may cause a momentary system lag.<br/><br/>" +
+                    "&#8226; <b>Smart Auto:</b> (Recommended) Automatically adjusts thresholds based on your device and learns from results.<br/><br/>" +
+                    "&#8226; <b>Safety Floor:</b> Protects the emulator by stopping pressure if free RAM is too low.<br/><br/>" +
+                    "<b>Expert Warning (Manual Mode):</b><br/>" +
+                    "&#8226; <b>High Thresholds:</b> Setting Crisis > 95% or Pre-Crisis > 90% may trigger too late to prevent a crash.<br/>" +
+                    "&#8226; <b>High Intensities:</b> Values > 50% create massive pressure (up to 4GB). This effectively kills everything in the background but may cause significant system stutter or even crash the app if the OS decides it is a memory hog. Use with extreme caution!";
             tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
             dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
             dialog.show();
         });
 
         cbRamBooster.setChecked(shortcut.getExtra("ramBoosterEnabled", shortcut.container.isRamBoosterEnabled() ? "1" : "0").equals("1"));
+        cbRamBoosterToast.setChecked(shortcut.getExtra("ramBoosterToastEnabled", shortcut.container.isRamBoosterToastEnabled() ? "1" : "0").equals("1"));
 
         final String[] ramBoosterProfileValues = getContext().getResources().getStringArray(R.array.ram_booster_profile_values);
         AppUtils.setSpinnerSelectionFromValue(sRamBoosterProfile, shortcut.getExtra("ramBoosterProfile", shortcut.container.getRamBoosterProfile()));
@@ -293,7 +303,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
         sbRamBoosterCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvRamBoosterCrisis.setText((progress + 50) + "%");
+                int threshold = progress + 50;
+                tvRamBoosterCrisis.setText(threshold + "%");
+                if (fromUser && threshold > 95) {
+                    AppUtils.showToast(getContext(), "Expert: Setting threshold > 95% may trigger too late!");
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -305,7 +319,41 @@ public class ShortcutSettingsDialog extends ContentDialog {
         sbRamBoosterPreCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvRamBoosterPreCrisis.setText((progress + 50) + "%");
+                int threshold = progress + 50;
+                tvRamBoosterPreCrisis.setText(threshold + "%");
+                if (fromUser && threshold > 90) {
+                    AppUtils.showToast(getContext(), "Expert: High pre-crisis level may overlap with Crisis threshold!");
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        int initialCrisisIntensity = Integer.parseInt(shortcut.getExtra("ramBoosterCrisisIntensity", String.valueOf(shortcut.container.getRamBoosterCrisisIntensity())));
+        sbRamBoosterCrisisIntensity.setProgress(initialCrisisIntensity);
+        tvRamBoosterCrisisIntensity.setText(initialCrisisIntensity + "%");
+        sbRamBoosterCrisisIntensity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterCrisisIntensity.setText(progress + "%");
+                if (fromUser && progress > 50) {
+                    AppUtils.showToast(getContext(), "Warning: High intensity may cause system instability!");
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        int initialPreCrisisIntensity = Integer.parseInt(shortcut.getExtra("ramBoosterPreCrisisIntensity", String.valueOf(shortcut.container.getRamBoosterPreCrisisIntensity())));
+        sbRamBoosterPreCrisisIntensity.setProgress(initialPreCrisisIntensity);
+        tvRamBoosterPreCrisisIntensity.setText(initialPreCrisisIntensity + "%");
+        sbRamBoosterPreCrisisIntensity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterPreCrisisIntensity.setText(progress + "%");
+                if (fromUser && progress > 35) {
+                    AppUtils.showToast(getContext(), "Note: High pre-crisis intensity clears more background RAM.");
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -427,9 +475,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("box64Preset", box64Preset);
 
                 shortcut.putExtra("ramBoosterEnabled", cbRamBooster.isChecked() ? "1" : "0");
+                shortcut.putExtra("ramBoosterToastEnabled", cbRamBoosterToast.isChecked() ? "1" : "0");
                 shortcut.putExtra("ramBoosterProfile", ramBoosterProfileValues[sRamBoosterProfile.getSelectedItemPosition()]);
                 shortcut.putExtra("ramBoosterCrisisThreshold", String.valueOf(sbRamBoosterCrisis.getProgress() + 50));
                 shortcut.putExtra("ramBoosterPreCrisisThreshold", String.valueOf(sbRamBoosterPreCrisis.getProgress() + 50));
+                shortcut.putExtra("ramBoosterCrisisIntensity", String.valueOf(sbRamBoosterCrisisIntensity.getProgress()));
+                shortcut.putExtra("ramBoosterPreCrisisIntensity", String.valueOf(sbRamBoosterPreCrisisIntensity.getProgress()));
 
                 byte startupSelection = (byte)sStartupSelection.getSelectedItemPosition();
                 shortcut.putExtra("startupSelection", String.valueOf(startupSelection));

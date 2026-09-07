@@ -263,10 +263,14 @@ public class ContainerDetailFragment extends Fragment {
             TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
             String message = "<b>RAM Booster (Guide):</b><br/><br/>" +
                     "This tool manages Android's memory by intentionally creating pressure to trigger the <b>Low Memory Killer (LMK)</b>. This helps prevent crashes and stuttering in heavy games.<br/><br/>" +
-                    "&#8226; <b>Crisis Threshold:</b> This is the 'Emergency' limit. When RAM usage hits this point (e.g., 90%), a heavy boost is applied to force immediate background cleanup. <b>How to use:</b> Set this to the level where your device usually feels unstable.<br/><br/>" +
-                    "&#8226; <b>Pre-Crisis Level:</b> This is the 'Preventive' limit. It applies a lighter pulse <i>before</i> RAM gets critical. <b>How to use:</b> Set this 5-10% lower than Crisis to maintain a smooth experience.<br/><br/>" +
-                    "&#8226; <b>Smart Auto:</b> (Recommended) Automatically adjusts thresholds based on your device RAM size and learns from every boost result. It also detects sudden RAM spikes.<br/><br/>" +
-                    "&#8226; <b>Safety Floor:</b> Automatically stops pressure if available RAM is too low (12% Adreno / 15% Mali) to protect the emulator.";
+                    "&#8226; <b>Crisis Threshold:</b> This is the 'Emergency' limit. When RAM usage hits this point (e.g., 90%), a heavy boost is applied. <b>How to use:</b> Set this to the level where your device usually feels unstable.<br/><br/>" +
+                    "&#8226; <b>Pre-Crisis Level:</b> This is the 'Preventive' limit. It applies a lighter pulse <i>before</i> RAM gets critical. <b>How to use:</b> Set this 5-10% lower than Crisis.<br/><br/>" +
+                    "&#8226; <b>Boost Intensity:</b> Defines how much 'fake' RAM demand is created. Higher intensity (e.g., 60%) clears more background apps but may cause a momentary system lag.<br/><br/>" +
+                    "&#8226; <b>Smart Auto:</b> (Recommended) Automatically adjusts thresholds based on your device and learns from results.<br/><br/>" +
+                    "&#8226; <b>Safety Floor:</b> Protects the emulator by stopping pressure if free RAM is too low.<br/><br/>" +
+                    "<b>Expert Warning (Manual Mode):</b><br/>" +
+                    "&#8226; <b>High Thresholds:</b> Setting Crisis > 95% or Pre-Crisis > 90% may trigger too late to prevent a crash.<br/>" +
+                    "&#8226; <b>High Intensities:</b> Values > 50% create massive pressure (up to 4GB). This effectively kills everything in the background but may cause significant system stutter or even crash the app if the OS decides it is a memory hog. Use with extreme caution!";
             tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
             dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
             dialog.show();
@@ -430,14 +434,20 @@ public class ContainerDetailFragment extends Fragment {
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, isEditMode() ? container.getFEXCorePreset() : preferences.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE));
 
         final CheckBox cbRamBooster = view.findViewById(R.id.CBRamBooster);
+        final CheckBox cbRamBoosterToast = view.findViewById(R.id.CBRamBoosterToast);
         final Spinner sRamBoosterProfile = view.findViewById(R.id.SRamBoosterProfile);
         final View llRamBoosterThresholds = view.findViewById(R.id.LLRamBoosterThresholds);
         final SeekBar sbRamBoosterCrisis = view.findViewById(R.id.SBRamBoosterCrisis);
         final TextView tvRamBoosterCrisis = view.findViewById(R.id.TVRamBoosterCrisis);
         final SeekBar sbRamBoosterPreCrisis = view.findViewById(R.id.SBRamBoosterPreCrisis);
         final TextView tvRamBoosterPreCrisis = view.findViewById(R.id.TVRamBoosterPreCrisis);
+        final SeekBar sbRamBoosterCrisisIntensity = view.findViewById(R.id.SBRamBoosterCrisisIntensity);
+        final TextView tvRamBoosterCrisisIntensity = view.findViewById(R.id.TVRamBoosterCrisisIntensity);
+        final SeekBar sbRamBoosterPreCrisisIntensity = view.findViewById(R.id.SBRamBoosterPreCrisisIntensity);
+        final TextView tvRamBoosterPreCrisisIntensity = view.findViewById(R.id.TVRamBoosterPreCrisisIntensity);
 
         cbRamBooster.setChecked(isEditMode() && container.isRamBoosterEnabled());
+        cbRamBoosterToast.setChecked(!isEditMode() || container.isRamBoosterToastEnabled());
 
         final String[] ramBoosterProfileValues = getResources().getStringArray(R.array.ram_booster_profile_values);
         AppUtils.setSpinnerSelectionFromValue(sRamBoosterProfile, isEditMode() ? container.getRamBoosterProfile() : "smart");
@@ -457,7 +467,11 @@ public class ContainerDetailFragment extends Fragment {
         sbRamBoosterCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvRamBoosterCrisis.setText((progress + 50) + "%");
+                int threshold = progress + 50;
+                tvRamBoosterCrisis.setText(threshold + "%");
+                if (fromUser && threshold > 95) {
+                    AppUtils.showToast(getContext(), "Expert: Setting threshold > 95% may trigger too late!");
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -469,7 +483,54 @@ public class ContainerDetailFragment extends Fragment {
         sbRamBoosterPreCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvRamBoosterPreCrisis.setText((progress + 50) + "%");
+                int threshold = progress + 50;
+                tvRamBoosterPreCrisis.setText(threshold + "%");
+                if (fromUser && threshold > 90) {
+                    AppUtils.showToast(getContext(), "Expert: High pre-crisis level may overlap with Crisis threshold!");
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        int initialCrisisIntensity = isEditMode() ? container.getRamBoosterCrisisIntensity() : 45;
+        sbRamBoosterCrisisIntensity.setProgress(initialCrisisIntensity);
+        tvRamBoosterCrisisIntensity.setText(initialCrisisIntensity + "%");
+        sbRamBoosterCrisisIntensity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterCrisisIntensity.setText(progress + "%");
+                if (fromUser && progress > 50) {
+                    AppUtils.showToast(getContext(), "Warning: High intensity may cause system instability!");
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        int initialPreCrisisIntensity = isEditMode() ? container.getRamBoosterPreCrisisIntensity() : 20;
+        sbRamBoosterPreCrisisIntensity.setProgress(initialPreCrisisIntensity);
+        tvRamBoosterPreCrisisIntensity.setText(initialPreCrisisIntensity + "%");
+        sbRamBoosterPreCrisisIntensity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                tvRamBoosterPreCrisisIntensity.setText(progress + "%");
+                if (fromUser && progress > 35) {
+                    AppUtils.showToast(getContext(), "Note: High pre-crisis intensity clears more background RAM.");
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        sbRamBoosterCrisis.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int threshold = progress + 50;
+                tvRamBoosterCrisis.setText(threshold + "%");
+                if (fromUser && threshold > 95) {
+                    AppUtils.showToast(getContext(), "Expert: Setting threshold > 95% may trigger too late!");
+                }
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -553,9 +614,12 @@ public class ContainerDetailFragment extends Fragment {
                 int primaryController = sPrimaryController.getSelectedItemPosition();
                 String controllerMapping = getControllerMapping(view);
                 boolean ramBoosterEnabled = cbRamBooster.isChecked();
+                boolean ramBoosterToastEnabled = cbRamBoosterToast.isChecked();
                 String ramBoosterProfile = ramBoosterProfileValues[sRamBoosterProfile.getSelectedItemPosition()];
                 int ramBoosterCrisis = sbRamBoosterCrisis.getProgress() + 50;
                 int ramBoosterPreCrisis = sbRamBoosterPreCrisis.getProgress() + 50;
+                int ramBoosterCrisisIntensity = sbRamBoosterCrisisIntensity.getProgress();
+                int ramBoosterPreCrisisIntensity = sbRamBoosterPreCrisisIntensity.getProgress();
 
                 if (isEditMode()) {
                     // Update existing container properties
@@ -581,9 +645,12 @@ public class ContainerDetailFragment extends Fragment {
                     container.setFEXCoreVersion(fexcoreVersion);
                     container.setFEXCorePreset(fexcorePreset);
                     container.setRamBoosterEnabled(ramBoosterEnabled);
+                    container.setRamBoosterToastEnabled(ramBoosterToastEnabled);
                     container.setRamBoosterProfile(ramBoosterProfile);
                     container.setRamBoosterCrisisThreshold(ramBoosterCrisis);
                     container.setRamBoosterPreCrisisThreshold(ramBoosterPreCrisis);
+                    container.setRamBoosterCrisisIntensity(ramBoosterCrisisIntensity);
+                    container.setRamBoosterPreCrisisIntensity(ramBoosterPreCrisisIntensity);
                     container.setDesktopTheme(desktopTheme);
                     container.setMidiSoundFont(midiSoundFont);
                     container.setLC_ALL(lc_all);
@@ -618,9 +685,12 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("fexcoreVersion", fexcoreVersion);
                     data.put("fexcorePreset", fexcorePreset);
                     data.put("ramBoosterEnabled", ramBoosterEnabled);
+                    data.put("ramBoosterToastEnabled", ramBoosterToastEnabled);
                     data.put("ramBoosterProfile", ramBoosterProfile);
                     data.put("ramBoosterCrisisThreshold", ramBoosterCrisis);
                     data.put("ramBoosterPreCrisisThreshold", ramBoosterPreCrisis);
+                    data.put("ramBoosterCrisisIntensity", ramBoosterCrisisIntensity);
+                    data.put("ramBoosterPreCrisisIntensity", ramBoosterPreCrisisIntensity);
                     String selectedWine = sWineVersion.getSelectedItem() != null ? sWineVersion.getSelectedItem().toString() : "";
                     if (selectedWine.isEmpty() || selectedWine.contains("No Wine Installed")) {
                         AppUtils.showToast(context, "Please download a Wine runtime first.");

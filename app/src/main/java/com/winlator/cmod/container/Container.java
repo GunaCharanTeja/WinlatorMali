@@ -69,9 +69,12 @@ public class Container {
     private String fexcorePreset = FEXCorePreset.INTERMEDIATE;
     private String box64Preset = Box64Preset.COMPATIBILITY;
     private boolean ramBoosterEnabled = false;
+    private boolean ramBoosterToastEnabled = true;
     private String ramBoosterProfile = "smart";
     private int ramBoosterCrisisThreshold = 90;
     private int ramBoosterPreCrisisThreshold = 83;
+    private int ramBoosterCrisisIntensity = 45;
+    private int ramBoosterPreCrisisIntensity = 20;
     private File rootDir;
     private JSONObject extraData;
     private String midiSoundFont = "";
@@ -301,6 +304,14 @@ public class Container {
         this.ramBoosterEnabled = ramBoosterEnabled;
     }
 
+    public boolean isRamBoosterToastEnabled() {
+        return ramBoosterToastEnabled;
+    }
+
+    public void setRamBoosterToastEnabled(boolean ramBoosterToastEnabled) {
+        this.ramBoosterToastEnabled = ramBoosterToastEnabled;
+    }
+
     public String getRamBoosterProfile() {
         return ramBoosterProfile;
     }
@@ -327,6 +338,22 @@ public class Container {
 
     public void setRamBoosterPreCrisisThreshold(int threshold) {
         this.ramBoosterPreCrisisThreshold = threshold;
+    }
+
+    public int getRamBoosterCrisisIntensity() {
+        return ramBoosterCrisisIntensity;
+    }
+
+    public void setRamBoosterCrisisIntensity(int intensity) {
+        this.ramBoosterCrisisIntensity = intensity;
+    }
+
+    public int getRamBoosterPreCrisisIntensity() {
+        return ramBoosterPreCrisisIntensity;
+    }
+
+    public void setRamBoosterPreCrisisIntensity(int intensity) {
+        this.ramBoosterPreCrisisIntensity = intensity;
     }
 
     public String getBox64Version() { return box64Version; }
@@ -493,9 +520,12 @@ public class Container {
             data.put("fexcoreVersion", fexcoreVersion);
             data.put("box64Preset", box64Preset);
             data.put("ramBoosterEnabled", ramBoosterEnabled);
+            data.put("ramBoosterToastEnabled", ramBoosterToastEnabled);
             data.put("ramBoosterProfile", ramBoosterProfile);
             data.put("ramBoosterCrisisThreshold", ramBoosterCrisisThreshold);
             data.put("ramBoosterPreCrisisThreshold", ramBoosterPreCrisisThreshold);
+            data.put("ramBoosterCrisisIntensity", ramBoosterCrisisIntensity);
+            data.put("ramBoosterPreCrisisIntensity", ramBoosterPreCrisisIntensity);
             data.put("desktopTheme", desktopTheme);
             data.put("extraData", extraData);
             data.put("midiSoundFont", midiSoundFont);
@@ -597,6 +627,9 @@ public class Container {
                 case "ramBoosterEnabled":
                     setRamBoosterEnabled(data.optBoolean(key, false));
                     break;
+                case "ramBoosterToastEnabled":
+                    setRamBoosterToastEnabled(data.optBoolean(key, true));
+                    break;
                 case "ramBoosterProfile":
                     setRamBoosterProfile(data.optString(key, "smart"));
                     break;
@@ -605,6 +638,12 @@ public class Container {
                     break;
                 case "ramBoosterPreCrisisThreshold":
                     setRamBoosterPreCrisisThreshold(data.optInt(key, 83));
+                    break;
+                case "ramBoosterCrisisIntensity":
+                    setRamBoosterCrisisIntensity(data.optInt(key, 45));
+                    break;
+                case "ramBoosterPreCrisisIntensity":
+                    setRamBoosterPreCrisisIntensity(data.optInt(key, 20));
                     break;
                 case "audioDriver" :
                     setAudioDriver(data.getString(key));
