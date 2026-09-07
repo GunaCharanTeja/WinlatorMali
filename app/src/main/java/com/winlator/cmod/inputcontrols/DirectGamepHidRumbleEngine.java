@@ -148,54 +148,71 @@ public class DirectGamepHidRumbleEngine {
         }
     }
 
+    /**
+     * Logic V2: Intelligent Hardware Filtering.
+     * Determines if a USB device should be handled by Winlator's Direct Rumble Engine.
+     */
     public boolean isSupportedGamepad(UsbDevice device) {
         if (device == null) return false;
-        int vid = device.getVendorId();
 
-        // 1. Redgear / ShanWan / Betop / DragonRise / Generic PC Gamepads
-        if (vid == 0x2563 || vid == 0x11ff || vid == 0x20d6 || vid == 0x12ab || vid == 0x0e8f ||
-            vid == 0x0079 || vid == 0x0810 || vid == 0x1345 || vid == 0x1e3d || vid == 0x2838 ||
-            vid == 0x0583 || vid == 0x04b4 || vid == 0x1c6b || vid == 0x146b || vid == 0x20bc) {
-            return true;
-        }
+        // --- STEP 1: Deep Protocol Inspection (Most Universal) ---
+        // We scan all interfaces. If a device has interfaces for Keyboard or Mouse, 
+        // we IGNORE it completely to let the OS handle standard inputs.
+        boolean hasKeyboardIface = false;
+        boolean hasMouseIface = false;
+        boolean hasVendorSpecificIface = false;
 
-        // 2. Microsoft Xbox 360 / Xbox One / Series X/S / Dongles (0x045e)
-        if (vid == 0x045e) return true;
-
-        // 3. Sony PlayStation 3 / 4 / 5 (0x054c)
-        if (vid == 0x054c) return true;
-
-        // 4. Nintendo Switch Pro / Joy-Cons (0x057e)
-        if (vid == 0x057e) return true;
-
-        // 5. 8BitDo / PowerA / PDP / Mad Catz / Hori / Razer / Logitech / Flydigi / GameSir
-        if (vid == 0x2dc8 || vid == 0x24c6 || vid == 0x0e6f || vid == 0x1bad || vid == 0x0f0d ||
-            vid == 0x1532 || vid == 0x1689 || vid == 0x046d || vid == 0x044f || vid == 0x2c22 ||
-            vid == 0x2f24 || vid == 0x3285) {
-            return true;
-        }
-
-        // 6. Inspect USB Interface Class
         for (int i = 0; i < device.getInterfaceCount(); i++) {
             UsbInterface iface = device.getInterface(i);
             int cls = iface.getInterfaceClass();
-            if (cls == UsbConstants.USB_CLASS_HID || cls == 0xFF) {
-                return true;
+            int protocol = iface.getInterfaceProtocol();
+
+            if (cls == UsbConstants.USB_CLASS_HID) {
+                if (protocol == 1) hasKeyboardIface = true; // HID Keyboard
+                else if (protocol == 2) hasMouseIface = true; // HID Mouse
+            } else if (cls == 0xFF) {
+                hasVendorSpecificIface = true; // Likely a Gamepad (XInput/Sony)
             }
         }
 
-        // 7. Check device / product name keywords
-        String name = getDeviceDisplayName(device).toLowerCase(Locale.ROOT);
-        if (name.contains("gamepad") || name.contains("controller") || name.contains("joystick") ||
-            name.contains("redgear") || name.contains("shanwan") || name.contains("betop") ||
-            name.contains("xbox") || name.contains("dualshock") || name.contains("dualsense") ||
-            name.contains("wireless") || name.contains("receiver") || name.contains("pad") ||
-            name.contains("elite") || name.contains("8bitdo") || name.contains("gamesir") ||
-            name.contains("flydigi") || name.contains("logitech") || name.contains("speedlink")) {
+        // If it's a standard typing/pointing device, ignore it even if the brand is Redgear.
+        if (hasKeyboardIface || hasMouseIface) {
+            Log.d(TAG, "Smart Filter: Ignored peripheral (Keyboard/Mouse protocol detected).");
+            return false;
+        }
+
+        // --- STEP 2: Name-Based Heuristics (Brand Independent) ---
+        String displayName = getDeviceDisplayName(device).toLowerCase(Locale.ROOT);
+        if (displayName.contains("keyboard") || displayName.contains("mouse") || 
+            displayName.contains("touchpad") || displayName.contains("trackball")) {
+            return false;
+        }
+
+        // --- STEP 3: Known Gamepad Hardware Whitelist ---
+        int vid = device.getVendorId();
+
+        // Microsoft (Xbox), Sony (PlayStation), Nintendo
+        if (vid == 0x045e || vid == 0x054c || vid == 0x057e) return true;
+
+        // Common Gamepad Chipsets (ShanWan, Betop, Redgear clones, DragonRise)
+        if (vid == 0x2563 || vid == 0x11ff || vid == 0x20d6 || vid == 0x12ab || 
+            vid == 0x0e8f || vid == 0x0079 || vid == 0x0810 || vid == 0x1345) return true;
+
+        // Premium Brands (8BitDo, Razer, Logitech, Mad Catz, Hori, GameSir, Flydigi)
+        if (vid == 0x2dc8 || vid == 0x1532 || vid == 0x046d || vid == 0x1bad || 
+            vid == 0x0f0d || vid == 0x2f24 || vid == 0x3285) return true;
+
+        // --- STEP 4: Generic Gamepad Signature ---
+        // If it made it this far, check for Gamepad-specific keywords in the name
+        if (displayName.contains("gamepad") || displayName.contains("controller") || 
+            displayName.contains("joystick") || displayName.contains("joy-con") || 
+            displayName.contains("dualshock") || displayName.contains("dualsense") ||
+            displayName.contains("speedlink") || displayName.contains("elite")) {
             return true;
         }
 
-        return false;
+        // Final Fallback: If it's a Vendor-Specific HID that isn't a keyboard/mouse, it's likely a controller.
+        return hasVendorSpecificIface;
     }
 
     public String getDeviceDisplayName(UsbDevice device) {
@@ -451,12 +468,9 @@ public class DirectGamepHidRumbleEngine {
         s8 = Math.max(0, Math.min(255, s8));
         w8 = Math.max(0, Math.min(255, w8));
 
-        // Ensure physical motor duty threshold when active so high-frequency motors spin
         if (s8 > 0 && s8 < 50) s8 = 50;
         if (w8 > 0 && w8 < 70) w8 = 70;
 
-        // On gamepads with shared power rails / master PWM on channel 1 (Redgear Elite, Betop, clone XInput),
-        // ensure primary rail has base power so the right light motor can spin when isolated.
         int xinputLeft = s8 > 0 ? s8 : (w8 > 0 ? Math.max(30, (int) (w8 * 0.5f)) : 0);
         int xinputRight = w8;
 
@@ -469,7 +483,6 @@ public class DirectGamepHidRumbleEngine {
             try {
                 int ifaceIndex = session.usbInterface != null ? session.usbInterface.getId() : 0;
 
-                // XInput 8-byte report: [0x00, 0x08, 0x00, Heavy_Left, Light_Right, 0x00, 0x00, 0x00]
                 byte[] xinput8 = new byte[]{
                     0x00, 0x08, 0x00,
                     (byte) (xinputLeft & 0xFF),
@@ -477,7 +490,6 @@ public class DirectGamepHidRumbleEngine {
                     0x00, 0x00, 0x00
                 };
 
-                // ShanWan / Betop / PS2 adapter 5-byte report: [0x00, 0x51, 0x00, Light_Right, Heavy_Left]
                 byte[] shanwanWS = new byte[]{
                     0x00, 0x51, 0x00,
                     (byte) (w8 > 0 ? w8 : s8),
@@ -548,11 +560,8 @@ public class DirectGamepHidRumbleEngine {
         if (!isStopping) {
             autoStopRunnable = () -> sendRumble(0, 0);
             if (durationMs > 0 && durationMs < 30000) {
-                // Finite test/effect duration (0.5s, 1.0s, 2.0s, 3.0s)
                 mainHandler.postDelayed(autoStopRunnable, durationMs);
             } else {
-                // Continuous in-game XInput stream (durationMs == 0 or >= 30000).
-                // Do NOT prematurely stop after 250ms; keep running until game sends (0,0) or 10s safety watchdog.
                 mainHandler.postDelayed(autoStopRunnable, 10000);
             }
         }

@@ -7,6 +7,8 @@
 #include <vector>
 #include <stdint.h>
 #include <time.h>
+#include <sched.h>
+#include <sys/resource.h>
 
 #define TAG "RamBooster-Native"
 
@@ -15,10 +17,10 @@ struct AllocatedBlock {
     size_t size;
 };
 
-// Helper to apply pressure with high-speed dirty filling
+// Helper to apply pressure with high-speed dirty filling and CPU yielding
 static void apply_pressure(size_t targetBytes, std::vector<AllocatedBlock>& blocks, size_t pageSize) {
     size_t allocated = 0;
-    size_t chunkSize = 128 * 1024 * 1024; // Increased to 128MB for faster pressure
+    size_t chunkSize = 128 * 1024 * 1024;
 
     while (allocated < targetBytes) {
         size_t toAlloc = (targetBytes - allocated > chunkSize) ? chunkSize : (targetBytes - allocated);
@@ -29,16 +31,23 @@ static void apply_pressure(size_t targetBytes, std::vector<AllocatedBlock>& bloc
             else break;
         }
 
-        // Fill memory with pseudo-random pattern to prevent KSM (Kernel Samepage Merging)
-        // and compression. We touch every single page.
         volatile char* ptr = static_cast<volatile char*>(m);
         char seed = static_cast<char>(time(nullptr) % 255);
+
         for (size_t offset = 0; offset < toAlloc; offset += pageSize) {
             ptr[offset] = static_cast<char>(seed + (offset % 128));
+
+            // Yield every 16MB of processing to keep the game smooth
+            if (offset % (16 * 1024 * 1024) == 0) {
+                sched_yield();
+            }
         }
 
         blocks.push_back({m, toAlloc});
         allocated += toAlloc;
+
+        // Brief sleep between chunks to avoid saturating the memory bus
+        usleep(1000);
     }
 }
 
@@ -48,6 +57,9 @@ Java_com_winlator_cmod_core_RamBooster_pressure(JNIEnv *env, jclass clazz, jlong
     size_t totalToAlloc = static_cast<size_t>(targetBytes);
     if (totalToAlloc == 0) return JNI_TRUE;
 
+    // Set booster thread to lowest possible priority to avoid game lag
+    setpriority(PRIO_PROCESS, 0, 19);
+
     size_t pageSize = sysconf(_SC_PAGESIZE);
     if (pageSize == 0) pageSize = 4096;
 
@@ -56,16 +68,14 @@ Java_com_winlator_cmod_core_RamBooster_pressure(JNIEnv *env, jclass clazz, jlong
     __android_log_print(ANDROID_LOG_INFO, TAG, "WAVE 1: Initial Pulse (%zu bytes)", totalToAlloc);
     apply_pressure(totalToAlloc, all_blocks, pageSize);
 
-    // Manual/Max/High-Need profiles get the "Hammer" sequence
     if (holdMs >= 5000) {
-        // WAVE 2: After a short delay, hit them again
-        usleep(400000);
+        // Spaced out waves to reduce peak CPU contention
+        usleep(800000); // Increased from 400ms to 800ms
         size_t wave2 = 600 * 1024 * 1024;
         __android_log_print(ANDROID_LOG_INFO, TAG, "WAVE 2: Secondary Hammer (%zu bytes)", wave2);
         apply_pressure(wave2, all_blocks, pageSize);
 
-        // WAVE 3: The "Final Shock" to kill the most stubborn apps
-        usleep(300000);
+        usleep(600000); // Increased from 300ms to 600ms
         size_t wave3 = 400 * 1024 * 1024;
         __android_log_print(ANDROID_LOG_INFO, TAG, "WAVE 3: Final Shock (%zu bytes)", wave3);
         apply_pressure(wave3, all_blocks, pageSize);
