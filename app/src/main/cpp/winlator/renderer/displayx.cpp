@@ -574,7 +574,6 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
 
 void DisplayX::presentThreadLoop() {
     ASurfaceTransaction *presentTransaction = pfnASurfaceTransactionCreate();
-    JNIEnv *env = cache->getEnv();
     
     if (isPerformanceHintAPIAvailable() && perfMode) {
         performanceHintManager = pfnAPerformanceHintGetManager();
@@ -672,7 +671,6 @@ void DisplayX::presentThreadLoop() {
                 if (pfnASurfaceTransactionSetBufferTransparency) {
                     pfnASurfaceTransactionSetBufferTransparency(presentTransaction, window->control, ASURFACE_TRANSACTION_TRANSPARENCY_OPAQUE);
                 }
-                env->CallVoidMethod(xServer->xserverDisplayActivity, cache->updateFrameRating, window->windowObj);
                 if (drawable->isDisplayX || presentRequest->slot) {
                     completeContext->requests.push_back(std::move(presentRequest));
                 }

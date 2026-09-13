@@ -644,7 +644,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                if (!xServer.isDisplayX()) updateFrameRating(window);
+                updateFrameRating(window);
             }
 
             @Override
@@ -655,7 +655,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                if (frameRating != null && !xServer.isDisplayX() && window.getWidth() > 200 && window.getHeight() > 200) frameRating.onFrame();
+                if (frameRating != null && window.getWidth() > 200 && window.getHeight() > 200) frameRating.onFrame();
             }
            
             @Override
