@@ -75,6 +75,7 @@ public class PresentExtension implements Extension {
                 Event event = events.valueAt(i);
                 if (event.window == window && event.mask.isSet(PresentIdleNotify.getEventMask())) {
                     event.client.sendEvent(new PresentIdleNotify(event.id, window, pixmap, serial, idleFence));
+                    flushClientOutput(event.client);
                 }
             }
         }
@@ -86,9 +87,17 @@ public class PresentExtension implements Extension {
                 Event event = events.valueAt(i);
                 if (event.window == window && event.mask.isSet(PresentCompleteNotify.getEventMask())) {
                     event.client.sendEvent(new PresentCompleteNotify(event.id, window, serial, kind, mode, ust, msc));
+                    flushClientOutput(event.client);
                 }
             }
         }
+    }
+
+    private void flushClientOutput(XClient client) {
+        if (client == null || client.getOutputStream() == null) return;
+        try {
+            try (XStreamLock ignored = client.getOutputStream().lock()) {}
+        } catch (Exception ignored) {}
     }
 
     private static void queryVersion(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -122,8 +131,10 @@ public class PresentExtension implements Extension {
         final Pixmap pixmap = client.xServer.pixmapManager.getPixmap(pixmapId);
         if (pixmap == null) throw new BadPixmap(pixmapId);
 
+        int targetFps = client.xServer != null ? client.xServer.getFpsLimit() : 0;
         long ust = System.nanoTime() / 1000;
-        long msc = ust / FAKE_INTERVAL;
+        long mscIntervalUs = targetFps > 0 ? (1_000_000L / targetFps) : (1_000_000L / 60);
+        long msc = ust / mscIntervalUs;
 
         if (client.xServer.getDisplayXView() != null) {
             pixmap.drawable.updateDirect();
@@ -135,7 +146,6 @@ public class PresentExtension implements Extension {
             }
         }
         sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
-        int targetFps = client.xServer != null ? client.xServer.getFpsLimit() : 0;
         scheduleIdleNotify(window, pixmap, serial, idleFence, targetFps);
 
         if (client.xServer != null && client.xServer.getWinlatorHUD() != null) {
