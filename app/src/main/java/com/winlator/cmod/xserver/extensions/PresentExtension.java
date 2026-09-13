@@ -189,7 +189,7 @@ public class PresentExtension implements Extension {
         long targetFrameTime = 1000000000L / targetFps;
         long now = System.nanoTime();
 
-        if (nextFrameTime == 0 || (now - nextFrameTime) > targetFrameTime * 2) {
+        if (nextFrameTime == 0 || (now - nextFrameTime) > targetFrameTime * 2 || now < nextFrameTime - targetFrameTime) {
             nextFrameTime = now;
         }
 
@@ -200,7 +200,7 @@ public class PresentExtension implements Extension {
             }
             while (System.nanoTime() < nextFrameTime);
         }
-        nextFrameTime += targetFrameTime;
+        nextFrameTime = Math.max(System.nanoTime(), nextFrameTime + targetFrameTime);
     }
 
     @Override

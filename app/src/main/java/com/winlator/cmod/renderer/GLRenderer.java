@@ -55,8 +55,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private boolean magnifierEnabled = true;
     public int surfaceWidth;
     public int surfaceHeight;
-    private long lastNanos = 0;
-    private int currentFpsLimit = 0;
+    private volatile int currentFpsLimit = 0;
+    private long nextRenderTimeNanos = 0;
     private final EffectComposer effectComposer;
     private volatile com.winlator.cmod.widget.WinlatorHUD winlatorHUD;
     private long fpsStartTime = 0;
@@ -106,7 +106,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         if (surfaceWidth > 0 && surfaceHeight > 0) {
             ApexNativeBridge.nativeInit(surfaceWidth, surfaceHeight);
         }
-        lastNanos = 0;
+        nextRenderTimeNanos = 0;
     }
 
     @Override
@@ -130,24 +130,24 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
-        int fpsLimit = currentFpsLimit;
         boolean isApex = ApexNativeBridge.nativeIsActive();
-        if (isApex) {
-            fpsLimit = ApexNativeBridge.nativeGetTargetFPS();
-        }
+        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : currentFpsLimit;
 
-        if (!isApex && fpsLimit > 0) {
+        if (fpsLimit > 0 && (isApex || xServerView.getRenderMode() == GLSurfaceView.RENDERMODE_CONTINUOUSLY)) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
-            long elapsed = System.nanoTime() - lastNanos;
-            if (elapsed < targetIntervalNanos) {
-                long waitNanos = targetIntervalNanos - elapsed;
+            long now = System.nanoTime();
+            if (nextRenderTimeNanos == 0 || (now - nextRenderTimeNanos) > targetIntervalNanos * 2 || now < nextRenderTimeNanos - targetIntervalNanos) {
+                nextRenderTimeNanos = now;
+            }
+            long waitNanos = nextRenderTimeNanos - now;
+            if (waitNanos > 0) {
                 if (waitNanos > 100000L) {
                     java.util.concurrent.locks.LockSupport.parkNanos(waitNanos - 50000L);
                 }
-                while (System.nanoTime() - lastNanos < targetIntervalNanos);
+                while (System.nanoTime() < nextRenderTimeNanos);
             }
+            nextRenderTimeNanos = Math.max(System.nanoTime(), nextRenderTimeNanos + targetIntervalNanos);
         }
-        lastNanos = System.nanoTime();
 
         if (toggleFullscreen) {
             fullscreen = !fullscreen;
