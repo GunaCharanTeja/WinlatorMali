@@ -138,8 +138,11 @@ public class GLXExtension implements Extension {
     private long nextFrameTime = 0;
 
     private void updateHUD() {
-        if (!hudNotified && xServer != null && xServer.getRenderer() != null) {
-            com.winlator.cmod.widget.WinlatorHUD hud = xServer.getRenderer().getWinlatorHUD();
+        if (!hudNotified && xServer != null) {
+            com.winlator.cmod.widget.WinlatorHUD hud = xServer.getWinlatorHUD();
+            if (hud == null && xServer.getRenderer() != null) {
+                hud = xServer.getRenderer().getWinlatorHUD();
+            }
             if (hud != null) {
                 hudNotified = true;
                 hud.onRendererDetected("Gladio");
@@ -149,8 +152,11 @@ public class GLXExtension implements Extension {
     }
 
     private void paceFramerate() {
-        if (xServer == null || xServer.getRenderer() == null) return;
-        int targetFps = xServer.getRenderer().getFpsLimit();
+        if (xServer == null) return;
+        int targetFps = xServer.getFpsLimit();
+        if (targetFps <= 0 && xServer.getRenderer() != null) {
+            targetFps = xServer.getRenderer().getFpsLimit();
+        }
         if (targetFps <= 0) {
             nextFrameTime = 0;
             return;

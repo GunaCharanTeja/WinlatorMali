@@ -14,6 +14,8 @@ import com.winlator.cmod.renderer.ApexNativeBridge;
 import com.winlator.cmod.renderer.effects.HDREffect;
 import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.widget.SeekBar;
+import com.winlator.cmod.widget.XServerView;
+import com.winlator.cmod.xserver.XServer;
 
 public class GraphicsEnhancementsDialog extends ContentDialog {
     private final XServerDisplayActivity activity;
@@ -48,9 +50,11 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         applyThemeToEditText(etCustomFPSLimit, isDarkMode);
         applyThemeToEditText(etCustomTargetFPS, isDarkMode);
 
-        GLRenderer renderer = activity.getXServerView().getRenderer();
+        XServer xServer = activity.getXServer();
+        XServerView xServerView = activity.getXServerView();
+        GLRenderer renderer = xServerView != null ? xServerView.getRenderer() : null;
 
-        int currentFpsLimit = renderer.getFpsLimit();
+        int currentFpsLimit = xServer != null ? xServer.getFpsLimit() : (renderer != null ? renderer.getFpsLimit() : 0);
         int fpsSelection = 0;
         if (currentFpsLimit == 0) fpsSelection = 0;
         else if (currentFpsLimit == 30) fpsSelection = 1;
@@ -112,10 +116,10 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         llSharpenSettings = findViewById(R.id.LLSharpenSettings);
         sbSharpenLevel = findViewById(R.id.SBSharpenLevel);
 
-        HDREffect hdrEffect = renderer.getEffectComposer().getEffect(HDREffect.class);
+        HDREffect hdrEffect = renderer != null ? renderer.getEffectComposer().getEffect(HDREffect.class) : null;
         cbEnableHDR.setChecked(hdrEffect != null);
 
-        FSREffect fsrEffect = renderer.getEffectComposer().getEffect(FSREffect.class);
+        FSREffect fsrEffect = renderer != null ? renderer.getEffectComposer().getEffect(FSREffect.class) : null;
         boolean sharpenEnabled = fsrEffect != null;
         cbEnableSharpen.setChecked(sharpenEnabled);
         llSharpenSettings.setVisibility(sharpenEnabled ? View.VISIBLE : View.GONE);
@@ -257,7 +261,9 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     }
 
     private void applyEffects() {
-        GLRenderer renderer = activity.getXServerView().getRenderer();
+        XServer xServer = activity.getXServer();
+        XServerView xServerView = activity.getXServerView();
+        GLRenderer renderer = xServerView != null ? xServerView.getRenderer() : null;
 
         int fpsLimit = 0;
         int fpsSelection = sFPSLimit.getSelectedItemPosition();
@@ -267,7 +273,9 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         else if (fpsSelection == 4) fpsLimit = 90;
         else if (fpsSelection == 5) fpsLimit = 120;
         else if (fpsSelection == 6) fpsLimit = parseIntSafe(etCustomFPSLimit.getText().toString(), 0);
-        renderer.setFpsLimit(fpsLimit);
+
+        if (xServer != null) xServer.setFpsLimit(fpsLimit);
+        if (renderer != null) renderer.setFpsLimit(fpsLimit);
 
         boolean lsfgEnabled = cbEnableLSFG.isChecked();
         
@@ -279,7 +287,9 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         lsfgPreviouslyEnabled = lsfgEnabled;
 
         com.winlator.cmod.renderer.ApexNativeBridge.nativeSetActive(lsfgEnabled);
-        activity.getXServerView().setApexMode(lsfgEnabled);
+        if (xServerView != null) {
+            xServerView.setApexMode(lsfgEnabled);
+        }
 
         if (lsfgEnabled) {
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetQuality(sLSFGQuality.getSelectedItemPosition());
@@ -298,9 +308,13 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetTargetFPS(targetFPS);
         }
 
-        renderer.getEffectComposer().toggleHDREffect(cbEnableHDR.isChecked());
-        renderer.getEffectComposer().updateFSREffect(cbEnableSharpen.isChecked(), sSharpenMode.getSelectedItemPosition(), sbSharpenLevel.getValue());
+        if (renderer != null) {
+            renderer.getEffectComposer().toggleHDREffect(cbEnableHDR.isChecked());
+            renderer.getEffectComposer().updateFSREffect(cbEnableSharpen.isChecked(), sSharpenMode.getSelectedItemPosition(), sbSharpenLevel.getValue());
+        }
 
-        activity.getXServerView().requestRender();
+        if (xServerView != null) {
+            xServerView.requestRender();
+        }
     }
 }
