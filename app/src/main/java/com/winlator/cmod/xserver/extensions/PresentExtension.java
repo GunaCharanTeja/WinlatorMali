@@ -189,15 +189,14 @@ public class PresentExtension implements Extension {
         long targetFrameTime = 1000000000L / targetFps;
         long now = System.nanoTime();
 
-        if (nextFrameTime == 0 || now > nextFrameTime) nextFrameTime = now;
+        if (nextFrameTime == 0 || (now - nextFrameTime) > targetFrameTime * 2) {
+            nextFrameTime = now;
+        }
 
         long sleepTime = nextFrameTime - now;
         if (sleepTime > 0) {
-            long sleepMs = (sleepTime - 1500000L) / 1000000L;
-            if (sleepMs > 0) {
-                try {
-                    Thread.sleep(sleepMs);
-                } catch (InterruptedException e) {}
+            if (sleepTime > 100000L) {
+                java.util.concurrent.locks.LockSupport.parkNanos(sleepTime - 50000L);
             }
             while (System.nanoTime() < nextFrameTime);
         }

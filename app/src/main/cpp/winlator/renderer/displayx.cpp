@@ -190,6 +190,7 @@ static int readFD(int& socket) {
 }
 
 void DisplayX::networkThreadLoop() {
+    setpriority(PRIO_PROCESS, 0, -19);
     static constexpr int ADD_CLIENT_SWAPCHAIN = 1;
     static constexpr int PRESENT_IMAGE = 2;
     static constexpr int DESTROY_CLIENT_SWAPCHAIN = 3;
@@ -204,6 +205,9 @@ void DisplayX::networkThreadLoop() {
     server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server_fd < 0) 
         printf("Failed to create native rendering socket");
+    int sockBufSize = 2 * 1024 * 1024;
+    setsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &sockBufSize, sizeof(sockBufSize));
+    setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &sockBufSize, sizeof(sockBufSize));
                 
     struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
@@ -238,10 +242,14 @@ void DisplayX::networkThreadLoop() {
                 if (events[i].events & EPOLLIN) {
                     printf("Received new client connection");
                     int client_fd = accept(server_fd, nullptr, nullptr);
-                    struct epoll_event event{};
-                    event.data.fd = client_fd;
-                    event.events = EPOLLIN;
-                    epoll_ctl(efd, EPOLL_CTL_ADD, client_fd, &event);
+                    if (client_fd >= 0) {
+                        setsockopt(client_fd, SOL_SOCKET, SO_RCVBUF, &sockBufSize, sizeof(sockBufSize));
+                        setsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &sockBufSize, sizeof(sockBufSize));
+                        struct epoll_event event{};
+                        event.data.fd = client_fd;
+                        event.events = EPOLLIN;
+                        epoll_ctl(efd, EPOLL_CTL_ADD, client_fd, &event);
+                    }
                 }
             } 
             else {
@@ -458,16 +466,7 @@ void DisplayX::onCommitCallback(void *context, ASurfaceTransactionStats *stats) 
     if (!self->isPerformanceHintAPIAvailable() || !self->performanceHintSession || !self->performanceHintManager || !self->perfMode)
         return;
     
-    if (self->previousReportedWorkTime == 0) {
-        auto currentTime = self->getCurrentTimeNanos();
-        self->previousReportedWorkTime = currentTime;
-        return;
-    }     
-   
-    auto currentTime = self->getCurrentTimeNanos();
-    auto elapsed = currentTime - self->previousReportedWorkTime;
-    pfnAPerformanceHintReportActualWorkDuration(self->performanceHintSession, elapsed);
-    self->previousReportedWorkTime = currentTime;
+    self->previousReportedWorkTime = self->getCurrentTimeNanos();
 }
 
 void DisplayX::onCompleteCallback(void *context, ASurfaceTransactionStats *stats) {

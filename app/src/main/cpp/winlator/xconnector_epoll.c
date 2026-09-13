@@ -23,6 +23,10 @@ Java_com_winlator_cmod_xconnector_XConnectorEpoll_createAFUnixSocket(JNIEnv *env
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) return -1;
 
+    int sockBufSize = 2 * 1024 * 1024;
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &sockBufSize, sizeof(sockBufSize));
+    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sockBufSize, sizeof(sockBufSize));
+
     struct sockaddr_un serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sun_family = AF_LOCAL;
@@ -67,6 +71,9 @@ Java_com_winlator_cmod_xconnector_XConnectorEpoll_doEpollIndefinitely(JNIEnv *en
         if (events[i].data.fd == serverFd) {
             int clientFd = accept(serverFd, NULL, NULL);
             if (clientFd >= 0) {
+                int sockBufSize = 2 * 1024 * 1024;
+                setsockopt(clientFd, SOL_SOCKET, SO_RCVBUF, &sockBufSize, sizeof(sockBufSize));
+                setsockopt(clientFd, SOL_SOCKET, SO_SNDBUF, &sockBufSize, sizeof(sockBufSize));
                 if (addClientToEpoll) {
                     struct epoll_event event;
                     event.data.fd = clientFd;
