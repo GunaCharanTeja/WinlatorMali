@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
+#include <poll.h>
 #include <sys/un.h>
 #include <string.h>
 #include <sys/resource.h>
@@ -512,7 +513,7 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
         }
     }
 
-    while (convertedSlots.size() < 3) {
+    while (convertedSlots.size() < 4) {
         AHardwareBuffer_Desc desc{};
         desc.width = width;
         desc.height = height;
@@ -557,6 +558,14 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
     }
 
     if (fallback) {
+        if (fallback->releaseFenceFd >= 0) {
+            struct pollfd pfd{};
+            pfd.fd = fallback->releaseFenceFd;
+            pfd.events = POLLIN;
+            poll(&pfd, 1, 3);
+            close(fallback->releaseFenceFd);
+            fallback->releaseFenceFd = -1;
+        }
         fallback->inUse = true;
         return fallback;
     }

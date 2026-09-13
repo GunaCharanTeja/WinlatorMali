@@ -80,46 +80,51 @@ public class EffectComposer {
 
         initBuffers();
 
-        // 1. Draw game scene into offscreen readBuffer
-        renderer.setRenderCursorEnabled(false);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
-        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-        GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        renderer.drawFrame();
-        renderer.setRenderCursorEnabled(true);
+        boolean isApexActive = ApexNativeBridge.nativeIsActive();
+        boolean hasNewContent = renderer.consumeNewRealFrame();
 
-        // 2. Apply Post-Processing Effects (Ping-Pong between read/write buffers)
-        if (hasEffects()) {
-            for (int i = 0; i < effects.size(); i++) {
-                Effect effect = effects.get(i);
-                // If Apex is active, all effects render to offscreen buffers so Apex can use them as input.
-                // If Apex is inactive, the last effect renders directly to the screen.
-                boolean renderToScreen = (i == effects.size() - 1) && !ApexNativeBridge.nativeIsActive();
-                int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
+        // 1. Draw game scene into offscreen readBuffer only if new content arrived or Apex is not active
+        if (hasNewContent || !isApexActive) {
+            renderer.setRenderCursorEnabled(false);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            renderer.drawFrame();
+            renderer.setRenderCursorEnabled(true);
 
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
-                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+            // 2. Apply Post-Processing Effects (Ping-Pong between read/write buffers)
+            if (hasEffects()) {
+                for (int i = 0; i < effects.size(); i++) {
+                    Effect effect = effects.get(i);
+                    // If Apex is active, all effects render to offscreen buffers so Apex can use them as input.
+                    // If Apex is inactive, the last effect renders directly to the screen.
+                    boolean renderToScreen = (i == effects.size() - 1) && !isApexActive;
+                    int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
 
-                if (renderToScreen && !renderer.isFullscreen()) {
-                    GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-                    GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY,
-                                     renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
-                } else {
-                    GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
+                    GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
+
+                    if (renderToScreen && !renderer.isFullscreen()) {
+                        GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+                        GLES20.glScissor(renderer.viewTransformation.viewOffsetX, renderer.viewTransformation.viewOffsetY,
+                                         renderer.viewTransformation.viewWidth, renderer.viewTransformation.viewHeight);
+                    } else {
+                        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+                    }
+
+                    if (renderToScreen && !renderer.isFullscreen()) {
+                        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                    }
+                    renderEffect(effect);
+
+                    if (!renderToScreen) swapBuffers();
                 }
-
-                if (renderToScreen && !renderer.isFullscreen()) {
-                    GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-                }
-                renderEffect(effect);
-
-                if (!renderToScreen) swapBuffers();
             }
         }
 
         // 3. Dispatch Native Apex Frame Generation
-        if (ApexNativeBridge.nativeIsActive()) {
+        if (isApexActive) {
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
             GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);

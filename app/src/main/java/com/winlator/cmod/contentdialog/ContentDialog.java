@@ -205,7 +205,7 @@ public class ContentDialog extends Dialog {
 
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
         boolean isDarkMode = sharedPreferences.getBoolean("dark_mode", true);
-        applyDarkThemeToEditText(editText, isDarkMode);
+        applyThemeToEditText(editText, isDarkMode);
 
         editText.setHint(R.string.untitled);
         if (defaultText != null) editText.setText(defaultText);
@@ -220,7 +220,7 @@ public class ContentDialog extends Dialog {
         dialog.show();
     }
 
-    private static void applyDarkThemeToEditText(EditText editText, boolean isDarkMode) {
+    public static void applyThemeToEditText(EditText editText, boolean isDarkMode) {
         if (isDarkMode) {
             editText.setTextColor(Color.WHITE); // Set text color to white for dark theme
             editText.setHintTextColor(Color.GRAY); // Set hint color to gray

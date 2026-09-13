@@ -521,15 +521,34 @@ int BlitConverter::doConvert(
 
     const bool serverWaitQueued = srcServerWait || dstServerWait;
 
+    frameCounter_++;
+
     ImportedBuffer* importedSource = findRegisteredBuffer(source);
     if (!importedSource) {
-        if (registeredBuffers_.size() > 16) {
+        if (registeredBuffers_.size() > 32) {
             for (auto it = registeredBuffers_.begin(); it != registeredBuffers_.end(); ) {
-                if (it->first != destination) {
+                if (it->first != destination && it->first != source && (frameCounter_ - it->second.lastUsedFrame > 15)) {
                     destroyImportedBuffer(it->second);
                     it = registeredBuffers_.erase(it);
                 } else {
                     ++it;
+                }
+            }
+        }
+        if (registeredBuffers_.size() > 48) {
+            AHardwareBuffer* oldestBuf = nullptr;
+            uint64_t oldestFrame = UINT64_MAX;
+            for (auto& [bufPtr, imported] : registeredBuffers_) {
+                if (bufPtr != destination && bufPtr != source && imported.lastUsedFrame < oldestFrame) {
+                    oldestFrame = imported.lastUsedFrame;
+                    oldestBuf = bufPtr;
+                }
+            }
+            if (oldestBuf) {
+                auto it = registeredBuffers_.find(oldestBuf);
+                if (it != registeredBuffers_.end()) {
+                    destroyImportedBuffer(it->second);
+                    registeredBuffers_.erase(it);
                 }
             }
         }
@@ -541,6 +560,7 @@ int BlitConverter::doConvert(
         auto res = registeredBuffers_.emplace(source, imported);
         importedSource = &res.first->second;
     }
+    importedSource->lastUsedFrame = frameCounter_;
 
     ImportedBuffer* importedDst = findRegisteredBuffer(destination);
     if (!importedDst) {
@@ -552,6 +572,7 @@ int BlitConverter::doConvert(
         auto res = registeredBuffers_.emplace(destination, imported);
         importedDst = &res.first->second;
     }
+    importedDst->lastUsedFrame = frameCounter_;
 
     auto failAfterQueuedWork = [&]() -> int {
         glFinish();

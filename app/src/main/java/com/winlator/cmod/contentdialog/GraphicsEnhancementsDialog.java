@@ -2,9 +2,11 @@ package com.winlator.cmod.contentdialog;
 
 import android.view.View;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
+import androidx.preference.PreferenceManager;
 import com.winlator.cmod.R;
 import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.renderer.GLRenderer;
@@ -16,9 +18,11 @@ import com.winlator.cmod.widget.SeekBar;
 public class GraphicsEnhancementsDialog extends ContentDialog {
     private final XServerDisplayActivity activity;
     private final Spinner sFPSLimit;
+    private final EditText etCustomFPSLimit;
     private final CheckBox cbEnableLSFG;
     private final Spinner sLSFGQuality;
     private final Spinner sLSFGTargetFPS;
+    private final EditText etCustomTargetFPS;
     private final LinearLayout llLSFGSettings;
     private final SeekBar sbLSFGMotionBlur;
     private final SeekBar sbLSFGFlowScale;
@@ -36,23 +40,35 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         setTitle(R.string.graphics_enhancements);
 
         sFPSLimit = findViewById(R.id.SFPSLimit);
+        etCustomFPSLimit = findViewById(R.id.ETCustomFPSLimit);
+        sLSFGTargetFPS = findViewById(R.id.SLSFGTargetFPS);
+        etCustomTargetFPS = findViewById(R.id.ETCustomTargetFPS);
+
+        boolean isDarkMode = PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("dark_mode", true);
+        applyThemeToEditText(etCustomFPSLimit, isDarkMode);
+        applyThemeToEditText(etCustomTargetFPS, isDarkMode);
 
         GLRenderer renderer = activity.getXServerView().getRenderer();
 
         int currentFpsLimit = renderer.getFpsLimit();
         int fpsSelection = 0;
-        if (currentFpsLimit == 30) fpsSelection = 1;
+        if (currentFpsLimit == 0) fpsSelection = 0;
+        else if (currentFpsLimit == 30) fpsSelection = 1;
         else if (currentFpsLimit == 45) fpsSelection = 2;
         else if (currentFpsLimit == 60) fpsSelection = 3;
         else if (currentFpsLimit == 90) fpsSelection = 4;
         else if (currentFpsLimit == 120) fpsSelection = 5;
+        else {
+            fpsSelection = 6;
+            etCustomFPSLimit.setText(String.valueOf(currentFpsLimit));
+            etCustomFPSLimit.setVisibility(View.VISIBLE);
+        }
         sFPSLimit.setSelection(fpsSelection);
 
         findViewById(R.id.IVFPSLimitInfo).setOnClickListener(v -> showFPSLimitInfo());
 
         cbEnableLSFG = findViewById(R.id.CBEnableLSFG);
         sLSFGQuality = findViewById(R.id.SLSFGQuality);
-        sLSFGTargetFPS = findViewById(R.id.SLSFGTargetFPS);
         llLSFGSettings = findViewById(R.id.LLLSFGSettings);
         sbLSFGMotionBlur = findViewById(R.id.SBLSFGMotionBlur);
         sbLSFGFlowScale = findViewById(R.id.SBLSFGFlowScale);
@@ -69,12 +85,18 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         
         int targetFPS = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetTargetFPS();
         int targetFPSSelection = 0;
-        if (targetFPS == 30) targetFPSSelection = 1;
+        if (targetFPS == 0) targetFPSSelection = 0;
+        else if (targetFPS == 30) targetFPSSelection = 1;
         else if (targetFPS == 40) targetFPSSelection = 2;
         else if (targetFPS == 50) targetFPSSelection = 3;
         else if (targetFPS == 60) targetFPSSelection = 4;
         else if (targetFPS == 90) targetFPSSelection = 5;
         else if (targetFPS == 120) targetFPSSelection = 6;
+        else {
+            targetFPSSelection = 7;
+            etCustomTargetFPS.setText(String.valueOf(targetFPS));
+            etCustomTargetFPS.setVisibility(View.VISIBLE);
+        }
         sLSFGTargetFPS.setSelection(targetFPSSelection);
 
         cbEnableLSFG.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -138,6 +160,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         sLSFGTargetFPS.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                etCustomTargetFPS.setVisibility(position == 7 ? View.VISIBLE : View.GONE);
                 applyEffects();
             }
 
@@ -151,6 +174,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         sFPSLimit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                etCustomFPSLimit.setVisibility(position == 6 ? View.VISIBLE : View.GONE);
                 applyEffects();
             }
 
@@ -158,7 +182,38 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
 
+        etCustomFPSLimit.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                applyEffects();
+            }
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        etCustomTargetFPS.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                applyEffects();
+            }
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+
         setOnConfirmCallback(this::applyEffects);
+    }
+
+    private int parseIntSafe(String text, int defaultValue) {
+        try {
+            if (text != null && !text.trim().isEmpty()) {
+                return Math.max(0, Integer.parseInt(text.trim()));
+            }
+        } catch (NumberFormatException ignored) {}
+        return defaultValue;
     }
 
     private void showLSFGInfo() {
@@ -211,6 +266,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         else if (fpsSelection == 3) fpsLimit = 60;
         else if (fpsSelection == 4) fpsLimit = 90;
         else if (fpsSelection == 5) fpsLimit = 120;
+        else if (fpsSelection == 6) fpsLimit = parseIntSafe(etCustomFPSLimit.getText().toString(), 0);
         renderer.setFpsLimit(fpsLimit);
 
         boolean lsfgEnabled = cbEnableLSFG.isChecked();
@@ -238,6 +294,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             else if (targetFPSSelection == 4) targetFPS = 60;
             else if (targetFPSSelection == 5) targetFPS = 90;
             else if (targetFPSSelection == 6) targetFPS = 120;
+            else if (targetFPSSelection == 7) targetFPS = parseIntSafe(etCustomTargetFPS.getText().toString(), 0);
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetTargetFPS(targetFPS);
         }
 

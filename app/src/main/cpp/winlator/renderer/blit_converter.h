@@ -75,6 +75,7 @@ private:
         uint32_t height = 0;
         uint32_t format = 0;
         bool framebufferValidated = false;
+        uint64_t lastUsedFrame = 0;
     };
 
     // ---- Worker thread ----
@@ -131,6 +132,7 @@ private:
 
     bool initialized_        = false;
     bool supportsServerWait_ = false;
+    uint64_t frameCounter_   = 0;
 
     std::unordered_map<AHardwareBuffer*, ImportedBuffer> registeredBuffers_;
 };

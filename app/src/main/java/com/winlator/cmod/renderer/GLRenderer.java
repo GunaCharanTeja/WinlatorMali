@@ -65,6 +65,15 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private int regularFrameCount = 0;
     private long lastPointerRenderTimeNs = 0;
     private static final long MIN_POINTER_RENDER_INTERVAL_NS = 8_000_000L; // ~125 Hz max pointer render rate
+    private final java.util.concurrent.atomic.AtomicBoolean hasNewRealFrame = new java.util.concurrent.atomic.AtomicBoolean(true);
+
+    public boolean consumeNewRealFrame() {
+        return hasNewRealFrame.getAndSet(false);
+    }
+
+    public void markNewRealFrame() {
+        hasNewRealFrame.set(true);
+    }
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -116,29 +125,26 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         viewTransformation.update(width, height, xServer.screenInfo.width, xServer.screenInfo.height);
         viewportNeedsUpdate = true;
         ApexNativeBridge.nativeUpdateDimensions(width, height);
+        markNewRealFrame();
     }
 
     @Override
     public void onDrawFrame(GL10 gl) {
         int fpsLimit = currentFpsLimit;
-        if (ApexNativeBridge.nativeIsActive()) {
+        boolean isApex = ApexNativeBridge.nativeIsActive();
+        if (isApex) {
             fpsLimit = ApexNativeBridge.nativeGetTargetFPS();
         }
 
-        if (fpsLimit > 0) {
+        if (!isApex && fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
             long elapsed = System.nanoTime() - lastNanos;
             if (elapsed < targetIntervalNanos) {
                 long waitNanos = targetIntervalNanos - elapsed;
-                if (waitNanos > 2000000L) {
-                    try {
-                        Thread.sleep((waitNanos - 1000000L) / 1000000L);
-                    } catch (InterruptedException ignored) {}
+                if (waitNanos > 100000L) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(waitNanos - 50000L);
                 }
-                long remaining = targetIntervalNanos - (System.nanoTime() - lastNanos);
-                if (remaining > 50000L) {
-                    LockSupport.parkNanos(remaining - 30000L);
-                }
+                while (System.nanoTime() - lastNanos < targetIntervalNanos);
             }
         }
         lastNanos = System.nanoTime();
@@ -366,12 +372,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onChangeWindowZOrder(Window window) {
+        markNewRealFrame();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
 
     @Override
     public void onUpdateWindowContent(Window window) {
+        markNewRealFrame();
         if (ApexNativeBridge.nativeIsActive()) {
             ApexNativeBridge.nativeOnFrameCaptured(true);
         }
@@ -379,7 +387,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     @Override
+    public void onUpdateWindowContentDirect(Window window, Drawable drawable) {
+        onUpdateWindowContent(window);
+    }
+
+    @Override
     public void onUpdateWindowGeometry(Window window, boolean resized) {
+        markNewRealFrame();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
