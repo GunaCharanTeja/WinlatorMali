@@ -135,7 +135,6 @@ public class GLXExtension implements Extension {
     }
 
     private volatile boolean hudNotified = false;
-    private long nextFrameTime = 0;
 
     private void updateHUD() {
         if (!hudNotified && xServer != null) {
@@ -151,31 +150,7 @@ public class GLXExtension implements Extension {
         }
     }
 
-    private void paceFramerate() {
-        if (xServer == null) return;
-        int targetFps = xServer.getFpsLimit();
-        if (targetFps <= 0 && xServer.getRenderer() != null) {
-            targetFps = xServer.getRenderer().getFpsLimit();
-        }
-        if (targetFps <= 0) {
-            nextFrameTime = 0;
-            return;
-        }
 
-        long targetFrameTime = 1000000000L / targetFps;
-        long now = System.nanoTime();
-        if (nextFrameTime == 0 || (now - nextFrameTime) > targetFrameTime * 2 || now < nextFrameTime - targetFrameTime) {
-            nextFrameTime = now;
-        }
-        long sleepTime = nextFrameTime - now;
-        if (sleepTime > 0) {
-            if (sleepTime > 100000L) {
-                java.util.concurrent.locks.LockSupport.parkNanos(sleepTime - 50000L);
-            }
-            while (System.nanoTime() < nextFrameTime);
-        }
-        nextFrameTime = Math.max(System.nanoTime(), nextFrameTime + targetFrameTime);
-    }
 
     private void createContext(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int contextId = inputStream.readInt();
@@ -424,7 +399,6 @@ public class GLXExtension implements Extension {
             texture.copyFromReadBuffer(width, height);
             Runnable onDrawListener = drawable.getOnDrawListener();
             if (onDrawListener != null) onDrawListener.run();
-            updateHUD();
             if (xServer != null && xServer.getWinlatorHUD() != null) {
                 xServer.getWinlatorHUD().onFrame();
             }
@@ -432,6 +406,28 @@ public class GLXExtension implements Extension {
         paceFramerate();
         Thread.yield();
         return true;
+    }
+
+    private long lastFrameTimeNs = 0;
+    private void paceFramerate() {
+        if (xServer == null) return;
+        int targetFps = xServer.getFpsLimit();
+        if (targetFps <= 0) return;
+
+        long frameIntervalNs = 1_000_000_000L / targetFps;
+        long now = System.nanoTime();
+        long nextFrameTimeNs = lastFrameTimeNs + frameIntervalNs;
+
+        if (now < nextFrameTimeNs) {
+            long waitNs = nextFrameTimeNs - now;
+            if (waitNs > 100_000L) {
+                java.util.concurrent.locks.LockSupport.parkNanos(waitNs - 50_000L);
+            }
+            while (System.nanoTime() < nextFrameTimeNs);
+            lastFrameTimeNs = nextFrameTimeNs;
+        } else {
+            lastFrameTimeNs = now;
+        }
     }
 
     @Keep

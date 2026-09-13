@@ -25,6 +25,7 @@ import com.winlator.cmod.xserver.events.PresentCompleteNotify;
 import com.winlator.cmod.xserver.events.PresentIdleNotify;
 
 import java.io.IOException;
+import java.util.concurrent.locks.LockSupport;
 
 public class PresentExtension implements Extension {
     public static final byte MAJOR_OPCODE = -103;
@@ -215,9 +216,39 @@ public class PresentExtension implements Extension {
 
     private final java.util.concurrent.ConcurrentHashMap<Integer, WindowTiming> windowTimings =
             new java.util.concurrent.ConcurrentHashMap<>();
-    private final java.util.concurrent.PriorityBlockingQueue<PendingIdle> idleQueue =
-            new java.util.concurrent.PriorityBlockingQueue<>(11, java.util.Comparator.comparingLong(p -> p.fireNs));
-    private volatile Thread pacerThread = null;
+
+    private final java.util.concurrent.ConcurrentHashMap<Integer, PendingIdle> pendingIdles =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private volatile android.view.Choreographer choreographer = null;
+    private boolean choreographerPosted = false;
+
+    private final android.view.Choreographer.FrameCallback vsyncCallback = frameTimeNs -> {
+        choreographerPosted = false;
+        boolean anyRemaining = false;
+        for (java.util.Iterator<java.util.Map.Entry<Integer, PendingIdle>> it = pendingIdles.entrySet().iterator(); it.hasNext(); ) {
+            PendingIdle p = it.next().getValue();
+            // Ludashi Logic: Only release if the hardware VSync signal has reached our target time
+            if (frameTimeNs >= p.fireNs) {
+                it.remove();
+                sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+            } else {
+                anyRemaining = true;
+            }
+        }
+        if (anyRemaining) postChoreographerCallback();
+    };
+
+    private void postChoreographerCallback() {
+        if (choreographer == null) {
+            // Ensure we get the Choreographer instance on a thread that can handle it
+            if (android.os.Looper.myLooper() == null) android.os.Looper.prepare();
+            choreographer = android.view.Choreographer.getInstance();
+        }
+        if (choreographerPosted) return;
+        choreographerPosted = true;
+        choreographer.postFrameCallback(vsyncCallback);
+    }
 
     private void scheduleIdleNotify(Window window, Pixmap pixmap, int serial, int idleFence, int targetFps) {
         if (targetFps <= 0) {
@@ -234,46 +265,23 @@ public class PresentExtension implements Extension {
             } else {
                 wt.nextIdleNs += frameNs;
             }
-            idleQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs));
+            // We set the fire time slightly earlier to give Choreographer room to catch the very next VSync
+            pendingIdles.put(window.id, new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs - FIRE_EARLY_NS));
         }
-        startPacer();
-    }
-
-    private void startPacer() {
-        if (pacerThread != null) return;
-        synchronized (this) {
-            if (pacerThread != null) return;
-            Thread t = new Thread(this::runPacer, "PresentPacer");
-            t.setDaemon(true);
-            t.setPriority(Thread.MAX_PRIORITY);
-            pacerThread = t;
-            t.start();
-        }
-    }
-
-    private void runPacer() {
-        while (!Thread.interrupted()) {
-            try {
-                PendingIdle p = idleQueue.take();
-                long remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
-                while (remaining > 0) {
-                    if (remaining > 100_000L) {
-                        java.util.concurrent.locks.LockSupport.parkNanos(remaining - 50_000L);
-                    }
-                    if (Thread.interrupted()) return;
-                    remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
-                }
-                sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
-            } catch (InterruptedException e) {
-                return;
-            }
+        
+        // If we are not on the main thread, we need to post to a handler that has a looper
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            postChoreographerCallback();
+        } else {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(this::postChoreographerCallback);
         }
     }
 
     public void drainAndFireAll() {
-        PendingIdle p;
-        while ((p = idleQueue.poll()) != null) {
+        for (java.util.Iterator<java.util.Map.Entry<Integer, PendingIdle>> it = pendingIdles.entrySet().iterator(); it.hasNext(); ) {
+            PendingIdle p = it.next().getValue();
             sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+            it.remove();
         }
         windowTimings.clear();
     }
@@ -285,10 +293,6 @@ public class PresentExtension implements Extension {
     }
 
     public void close() {
-        if (pacerThread != null) {
-            pacerThread.interrupt();
-            pacerThread = null;
-        }
         drainAndFireAll();
     }
 

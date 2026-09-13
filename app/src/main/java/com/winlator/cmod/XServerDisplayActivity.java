@@ -343,6 +343,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         ThemeManager.applyTheme(this);
 
         super.onCreate(savedInstanceState);
+        com.winlator.cmod.core.ProcessHelper.killAllWineProcesses();
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
 
@@ -358,12 +359,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Winlator:WakeLock");
         wakeLock.acquire(1000 * 60 * 60 * 24);
 
-        requestHighRefreshRate();
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (preferences.getBoolean("high_refresh_rate_mode", false)) {
+            requestHighRefreshRate();
+        }
         
         setContentView(R.layout.xserver_display_activity);
 
         preloaderDialog = new PreloaderDialog(this);
-        preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         cursorLock = preferences.getBoolean("cursor_lock", true);
 

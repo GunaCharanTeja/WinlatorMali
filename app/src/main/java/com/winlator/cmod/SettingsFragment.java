@@ -429,6 +429,7 @@ public class SettingsFragment extends Fragment {
         final CheckBox cbGameModeSignal = view.findViewById(R.id.CBGameModeSignal);
         final CheckBox cbThreadPriorityBoost = view.findViewById(R.id.CBThreadPriorityBoost);
         final CheckBox cbPreferBigCores = view.findViewById(R.id.CBPreferBigCores);
+        final CheckBox cbHighRefreshRate = view.findViewById(R.id.CBHighRefreshRate);
         final CheckBox cbSustainedPerformance = view.findViewById(R.id.CBSustainedPerformance);
         final CheckBox cbSamsungBoost = view.findViewById(R.id.CBSamsungBoost);
         final View llSamsungBoost = view.findViewById(R.id.LLSamsungBoost);
@@ -436,6 +437,7 @@ public class SettingsFragment extends Fragment {
         if (cbGameModeSignal != null) cbGameModeSignal.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_GAME_MODE_SIGNAL, true));
         if (cbThreadPriorityBoost != null) cbThreadPriorityBoost.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_THREAD_PRIORITY_BOOST, true));
         if (cbPreferBigCores != null) cbPreferBigCores.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_PREFER_BIG_CORES, false));
+        if (cbHighRefreshRate != null) cbHighRefreshRate.setChecked(preferences.getBoolean("high_refresh_rate_mode", false));
         if (cbSustainedPerformance != null) cbSustainedPerformance.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SUSTAINED_PERFORMANCE, false));
         if (cbSamsungBoost != null) cbSamsungBoost.setChecked(preferences.getBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SAMSUNG_PERF_BOOST, true));
         if (llSamsungBoost != null) {
@@ -467,6 +469,7 @@ public class SettingsFragment extends Fragment {
             if (cbGameModeSignal != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_GAME_MODE_SIGNAL, cbGameModeSignal.isChecked());
             if (cbThreadPriorityBoost != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_THREAD_PRIORITY_BOOST, cbThreadPriorityBoost.isChecked());
             if (cbPreferBigCores != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_PREFER_BIG_CORES, cbPreferBigCores.isChecked());
+            if (cbHighRefreshRate != null) editor.putBoolean("high_refresh_rate_mode", cbHighRefreshRate.isChecked());
             if (cbSustainedPerformance != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SUSTAINED_PERFORMANCE, cbSustainedPerformance.isChecked());
             if (cbSamsungBoost != null) editor.putBoolean(com.winlator.cmod.perf.PerformanceManager.PREF_SAMSUNG_PERF_BOOST, cbSamsungBoost.isChecked());
 

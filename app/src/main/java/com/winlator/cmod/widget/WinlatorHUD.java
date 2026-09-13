@@ -114,12 +114,6 @@ public class WinlatorHUD extends View {
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private HudDataSource dataSource;
 
-    private static final int FPS_BUFFER_SIZE = 2048;
-    private static final int FPS_BUFFER_MASK = FPS_BUFFER_SIZE - 1;
-    private static final long FPS_WINDOW_NS = 500_000_000L; // 500 ms sliding window
-    private final Object fpsLock = new Object();
-    private final long[] frameTimestamps = new long[FPS_BUFFER_SIZE];
-    private long frameHead = 0;
     private final AtomicInteger frameAccum = new AtomicInteger(0);
     private long lastFpsNs = 0;
     private float snapFps = 0;
@@ -279,15 +273,11 @@ public class WinlatorHUD extends View {
     }
 
     public void countFrame() {
-        onFrame();
+        frameAccum.incrementAndGet();
     }
 
     public void onFrame() {
-        long now = System.nanoTime();
-        synchronized (fpsLock) {
-            frameTimestamps[(int)(frameHead & FPS_BUFFER_MASK)] = now;
-            frameHead++;
-        }
+        countFrame();
     }
 
     public void setDataSource(HudDataSource dataSource) {
@@ -297,71 +287,24 @@ public class WinlatorHUD extends View {
 
     private void snapshot() {
         long now = System.nanoTime();
-        long head;
-        long latestTime = 0;
-        long oldestTime = 0;
-        long intervals = 0;
+        if (lastFpsNs == 0) lastFpsNs = now;
+        long dt = now - lastFpsNs;
 
-        synchronized (fpsLock) {
-            head = frameHead;
-            if (head > 0) {
-                long latestIdx = head - 1;
-                latestTime = frameTimestamps[(int)(latestIdx & FPS_BUFFER_MASK)];
-                long timeSinceLast = now - latestTime;
+        if (dt >= 950_000_000L) { // Snapshot roughly every 1 second
+            int frames = frameAccum.getAndSet(0);
+            snapFps = frames * 1_000_000_000.0f / dt;
+            lastFpsNs = now;
 
-                if (timeSinceLast < FPS_WINDOW_NS) {
-                    long maxLookback = Math.min(latestIdx, (long)(FPS_BUFFER_SIZE - 1));
-                    long target = now - FPS_WINDOW_NS;
-                    long low = latestIdx - maxLookback;
-                    long high = latestIdx;
-                    long oldestIdx = latestIdx;
-
-                    while (low <= high) {
-                        long mid = (low + high) >>> 1;
-                        long t = frameTimestamps[(int)(mid & FPS_BUFFER_MASK)];
-                        if (t >= target) {
-                            oldestIdx = mid;
-                            high = mid - 1;
-                        } else {
-                            low = mid + 1;
-                        }
-                    }
-
-                    oldestTime = frameTimestamps[(int)(oldestIdx & FPS_BUFFER_MASK)];
-                    intervals = latestIdx - oldestIdx;
-                }
+            if (!apexActive) {
+                snapTotalFps = snapFps;
+                strFps = String.valueOf(Math.round(snapFps));
             }
-        }
 
-        float measuredFps = 0f;
-        if (head > 0 && latestTime > 0) {
-            long timeSinceLast = now - latestTime;
-            if (timeSinceLast < FPS_WINDOW_NS) {
-                if (intervals >= 1 && latestTime > oldestTime) {
-                    long dt = latestTime - oldestTime;
-                    measuredFps = (intervals * 1_000_000_000.0f) / dt;
-                    if (timeSinceLast > 0) {
-                        float stallFps = 1_000_000_000.0f / timeSinceLast;
-                        if (stallFps < measuredFps) {
-                            measuredFps = stallFps;
-                        }
-                    }
-                } else if (timeSinceLast > 0) {
-                    measuredFps = Math.min(60.0f, 1_000_000_000.0f / timeSinceLast);
-                }
-            }
+            float graphFps = apexActive ? snapTotalFps : snapFps;
+            graph[gHead % GBUF] = graphFps;
+            gHead++;
+            if (graphFps > gMax) gMax = Math.max(60f, graphFps * 1.1f);
         }
-
-        snapFps = measuredFps;
-        if (!apexActive) {
-            snapTotalFps = snapFps;
-            strFps = String.valueOf(Math.round(snapFps));
-        }
-
-        float graphFps = apexActive ? snapTotalFps : snapFps;
-        graph[gHead % GBUF] = graphFps;
-        gHead++;
-        if (graphFps > gMax) gMax = Math.max(60f, graphFps * 1.1f);
 
         if (dataSource != null) {
             int gpu = dataSource.gpuLoad.get();
@@ -407,7 +350,7 @@ public class WinlatorHUD extends View {
 
     private String getFpsDisplayText() {
         if (apexActive) {
-            return String.format(Locale.US, "%s (%.1fx)", strFps, apexMultiplier);
+            return String.format(Locale.US, "%d (%.1fx)", Math.round(snapTotalFps), apexMultiplier);
         }
         return strFps;
     }
@@ -905,8 +848,9 @@ public class WinlatorHUD extends View {
         c.drawRect(x, y, x + w, y + h, pGraphBg);
         int count = Math.min(gHead, GBUF);
         if (count < 2) return;
-        if (cachedPath == null || lastGHead != gHead) {
-            cachedPath = new Path();
+        if (cachedPath == null) cachedPath = new Path();
+        if (lastGHead != gHead) {
+            cachedPath.reset();
             float bw = w / (GBUF - 1);
             boolean first = true;
             for (int i = 0; i < count; i++) {
@@ -1449,10 +1393,6 @@ public class WinlatorHUD extends View {
 
     public void reset() {
         rendererLabel = isDisplayX ? "DisplayX" : "OpenGL";
-        synchronized (fpsLock) {
-            frameHead = 0;
-            java.util.Arrays.fill(frameTimestamps, 0L);
-        }
         frameAccum.set(0);
         snapFps = 0;
         gHead = 0;
@@ -1463,10 +1403,6 @@ public class WinlatorHUD extends View {
         uiHandler.post(() -> {
             uiHandler.removeCallbacks(redrawRunnable);
             redrawScheduled = false;
-            synchronized (fpsLock) {
-                frameHead = 0;
-                java.util.Arrays.fill(frameTimestamps, 0L);
-            }
             frameAccum.set(0);
             snapFps = 0; gHead = 0; lastFpsNs = 0;
             cachedPath = null; lastGHead = -1;

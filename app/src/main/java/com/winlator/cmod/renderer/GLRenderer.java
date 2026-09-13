@@ -131,9 +131,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     @Override
     public void onDrawFrame(GL10 gl) {
         boolean isApex = ApexNativeBridge.nativeIsActive();
-        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : currentFpsLimit;
+        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : 0;
 
-        if (fpsLimit > 0 && (isApex || xServerView.getRenderMode() == GLSurfaceView.RENDERMODE_CONTINUOUSLY)) {
+        if (fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
             long now = System.nanoTime();
             if (nextRenderTimeNanos == 0 || (now - nextRenderTimeNanos) > targetIntervalNanos * 2 || now < nextRenderTimeNanos - targetIntervalNanos) {

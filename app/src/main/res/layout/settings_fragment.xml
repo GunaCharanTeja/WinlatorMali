@@ -694,6 +694,24 @@
                             android:layout_marginStart="32dp"
                             android:layout_marginBottom="12dp" />
 
+                        <!-- High Refresh Rate -->
+                        <CheckBox
+                            android:id="@+id/CBHighRefreshRate"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Force High Refresh Rate"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Attempts to set the display to its maximum supported refresh rate (e.g., 120Hz/144Hz) to reduce input lag."
+                            android:textSize="11sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
                         <!-- Sustained Performance Mode -->
                         <CheckBox
                             android:id="@+id/CBSustainedPerformance"
