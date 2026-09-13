@@ -63,6 +63,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private float displayTotalFPS = 0;
     private boolean renderCursorEnabled = true;
     private int regularFrameCount = 0;
+    private long lastPointerRenderTimeNs = 0;
+    private static final long MIN_POINTER_RENDER_INTERVAL_NS = 8_000_000L; // ~125 Hz max pointer render rate
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -391,7 +393,19 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onPointerMove(short x, short y) {
-        xServerView.requestRender();
+        // In relative mouse mode or when cursor is hidden, game rendering is driven by
+        // window content changes, not pointer movement. Skip redundant render requests
+        // to prevent high-polling-rate mice (500-1000 Hz) from flooding the GPU pipeline.
+        if (xServer.isRelativeMouseMovement() || !cursorVisible || !renderCursorEnabled) {
+            return;
+        }
+        // Throttle cursor-driven renders to ~125 Hz to prevent a 1000 Hz mouse
+        // from forcing 1000 render passes/sec on a RENDERMODE_WHEN_DIRTY surface.
+        long now = System.nanoTime();
+        if (now - lastPointerRenderTimeNs >= MIN_POINTER_RENDER_INTERVAL_NS) {
+            lastPointerRenderTimeNs = now;
+            xServerView.requestRender();
+        }
     }
 
     private void renderCursor() {

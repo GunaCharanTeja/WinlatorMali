@@ -90,6 +90,12 @@ public class InputControlsView extends View {
     private boolean l2TriggerHeld = false;
     private boolean r2TriggerHeld = false;
 
+    // Cached vibrator instance and effect to avoid per-tap getSystemService() Binder IPC
+    // and repeated VibrationEffect allocation on the UI thread hot path.
+    private Vibrator cachedVibrator;
+    private VibrationEffect cachedHapticEffect;
+    private boolean cachedVibratorInitialized = false;
+
     public RadialWheelManager getRadialWheelManager() {
         return radialWheelManager;
     }
@@ -137,10 +143,20 @@ public class InputControlsView extends View {
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         if (touchSlop <= 0) touchSlop = (int) UnitUtils.dpToPx(8);
+        // Cache the entire drawn overlay as a GPU texture. When no invalidate() is called
+        // (e.g. while a static button is held down), Android simply re-composites the
+        // cached texture in <0.1ms instead of re-drawing all vector elements.
+        setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        // Cache vibrator service once to avoid per-tap Binder IPC overhead
+        initCachedVibrator(context);
     }
 
     public void setEditMode(boolean editMode) {
         this.editMode = editMode;
+    }
+
+    public boolean isEditMode() {
+        return editMode;
     }
 
     public void setOverlayOpacity(float overlayOpacity) {
@@ -673,8 +689,7 @@ public class InputControlsView extends View {
                         if (element.handleTouchDown(pointerId, x, y)) {
                             handled = true;
                             if (preferences.getBoolean("touchscreen_haptics_enabled", true)) {
-                                Vibrator v = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
-                                if (v != null && v.hasVibrator()) v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE));
+                                if (cachedVibrator != null && cachedHapticEffect != null) cachedVibrator.vibrate(cachedHapticEffect);
                             }
                             if (touchpadView != null && element.getBindingAt(0) == Binding.MOUSE_LEFT_BUTTON) {
                                 touchpadView.setPointerButtonLeftEnabled(false);
@@ -691,11 +706,19 @@ public class InputControlsView extends View {
                         return true;
                     }
                     boolean hasUnhandledPointer = false;
+                    boolean needsRedraw = false;
                     for (byte i = 0; i < event.getPointerCount(); i++) {
                         boolean elementHandled = false;
                         for (ControlElement element : profile.getElements()) {
                             if (element.handleTouchMove(event.getPointerId(i), event.getX(i), event.getY(i))) {
                                 elementHandled = true;
+                                // Only request canvas redraw if the element has visual changes
+                                // during move (stick knob, D-pad direction, range scroller).
+                                // Static buttons (A/B/X/Y, triggers, bumpers) don't change
+                                // appearance while held, so skip the expensive full-view redraw.
+                                if (element.isDynamicVisual()) {
+                                    needsRedraw = true;
+                                }
                                 break;
                             }
                         }
@@ -704,7 +727,9 @@ public class InputControlsView extends View {
                     if (hasUnhandledPointer && touchpadView != null) {
                         touchpadView.onTouchEvent(event);
                     }
-                    invalidate();
+                    if (needsRedraw) {
+                        invalidate();
+                    }
                 }
                 case MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
                     if (radialWheelManager != null && radialWheelManager.isOpen()) {
@@ -752,6 +777,18 @@ public class InputControlsView extends View {
         if (timeoutHandler != null && hideControlsRunnable != null) {
             timeoutHandler.removeCallbacks(hideControlsRunnable);
             timeoutHandler.postDelayed(hideControlsRunnable, 5000);
+        }
+    }
+
+    private void initCachedVibrator(Context context) {
+        if (!cachedVibratorInitialized) {
+            cachedVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            if (cachedVibrator != null && cachedVibrator.hasVibrator()) {
+                cachedHapticEffect = VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE);
+            } else {
+                cachedVibrator = null;
+            }
+            cachedVibratorInitialized = true;
         }
     }
 

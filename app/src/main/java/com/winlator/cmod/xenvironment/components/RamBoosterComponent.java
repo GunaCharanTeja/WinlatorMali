@@ -10,6 +10,9 @@ import com.winlator.cmod.core.RamBooster;
 import com.winlator.cmod.widget.WinlatorHUD;
 import com.winlator.cmod.xenvironment.EnvironmentComponent;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.util.LinkedList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -40,6 +43,20 @@ public class RamBoosterComponent extends EnvironmentComponent {
     private static final int HISTORY_SIZE = 5;
     private int saturatedCounter = 0;
     private long saturationBackoff = 0;
+
+    private static class SystemMemSnapshot {
+        final long totalMem;
+        final long availMem;
+        final long swapTotal;
+        final long swapFree;
+
+        SystemMemSnapshot(long totalMem, long availMem, long swapTotal, long swapFree) {
+            this.totalMem = totalMem;
+            this.availMem = availMem;
+            this.swapTotal = swapTotal;
+            this.swapFree = swapFree;
+        }
+    }
 
     public RamBoosterComponent(Container container, Shortcut shortcut) {
         this.container = container;
@@ -153,8 +170,14 @@ public class RamBoosterComponent extends EnvironmentComponent {
         executor.scheduleWithFixedDelay(this::checkMemory, 5, 2, TimeUnit.SECONDS);
         Log.i(TAG, "RamBooster started. Profile: " + getProfile());
 
-        double initialIntensity = getProfile().equals("manual") ? getCrisisIntensity() : 35.0;
-        triggerBoost(initialIntensity); 
+        boolean isSmart = getProfile().equals("smart");
+        if (isSmart) {
+            Log.i(TAG, "Smart Auto: Executing Startup Pre-Flush to vacate background apps into zRAM.");
+            triggerBoost(35.0, 2000);
+        } else {
+            double initialIntensity = getProfile().equals("manual") ? getCrisisIntensity() : 35.0;
+            triggerBoost(initialIntensity, -1);
+        }
     }
 
     @Override
@@ -163,6 +186,87 @@ public class RamBoosterComponent extends EnvironmentComponent {
             executor.shutdownNow();
             executor = null;
         }
+    }
+
+    private static SystemMemSnapshot readMemInfo(Context context) {
+        long total = 0, avail = 0, swapTotal = 0, swapFree = 0;
+        File meminfo = new File("/proc/meminfo");
+        if (meminfo.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(meminfo))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (line.startsWith("MemTotal:")) {
+                        total = parseMemLineKb(line) * 1024L;
+                    } else if (line.startsWith("MemAvailable:")) {
+                        avail = parseMemLineKb(line) * 1024L;
+                    } else if (line.startsWith("SwapTotal:")) {
+                        swapTotal = parseMemLineKb(line) * 1024L;
+                    } else if (line.startsWith("SwapFree:")) {
+                        swapFree = parseMemLineKb(line) * 1024L;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (total <= 0 || avail <= 0) {
+            ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null) {
+                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+                am.getMemoryInfo(mi);
+                if (total <= 0) total = mi.totalMem;
+                if (avail <= 0) avail = mi.availMem;
+            }
+        }
+        return new SystemMemSnapshot(total, avail, swapTotal, swapFree);
+    }
+
+    private static long parseMemLineKb(String line) {
+        try {
+            int colon = line.indexOf(':');
+            if (colon >= 0) {
+                String rest = line.substring(colon + 1).trim();
+                int space = rest.indexOf(' ');
+                String num = space > 0 ? rest.substring(0, space) : rest;
+                return Long.parseLong(num);
+            }
+        } catch (Exception ignored) {}
+        return 0;
+    }
+
+    private static long getProcessRssBytes(int pid) {
+        if (pid <= 0) return 0;
+        try (BufferedReader reader = new BufferedReader(new FileReader("/proc/" + pid + "/statm"))) {
+            String line = reader.readLine();
+            if (line != null) {
+                String[] parts = line.trim().split("\\s+");
+                if (parts.length >= 2) {
+                    long residentPages = Long.parseLong(parts[1]);
+                    return residentPages * 4096L;
+                }
+            }
+        } catch (Exception ignored) {}
+        return 0;
+    }
+
+    private static long getAppAndGameMemoryBytes() {
+        long totalRss = getProcessRssBytes(android.os.Process.myPid());
+        int guestPid = GuestProgramLauncherComponent.getPid();
+        if (guestPid > 0) {
+            totalRss += getProcessRssBytes(guestPid);
+            try (BufferedReader reader = new BufferedReader(new FileReader("/proc/" + guestPid + "/task/" + guestPid + "/children"))) {
+                String line = reader.readLine();
+                if (line != null) {
+                    for (String childPidStr : line.trim().split("\\s+")) {
+                        if (!childPidStr.isEmpty()) {
+                            try {
+                                totalRss += getProcessRssBytes(Integer.parseInt(childPidStr));
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return totalRss;
     }
 
     private void updateSmartThresholds(long totalMem) {
@@ -189,7 +293,7 @@ public class RamBoosterComponent extends EnvironmentComponent {
             smartCrisisThreshold -= 1;
             smartPreCrisisThreshold -= 2;
             smartNeedHammer = true;
-            Log.d(TAG, "Smart Auto: Esclating to Hammer profile for next boost.");
+            Log.d(TAG, "Smart Auto: Escalating to Hammer profile for next boost.");
         } else {
             smartNeedHammer = false;
         }
@@ -199,22 +303,18 @@ public class RamBoosterComponent extends EnvironmentComponent {
         if (isBoosting.get()) return;
 
         Context context = environment.getContext();
-        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        if (activityManager == null) return;
-        
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        activityManager.getMemoryInfo(memoryInfo);
+        SystemMemSnapshot mem = readMemInfo(context);
+        if (mem.totalMem <= 0) return;
 
-        long totalMem = memoryInfo.totalMem;
-        long availMem = memoryInfo.availMem;
-        int currentUsage = (int) ((totalMem - availMem) * 100 / totalMem);
+        int currentUsage = (int) ((mem.totalMem - mem.availMem) * 100 / mem.totalMem);
         long now = System.currentTimeMillis();
 
         usageHistory.add(currentUsage);
         if (usageHistory.size() > HISTORY_SIZE) usageHistory.removeFirst();
 
-        if (getProfile().equals("smart")) {
-            updateSmartThresholds(totalMem);
+        boolean isSmart = getProfile().equals("smart");
+        if (isSmart) {
+            updateSmartThresholds(mem.totalMem);
         }
 
         if (now <= saturationBackoff) return;
@@ -222,19 +322,59 @@ public class RamBoosterComponent extends EnvironmentComponent {
         int thresholdCrisis = getCrisisThreshold();
         int preCrisisLevel = getPreCrisisThreshold();
 
-        // Proactive Trend Alert V2 (More sensitive)
+        // Self-awareness: differentiate game memory from external bloatware
+        long gameAndAppRss = 0;
+        long reclaimableBloat = 0;
+        boolean gameDominates = false;
+        boolean hasLargeSwapCushion = false;
+
+        if (isSmart) {
+            gameAndAppRss = getAppAndGameMemoryBytes();
+            long totalUsed = mem.totalMem - mem.availMem;
+            long backgroundRam = Math.max(0, totalUsed - gameAndAppRss);
+            long essentialOs = 700L * 1024 * 1024; // SystemServer, SurfaceFlinger, Audio, Input
+            reclaimableBloat = Math.max(0, backgroundRam - essentialOs);
+            gameDominates = (gameAndAppRss > (mem.totalMem * 0.65)) || (reclaimableBloat < 350L * 1024 * 1024);
+            hasLargeSwapCushion = (mem.swapFree > 1500L * 1024 * 1024);
+        }
+
+        // 1. Proactive Trend Alert (Spike Detection)
         if (usageHistory.size() >= 2) {
-            int recentDelta = currentUsage - usageHistory.getLast();
+            int recentDelta = currentUsage - usageHistory.get(usageHistory.size() - 2);
             if (recentDelta >= 3 && currentUsage > (preCrisisLevel - 8)) {
-                Log.i(TAG, "Intelligence Alert: Rapid usage growth detected. Throttling background.");
-                triggerBoost(30.0);
-                return;
+                if (isSmart && gameDominates) {
+                    Log.d(TAG, "Smart Auto: Spike (+" + recentDelta + "%) detected from game asset streaming. Suppressing boost to preserve smooth loading.");
+                } else {
+                    Log.i(TAG, "Intelligence Alert: Rapid usage growth detected (+" + recentDelta + "%). Proactively trimming background bloat.");
+                    triggerBoost(30.0, 2000);
+                    return;
+                }
             }
         }
 
         if (currentUsage < thresholdCrisis) crisisStreak = 0;
 
+        // 2. Crisis Handling
         if (currentUsage >= thresholdCrisis && (now - lastBoostTick > 30000) && (now > crisisBackoff)) {
+            if (isSmart && gameDominates) {
+                if (hasLargeSwapCushion) {
+                    Log.d(TAG, "Smart Auto: RAM is " + currentUsage + "% but game owns " + (gameAndAppRss / (1024 * 1024)) + "MB with " + (mem.swapFree / (1024 * 1024)) + "MB free swap cushion. Suppressing boost to avoid lag.");
+                    return;
+                }
+
+                // Defcon 1 Crisis: Both physical RAM AND swap are critically low
+                boolean swapCriticallyLow = (mem.swapTotal > 0 && mem.swapFree < 400L * 1024 * 1024);
+                if (mem.availMem < 250L * 1024 * 1024 && swapCriticallyLow) {
+                    Log.w(TAG, "Smart Auto: DEFCON 1 CRISIS! Both RAM & Swap near exhaustion. Emergency survival pulse.");
+                    lastBoostTick = now;
+                    triggerBoost(15.0, 1200);
+                    return;
+                } else {
+                    Log.d(TAG, "Smart Auto: High RAM usage, but game legitimately owns memory and bloat is minimal. Suppressing to prevent suicide.");
+                    return;
+                }
+            }
+
             crisisStreak++;
             if (crisisStreak >= 2) {
                 crisisBackoff = now + 120000;
@@ -243,23 +383,32 @@ public class RamBoosterComponent extends EnvironmentComponent {
                 return;
             }
 
-            Log.w(TAG, "CRISIS! RAM " + currentUsage + "%. Triggering boost.");
+            Log.w(TAG, "CRISIS! RAM " + currentUsage + "%. Triggering aggressive boost.");
             lastBoostTick = now;
-            triggerBoost(getCrisisIntensity());
+            triggerBoost(getCrisisIntensity(), -1);
             return;
         }
 
         if (now <= crisisBackoff) return;
 
+        // 3. Pre-Crisis Handling
         if (preCrisisLevel > 0 && currentUsage >= preCrisisLevel && currentUsage < thresholdCrisis && (now - lastPreCrisisTick > 60000)) {
+            if (isSmart && gameDominates) {
+                Log.d(TAG, "Smart Auto: Pre-Crisis reached, but game owns memory. Suppressing background trim.");
+                return;
+            }
             lastPreCrisisTick = now;
             lastBoostTick = now;
-            Log.i(TAG, "Pre-Crisis! RAM " + currentUsage + "%. Triggering boost.");
-            triggerBoost(getPreCrisisIntensity());
+            Log.i(TAG, "Pre-Crisis! RAM " + currentUsage + "%. Triggering background trim.");
+            triggerBoost(getPreCrisisIntensity(), 2500);
         }
     }
 
     private void triggerBoost(double percentage) {
+        triggerBoost(percentage, -1);
+    }
+
+    private void triggerBoost(double percentage, int holdMsOverride) {
         if (isBoosting.compareAndSet(false, true)) {
             if (hud != null && hud.isUserEnabled()) hud.setRamBoosterStatus("Boosting...");
             if (isToastEnabled()) {
@@ -274,17 +423,14 @@ public class RamBoosterComponent extends EnvironmentComponent {
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
                     Context context = environment.getContext();
-                    ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-                    if (activityManager == null) {
+                    SystemMemSnapshot mem = readMemInfo(context);
+                    if (mem.totalMem <= 0) {
                         isBoosting.set(false);
                         return;
                     }
                     
-                    ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-                    activityManager.getMemoryInfo(memoryInfo);
-                    
-                    long totalMem = memoryInfo.totalMem;
-                    long availBefore = memoryInfo.availMem;
+                    long totalMem = mem.totalMem;
+                    long availBefore = mem.availMem;
 
                     boolean isManual = getProfile().equals("manual");
                     double floorPct = isManual ? 0.05 : (com.winlator.cmod.core.GPUInformation.isAdrenoGPU(context) ? 0.10 : 0.13);
@@ -294,7 +440,8 @@ public class RamBoosterComponent extends EnvironmentComponent {
                     long maxSafe = availBefore - safetyFloor;
                     
                     if (maxSafe < (50 * 1024 * 1024)) {
-                        targetBytes = 150 * 1024 * 1024; // Increased rescue poke to 150MB
+                        // Safe micro-pulse when free RAM is thin, avoiding suicidal over-allocation
+                        targetBytes = Math.min(80L * 1024 * 1024, Math.max(25L * 1024 * 1024, availBefore / 3));
                     } else if (targetBytes > maxSafe) {
                         targetBytes = maxSafe;
                     }
@@ -304,17 +451,22 @@ public class RamBoosterComponent extends EnvironmentComponent {
 
                     int chunkSleep = com.winlator.cmod.core.GPUInformation.isAdrenoGPU(context) ? 25 : 35;
                     
-                    // Smart escalates hold time if needed
-                    int holdMs = (isManual || getProfile().equals("max") || (getProfile().equals("smart") && smartNeedHammer)) ? 7000 : 3500;
+                    int holdMs;
+                    if (holdMsOverride > 0) {
+                        holdMs = holdMsOverride;
+                    } else {
+                        holdMs = (isManual || getProfile().equals("max") || (getProfile().equals("smart") && smartNeedHammer)) ? 7000 : 3500;
+                    }
                     
-                    Log.d(TAG, "Native Pressure: " + (targetBytes / (1024*1024)) + "MB for " + holdMs + "ms");
+                    Log.d(TAG, "Native Pressure: " + (targetBytes / (1024 * 1024)) + "MB for " + holdMs + "ms");
                     RamBooster.pressure(targetBytes, chunkSleep, holdMs);
 
                     Thread.sleep(2500);
 
-                    activityManager.getMemoryInfo(memoryInfo);
-                    lastBoostGain = memoryInfo.availMem - availBefore;
+                    SystemMemSnapshot memAfter = readMemInfo(context);
+                    lastBoostGain = memAfter.availMem - availBefore;
                     long gainMB = lastBoostGain / (1024 * 1024);
+                    int currentUsage = (int) ((memAfter.totalMem - memAfter.availMem) * 100 / memAfter.totalMem);
                     
                     if (gainMB > 15) {
                         saturatedCounter = 0;
@@ -331,7 +483,8 @@ public class RamBoosterComponent extends EnvironmentComponent {
                         }
                     } else {
                         saturatedCounter++;
-                        if (saturatedCounter >= 4) { // Slightly more patient saturation logic
+                        // Fast saturation detection: if RAM is high and boost yielded nothing, sleep immediately
+                        if (saturatedCounter >= 4 || (currentUsage >= 88 && saturatedCounter >= 2)) {
                             saturationBackoff = System.currentTimeMillis() + 300000;
                             if (isToastEnabled()) {
                                 com.winlator.cmod.core.AppUtils.showToast(environment.getContext(), "RAM Booster: Max Reached (Saturated)");

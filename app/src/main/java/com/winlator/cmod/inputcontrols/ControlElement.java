@@ -286,6 +286,17 @@ public class ControlElement {
         return currentPointerId;
     }
 
+    /**
+     * Returns true if this element type has visual changes during ACTION_MOVE
+     * (e.g. stick knob follows thumb, D-pad direction highlights change).
+     * Static elements (buttons, grids) only change visually on DOWN/UP,
+     * so they do not need canvas redraws during continuous touch movement.
+     */
+    public boolean isDynamicVisual() {
+        return type == Type.STICK || type == Type.DYNAMIC_STICK
+            || type == Type.D_PAD || type == Type.RANGE_BUTTON;
+    }
+
     public void setSelected(boolean selected) {
         this.selected = selected;
     }
@@ -702,8 +713,16 @@ public class ControlElement {
 
         canvas.save();
         if (pressed) canvas.scale(0.96f, 0.96f, cx, cy);
-        float shadowRadius = snappingSize * (pressed ? 0.4f : 0.2f) * scale;
-        paint.setShadowLayer(shadowRadius, 0, 0, shadowColor);
+        // During gameplay (non-edit mode), skip expensive Gaussian blur shadow layers.
+        // setShadowLayer forces Skia to allocate temporary bitmaps and run blur kernels
+        // on every draw call, consuming significant GPU/CPU fill rate at 120-240 Hz.
+        boolean isEditMode = inputControlsView != null && inputControlsView.isEditMode();
+        if (isEditMode) {
+            float shadowRadius = snappingSize * (pressed ? 0.4f : 0.2f) * scale;
+            paint.setShadowLayer(shadowRadius, 0, 0, shadowColor);
+        } else {
+            paint.clearShadowLayer();
+        }
 
         switch (type) {
             case BUTTON:

@@ -35,6 +35,8 @@ public class DisplayXView extends SurfaceView implements SurfaceHolder.Callback,
     private float magnifierZoom = 1.0f;
     private boolean cursorVisible = true;
     private final HashSet<Long> registeredDirectContents = new HashSet<>();
+    private long lastPointerMoveTimeNs = 0;
+    private static final long MIN_POINTER_MOVE_INTERVAL_NS = 8_000_000L; // ~125 Hz max pointer update rate
 
     public DisplayXView(Context context, XServer xServer) {
         super(context);
@@ -208,7 +210,16 @@ public class DisplayXView extends SurfaceView implements SurfaceHolder.Callback,
 
     @Override
     public void onPointerMove(short x, short y) {
-        nativePointerMove(x, y);
+        // In relative mouse mode (games) or when cursor is hidden, skip native pointer updates
+        // to prevent high-polling-rate mice (500-1000 Hz) from flooding JNI and C++ event threads.
+        if (xServer.isRelativeMouseMovement() || !cursorVisible) {
+            return;
+        }
+        long now = System.nanoTime();
+        if (now - lastPointerMoveTimeNs >= MIN_POINTER_MOVE_INTERVAL_NS) {
+            lastPointerMoveTimeNs = now;
+            nativePointerMove(x, y);
+        }
     }
 
     @Override

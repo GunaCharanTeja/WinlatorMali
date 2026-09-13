@@ -638,7 +638,7 @@ public class TouchpadView extends View {
                 case MotionEvent.ACTION_HOVER_MOVE:
                     float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
                     if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
+                        xServer.getWinHandler().mouseEventMove((int)transformedPoint[0], (int)transformedPoint[1]);
                     else
                         xServer.injectPointerMove((int)transformedPoint[0], (int)transformedPoint[1]);
                     handled = true;

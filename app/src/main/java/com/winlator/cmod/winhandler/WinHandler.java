@@ -46,6 +46,7 @@ import java.util.Iterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class WinHandler {
     private static final short SERVER_PORT = 7947;
@@ -96,6 +97,13 @@ public class WinHandler {
 
     private boolean xinputDisabled;
     private boolean xinputDisabledInitialized = false;
+
+    // Lock-free mouse move coalescing: accumulate dx/dy from high-frequency mouse
+    // events (500-1000 Hz) and flush as a single UDP packet per send-thread cycle.
+    // This eliminates per-event Runnable lambda allocation and synchronized queue contention.
+    private final AtomicInteger accumulatedMouseDx = new AtomicInteger(0);
+    private final AtomicInteger accumulatedMouseDy = new AtomicInteger(0);
+    private volatile boolean hasAccumulatedMouseMove = false;
 
     private final InputManager inputManager;
     private final InputManager.InputDeviceListener inputDeviceListener;
@@ -270,6 +278,22 @@ public class WinHandler {
         });
     }
 
+    /**
+     * Coalesced mouse move: accumulates dx/dy atomically without allocating a Runnable
+     * or acquiring the actions monitor on the hot path. The send thread flushes the
+     * accumulated delta once per cycle, collapsing hundreds of raw mouse packets into
+     * a single UDP datagram. Safe to call from any thread at any rate.
+     */
+    public void mouseEventMove(int dx, int dy) {
+        if (!initReceived) return;
+        accumulatedMouseDx.addAndGet(dx);
+        accumulatedMouseDy.addAndGet(dy);
+        hasAccumulatedMouseMove = true;
+        synchronized (actions) {
+            actions.notify();
+        }
+    }
+
     public void keyboardEvent(byte vkey, int flags) {
         if (!initReceived)
             return;
@@ -326,10 +350,29 @@ public class WinHandler {
         Executors.newSingleThreadExecutor().execute(() -> {
             while (running) {
                 synchronized (actions) {
+                    // Flush coalesced mouse moves before processing discrete actions
+                    // to preserve correct ordering (move, then click).
+                    if (initReceived && hasAccumulatedMouseMove) {
+                        int dx = accumulatedMouseDx.getAndSet(0);
+                        int dy = accumulatedMouseDy.getAndSet(0);
+                        hasAccumulatedMouseMove = false;
+                        if (dx != 0 || dy != 0) {
+                            sendData.rewind();
+                            sendData.put(RequestCodes.MOUSE_EVENT);
+                            sendData.putInt(10);
+                            sendData.putInt(MouseEventFlags.MOVE);
+                            sendData.putShort((short) dx);
+                            sendData.putShort((short) dy);
+                            sendData.putShort((short) 0);
+                            sendData.put((byte) 1);
+                            sendPacket(CLIENT_PORT);
+                        }
+                    }
+                    // Process queued discrete actions (button press/release, keyboard, etc.)
                     while (initReceived && !actions.isEmpty())
                         actions.poll().run();
                     try {
-                        actions.wait();
+                        actions.wait(8); // Wake at ~125 Hz to flush accumulated mouse moves
                     } catch (InterruptedException e) {
                     }
                 }

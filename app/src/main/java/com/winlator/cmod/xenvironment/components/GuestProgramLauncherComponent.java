@@ -396,11 +396,20 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         execEnvVars.put("ANDROID_SYSVSHM_SERVER", rootDir.getPath() + UnixSocketConfig.SYSVSHM_SERVER_PATH);
 
         String primaryDNS = "8.8.4.4";
-        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Service.CONNECTIVITY_SERVICE);
-        if (connectivityManager.getActiveNetwork() != null) {
-            ArrayList<InetAddress> dnsServers = new ArrayList<>(connectivityManager.getLinkProperties(connectivityManager.getActiveNetwork()).getDnsServers());
-            primaryDNS = dnsServers.get(0).toString().substring(1);
-        }
+        try {
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Service.CONNECTIVITY_SERVICE);
+            if (connectivityManager != null && connectivityManager.getActiveNetwork() != null) {
+                android.net.LinkProperties linkProps = connectivityManager.getLinkProperties(connectivityManager.getActiveNetwork());
+                if (linkProps != null) {
+                    for (InetAddress dns : linkProps.getDnsServers()) {
+                        if (dns instanceof java.net.Inet4Address && !dns.isLoopbackAddress()) {
+                            primaryDNS = dns.getHostAddress();
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         execEnvVars.put("ANDROID_RESOLV_DNS", primaryDNS);
         execEnvVars.put("WINE_NEW_NDIS", "1");
 

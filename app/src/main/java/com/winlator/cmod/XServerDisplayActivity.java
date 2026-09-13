@@ -132,6 +132,7 @@ import com.winlator.cmod.contentdialog.DisplayXConfigDialog;
 import com.winlator.cmod.widget.DisplayXView;
 import com.winlator.cmod.xserver.Drawable;
 import com.winlator.cmod.xenvironment.components.XServerComponent;
+import com.winlator.cmod.xenvironment.components.NetworkInfoUpdateComponent;
 import com.winlator.cmod.xserver.Pointer;
 import com.winlator.cmod.xserver.Property;
 import com.winlator.cmod.xserver.ScreenInfo;
@@ -817,7 +818,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             case MotionEvent.ACTION_HOVER_MOVE:
                 float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
                 if (xServer.isRelativeMouseMovement())
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
+                    xServer.getWinHandler().mouseEventMove((int)transformedPoint[0], (int)transformedPoint[1]);
                 else
                     xServer.injectPointerMoveDelta((int)transformedPoint[0], (int)transformedPoint[1]);
                 handled = true;
@@ -1491,6 +1492,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         environment.addComponent(guestProgramLauncherComponent);
         RamBoosterComponent ramBoosterComponent = new RamBoosterComponent(container, shortcut);
         environment.addComponent(ramBoosterComponent);
+        environment.addComponent(new NetworkInfoUpdateComponent(container));
 
         if (frameRating != null) {
             ramBoosterComponent.setHUD(frameRating);
