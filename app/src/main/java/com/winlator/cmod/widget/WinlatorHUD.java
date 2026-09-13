@@ -116,6 +116,7 @@ public class WinlatorHUD extends View {
 
     private final AtomicInteger frameAccum = new AtomicInteger(0);
     private long lastFpsNs = 0;
+    private long lastOnFrameNs = 0;
     private float snapFps = 0;
     private float snapTotalFps = 0;
     private boolean apexActive = false;
@@ -277,6 +278,9 @@ public class WinlatorHUD extends View {
     }
 
     public void onFrame() {
+        long now = System.nanoTime();
+        if (now - lastOnFrameNs < 500_000L) return; // Deduplicate calls within 0.5ms
+        lastOnFrameNs = now;
         countFrame();
     }
 
