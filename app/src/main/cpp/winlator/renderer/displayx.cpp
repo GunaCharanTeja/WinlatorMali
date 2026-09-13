@@ -5,6 +5,7 @@
 #include <sys/epoll.h>
 #include <sys/un.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <thread>
 #include <mutex>
 
@@ -28,13 +29,15 @@ using PFNASURFACETRANSACTIONSETVISIBILITY = void (*)(ASurfaceTransaction*, ASurf
 using PFNASURFACETRANSACTIONSETBUFFERTRANSPARENCY = void (*)(ASurfaceTransaction*, ASurfaceControl*, enum ASurfaceTransactionTransparency);
 using PFNASURFACETRANSACTIONSETBUFFERALPHA = void (*)(ASurfaceTransaction*, ASurfaceControl*, float);
 using PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD = int (*)(ASurfaceTransactionStats*);
-using PFNASURFACETRANSACTIONREPARENT = void (*)(ASurfaceTransaction*, ASurfaceControl*, ASurfaceControl*);
-using PFNASURFACETRANSACTIONSETONCOMPLETE = void (*)(ASurfaceTransaction*, void*, ASurfaceTransaction_OnComplete);
-using PFNASURFACETRANSACTIONSETONCOMMIT = void (*)(ASurfaceTransaction*, void*, ASurfaceTransaction_OnCommit);
 using PFNASURFACETRANSACTIONSETENABLEBACKPRESSURE = void (*)(ASurfaceTransaction*, ASurfaceControl*, bool);
+using PFNASURFACETRANSACTIONSETONCOMPLETE = void (*)(ASurfaceTransaction*, void*, void (*)(void*, ASurfaceTransactionStats*));
+using PFNASURFACETRANSACTIONSETONCOMMIT = void (*)(ASurfaceTransaction*, void*, void (*)(void*, ASurfaceTransactionStats*));
+using PFNASURFACETRANSACTIONREPARENT = void (*)(ASurfaceTransaction*, ASurfaceControl*, ASurfaceControl*);
 using PFNASURFACETRANSACTIONCREATE = ASurfaceTransaction* (*)();
 using PFNASURFACETRANSACTIONDELETE = void (*)(ASurfaceTransaction*);
 using PFNASURFACETRANSACTIONAPPLY = void (*)(ASurfaceTransaction*);
+
+using PFNASURFACETRANSACTIONSETFRAMETIMELINE = void (*)(ASurfaceTransaction*, int64_t);
 
 using PFNASURFACECONTROLACQUIRE = void (*)(ASurfaceControl*);
 using PFNASURFACECONTROLRELEASE = void (*)(ASurfaceControl*);
@@ -42,7 +45,10 @@ using PFNASURFACECONTROLCREATE = ASurfaceControl* (*)(ASurfaceControl*, const ch
 using PFNASURFACECONTROLCREATEFROMWINDOW = ASurfaceControl* (*)(ANativeWindow*, const char*);
 
 using PFNACHOREOGRAPHERGETINSTANCE = AChoreographer* (*)();
-using PFNACHOREOGRAPHERPOSTFRAMECALLBACK64 = void (*)(AChoreographer*, AChoreographer_frameCallback64, void*);
+using PFNACHOREOGRAPHERPOSTFRAMECALLBACK64 = void (*)(AChoreographer*, void (*)(int64_t, void*), void*);
+using PFNACHOREOGRAPHERPOSTVSYNCCALLBACK = void (*)(AChoreographer*, void (*)(const AChoreographerFrameCallbackData*, void*), void*);
+using PFNACHOREOGRAPHERGETFRAMETIMELINEVSYNCID = int64_t (*)(const AChoreographerFrameCallbackData*, size_t);
+using PFNACHOREOGRAPHERGETPREFERREDTIMELINEINDEX = size_t (*)(const AChoreographerFrameCallbackData*);
 
 using PFNAPERFORMANCEHINTGETMANAGER = APerformanceHintManager* (*)();
 using PFNAPERFORMANCEHINTCREATESESSION = APerformanceHintSession* (*)(APerformanceHintManager*, const int32_t*, size_t, int64_t);
@@ -50,23 +56,18 @@ using PFNAPERFORMANCEHINTREPORTACTUALWORKDURATION = int (*)(APerformanceHintSess
 using PFNAPERFORMANCEHINTUPDATETARGETWORKDURATION = int (*)(APerformanceHintSession*, int64_t);
 using PFNAPERFORMANCEHINTCLOSESESSION = void (*)(APerformanceHintSession*);
 
-using PFNASURFACETRANSACTIONSETFRAMETIMELINE = void (*)(ASurfaceTransaction*, int64_t);
-using PFNACHOREOGRAPHERPOSTVSYNCCALLBACK = void (*)(AChoreographer*, void (*)(const AChoreographerFrameCallbackData*, void*), void*);
-using PFNACHOREOGRAPHERGETFRAMETIMELINEVSYNCID = int64_t (*)(const AChoreographerFrameCallbackData*, size_t);
-using PFNACHOREOGRAPHERGETPREFERREDTIMELINEINDEX = size_t (*)(const AChoreographerFrameCallbackData*);
-
 static PFNASURFACETRANSACTIONSETPOSITION pfnASurfaceTransactionSetPosition = nullptr;
 static PFNASURFACETRANSACTIONSETBUFFER pfnASurfaceTransactionSetBuffer = nullptr;
 static PFNASURFACETRANSACTIONSETGEOMETRY pfnASurfaceTransactionSetGeometry = nullptr;
 static PFNASURFACETRANSACTIONSETZORDER pfnASurfaceTransactionSetZOrder = nullptr;
 static PFNASURFACETRANSACTIONSETVISIBILITY pfnASurfaceTransactionSetVisibility = nullptr;
-static PFNASURFACETRANSACTIONSETBUFFERALPHA pfnASurfaceTransactionSetBufferAlpha = nullptr;
 static PFNASURFACETRANSACTIONSETBUFFERTRANSPARENCY pfnASurfaceTransactionSetBufferTransparency = nullptr;
-static PFNASURFACETRANSACTIONREPARENT pfnASurfaceTransactionReparent = nullptr;
+static PFNASURFACETRANSACTIONSETBUFFERALPHA pfnASurfaceTransactionSetBufferAlpha = nullptr;
+static PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD pfnASurfaceTransactionStatsGetPresentFenceFd = nullptr;
+static PFNASURFACETRANSACTIONSETENABLEBACKPRESSURE pfnASurfaceTransactionSetEnableBackPressure = nullptr;
 static PFNASURFACETRANSACTIONSETONCOMPLETE pfnASurfaceTransactionSetOnComplete = nullptr;
 static PFNASURFACETRANSACTIONSETONCOMMIT pfnASurfaceTransactionSetOnCommit = nullptr;
-static PFNASURFACETRANSACTIONSETENABLEBACKPRESSURE pfnASurfaceTransactionSetEnableBackPressure = nullptr;
-static PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD pfnASurfaceTransactionStatsGetPresentFenceFd = nullptr;
+static PFNASURFACETRANSACTIONREPARENT pfnASurfaceTransactionReparent = nullptr;
 static PFNASURFACETRANSACTIONCREATE pfnASurfaceTransactionCreate = nullptr;
 static PFNASURFACETRANSACTIONDELETE pfnASurfaceTransactionDelete = nullptr;
 static PFNASURFACETRANSACTIONAPPLY pfnASurfaceTransactionApply = nullptr;
@@ -99,10 +100,8 @@ void DisplayX::onFrameCallback64(int64_t frameTimeNanos, void* data) {
     
     {
         auto lock = self->presentLock.lock();
-        if (!self->presentRequests.empty() && self->presentRR) {
-            self->requestUpdate = true;
-            self->presentLock.notify();
-        }
+        self->requestUpdate = true;
+        self->presentLock.notify();
     }
     
     if (!self->stopped && self->choreographer)
@@ -121,16 +120,12 @@ void DisplayX::onVsyncCallback(const AChoreographerFrameCallbackData *callbackDa
         size_t index = pfnAChoreographerGetPreferredTimelineIndex(callbackData);
         auto lock = self->presentLock.lock();
         self->vsyncId = pfnAChoreographerGetFrameTimelineVsyncId(callbackData, index);
-        if (!self->presentRequests.empty() && self->presentRR) {
-            self->requestUpdate = true;
-            self->presentLock.notify();
-        }
+        self->requestUpdate = true;
+        self->presentLock.notify();
     } else {
         auto lock = self->presentLock.lock();
-        if (!self->presentRequests.empty() && self->presentRR) {
-            self->requestUpdate = true;
-            self->presentLock.notify();
-        }
+        self->requestUpdate = true;
+        self->presentLock.notify();
     }
 
     if (!self->stopped && self->choreographer)
@@ -340,7 +335,7 @@ void DisplayX::networkThreadLoop() {
                             presentRequest->swapchainId = id;
                             
                             presentRequests.push(std::move(presentRequest));
-                            if (!presentRR) presentLock.notify();
+                            presentLock.notify();
                             break;
                         }    
                         case DESTROY_CLIENT_SWAPCHAIN: {
@@ -517,18 +512,7 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
         }
     }
 
-    ConvertedBufferSlot* fallback = nullptr;
-    for (auto& slot : convertedSlots) {
-        if (!slot->inUse) {
-            slot->inUse = true;
-            return slot.get();
-        }
-        if (!fallback) {
-            fallback = slot.get();
-        }
-    }
-
-    if (convertedSlots.size() < 3) {
+    while (convertedSlots.size() < 3) {
         AHardwareBuffer_Desc desc{};
         desc.width = width;
         desc.height = height;
@@ -544,7 +528,7 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
             desc.usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
             ret = AHardwareBuffer_allocate(&desc, &buffer);
             if (ret != 0 || !buffer) {
-                return nullptr;
+                break;
             }
         }
 
@@ -556,12 +540,20 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
         slot->buffer = buffer;
         slot->width = width;
         slot->height = height;
-        slot->inUse = true;
+        slot->inUse = false;
         slot->releaseFenceFd = -1;
-
-        ConvertedBufferSlot* raw = slot.get();
         convertedSlots.push_back(std::move(slot));
-        return raw;
+    }
+
+    ConvertedBufferSlot* fallback = nullptr;
+    for (auto& slot : convertedSlots) {
+        if (!slot->inUse) {
+            slot->inUse = true;
+            return slot.get();
+        }
+        if (!fallback) {
+            fallback = slot.get();
+        }
     }
 
     if (fallback) {
@@ -573,12 +565,13 @@ DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, ui
 }
 
 void DisplayX::presentThreadLoop() {
+    setpriority(PRIO_PROCESS, 0, -19);
     ASurfaceTransaction *presentTransaction = pfnASurfaceTransactionCreate();
     
     if (isPerformanceHintAPIAvailable() && perfMode) {
         performanceHintManager = pfnAPerformanceHintGetManager();
         if (performanceHintManager) {
-            float targetRate = std::max(1.0f, xServer->refreshRate) * 100.0f;
+            float targetRate = std::max(1.0f, xServer->refreshRate);
             int64_t targetWorkDuration = static_cast<int64_t>(1000000000.0f / targetRate);
             int tid = gettid();
             std::vector<int32_t> tids{tid};
@@ -591,7 +584,9 @@ void DisplayX::presentThreadLoop() {
         std::queue<std::unique_ptr<PresentRequest>> requests;
         {
             auto lock = presentLock.lock();
-            presentLock.wait(lock, [&]{ return stopped || (eventsPending == 0 && ((requestUpdate && presentRR) || (!presentRequests.empty() && !presentRR)) && hasSurface && surfaceChanged && !paused); });
+            presentLock.wait(lock, [&]{
+                return stopped || (eventsPending == 0 && !presentRequests.empty() && hasSurface && surfaceChanged && !paused);
+            });
             
             if (stopped)
                 break;
@@ -668,6 +663,9 @@ void DisplayX::presentThreadLoop() {
                 }
                 
                 pfnASurfaceTransactionSetBuffer(presentTransaction, window->control, ahbToPresent, fenceToPresent);
+                if (pfnASurfaceTransactionSetEnableBackPressure) {
+                    pfnASurfaceTransactionSetEnableBackPressure(presentTransaction, window->control, true);
+                }
                 if (pfnASurfaceTransactionSetBufferTransparency) {
                     pfnASurfaceTransactionSetBufferTransparency(presentTransaction, window->control, ASURFACE_TRANSACTION_TRANSPARENCY_OPAQUE);
                 }
@@ -828,7 +826,7 @@ void DisplayX::requestWindowUpdate(Window *window) {
     presentRequest->window = window;
     
     presentRequests.push(std::move(presentRequest));
-    if (!presentRR) presentLock.notify();
+    presentLock.notify();
 }
 
 void DisplayX::requestCursorUpdate() {
@@ -849,7 +847,9 @@ void DisplayX::createWindowControl(Window *window) {
     
     printf("createWindowControl: created control %p for window %d (parent %d)", window->control, window->id, window->parent->id);
     
-    pfnASurfaceTransactionSetEnableBackPressure(windowTransaction, window->control, false);
+    if (pfnASurfaceTransactionSetEnableBackPressure) {
+        pfnASurfaceTransactionSetEnableBackPressure(windowTransaction, window->control, true);
+    }
     pfnASurfaceTransactionSetZOrder(windowTransaction, window->control, window->z_order);
     pfnASurfaceTransactionSetVisibility(windowTransaction, window->control, ASURFACE_TRANSACTION_VISIBILITY_HIDE);
     

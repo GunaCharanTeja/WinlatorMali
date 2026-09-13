@@ -2,6 +2,7 @@
 
 #include <android/log.h>
 #include <unistd.h>
+#include <sys/resource.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -331,6 +332,7 @@ bool BlitConverter::initialize() {
 }
 
 void BlitConverter::workerMain() {
+    setpriority(PRIO_PROCESS, 0, -19);
     for (;;) {
         std::function<void()> task;
         {

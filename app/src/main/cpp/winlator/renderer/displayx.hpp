@@ -59,22 +59,28 @@ class DisplayX {
             ConvertedBufferSlot *slot = nullptr;
         };
         
+#include <deque>
+
         class PresentQueue {
             private:
-                std::queue<std::unique_ptr<PresentRequest>> mQueue;
-                std::unordered_set<int> pendingWindowUpdates;
+                std::deque<std::unique_ptr<PresentRequest>> mQueue;
 
             public:
                 bool push(std::unique_ptr<PresentRequest> request) {
                     if (!request)
                         return false;
 
-                    if (request->window && !pendingWindowUpdates.insert(request->window->id).second) {
-                        if (request->sync_fence >= 0) close(request->sync_fence);
-                        return false;
+                    if (request->window) {
+                        for (auto& existing : mQueue) {
+                            if (existing && existing->window == request->window) {
+                                if (existing->sync_fence >= 0) close(existing->sync_fence);
+                                existing = std::move(request);
+                                return true;
+                            }
+                        }
                     }
 
-                    mQueue.push(std::move(request));
+                    mQueue.push_back(std::move(request));
                     return true;
                 }
 
@@ -83,14 +89,16 @@ class DisplayX {
                         return nullptr;
 
                     auto val = std::move(mQueue.front());
-                    mQueue.pop();
-                    if (val && val->window)
-                        pendingWindowUpdates.erase(val->window->id);
+                    mQueue.pop_front();
                     return val;
                 }
 
                 bool empty() const {
                     return mQueue.empty();
+                }
+
+                size_t size() const {
+                    return mQueue.size();
                 }
         };
         
