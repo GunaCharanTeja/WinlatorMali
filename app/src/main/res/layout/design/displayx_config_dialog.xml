@@ -24,11 +24,7 @@
 			android:id="@+id/SSurfaceFormat"
 			android:spinnerMode="dropdown" />
 
-		<org.appdevforall.codeonthego.layouteditor.editor.palette.buttons.CheckBoxDesign
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:id="@+id/CBEnableTrueDisplayX"
-			android:text="Bypass X11 Protocol" />
+
 
 		<org.appdevforall.codeonthego.layouteditor.editor.palette.buttons.CheckBoxDesign
 			android:layout_width="wrap_content"

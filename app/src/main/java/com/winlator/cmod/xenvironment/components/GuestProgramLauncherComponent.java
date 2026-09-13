@@ -492,13 +492,6 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
         if (displayDriver != null && displayDriver.equalsIgnoreCase("displayx")) {
             com.winlator.cmod.core.KeyValueSet displayxConfig = com.winlator.cmod.contentdialog.DisplayXConfigDialog.parseConfig(displayxConfigStr);
-            boolean isTrueDisplayX = "1".equals(displayxConfig.get("trueDisplayX"));
-            if (isTrueDisplayX) {
-                if (this.envVars.has("VK_INSTANCE_LAYERS")) {
-                    this.envVars.remove("VK_INSTANCE_LAYERS");
-                }
-                execEnvVars.put("VK_INSTANCE_LAYERS", "VK_LAYER_DISPLAYX_display_x");
-            }
             String surfaceFormat = displayxConfig.get("surfaceFormat");
             if ("rgba8".equals(surfaceFormat)) {
                 execEnvVars.put("WRAPPER_SURFACE_FORMAT", "rgba8");
@@ -506,12 +499,6 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             } else {
                 execEnvVars.put("WRAPPER_SURFACE_FORMAT", "bgra8");
                 execEnvVars.put("DISPLAYX_SURFACE_FORMAT", "bgra8");
-            }
-            String colorConversion = displayxConfig.get("colorConversion");
-            if ("0".equals(colorConversion)) {
-                execEnvVars.put("DISPLAYX_COLOR_CONVERSION", "0");
-            } else {
-                execEnvVars.put("DISPLAYX_COLOR_CONVERSION", "1");
             }
         }
 

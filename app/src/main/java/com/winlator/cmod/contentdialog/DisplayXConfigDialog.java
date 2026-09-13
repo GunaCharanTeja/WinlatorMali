@@ -13,7 +13,7 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.KeyValueSet;
 
 public class DisplayXConfigDialog extends ContentDialog {
-    public static String DEFAULT_CONFIG = "trueDisplayX=0" + ",performanceMode=1" + ",surfaceFormat=bgra8" + ",presentRR=1" + ",colorConversion=1";
+    public static String DEFAULT_CONFIG = "performanceMode=1" + ",surfaceFormat=bgra8" + ",presentRR=1";
     private Context context;
 
     public DisplayXConfigDialog(View anchor) {
@@ -25,8 +25,6 @@ public class DisplayXConfigDialog extends ContentDialog {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         boolean isDarkMode = preferences.getBoolean("dark_mode", true);
 
-        final CheckBox cbEnableTrueDisplayX = findViewById(R.id.CBEnableTrueDisplayX);
-        final CheckBox cbColorConversion = findViewById(R.id.CBColorConversion);
         final CheckBox cbEnablePerfMode = findViewById(R.id.CBEnablePerfMode);
         final CheckBox cbSyncRR = findViewById(R.id.CBPresentRR);
         final Spinner sSurfaceFormat = findViewById(R.id.SSurfaceFormat);
@@ -37,15 +35,11 @@ public class DisplayXConfigDialog extends ContentDialog {
 
         KeyValueSet config = parseConfig(anchor.getTag());
 
-        cbEnableTrueDisplayX.setChecked("1".equals(config.get("trueDisplayX")));
-        cbColorConversion.setChecked(!"0".equals(config.get("colorConversion")));
         cbEnablePerfMode.setChecked("1".equals(config.get("performanceMode")));
         cbSyncRR.setChecked("1".equals(config.get("presentRR")));
         AppUtils.setSpinnerSelectionFromIdentifier(sSurfaceFormat, config.get("surfaceFormat"));
 
         setOnConfirmCallback(() -> {
-            config.put("trueDisplayX", cbEnableTrueDisplayX.isChecked() ? "1" : "0");
-            config.put("colorConversion", cbColorConversion.isChecked() ? "1" : "0");
             config.put("performanceMode", cbEnablePerfMode.isChecked() ? "1" : "0");
             config.put("presentRR", cbSyncRR.isChecked() ? "1" : "0");
             config.put("surfaceFormat", sSurfaceFormat.getSelectedItem().toString());

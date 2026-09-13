@@ -50,6 +50,11 @@ using PFNAPERFORMANCEHINTREPORTACTUALWORKDURATION = int (*)(APerformanceHintSess
 using PFNAPERFORMANCEHINTUPDATETARGETWORKDURATION = int (*)(APerformanceHintSession*, int64_t);
 using PFNAPERFORMANCEHINTCLOSESESSION = void (*)(APerformanceHintSession*);
 
+using PFNASURFACETRANSACTIONSETFRAMETIMELINE = void (*)(ASurfaceTransaction*, int64_t);
+using PFNACHOREOGRAPHERPOSTVSYNCCALLBACK = void (*)(AChoreographer*, void (*)(const AChoreographerFrameCallbackData*, void*), void*);
+using PFNACHOREOGRAPHERGETFRAMETIMELINEVSYNCID = int64_t (*)(const AChoreographerFrameCallbackData*, size_t);
+using PFNACHOREOGRAPHERGETPREFERREDTIMELINEINDEX = size_t (*)(const AChoreographerFrameCallbackData*);
+
 static PFNASURFACETRANSACTIONSETPOSITION pfnASurfaceTransactionSetPosition = nullptr;
 static PFNASURFACETRANSACTIONSETBUFFER pfnASurfaceTransactionSetBuffer = nullptr;
 static PFNASURFACETRANSACTIONSETGEOMETRY pfnASurfaceTransactionSetGeometry = nullptr;
@@ -65,6 +70,7 @@ static PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD pfnASurfaceTransactionStatsG
 static PFNASURFACETRANSACTIONCREATE pfnASurfaceTransactionCreate = nullptr;
 static PFNASURFACETRANSACTIONDELETE pfnASurfaceTransactionDelete = nullptr;
 static PFNASURFACETRANSACTIONAPPLY pfnASurfaceTransactionApply = nullptr;
+static PFNASURFACETRANSACTIONSETFRAMETIMELINE pfnASurfaceTransactionSetFrameTimeline = nullptr;
 
 static PFNASURFACECONTROLACQUIRE pfnASurfaceControlAcquire = nullptr;
 static PFNASURFACECONTROLRELEASE pfnASurfaceControlRelease = nullptr;
@@ -73,6 +79,9 @@ static PFNASURFACECONTROLCREATEFROMWINDOW pfnASurfaceControlCreateFromWindow = n
 
 static PFNACHOREOGRAPHERGETINSTANCE pfnAChoreographerGetInstance = nullptr;
 static PFNACHOREOGRAPHERPOSTFRAMECALLBACK64 pfnAChoreographerPostFrameCallback64 = nullptr;
+static PFNACHOREOGRAPHERPOSTVSYNCCALLBACK pfnAChoreographerPostVsyncCallback = nullptr;
+static PFNACHOREOGRAPHERGETFRAMETIMELINEVSYNCID pfnAChoreographerGetFrameTimelineVsyncId = nullptr;
+static PFNACHOREOGRAPHERGETPREFERREDTIMELINEINDEX pfnAChoreographerGetPreferredTimelineIndex = nullptr;
 
 static PFNAPERFORMANCEHINTGETMANAGER pfnAPerformanceHintGetManager = nullptr;
 static PFNAPERFORMANCEHINTCREATESESSION pfnAPerformanceHintCreateSession = nullptr;
@@ -82,6 +91,7 @@ static PFNAPERFORMANCEHINTCLOSESESSION pfnAPerformanceHintCloseSession = nullptr
 
 void DisplayX::onFrameCallback64(int64_t frameTimeNanos, void* data) {
     auto *self = reinterpret_cast<DisplayX *>(data);
+    if (!self || self->stopped) return;
    
     if (self->cursorUpdate && self->cursorManager->control && !self->paused) {
         self->eventLock.notify();
@@ -95,7 +105,48 @@ void DisplayX::onFrameCallback64(int64_t frameTimeNanos, void* data) {
         }
     }
     
-    pfnAChoreographerPostFrameCallback64(self->choreographer, DisplayX::onFrameCallback64, self);
+    if (!self->stopped && self->choreographer)
+        pfnAChoreographerPostFrameCallback64(self->choreographer, DisplayX::onFrameCallback64, self);
+}
+
+void DisplayX::onVsyncCallback(const AChoreographerFrameCallbackData *callbackData, void *data) {
+    auto *self = reinterpret_cast<DisplayX *>(data);
+    if (!self || self->stopped) return;
+
+    if (self->cursorUpdate && self->cursorManager->control && !self->paused) {
+        self->eventLock.notify();
+    }
+
+    if (pfnAChoreographerGetPreferredTimelineIndex && pfnAChoreographerGetFrameTimelineVsyncId) {
+        size_t index = pfnAChoreographerGetPreferredTimelineIndex(callbackData);
+        auto lock = self->presentLock.lock();
+        self->vsyncId = pfnAChoreographerGetFrameTimelineVsyncId(callbackData, index);
+        if (!self->presentRequests.empty() && self->presentRR) {
+            self->requestUpdate = true;
+            self->presentLock.notify();
+        }
+    } else {
+        auto lock = self->presentLock.lock();
+        if (!self->presentRequests.empty() && self->presentRR) {
+            self->requestUpdate = true;
+            self->presentLock.notify();
+        }
+    }
+
+    if (!self->stopped && self->choreographer)
+        pfnAChoreographerPostVsyncCallback(self->choreographer, DisplayX::onVsyncCallback, self);
+}
+
+void DisplayX::releasePresentRequest(std::unique_ptr<PresentRequest> request) {
+    if (!request) return;
+    if (request->sync_fence >= 0) {
+        close(request->sync_fence);
+        request->sync_fence = -1;
+    }
+    if (request->slot) {
+        request->slot->inUse = false;
+        request->slot = nullptr;
+    }
 }
 
 static void sendFD(int& socket, int fd) {
@@ -331,6 +382,7 @@ void DisplayX::eventThreadLoop() {
             return;
         }
         
+        std::lock_guard<std::mutex> operationGuard(operationMutex);
         auto currState = state;
         state = State::NONE;
         
@@ -425,7 +477,20 @@ void DisplayX::onCommitCallback(void *context, ASurfaceTransactionStats *stats) 
 void DisplayX::onCompleteCallback(void *context, ASurfaceTransactionStats *stats) {
     std::unique_ptr<OnCompleteContext> completeContext(static_cast<OnCompleteContext *>(context));
     
+    int presentFenceFd = (pfnASurfaceTransactionStatsGetPresentFenceFd && stats) ? pfnASurfaceTransactionStatsGetPresentFenceFd(stats) : -1;
+
     for (auto &request : completeContext->requests) {
+        if (request->slot) {
+            if (request->slot->releaseFenceFd >= 0) {
+                close(request->slot->releaseFenceFd);
+                request->slot->releaseFenceFd = -1;
+            }
+            if (presentFenceFd >= 0) {
+                request->slot->releaseFenceFd = dup(presentFenceFd);
+            }
+            request->slot->inUse = false;
+        }
+
         if (request->presentId >= 0 && request->clientFd >= 0) {
             int requestCode = 4;
             write(request->clientFd, &requestCode, 4);
@@ -433,50 +498,78 @@ void DisplayX::onCompleteCallback(void *context, ASurfaceTransactionStats *stats
             write(request->clientFd, &request->presentId, 8);
         }
     }
+
+    if (presentFenceFd >= 0) {
+        close(presentFenceFd);
+    }
 }
 
 DisplayX::ConvertedBufferSlot* DisplayX::acquireConvertedSlot(uint32_t width, uint32_t height) {
     std::lock_guard<std::mutex> lock(convertedSlotsMutex);
+    for (auto it = convertedSlots.begin(); it != convertedSlots.end(); ) {
+        if ((*it)->width != width || (*it)->height != height) {
+            if (blitConverter && (*it)->buffer) {
+                blitConverter->unregisterBuffer((*it)->buffer);
+            }
+            it = convertedSlots.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    ConvertedBufferSlot* fallback = nullptr;
     for (auto& slot : convertedSlots) {
-        if (slot->width == width && slot->height == height && !slot->inUse) {
+        if (!slot->inUse) {
             slot->inUse = true;
             return slot.get();
         }
-    }
-    
-    AHardwareBuffer_Desc desc{};
-    desc.width = width;
-    desc.height = height;
-    desc.layers = 1;
-    desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
-    desc.usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT |
-                 AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
-                 AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
-                 
-    AHardwareBuffer* buffer = nullptr;
-    int ret = AHardwareBuffer_allocate(&desc, &buffer);
-    if (ret != 0 || !buffer) {
-        desc.usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
-        ret = AHardwareBuffer_allocate(&desc, &buffer);
-        if (ret != 0 || !buffer) {
-            return nullptr;
+        if (!fallback) {
+            fallback = slot.get();
         }
     }
-    
-    if (blitConverter) {
-        blitConverter->registerBuffer(buffer);
+
+    if (convertedSlots.size() < 3) {
+        AHardwareBuffer_Desc desc{};
+        desc.width = width;
+        desc.height = height;
+        desc.layers = 1;
+        desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+        desc.usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT |
+                     AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+                     AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
+
+        AHardwareBuffer* buffer = nullptr;
+        int ret = AHardwareBuffer_allocate(&desc, &buffer);
+        if (ret != 0 || !buffer) {
+            desc.usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+            ret = AHardwareBuffer_allocate(&desc, &buffer);
+            if (ret != 0 || !buffer) {
+                return nullptr;
+            }
+        }
+
+        if (blitConverter) {
+            blitConverter->registerBuffer(buffer);
+        }
+
+        auto slot = std::make_unique<ConvertedBufferSlot>();
+        slot->buffer = buffer;
+        slot->width = width;
+        slot->height = height;
+        slot->inUse = true;
+        slot->releaseFenceFd = -1;
+
+        ConvertedBufferSlot* raw = slot.get();
+        convertedSlots.push_back(std::move(slot));
+        return raw;
     }
-    
-    auto slot = std::make_unique<ConvertedBufferSlot>();
-    slot->buffer = buffer;
-    slot->width = width;
-    slot->height = height;
-    slot->inUse = true;
-    slot->releaseFenceFd = -1;
-    
-    ConvertedBufferSlot* raw = slot.get();
-    convertedSlots.push_back(std::move(slot));
-    return raw;
+
+    if (fallback) {
+        fallback->inUse = true;
+        return fallback;
+    }
+
+    return nullptr;
 }
 
 void DisplayX::presentThreadLoop() {
@@ -485,13 +578,14 @@ void DisplayX::presentThreadLoop() {
     
     if (isPerformanceHintAPIAvailable() && perfMode) {
         performanceHintManager = pfnAPerformanceHintGetManager();
-        float targetFloat = xServer->refreshRate * 100.0f;
-        int64_t targetWorkDuration = static_cast<int64_t>(1000000000.0f / targetFloat);
-    
-        int tid = gettid();
-        std::vector<int32_t> tids{tid};
-        performanceHintSession = pfnAPerformanceHintCreateSession(performanceHintManager,
-            tids.data(), tids.size(), targetWorkDuration);
+        if (performanceHintManager) {
+            float targetRate = std::max(1.0f, xServer->refreshRate) * 100.0f;
+            int64_t targetWorkDuration = static_cast<int64_t>(1000000000.0f / targetRate);
+            int tid = gettid();
+            std::vector<int32_t> tids{tid};
+            performanceHintSession = pfnAPerformanceHintCreateSession(performanceHintManager,
+                tids.data(), tids.size(), targetWorkDuration);
+        }
     }     
     
     while (!stopped) {
@@ -503,44 +597,66 @@ void DisplayX::presentThreadLoop() {
             if (stopped)
                 break;
                 
-            if (presentRR) requestUpdate = false;
-            
+            if (presentRR && !requestUpdate) {
+                int64_t frameNanos = static_cast<int64_t>(1000000000.0f / std::max(1.0f, xServer->refreshRate));
+                presentLock.cv.wait_for(lock, std::chrono::nanoseconds(frameNanos), [&] {
+                    return stopped || requestUpdate || !presentRR;
+                });
+                if (stopped) break;
+                if (eventsPending != 0 || presentRequests.empty() || !hasSurface || !surfaceChanged || paused) continue;
+            }
+
             while (!presentRequests.empty()) {
                 requests.push(presentRequests.pop());
             }
+
+            if (vsyncId >= 0 && pfnASurfaceTransactionSetFrameTimeline)
+                pfnASurfaceTransactionSetFrameTimeline(presentTransaction, vsyncId);
+
+            if (presentRR) requestUpdate = false;
         }
         
+        int64_t workStarted = getCurrentTimeNanos();
+        std::lock_guard<std::mutex> operationGuard(operationMutex);
         auto completeContext = std::make_unique<OnCompleteContext>();
+        bool transactionChanged = false;
         
         while (!requests.empty()) {
             auto presentRequest = std::move(requests.front());
             requests.pop();
             
             auto window = presentRequest->window;
-            if (!window || !window->control) continue;
+            if (!window || !window->control) {
+                releasePresentRequest(std::move(presentRequest));
+                continue;
+            }
         
             auto drawable = presentRequest->drawable;
             if (!drawable) {
+                releasePresentRequest(std::move(presentRequest));
                 continue;
             }
         
             if (!window->enabled) {
-                printf("presentThread: window %d disabled, setting null buffer", window->id);
-                pfnASurfaceTransactionSetBuffer(presentTransaction, window->control, nullptr, presentRequest->sync_fence);
+                if (presentRequest->sync_fence >= 0) close(presentRequest->sync_fence);
+                presentRequest->sync_fence = -1;
+                pfnASurfaceTransactionSetBuffer(presentTransaction, window->control, nullptr, -1);
             }
             else {
                 AHardwareBuffer* ahbToPresent = drawable->ahb;
                 int fenceToPresent = presentRequest->sync_fence;
+                presentRequest->sync_fence = -1;
                 
-                if (blitConverter && drawable->ahb && (drawable->isDirectContent || drawable->isDisplayX)) {
+                if (blitConverter && ahbToPresent && (drawable->isDirectContent || drawable->isDisplayX)) {
                     auto slot = acquireConvertedSlot(drawable->width, drawable->height);
                     if (slot && slot->buffer) {
                         int destAcquireFenceFd = slot->releaseFenceFd;
                         slot->releaseFenceFd = -1;
+                        
                         std::future<int> future = blitConverter->convertBGRAtoRGBA(
-                            drawable->ahb,
+                            ahbToPresent,
                             slot->buffer,
-                            presentRequest->sync_fence,
+                            fenceToPresent,
                             destAcquireFenceFd,
                             0, 0, drawable->width, drawable->height,
                             0, 0.0f,
@@ -548,31 +664,41 @@ void DisplayX::presentThreadLoop() {
                         );
                         fenceToPresent = future.get();
                         ahbToPresent = slot->buffer;
-                        slot->inUse = false;
-                        slot->releaseFenceFd = (fenceToPresent >= 0) ? dup(fenceToPresent) : -1;
+                        presentRequest->slot = slot;
                     }
                 }
                 
-                printf("presentThread: presenting window %d, control %p, ahb %p", window->id, window->control, ahbToPresent);
                 pfnASurfaceTransactionSetBuffer(presentTransaction, window->control, ahbToPresent, fenceToPresent);
                 if (pfnASurfaceTransactionSetBufferTransparency) {
                     pfnASurfaceTransactionSetBufferTransparency(presentTransaction, window->control, ASURFACE_TRANSACTION_TRANSPARENCY_OPAQUE);
                 }
                 env->CallVoidMethod(xServer->xserverDisplayActivity, cache->updateFrameRating, window->windowObj);
-                if (drawable->isDisplayX) {
+                if (drawable->isDisplayX || presentRequest->slot) {
                     completeContext->requests.push_back(std::move(presentRequest));
                 }
             }
+            transactionChanged = true;
         }
         
-        if (perfMode && pfnASurfaceTransactionSetOnCommit) pfnASurfaceTransactionSetOnCommit(presentTransaction, this, DisplayX::onCommitCallback);
+        if (!transactionChanged) continue;
         if (!completeContext->requests.empty()) pfnASurfaceTransactionSetOnComplete(presentTransaction, completeContext.release(), DisplayX::onCompleteCallback);
         pfnASurfaceTransactionApply(presentTransaction);
+
+        if (perfMode && performanceHintSession && pfnAPerformanceHintReportActualWorkDuration) {
+            int64_t workDuration = getCurrentTimeNanos() - workStarted;
+            if (workDuration > 0)
+                pfnAPerformanceHintReportActualWorkDuration(performanceHintSession, workDuration);
+        }
     }
     
-    if (isPerformanceHintAPIAvailable()) {
+    while (!presentRequests.empty())
+        releasePresentRequest(presentRequests.pop());
+
+    if (isPerformanceHintAPIAvailable() && performanceHintSession) {
         pfnAPerformanceHintCloseSession(performanceHintSession);
+        performanceHintSession = nullptr;
     }
+    pfnASurfaceTransactionDelete(presentTransaction);
 }
 
 void DisplayX::start() {
@@ -593,6 +719,8 @@ void DisplayX::start() {
     pfnASurfaceTransactionDelete = reinterpret_cast<PFNASURFACETRANSACTIONDELETE>(dlsym(handle,"ASurfaceTransaction_delete"));
     pfnASurfaceTransactionApply = reinterpret_cast<PFNASURFACETRANSACTIONAPPLY>(dlsym(handle,"ASurfaceTransaction_apply"));
 
+    pfnASurfaceTransactionSetFrameTimeline = reinterpret_cast<PFNASURFACETRANSACTIONSETFRAMETIMELINE>(dlsym(handle, "ASurfaceTransaction_setFrameTimeline"));
+
     pfnASurfaceControlAcquire = reinterpret_cast<PFNASURFACECONTROLACQUIRE>(dlsym(handle,"ASurfaceControl_acquire"));
     pfnASurfaceControlRelease = reinterpret_cast<PFNASURFACECONTROLRELEASE>(dlsym(handle,"ASurfaceControl_release"));
     pfnASurfaceControlCreate = reinterpret_cast<PFNASURFACECONTROLCREATE>(dlsym(handle,"ASurfaceControl_create"));
@@ -600,6 +728,9 @@ void DisplayX::start() {
 
     pfnAChoreographerGetInstance = reinterpret_cast<PFNACHOREOGRAPHERGETINSTANCE>(dlsym(handle,"AChoreographer_getInstance"));
     pfnAChoreographerPostFrameCallback64 = reinterpret_cast<PFNACHOREOGRAPHERPOSTFRAMECALLBACK64>(dlsym(handle,"AChoreographer_postFrameCallback64"));
+    pfnAChoreographerPostVsyncCallback = reinterpret_cast<PFNACHOREOGRAPHERPOSTVSYNCCALLBACK>(dlsym(handle, "AChoreographer_postVsyncCallback"));
+    pfnAChoreographerGetFrameTimelineVsyncId = reinterpret_cast<PFNACHOREOGRAPHERGETFRAMETIMELINEVSYNCID>(dlsym(handle, "AChoreographerFrameCallbackData_getFrameTimelineVsyncId"));
+    pfnAChoreographerGetPreferredTimelineIndex = reinterpret_cast<PFNACHOREOGRAPHERGETPREFERREDTIMELINEINDEX>(dlsym(handle, "AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex"));
     
     pfnAPerformanceHintGetManager = reinterpret_cast<PFNAPERFORMANCEHINTGETMANAGER>(dlsym(handle, "APerformanceHint_getManager"));
     pfnAPerformanceHintCreateSession = reinterpret_cast<PFNAPERFORMANCEHINTCREATESESSION>(dlsym(handle, "APerformanceHint_createSession"));
@@ -609,19 +740,34 @@ void DisplayX::start() {
         
     blitConverter = std::make_unique<BlitConverter>(8);
     blitConverter->initialize();
-    
+
     eventThread = std::thread(&DisplayX::eventThreadLoop, this);
     networkThread = std::thread(&DisplayX::networkThreadLoop, this);
     presentThread = std::thread(&DisplayX::presentThreadLoop, this);
    
     this->choreographer = pfnAChoreographerGetInstance();
-    pfnAChoreographerPostFrameCallback64(this->choreographer, DisplayX::onFrameCallback64, this);
+    if (pfnAChoreographerPostVsyncCallback && pfnAChoreographerGetFrameTimelineVsyncId) {
+        pfnAChoreographerPostVsyncCallback(this->choreographer, DisplayX::onVsyncCallback, this);
+    } else {
+        pfnAChoreographerPostFrameCallback64(this->choreographer, DisplayX::onFrameCallback64, this);
+    }
 }
 
 void DisplayX::stop() {
     stopped = true;
     eventLock.notify();
     presentLock.notify();
+
+    if (presentThread.joinable()) presentThread.join();
+
+    if (blitConverter) {
+        blitConverter->shutdown();
+        blitConverter.reset();
+    }
+    {
+        std::lock_guard<std::mutex> lock(convertedSlotsMutex);
+        convertedSlots.clear();
+    }
 }
 
 void DisplayX::pause() {

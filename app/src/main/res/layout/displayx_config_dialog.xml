@@ -43,33 +43,7 @@
             android:paddingBottom="8dp"
             android:layout_marginBottom="8dp">
 
-            <CheckBox
-                android:layout_width="match_parent"
-                android:layout_height="36dp"
-                android:id="@+id/CBEnableTrueDisplayX"
-                android:text="Bypass X11 Protocol"
-                android:textSize="13sp" />
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#20FFFFFF"
-                android:layout_marginTop="4dp"
-                android:layout_marginBottom="4dp" />
-
-            <CheckBox
-                android:layout_width="match_parent"
-                android:layout_height="36dp"
-                android:id="@+id/CBColorConversion"
-                android:text="In-Layer Color Conversion (Safe AHB)"
-                android:textSize="13sp" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#20FFFFFF"
-                android:layout_marginTop="4dp"
-                android:layout_marginBottom="4dp" />
 
             <CheckBox
                 android:layout_width="match_parent"

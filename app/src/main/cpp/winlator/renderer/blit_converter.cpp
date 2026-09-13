@@ -519,32 +519,40 @@ int BlitConverter::doConvert(
 
     const bool serverWaitQueued = srcServerWait || dstServerWait;
 
-    ImportedBuffer transientSource;
-    ImportedBuffer transientDestination;
-
     ImportedBuffer* importedSource = findRegisteredBuffer(source);
     if (!importedSource) {
-        if (!importBuffer(source, transientSource)) {
+        if (registeredBuffers_.size() > 16) {
+            for (auto it = registeredBuffers_.begin(); it != registeredBuffers_.end(); ) {
+                if (it->first != destination) {
+                    destroyImportedBuffer(it->second);
+                    it = registeredBuffers_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+        ImportedBuffer imported;
+        if (!importBuffer(source, imported)) {
             if (serverWaitQueued) glFinish();
             return -1;
         }
-        importedSource = &transientSource;
+        auto res = registeredBuffers_.emplace(source, imported);
+        importedSource = &res.first->second;
     }
 
     ImportedBuffer* importedDst = findRegisteredBuffer(destination);
     if (!importedDst) {
-        if (!importBuffer(destination, transientDestination)) {
+        ImportedBuffer imported;
+        if (!importBuffer(destination, imported)) {
             if (serverWaitQueued) glFinish();
-            destroyImportedBuffer(transientSource);
             return -1;
         }
-        importedDst = &transientDestination;
+        auto res = registeredBuffers_.emplace(destination, imported);
+        importedDst = &res.first->second;
     }
 
     auto failAfterQueuedWork = [&]() -> int {
         glFinish();
-        destroyImportedBuffer(transientSource);
-        destroyImportedBuffer(transientDestination);
         return -1;
     };
 
@@ -588,7 +596,8 @@ int BlitConverter::doConvert(
         srcB = static_cast<int>(sourceDesc.height);
     }
 
-    glUniform1i(swapRedBlueLocation_, swapRedBlue ? 1 : 0);
+    const bool effectiveSwap = swapRedBlue && (sourceDesc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
+    glUniform1i(swapRedBlueLocation_, effectiveSwap ? 1 : 0);
     glUniform2f(sourceSizeLocation_,
                 static_cast<float>(sourceDesc.width),
                 static_cast<float>(sourceDesc.height));
@@ -615,8 +624,6 @@ int BlitConverter::doConvert(
         return failAfterQueuedWork();
     }
 
-    destroyImportedBuffer(transientSource);
-    destroyImportedBuffer(transientDestination);
     return releaseFenceFd;
 }
 
@@ -796,13 +803,18 @@ void BlitConverter::cleanupGL() {
     currentViewportWidth_ = -1; currentViewportHeight_ = -1;
 
     if (display_ != EGL_NO_DISPLAY) {
+        for (auto& pair : registeredBuffers_) {
+            destroyImportedBuffer(pair.second);
+        }
+        registeredBuffers_.clear();
+
         eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (context_ != EGL_NO_CONTEXT) eglDestroyContext(display_, context_);
         if (surface_ != EGL_NO_SURFACE) eglDestroySurface(display_, surface_);
         eglTerminate(display_);
+    } else {
+        registeredBuffers_.clear();
     }
-
-    registeredBuffers_.clear();
     display_     = EGL_NO_DISPLAY;
     context_     = EGL_NO_CONTEXT;
     surface_     = EGL_NO_SURFACE;

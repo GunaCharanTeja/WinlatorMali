@@ -46,6 +46,8 @@ class DisplayX {
                cv.notify_all();
            }
         };
+ 
+        struct ConvertedBufferSlot;
 
         struct PresentRequest {
             Drawable *drawable;
@@ -54,18 +56,26 @@ class DisplayX {
             uint8_t swapchainId;
             int clientFd;
             Window *window;
+            ConvertedBufferSlot *slot = nullptr;
         };
         
         class PresentQueue {
             private:
                 std::queue<std::unique_ptr<PresentRequest>> mQueue;
+                std::unordered_set<int> pendingWindowUpdates;
 
             public:
-                void push(std::unique_ptr<PresentRequest> request) {
+                bool push(std::unique_ptr<PresentRequest> request) {
                     if (!request)
-                        return;
+                        return false;
+
+                    if (request->window && !pendingWindowUpdates.insert(request->window->id).second) {
+                        if (request->sync_fence >= 0) close(request->sync_fence);
+                        return false;
+                    }
 
                     mQueue.push(std::move(request));
+                    return true;
                 }
 
                 std::unique_ptr<PresentRequest> pop() {
@@ -74,6 +84,8 @@ class DisplayX {
 
                     auto val = std::move(mQueue.front());
                     mQueue.pop();
+                    if (val && val->window)
+                        pendingWindowUpdates.erase(val->window->id);
                     return val;
                 }
 
@@ -148,12 +160,17 @@ class DisplayX {
         int eventsPending = 0;
         int64_t previousReportedWorkTime = 0;
         
+        std::mutex operationMutex;
+        int64_t vsyncId = -1;
+        
         void eventThreadLoop();
         void networkThreadLoop();
         void presentThreadLoop();
         static void onFrameCallback64(int64_t frameTimeNanos, void *data);
+        static void onVsyncCallback(const AChoreographerFrameCallbackData *callbackData, void *data);
         static void onCommitCallback(void *context, ASurfaceTransactionStats *stats);
         static void onCompleteCallback(void *context, ASurfaceTransactionStats *stats);
+        static void releasePresentRequest(std::unique_ptr<PresentRequest> request);
         int64_t getCurrentTimeNanos();
         bool isPerformanceHintAPIAvailable();
         
