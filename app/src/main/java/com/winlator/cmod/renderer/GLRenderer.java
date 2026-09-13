@@ -161,10 +161,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             drawFrame();
         }
 
-        if (winlatorHUD != null) {
-            winlatorHUD.onFrame();
-        }
-
         regularFrameCount++;
         updateFPS();
     }
@@ -196,6 +192,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public void setFpsLimit(int fpsLimit) {
         this.currentFpsLimit = fpsLimit;
+        if (xServer != null && xServer.getFpsLimit() != fpsLimit) {
+            xServer.setFpsLimit(fpsLimit);
+        }
     }
 
     public int getFpsLimit() {
@@ -204,6 +203,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public void setWinlatorHUD(com.winlator.cmod.widget.WinlatorHUD hud) {
         this.winlatorHUD = hud;
+        if (xServer != null && xServer.getWinlatorHUD() != hud) {
+            xServer.setWinlatorHUD(hud);
+        }
     }
 
     public com.winlator.cmod.widget.WinlatorHUD getWinlatorHUD() {

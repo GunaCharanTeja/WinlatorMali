@@ -41,6 +41,8 @@ public class XServer {
     private com.winlator.cmod.widget.DisplayXView displayXView;
     private SHMSegmentManager shmSegmentManager;
     private GLRenderer renderer;
+    private volatile com.winlator.cmod.widget.WinlatorHUD winlatorHUD;
+    private volatile int fpsLimit = 0;
     private WinHandler winHandler;
     private final EnumMap<Lockable, ReentrantLock> locks = new EnumMap<>(Lockable.class);
     private boolean relativeMouseMovement = false;
@@ -123,6 +125,36 @@ public class XServer {
 
     public void setRenderer(GLRenderer renderer) {
         this.renderer = renderer;
+        if (renderer != null) {
+            if (winlatorHUD != null) renderer.setWinlatorHUD(winlatorHUD);
+            if (fpsLimit > 0) renderer.setFpsLimit(fpsLimit);
+        }
+    }
+
+    public com.winlator.cmod.widget.WinlatorHUD getWinlatorHUD() {
+        return winlatorHUD;
+    }
+
+    public void setWinlatorHUD(com.winlator.cmod.widget.WinlatorHUD winlatorHUD) {
+        this.winlatorHUD = winlatorHUD;
+        if (renderer != null && renderer.getWinlatorHUD() != winlatorHUD) {
+            renderer.setWinlatorHUD(winlatorHUD);
+        }
+    }
+
+    public int getFpsLimit() {
+        return fpsLimit;
+    }
+
+    public void setFpsLimit(int fpsLimit) {
+        this.fpsLimit = fpsLimit;
+        if (renderer != null && renderer.getFpsLimit() != fpsLimit) {
+            renderer.setFpsLimit(fpsLimit);
+        }
+        com.winlator.cmod.xserver.extensions.PresentExtension presentExt = getExtension(com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
+        if (presentExt != null) {
+            presentExt.onFpsLimitChanged(fpsLimit);
+        }
     }
 
     public WinHandler getWinHandler() {

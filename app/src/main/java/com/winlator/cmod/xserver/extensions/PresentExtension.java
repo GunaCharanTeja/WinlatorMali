@@ -33,7 +33,6 @@ public class PresentExtension implements Extension {
     public enum Mode {COPY, FLIP, SKIP}
     private final SparseArray<Event> events = new SparseArray<>();
     private SyncExtension syncExtension;
-    private long nextFrameTime = 0;
 
     private static abstract class ClientOpcodes {
         private static final byte QUERY_VERSION = 0;
@@ -135,8 +134,13 @@ public class PresentExtension implements Extension {
                 content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);
             }
         }
-        sendIdleNotify(window, pixmap, serial, idleFence);
         sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
+        int targetFps = client.xServer != null ? client.xServer.getFpsLimit() : 0;
+        scheduleIdleNotify(window, pixmap, serial, idleFence, targetFps);
+
+        if (client.xServer != null && client.xServer.getWinlatorHUD() != null) {
+            client.xServer.getWinlatorHUD().onFrame();
+        }
     }
 
     private void selectInput(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -177,30 +181,105 @@ public class PresentExtension implements Extension {
         }
     }
 
-    private void enforceAbsoluteFramerate(com.winlator.cmod.renderer.GLRenderer renderer) {
-        if (renderer == null) return;
+    private static final long FIRE_EARLY_NS = 700_000L; // 0.7 ms
 
-        int targetFps = renderer.getFpsLimit();
+    private static class WindowTiming {
+        long nextIdleNs;
+    }
+
+    private static class PendingIdle {
+        final Window window;
+        final Pixmap pixmap;
+        final int serial;
+        final int idleFence;
+        final long fireNs;
+
+        PendingIdle(Window window, Pixmap pixmap, int serial, int idleFence, long fireNs) {
+            this.window = window;
+            this.pixmap = pixmap;
+            this.serial = serial;
+            this.idleFence = idleFence;
+            this.fireNs = fireNs;
+        }
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<Integer, WindowTiming> windowTimings =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.PriorityBlockingQueue<PendingIdle> idleQueue =
+            new java.util.concurrent.PriorityBlockingQueue<>(11, java.util.Comparator.comparingLong(p -> p.fireNs));
+    private volatile Thread pacerThread = null;
+
+    private void scheduleIdleNotify(Window window, Pixmap pixmap, int serial, int idleFence, int targetFps) {
         if (targetFps <= 0) {
-            nextFrameTime = 0;
+            sendIdleNotify(window, pixmap, serial, idleFence);
             return;
         }
 
-        long targetFrameTime = 1000000000L / targetFps;
+        long frameNs = 1_000_000_000L / targetFps;
         long now = System.nanoTime();
-
-        if (nextFrameTime == 0 || (now - nextFrameTime) > targetFrameTime * 2 || now < nextFrameTime - targetFrameTime) {
-            nextFrameTime = now;
-        }
-
-        long sleepTime = nextFrameTime - now;
-        if (sleepTime > 0) {
-            if (sleepTime > 100000L) {
-                java.util.concurrent.locks.LockSupport.parkNanos(sleepTime - 50000L);
+        WindowTiming wt = windowTimings.computeIfAbsent(window.id, k -> new WindowTiming());
+        synchronized (wt) {
+            if (wt.nextIdleNs <= now - frameNs || now < wt.nextIdleNs - frameNs * 2) {
+                wt.nextIdleNs = now + frameNs;
+            } else {
+                wt.nextIdleNs += frameNs;
             }
-            while (System.nanoTime() < nextFrameTime);
+            idleQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs));
         }
-        nextFrameTime = Math.max(System.nanoTime(), nextFrameTime + targetFrameTime);
+        startPacer();
+    }
+
+    private void startPacer() {
+        if (pacerThread != null) return;
+        synchronized (this) {
+            if (pacerThread != null) return;
+            Thread t = new Thread(this::runPacer, "PresentPacer");
+            t.setDaemon(true);
+            t.setPriority(Thread.MAX_PRIORITY);
+            pacerThread = t;
+            t.start();
+        }
+    }
+
+    private void runPacer() {
+        while (!Thread.interrupted()) {
+            try {
+                PendingIdle p = idleQueue.take();
+                long remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
+                while (remaining > 0) {
+                    if (remaining > 100_000L) {
+                        java.util.concurrent.locks.LockSupport.parkNanos(remaining - 50_000L);
+                    }
+                    if (Thread.interrupted()) return;
+                    remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
+                }
+                sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
+    }
+
+    public void drainAndFireAll() {
+        PendingIdle p;
+        while ((p = idleQueue.poll()) != null) {
+            sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+        }
+        windowTimings.clear();
+    }
+
+    public void onFpsLimitChanged(int newLimit) {
+        if (newLimit <= 0) {
+            drainAndFireAll();
+        }
+    }
+
+    public void close() {
+        if (pacerThread != null) {
+            pacerThread.interrupt();
+            pacerThread = null;
+        }
+        drainAndFireAll();
     }
 
     @Override
@@ -215,9 +294,6 @@ public class PresentExtension implements Extension {
             case ClientOpcodes.PRESENT_PIXMAP:
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.PIXMAP_MANAGER)) {
                     presentPixmap(client, inputStream, outputStream);
-                }
-                if (client.xServer != null && client.xServer.getRenderer() != null) {
-                    enforceAbsoluteFramerate(client.xServer.getRenderer());
                 }
                 break;
             case ClientOpcodes.SELECT_INPUT:

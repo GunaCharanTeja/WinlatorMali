@@ -1121,6 +1121,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRating.setDataSource(hudDataSource);
             frameRating.setWrapperName(graphicsDriver);
             frameRating.setDisplayDriver(xServer.getDisplayDriver());
+            xServer.setWinlatorHUD(frameRating);
             if (renderer != null) renderer.setWinlatorHUD(frameRating);
             rootView.addView(frameRating);
 
@@ -1612,6 +1613,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRating.setWrapperName(graphicsDriver);
             frameRating.setDisplayDriver(xServer.getDisplayDriver());
 
+            xServer.setWinlatorHUD(frameRating);
             if (xServerView != null) xServerView.getRenderer().setWinlatorHUD(frameRating);
             frameRating.enableByUser();
             rootView.addView(frameRating);

@@ -419,6 +419,9 @@ public class GLXExtension implements Extension {
             Runnable onDrawListener = drawable.getOnDrawListener();
             if (onDrawListener != null) onDrawListener.run();
             updateHUD();
+            if (xServer != null && xServer.getWinlatorHUD() != null) {
+                xServer.getWinlatorHUD().onFrame();
+            }
         }
         paceFramerate();
         Thread.yield();
