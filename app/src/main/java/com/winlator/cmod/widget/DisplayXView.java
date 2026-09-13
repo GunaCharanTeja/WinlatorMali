@@ -54,6 +54,9 @@ public class DisplayXView extends SurfaceView implements SurfaceHolder.Callback,
         if (window != null && drawable != null) {
             addDirectContent(window, drawable);
             nativeUpdateDirectContent(window.id, drawable.id);
+            if (xServer != null && xServer.getWinlatorHUD() != null) {
+                xServer.getWinlatorHUD().onFrame();
+            }
         }
     }
 

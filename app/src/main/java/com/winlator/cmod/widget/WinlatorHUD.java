@@ -273,15 +273,12 @@ public class WinlatorHUD extends View {
         return s;
     }
 
-    public void countFrame() {
-        frameAccum.incrementAndGet();
-    }
 
     public void onFrame() {
         long now = System.nanoTime();
-        if (now - lastOnFrameNs < 500_000L) return; // Deduplicate calls within 0.5ms
+        if (now - lastOnFrameNs < 200_000L) return; // Deduplicate calls within 0.2ms
         lastOnFrameNs = now;
-        countFrame();
+        frameAccum.incrementAndGet();
     }
 
     public void setDataSource(HudDataSource dataSource) {

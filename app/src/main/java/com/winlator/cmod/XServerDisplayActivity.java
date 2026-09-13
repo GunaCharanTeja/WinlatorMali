@@ -648,7 +648,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                if (xServerView == null && displayXView == null) {
+                if (xServerView == null) {
                     updateFrameRating(window);
                 }
             }
@@ -661,7 +661,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                if (xServerView == null && displayXView == null && frameRating != null && window != null && window.isApplicationWindow()) {
+                if (xServerView == null && frameRating != null && window != null && window.isApplicationWindow()) {
                     long now = System.nanoTime();
                     if (now - lastDirectContentTimeNs > 1_000_000_000L) {
                         frameRating.onFrame();
@@ -1009,7 +1009,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     public void updateFrameRating(Window window) {
-        if (xServerView != null || displayXView != null) return;
+        if (xServerView != null) return;
         if (frameRating != null && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 200 && window.getHeight() > 200) {
             lastDirectContentTimeNs = System.nanoTime();
             frameRating.onFrame();
