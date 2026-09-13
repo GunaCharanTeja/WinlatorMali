@@ -200,6 +200,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private short taskAffinityMask = 0;
     private short taskAffinityMaskWoW64 = 0;
     private int frameRatingWindowId = -1;
+    private long lastDirectContentTimeNs = 0;
     private boolean cursorLock; // Flag to track if pointer capture was requested
     private final float[] xform = XForm.getInstance();
     private ContentsManager contentsManager;
@@ -644,7 +645,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                updateFrameRating(window);
+                if (xServerView == null) {
+                    updateFrameRating(window);
+                }
             }
 
             @Override
@@ -655,7 +658,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                if (frameRating != null && window.getWidth() > 200 && window.getHeight() > 200) frameRating.onFrame();
+                if (xServerView == null && frameRating != null && window != null && window.isApplicationWindow()) {
+                    long now = System.nanoTime();
+                    if (now - lastDirectContentTimeNs > 1_000_000_000L) {
+                        frameRating.onFrame();
+                    }
+                }
             }
            
             @Override
@@ -998,7 +1006,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     public void updateFrameRating(Window window) {
-        if (frameRating != null && window != null && window.getWidth() > 200 && window.getHeight() > 200) {
+        if (xServerView != null) return;
+        if (frameRating != null && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 200 && window.getHeight() > 200) {
+            lastDirectContentTimeNs = System.nanoTime();
             frameRating.onFrame();
         }
     }

@@ -293,15 +293,16 @@ public class WinlatorHUD extends View {
             if (dt >= 500_000_000L) {
                 int frames = frameAccum.getAndSet(0);
                 snapFps = (frames * 1_000_000_000.0f) / dt;
-                snapTotalFps = apexActive ? snapFps * apexMultiplier : snapFps;
                 lastFpsNs = now;
                 if (!apexActive) {
+                    snapTotalFps = snapFps;
                     strFps = String.valueOf(Math.round(snapFps));
                 }
 
-                graph[gHead % GBUF] = snapFps;
+                float graphFps = apexActive ? snapTotalFps : snapFps;
+                graph[gHead % GBUF] = graphFps;
                 gHead++;
-                if (snapFps > gMax) gMax = Math.max(60f, snapFps * 1.1f);
+                if (graphFps > gMax) gMax = Math.max(60f, graphFps * 1.1f);
             }
         }
 

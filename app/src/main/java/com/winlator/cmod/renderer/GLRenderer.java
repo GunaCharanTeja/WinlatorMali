@@ -58,7 +58,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private long lastNanos = 0;
     private int currentFpsLimit = 0;
     private final EffectComposer effectComposer;
-    private com.winlator.cmod.widget.WinlatorHUD winlatorHUD;
+    private volatile com.winlator.cmod.widget.WinlatorHUD winlatorHUD;
     private long fpsStartTime = 0;
     private float displayTotalFPS = 0;
     private boolean renderCursorEnabled = true;
@@ -159,6 +159,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             effectComposer.render();
         } else {
             drawFrame();
+        }
+
+        if (winlatorHUD != null) {
+            winlatorHUD.onFrame();
         }
 
         regularFrameCount++;
