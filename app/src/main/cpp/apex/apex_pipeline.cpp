@@ -694,13 +694,12 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
 
         // Pacing & Target FPS Governor:
         int targetFPS = mTargetFPS.load(std::memory_order_relaxed);
-        int64_t targetIntervalNanos = (targetFPS > 0) ? (1000000000LL / targetFPS) : 0;
-        int64_t minAllowedInterval = targetIntervalNanos / 2; // Relaxed: only bypass if less than 50% of interval
         int64_t lastPres = mLastPresentedNanos.load(std::memory_order_relaxed);
 
-        if (mPlannedGen == 0 || (targetFPS > 0 && lastPres > 0 && (nowNanos - lastPres < minAllowedInterval))) {
-            // Multiplier 1x or interval ceiling reached:
-            // Present real frame directly without compute pass overhead!
+        // Relaxed Governor: In Continuous Mode, Java handles the main throttle.
+        // We only bypass here if we are rendering faster than 250 FPS to avoid GPU flooding.
+        if (mPlannedGen == 0 || (targetFPS > 0 && lastPres > 0 && (nowNanos - lastPres < 4000000LL))) {
+            // Multiplier 1x or safety ceiling reached:
             glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
             glViewport(viewX, viewY, viewWidth, viewHeight);
             blitQuad(mColorRingTex[mCurrentSlot], 0, 0, 1, 1);

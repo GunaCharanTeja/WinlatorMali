@@ -150,7 +150,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 }
                 while (System.nanoTime() < nextRenderTimeNanos);
             }
-            nextRenderTimeNanos = Math.max(System.nanoTime(), nextRenderTimeNanos + targetIntervalNanos);
+            nextRenderTimeNanos += targetIntervalNanos; // Accumulate precisely to hit target
         }
 
         if (toggleFullscreen) {

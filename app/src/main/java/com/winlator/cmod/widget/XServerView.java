@@ -25,7 +25,7 @@ public class XServerView extends GLSurfaceView {
     }
 
     public void setApexMode(boolean active) {
-        setRenderMode(RENDERMODE_WHEN_DIRTY);
+        setRenderMode(active ? RENDERMODE_CONTINUOUSLY : RENDERMODE_WHEN_DIRTY);
         if (active) {
             renderer.startChoreographer();
         } else {

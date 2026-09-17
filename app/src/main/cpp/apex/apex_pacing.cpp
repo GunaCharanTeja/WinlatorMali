@@ -23,11 +23,11 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
             std::sort(mSortedHistory.begin(), mSortedHistory.end());
             float medianDelta = mSortedHistory[mSortedHistory.size() / 2];
 
-            // WinNative DIS EWMA rate tracking (15% smoothing)
+            // WinNative DIS EWMA rate tracking (5% smoothing for high stability)
             if (mTypicalDeltaNanos == 33333334.0f) {
                 mTypicalDeltaNanos = medianDelta;
             } else {
-                mTypicalDeltaNanos += (medianDelta - mTypicalDeltaNanos) * 0.15f;
+                mTypicalDeltaNanos += (medianDelta - mTypicalDeltaNanos) * 0.05f;
             }
         }
     }
@@ -78,7 +78,7 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
     } else if (proposedGen < currentGen) {
         mGenLowStreak++;
         mGenHighStreak = 0;
-        if (mGenLowStreak >= 30) { // Very sticky high multiplier (approx 1s at 30fps) - stay high!
+        if (mGenLowStreak >= 60) { // Very sticky high multiplier (approx 2s at 30fps)
             mPlannedGen = proposedGen;
             mGenLowStreak = 0;
             mDeltaAtRaise = mTypicalDeltaNanos;

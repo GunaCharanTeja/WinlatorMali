@@ -144,8 +144,8 @@ private:
     std::atomic<int64_t> mLastPresentedNanos{0};
     std::atomic<int> mFramesSinceReal{0};
     float mTypicalDeltaNanos{16666667.0f};
-    std::array<float, 10> mDeltaHistory;
-    std::array<float, 10> mSortedHistory;
+    std::array<float, 20> mDeltaHistory;
+    std::array<float, 20> mSortedHistory;
     int mHistoryIdx{0};
     float mSmoothedDesired{60.0f};
 
