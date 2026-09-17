@@ -508,7 +508,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 }
 
                 if (winlatorHUD != null) {
-                    winlatorHUD.setApexStats(displayTotalFPS, liveMultiplier, true);
+                    winlatorHUD.setApexStats(displayTotalFPS, realRate, liveMultiplier, true);
                 }
                 regularFrameCount = 0; // Reset even when Apex is active to avoid accumulation
 
@@ -523,7 +523,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 displayTotalFPS = regularFrameCount / delta;
                 regularFrameCount = 0;
                 if (winlatorHUD != null) {
-                    winlatorHUD.setApexStats(displayTotalFPS, 1.0f, false);
+                    winlatorHUD.setApexStats(displayTotalFPS, displayTotalFPS, 1.0f, false);
                 }
             }
 

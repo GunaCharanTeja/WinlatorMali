@@ -119,6 +119,7 @@ public class WinlatorHUD extends View {
     private long lastOnFrameNs = 0;
     private float snapFps = 0;
     private float snapTotalFps = 0;
+    private float snapRealFps = 0;
     private boolean apexActive = false;
     private float apexMultiplier = 2.0f;
 
@@ -351,10 +352,7 @@ public class WinlatorHUD extends View {
 
     private String getFpsDisplayText() {
         if (apexActive) {
-            int shaderCount = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetCompiledShaderCount();
-            boolean healthy = com.winlator.cmod.renderer.ApexNativeBridge.nativeIsHealthy();
-            String status = (shaderCount >= 8 && healthy) ? "[8/8 OK]" : "[ERR]";
-            return String.format(Locale.US, "%d (%.1fx) %s", Math.round(snapTotalFps), apexMultiplier, status);
+            return String.format(Locale.US, "%d [%d] (%.1fx)", Math.round(snapTotalFps), Math.round(snapRealFps), apexMultiplier);
         }
         return strFps;
     }
@@ -1277,13 +1275,14 @@ public class WinlatorHUD extends View {
         });
     }
 
-    public void setApexStats(float totalFps, float multiplier, boolean active) {
+    public void setApexStats(float totalFps, float realFps, float multiplier, boolean active) {
         boolean wasActive = this.apexActive;
         float prevMult = this.apexMultiplier;
         this.apexActive = active;
         this.apexMultiplier = multiplier;
         if (active) {
             this.snapTotalFps = totalFps;
+            this.snapRealFps = realFps;
             this.strFps = String.valueOf(Math.round(totalFps));
             if (!wasActive || Math.abs(prevMult - multiplier) > 0.05f) {
                 layoutDirty = true;
