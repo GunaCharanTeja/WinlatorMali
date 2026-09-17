@@ -47,12 +47,15 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
     int currentGen = mPlannedGen;
     int proposedGen = 0;
 
-    // Aggressive Target FPS logic: use ceil to ensure we reach the target
-    if (target > 0 && sourceFps >= static_cast<float>(target) - 2.0f) {
-        proposedGen = 0; // Native game FPS already hits or exceeds Target FPS: bypass generation
+    // Aggressive Target FPS logic:
+    // We want (Source * Multiplier) >= Target.
+    // Therefore, Multiplier >= Target / Source.
+    if (target > 0 && sourceFps >= static_cast<float>(target) - 0.5f) {
+        proposedGen = 0; // Game already at target
     } else {
-        proposedGen = std::max(1, (int)std::ceil(ratio - 0.1f) - 1);
-        proposedGen = std::clamp(proposedGen, 1, 3);
+        // Use a small 0.1 bias to prevent flickering right at the integer boundary
+        int requiredMultiplier = static_cast<int>(std::ceil(ratio - 0.1f));
+        proposedGen = std::clamp(requiredMultiplier - 1, 1, 3);
     }
 
     // Always allow max multiplier if needed to hit target
