@@ -393,7 +393,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             ApexNativeBridge.nativeOnFrameCaptured(true);
         }
         markNewRealFrame();
-        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
+        xServerView.requestRender();
     }
 
     @Override
@@ -405,7 +405,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public void onUpdateWindowGeometry(Window window, boolean resized) {
         markNewRealFrame();
         xServerView.queueEvent(this::updateScene);
-        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
+        xServerView.requestRender();
     }
 
     @Override
@@ -420,7 +420,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // In relative mouse mode or when cursor is hidden, game rendering is driven by
         // window content changes, not pointer movement. Skip redundant render requests
         // to prevent high-polling-rate mice (500-1000 Hz) from flooding the GPU pipeline.
-        if (xServer.isRelativeMouseMovement() || !cursorVisible || !renderCursorEnabled || ApexNativeBridge.nativeIsActive()) {
+        if (xServer.isRelativeMouseMovement() || !cursorVisible || !renderCursorEnabled) {
             return;
         }
         // Throttle cursor-driven renders to ~125 Hz to prevent a 1000 Hz mouse

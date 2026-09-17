@@ -47,24 +47,22 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
     int currentGen = mPlannedGen;
     int proposedGen = 0;
 
-    // Direct mathematical calculation to reach and lock Target FPS
-    if (target > 0 && sourceFps >= static_cast<float>(target) - 1.5f) {
+    // Aggressive Target FPS logic: use ceil to ensure we reach the target
+    if (target > 0 && sourceFps >= static_cast<float>(target) - 2.0f) {
         proposedGen = 0; // Native game FPS already hits or exceeds Target FPS: bypass generation
-    } else if (ratio >= (DIS_MIN_GEN_RATIO - DIS_RATIO_HYST)) {
-        int outputs = static_cast<int>(std::round(ratio));
-        proposedGen = std::clamp(outputs - 1, 1, 3);
     } else {
-        proposedGen = 1; // Default to 2x frame generation when Apex is active
+        proposedGen = std::max(1, (int)std::ceil(ratio - 0.1f) - 1);
+        proposedGen = std::clamp(proposedGen, 1, 3);
     }
 
-    // Proactively maintain Target FPS without artificial hold timeouts or backpressure demotion
-    mCostLimit = 3; // Always allow up to 4x multiplier to hit target refresh rate
+    // Always allow max multiplier if needed to hit target
+    mCostLimit = 3;
 
-    // Asymmetric Streak Debouncing: 2 frames to step UP, 4 frames to step DOWN (prevents flutter)
+    // Asymmetric Streak Debouncing: Immediate step UP, very slow step DOWN
     if (proposedGen > currentGen) {
         mGenHighStreak++;
         mGenLowStreak = 0;
-        if (mGenHighStreak >= 2) {
+        if (mGenHighStreak >= 1) { // React instantly to performance drops
             mPlannedGen = proposedGen;
             mGenHighStreak = 0;
             mDeltaAtRaise = mTypicalDeltaNanos;
@@ -77,7 +75,7 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
     } else if (proposedGen < currentGen) {
         mGenLowStreak++;
         mGenHighStreak = 0;
-        if (mGenLowStreak >= 4) {
+        if (mGenLowStreak >= 30) { // Very sticky high multiplier (approx 1s at 30fps) - stay high!
             mPlannedGen = proposedGen;
             mGenLowStreak = 0;
             mDeltaAtRaise = mTypicalDeltaNanos;

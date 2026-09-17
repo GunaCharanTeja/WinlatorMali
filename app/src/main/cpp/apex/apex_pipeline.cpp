@@ -695,7 +695,7 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
         // Pacing & Target FPS Governor:
         int targetFPS = mTargetFPS.load(std::memory_order_relaxed);
         int64_t targetIntervalNanos = (targetFPS > 0) ? (1000000000LL / targetFPS) : 0;
-        int64_t minAllowedInterval = targetIntervalNanos - (targetIntervalNanos / 20); // 5% jitter margin
+        int64_t minAllowedInterval = targetIntervalNanos / 2; // Relaxed: only bypass if less than 50% of interval
         int64_t lastPres = mLastPresentedNanos.load(std::memory_order_relaxed);
 
         if (mPlannedGen == 0 || (targetFPS > 0 && lastPres > 0 && (nowNanos - lastPres < minAllowedInterval))) {
@@ -760,19 +760,12 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
         }
 
         int targetFPS = mTargetFPS.load(std::memory_order_relaxed);
-        int64_t targetIntervalNanos = (targetFPS > 0) ? (1000000000LL / targetFPS) : 0;
-        int64_t minAllowedInterval = targetIntervalNanos - (targetIntervalNanos / 20); // 5% jitter margin
         int64_t lastPres = mLastPresentedNanos.load(std::memory_order_relaxed);
 
         int fs = mFramesSinceReal.fetch_add(1) + 1;
         if (fs < mPlannedGen) {
             // Multi-generation (3x or 4x): output intermediate frame G_t
-            if (targetFPS > 0 && lastPres > 0 && (nowNanos - lastPres < minAllowedInterval)) {
-                glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
-                glViewport(viewX, viewY, viewWidth, viewHeight);
-                blitQuad(mColorRingTex[mCurrentSlot], 0, 0, 1, 1);
-                return;
-            }
+            // Relaxed pacing: prioritize generation to hit target FPS
             float t = getInterpolationFactor(nowNanos);
             dispatchInterpolate(mColorRingTex[mPreviousSlot], mColorRingTex[mCurrentSlot],
                                 mLevels[0].denseFlowTex, mLevels[0].denseFlowTex, mInterpOutTex, t, mScaledWidth, mScaledHeight);
