@@ -26,11 +26,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private final Spinner sLSFGTargetFPS;
     private final EditText etCustomTargetFPS;
     private final LinearLayout llLSFGSettings;
-    private final SeekBar sbLSFGMotionBlur;
-    private final SeekBar sbLSFGFlowScale;
     private final SeekBar sbLSFGLiquidFeel;
-    private final SeekBar sbLSFGEdgeGuard;
-    private final CheckBox cbEnableApexLogging;
     private final Spinner sLSFGRenderScale;
     private final CheckBox cbEnableHDR;
     private final CheckBox cbEnableSharpen;
@@ -79,11 +75,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         sLSFGQuality = findViewById(R.id.SLSFGQuality);
         sLSFGRenderScale = findViewById(R.id.SLSFGRenderScale);
         llLSFGSettings = findViewById(R.id.LLLSFGSettings);
-        sbLSFGMotionBlur = findViewById(R.id.SBLSFGMotionBlur);
-        sbLSFGFlowScale = findViewById(R.id.SBLSFGFlowScale);
         sbLSFGLiquidFeel = findViewById(R.id.SBLSFGLiquidFeel);
-        sbLSFGEdgeGuard = findViewById(R.id.SBLSFGEdgeGuard);
-        cbEnableApexLogging = findViewById(R.id.CBEnableApexLogging);
 
         boolean lsfgEnabled = com.winlator.cmod.renderer.ApexNativeBridge.nativeIsActive();
         lsfgPreviouslyEnabled = lsfgEnabled;
@@ -92,11 +84,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         llLSFGSettings.setVisibility(lsfgEnabled ? View.VISIBLE : View.GONE);
 
         sLSFGQuality.setSelection(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetQuality());
-        sbLSFGMotionBlur.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetShutterGain());
-        sbLSFGFlowScale.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetFlowScale());
         sbLSFGLiquidFeel.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetLiquidFeel());
-        sbLSFGEdgeGuard.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetEdgeGuard());
-        cbEnableApexLogging.setChecked(com.winlator.cmod.renderer.ApexNativeBridge.nativeIsLoggingEnabled());
 
         float currentScale = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetRenderScale();
         int scaleIndex = 0;
@@ -204,11 +192,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
 
-        sbLSFGMotionBlur.setOnValueChangeListener((seekBar, value) -> applyEffects());
-        sbLSFGFlowScale.setOnValueChangeListener((seekBar, value) -> applyEffects());
         sbLSFGLiquidFeel.setOnValueChangeListener((seekBar, value) -> applyEffects());
-        sbLSFGEdgeGuard.setOnValueChangeListener((seekBar, value) -> applyEffects());
-        cbEnableApexLogging.setOnCheckedChangeListener((buttonView, isChecked) -> applyEffects());
 
         sFPSLimit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
@@ -344,11 +328,11 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             }
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetRenderScale(renderScale);
 
-            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetShutterGain(sbLSFGMotionBlur.getValue());
-            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetFlowScale(sbLSFGFlowScale.getValue());
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetShutterGain(0.0f);
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetFlowScale(1.0f);
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLiquidFeel(sbLSFGLiquidFeel.getValue());
-            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetEdgeGuard(sbLSFGEdgeGuard.getValue());
-            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLoggingEnabled(cbEnableApexLogging.isChecked());
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetEdgeGuard(0.5f);
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLoggingEnabled(false);
 
             int targetFPS = 0;
             int targetFPSSelection = sLSFGTargetFPS.getSelectedItemPosition();

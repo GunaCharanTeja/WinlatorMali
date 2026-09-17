@@ -67,6 +67,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private static final long MIN_POINTER_RENDER_INTERVAL_NS = 8_000_000L; // ~125 Hz max pointer render rate
     private long lastDiagLogTime = 0;
     private final java.util.concurrent.atomic.AtomicBoolean hasNewRealFrame = new java.util.concurrent.atomic.AtomicBoolean(true);
+    private final java.util.concurrent.atomic.AtomicInteger pendingApexFrames = new java.util.concurrent.atomic.AtomicInteger(0);
 
     public boolean consumeNewRealFrame() {
         return hasNewRealFrame.getAndSet(false);
@@ -74,6 +75,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public void markNewRealFrame() {
         hasNewRealFrame.set(true);
+        int mult = ApexNativeBridge.nativeGetAutoMultiplier();
+        pendingApexFrames.set(Math.max(0, mult - 1));
     }
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
@@ -131,6 +134,25 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
+        boolean isApex = ApexNativeBridge.nativeIsActive();
+        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : currentFpsLimit;
+
+        if (fpsLimit > 0) {
+            long targetIntervalNanos = 1000000000L / fpsLimit;
+            long now = System.nanoTime();
+            if (nextRenderTimeNanos == 0 || (now - nextRenderTimeNanos) > targetIntervalNanos * 2 || now < nextRenderTimeNanos - targetIntervalNanos) {
+                nextRenderTimeNanos = now;
+            }
+            long waitNanos = nextRenderTimeNanos - now;
+            if (waitNanos > 0) {
+                if (waitNanos > 100000L) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(waitNanos - 50000L);
+                }
+                while (System.nanoTime() < nextRenderTimeNanos);
+            }
+            nextRenderTimeNanos = Math.max(System.nanoTime(), nextRenderTimeNanos + targetIntervalNanos);
+        }
+
         if (toggleFullscreen) {
             fullscreen = !fullscreen;
             toggleFullscreen = false;
@@ -367,12 +389,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onUpdateWindowContent(Window window) {
-        markNewRealFrame();
         if (ApexNativeBridge.nativeIsActive()) {
             ApexNativeBridge.nativeOnFrameCaptured(true);
-            return;
         }
-        xServerView.requestRender();
+        markNewRealFrame();
+        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
     }
 
     @Override

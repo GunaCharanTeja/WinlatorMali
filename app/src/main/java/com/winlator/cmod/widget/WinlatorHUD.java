@@ -352,7 +352,8 @@ public class WinlatorHUD extends View {
     private String getFpsDisplayText() {
         if (apexActive) {
             int shaderCount = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetCompiledShaderCount();
-            String status = shaderCount >= 6 ? String.format(Locale.US, "[%d/6 OK]", shaderCount) : "[ERR]";
+            boolean healthy = com.winlator.cmod.renderer.ApexNativeBridge.nativeIsHealthy();
+            String status = (shaderCount >= 8 && healthy) ? "[8/8 OK]" : "[ERR]";
             return String.format(Locale.US, "%d (%.1fx) %s", Math.round(snapTotalFps), apexMultiplier, status);
         }
         return strFps;

@@ -131,12 +131,6 @@ public class EffectComposer {
             int vh = renderer.isFullscreen() ? renderer.surfaceHeight : renderer.viewTransformation.viewHeight;
 
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-            if (!renderer.isFullscreen() && (vx > 0 || vy > 0)) {
-                GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-                GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
-                // Only clear if we have borders to avoid flicker
-                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-            }
 
             // readBuffer now contains the result of all effects (or the raw frame if no effects)
             ApexNativeBridge.nativeProcessFrame(

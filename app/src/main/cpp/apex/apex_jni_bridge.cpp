@@ -41,6 +41,12 @@ Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetCompiledShaderCount(JN
     return apex::ApexEngine::getInstance().getCompiledShaderCount();
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeIsHealthy(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().isHealthy() ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeProcessFrameWithData(
     JNIEnv* env, jclass clazz, jint inputTextureId, jint depthTextureId, jint hudTextureId, jint outputFboId, jint width, jint height) {

@@ -49,6 +49,7 @@ public class ApexNativeBridge {
     // Diagnostics & Verification
     public static native String nativeGetDiagnostics();
     public static native int nativeGetCompiledShaderCount();
+    public static native boolean nativeIsHealthy();
     public static native void nativeSetDebugOverlay(boolean enabled);
     public static native boolean nativeIsDebugOverlay();
     public static native void nativeSetLoggingEnabled(boolean enabled);

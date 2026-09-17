@@ -47,42 +47,20 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
     int currentGen = mPlannedGen;
     int proposedGen = 0;
 
-    // Use a slightly more aggressive threshold to ensure we hit the target FPS
-    float threshold = (currentGen > 0) ? (DIS_MIN_GEN_RATIO - DIS_RATIO_HYST) : DIS_MIN_GEN_RATIO;
-    if (ratio >= threshold) {
-        // Calculate required multiplier to reach target
-        // if source is 40 and target is 60, ratio is 1.5. ceil(1.5 - 0.1) = 2. proposedGen = 1 (2x)
-        int outputs = static_cast<int>(std::ceil(ratio - DIS_RATIO_SLACK));
+    // Direct mathematical calculation to reach and lock Target FPS
+    if (target > 0 && sourceFps >= static_cast<float>(target) - 1.5f) {
+        proposedGen = 0; // Native game FPS already hits or exceeds Target FPS: bypass generation
+    } else if (ratio >= (DIS_MIN_GEN_RATIO - DIS_RATIO_HYST)) {
+        int outputs = static_cast<int>(std::round(ratio));
         proposedGen = std::clamp(outputs - 1, 1, 3);
-    }
-
-    // --- TrackCost GPU Backpressure Governor & Recovery ---
-    if (nowNanos >= mHoldUntilNanos && mCostLimit < 3) {
-        mCostLimit = 3;
-    }
-
-    if (proposedGen > currentGen) {
-        if (nowNanos < mHoldUntilNanos || proposedGen > mCostLimit) {
-            proposedGen = std::min(proposedGen, mCostLimit);
-        }
-    }
-
-    // Detect GPU Saturation (Allow 20% drop for Mali-G615 headroom)
-    if (currentGen > 1 && mDeltaAtRaise > 0.0f && mTypicalDeltaNanos > mDeltaAtRaise * 1.20f) {
-        if (mDropSinceNanos == 0) {
-            mDropSinceNanos = nowNanos;
-        } else if (nowNanos - mDropSinceNanos >= 2000000000LL) { // 2.0s persistence for stability
-            mCostLimit = std::max(1, currentGen - 1);
-            mHoldUntilNanos = nowNanos + 5000000000LL; // 5.0s hold
-            proposedGen = mCostLimit;
-            mDropSinceNanos = 0;
-            mDeltaAtRaise = mTypicalDeltaNanos;
-        }
     } else {
-        mDropSinceNanos = 0;
+        proposedGen = 1; // Default to 2x frame generation when Apex is active
     }
 
-    // Asymmetric Streak Debouncing: 2 frames to step UP, 3 frames to step DOWN
+    // Proactively maintain Target FPS without artificial hold timeouts or backpressure demotion
+    mCostLimit = 3; // Always allow up to 4x multiplier to hit target refresh rate
+
+    // Asymmetric Streak Debouncing: 2 frames to step UP, 4 frames to step DOWN (prevents flutter)
     if (proposedGen > currentGen) {
         mGenHighStreak++;
         mGenLowStreak = 0;
@@ -91,29 +69,35 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
             mGenHighStreak = 0;
             mDeltaAtRaise = mTypicalDeltaNanos;
             mLastCostChangeNanos = nowNanos;
+            if (mLoggingEnabled.load(std::memory_order_relaxed)) {
+                APEX_LOGI("ApexDIS Multiplier stepped UP to %dx (Source: %.1f FPS, Target: %d FPS)",
+                          mPlannedGen + 1, sourceFps, target);
+            }
         }
     } else if (proposedGen < currentGen) {
         mGenLowStreak++;
         mGenHighStreak = 0;
-        if (mGenLowStreak >= 3) {
+        if (mGenLowStreak >= 4) {
             mPlannedGen = proposedGen;
             mGenLowStreak = 0;
             mDeltaAtRaise = mTypicalDeltaNanos;
             mLastCostChangeNanos = nowNanos;
+            if (mLoggingEnabled.load(std::memory_order_relaxed)) {
+                APEX_LOGI("ApexDIS Multiplier stepped DOWN to %dx (Source: %.1f FPS, Target: %d FPS)",
+                          mPlannedGen + 1, sourceFps, target);
+            }
         }
     } else {
         mGenHighStreak = 0;
         mGenLowStreak = 0;
     }
 
-    // --- Liquid-Multiplier Smoothing: Ultra-Stable (0.05 weight) ---
+    // Direct and responsive multiplier tracking
     float multiplier = (mPlannedGen > 0) ? static_cast<float>(mPlannedGen + 1) : 1.0f;
     float currentMult = mAutoMultiplierVal.load(std::memory_order_acquire);
-
-    // Slower transition for "infinite" buttery feel
-    float nextMult = currentMult + (multiplier - currentMult) * 0.05f;
+    float nextMult = currentMult + (multiplier - currentMult) * 0.50f;
     mAutoMultiplierVal.store(nextMult, std::memory_order_release);
-    mAutoMultiplier.store(static_cast<int>(std::round(nextMult)), std::memory_order_release);
+    mAutoMultiplier.store(static_cast<int>(std::round(multiplier)), std::memory_order_release);
 }
 
 float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
@@ -123,15 +107,17 @@ float ApexEngine::getInterpolationFactor(int64_t nowNanos) {
     int framesSince = mFramesSinceReal.load(std::memory_order_acquire);
     float mult = std::max(2.0f, (float)mAutoMultiplier.load(std::memory_order_acquire));
 
-    // Restore Linear Timing: Essential for game motion consistency
-    float factor = static_cast<float>(framesSince) / mult;
+    // Subframe phase: uniform distribution across generated frames
+    // For 2x (mult=2): framesSince=0 -> (0+1)/2 = 0.50 (true midpoint)
+    // For 3x (mult=3): framesSince=0 -> 0.33, framesSince=1 -> 0.67
+    float factor = static_cast<float>(framesSince + 1) / mult;
 
     int64_t lastRealTime = mLastRealFrameTimeNanos.load(std::memory_order_acquire);
     if (lastRealTime > 0 && mTypicalDeltaNanos > 1000000.0f) {
         float elapsedNanos = static_cast<float>(nowNanos - lastRealTime);
         float continuousPhase = elapsedNanos / mTypicalDeltaNanos;
 
-        // 90% strict timing, 10% continuous drift for the "Original" buttery feel
+        // 90% strict timing, 10% continuous drift
         factor = factor * 0.90f + std::clamp(continuousPhase / mult, 0.0f, 1.0f) * 0.10f;
     }
 
