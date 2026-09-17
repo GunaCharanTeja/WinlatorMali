@@ -352,7 +352,7 @@ public class WinlatorHUD extends View {
 
     private String getFpsDisplayText() {
         if (apexActive) {
-            return String.format(Locale.US, "%d > %d (%.1fx)", Math.round(snapRealFps), Math.round(snapTotalFps), apexMultiplier);
+            return String.format(Locale.US, "Real: %d > Total: %d (%.1fx)", Math.round(snapRealFps), Math.round(snapTotalFps), apexMultiplier);
         }
         return strFps;
     }
