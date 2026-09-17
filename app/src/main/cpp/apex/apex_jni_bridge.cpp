@@ -225,9 +225,15 @@ Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeDestroy(JNIEnv* env, jcla
 }
 
 JNIEXPORT jint JNICALL
-Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetRealFPS(JNIEnv* env, jclass clazz) {
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetSourceFPS(JNIEnv* env, jclass clazz) {
     (void)env; (void)clazz;
-    return apex::ApexEngine::getInstance().getActualRealFrameCount();
+    return apex::ApexEngine::getInstance().getSourceFrameCount();
+}
+
+JNIEXPORT jint JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetPresentedRealFPS(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().getPresentedRealFrameCount();
 }
 
 JNIEXPORT jint JNICALL

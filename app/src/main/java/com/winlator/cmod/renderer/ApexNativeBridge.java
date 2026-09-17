@@ -31,7 +31,8 @@ public class ApexNativeBridge {
     public static native float nativeGetInterpolationFactor();
 
     // Telemetry & Stats
-    public static native int nativeGetRealFPS();
+    public static native int nativeGetSourceFPS();
+    public static native int nativeGetPresentedRealFPS();
     public static native int nativeGetGenFPS();
     public static native int nativeGetAutoMultiplier();
 

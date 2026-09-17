@@ -60,7 +60,8 @@ public:
     void onFrameCaptured(int64_t nowNanos, bool isActualNewFrame);
     float getInterpolationFactor(int64_t nowNanos);
     int getAutoMultiplier() const { return mAutoMultiplier.load(); }
-    int getActualRealFrameCount() { return mActualRealFrameCount.exchange(0); }
+    int getSourceFrameCount() { return mRealFramesCapturedCount.exchange(0); }
+    int getPresentedRealFrameCount() { return mActualRealFrameCount.exchange(0); }
     int getGeneratedFrameCount() { return mGeneratedFrameCount.exchange(0); }
     int getCompiledShaderCount() const;
     bool isHealthy() const;
@@ -155,7 +156,7 @@ private:
     float mDeltaAtRaise{0.0f};
     int64_t mLastCostChangeNanos{0};
 
-    std::atomic<int> mActualRealFrameCount{0}, mGeneratedFrameCount{0}, mRealFramesCaptured{0};
+    std::atomic<int> mActualRealFrameCount{0}, mGeneratedFrameCount{0}, mRealFramesCaptured{0}, mRealFramesCapturedCount{0};
 };
 
 } // namespace apex

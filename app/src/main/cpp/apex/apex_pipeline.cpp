@@ -661,6 +661,7 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
     if (isNewRealFrame) {
         onFrameCaptured(nowNanos, true);
         mRealFramesCaptured.fetch_add(1);
+        mRealFramesCapturedCount.fetch_add(1);
         mFramesSinceReal.store(0);
         mPreviousSlot = mCurrentSlot;
         mCurrentSlot = (mCurrentSlot + 1) % DIS_SLOTS;
