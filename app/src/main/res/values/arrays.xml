@@ -376,16 +376,23 @@
         <item>Unified Control System</item>
     </string-array>
     <string-array name="lsfg_quality_entries">
-        <item>Ultra Performance (1:1 Fused Neural Pass)</item>
-        <item>Performance (4 Physical Neural Passes)</item>
-        <item>Balanced (7 Physical Neural Passes)</item>
-        <item>High Quality (11 Physical Passes - Golden Spiral)</item>
-        <item>Desktop Quality (Full 16-Pass Neural-Optical Hierarchy)</item>
+        <item>Fast (180p - Recommended)</item>
+        <item>Balance (252p)</item>
+        <item>Quality (360p)</item>
     </string-array>
     <string-array name="lsfg_multiplier_entries">
         <item>2x</item>
         <item>3x</item>
         <item>4x</item>
+    </string-array>
+    <string-array name="apex_render_scale_entries">
+        <item>Native (100%)</item>
+        <item>Ultra Quality (85%)</item>
+        <item>Quality (75%)</item>
+        <item>Balanced (67%)</item>
+        <item>Performance (50%)</item>
+        <item>Ultra Performance (35%)</item>
+        <item>Extreme Performance (25%)</item>
     </string-array>
     <string-array name="lsfg_target_fps_entries">
         <item>Unlimited</item>

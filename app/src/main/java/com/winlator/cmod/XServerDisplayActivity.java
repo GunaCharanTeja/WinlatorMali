@@ -871,6 +871,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onResume() {
         super.onResume();
+        com.winlator.cmod.core.RefreshRateUtils.onActivityResumed(this);
         if (displayXView != null) displayXView.onResume();
 
         if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(1000 * 60 * 60 * 24);
@@ -966,6 +967,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        com.winlator.cmod.core.RefreshRateUtils.onActivityDestroyed(this);
         com.winlator.cmod.perf.PerformanceManager.onGameStop(this);
         if (displayXView != null) displayXView.onDestroy();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();

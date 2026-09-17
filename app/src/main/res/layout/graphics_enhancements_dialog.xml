@@ -156,6 +156,24 @@
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:textColor="?android:attr/textColorSecondary"
+                    android:text="Apex Render Scale" />
+
+                <Spinner
+                    android:id="@+id/SLSFGRenderScale"
+                    style="@style/ComboBox"
+                    android:entries="@array/apex_render_scale_entries"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:spinnerMode="dropdown"
+                    android:layout_marginBottom="10dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:text="Target FPS" />
 
                 <Spinner
@@ -211,6 +229,52 @@
                     app:sbMaxValue="1.0"
                     app:sbMinValue="0.1"
                     app:sbStep="0.01" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="Liquid Feel Control" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBLSFGLiquidFeel"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="1.0"
+                    app:sbMinValue="0.0"
+                    app:sbStep="0.01" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="Edge Wobble Guard" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBLSFGEdgeGuard"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="1.0"
+                    app:sbMinValue="0.0"
+                    app:sbStep="0.01" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableApexLogging"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Enable Apex Diagnostics Logging"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp" />
             </LinearLayout>
         </LinearLayout>
 

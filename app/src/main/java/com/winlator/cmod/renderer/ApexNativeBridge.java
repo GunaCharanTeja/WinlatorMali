@@ -16,6 +16,12 @@ public class ApexNativeBridge {
     public static native float nativeGetShutterGain();
     public static native void nativeSetFlowScale(float scale);
     public static native float nativeGetFlowScale();
+    public static native void nativeSetLiquidFeel(float feel);
+    public static native float nativeGetLiquidFeel();
+    public static native void nativeSetEdgeGuard(float guard);
+    public static native float nativeGetEdgeGuard();
+    public static native void nativeSetRenderScale(float scale);
+    public static native float nativeGetRenderScale();
     public static native void nativeUpdateDimensions(int width, int height);
     public static native void nativeDestroy();
 
@@ -30,6 +36,21 @@ public class ApexNativeBridge {
     public static native int nativeGetAutoMultiplier();
 
     // Direct GPU Frame Processing Hook on Render Thread
-    public static native void nativeProcessFrame(int inputTextureId, int outputFboId, int width, int height);
+    public static native void nativeProcessFrame(int inputTextureId, int outputFboId, int width, int height,
+                                                int viewX, int viewY, int viewWidth, int viewHeight, boolean isNewRealFrame);
+    public static void nativeProcessFrame(int inputTextureId, int outputFboId, int width, int height, boolean isNewRealFrame) {
+        nativeProcessFrame(inputTextureId, outputFboId, width, height, 0, 0, width, height, isNewRealFrame);
+    }
+    public static void nativeProcessFrame(int inputTextureId, int outputFboId, int width, int height) {
+        nativeProcessFrame(inputTextureId, outputFboId, width, height, 0, 0, width, height, true);
+    }
     public static native void nativeProcessFrameWithData(int inputTextureId, int depthTextureId, int hudTextureId, int outputFboId, int width, int height);
+
+    // Diagnostics & Verification
+    public static native String nativeGetDiagnostics();
+    public static native int nativeGetCompiledShaderCount();
+    public static native void nativeSetDebugOverlay(boolean enabled);
+    public static native boolean nativeIsDebugOverlay();
+    public static native void nativeSetLoggingEnabled(boolean enabled);
+    public static native boolean nativeIsLoggingEnabled();
 }

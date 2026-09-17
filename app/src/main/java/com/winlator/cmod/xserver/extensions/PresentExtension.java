@@ -13,8 +13,11 @@ import com.winlator.cmod.xserver.Bitmask;
 import com.winlator.cmod.xserver.Drawable;
 import com.winlator.cmod.xserver.Pixmap;
 import com.winlator.cmod.xserver.Window;
+import com.winlator.cmod.xserver.WindowManager;
 import com.winlator.cmod.xserver.XClient;
 import com.winlator.cmod.xserver.XLock;
+import com.winlator.cmod.xserver.XResource;
+import com.winlator.cmod.xserver.XResourceManager;
 import com.winlator.cmod.xserver.XServer;
 import com.winlator.cmod.xserver.errors.BadImplementation;
 import com.winlator.cmod.xserver.errors.BadMatch;
@@ -27,7 +30,7 @@ import com.winlator.cmod.xserver.events.PresentIdleNotify;
 import java.io.IOException;
 import java.util.concurrent.locks.LockSupport;
 
-public class PresentExtension implements Extension {
+public class PresentExtension implements Extension, XResourceManager.OnResourceLifecycleListener, WindowManager.OnWindowModificationListener {
     public static final byte MAJOR_OPCODE = -103;
     private static final int FAKE_INTERVAL = 1000000 / 60;
     public enum Kind {PIXMAP, MSC_NOTIFY}
@@ -217,37 +220,46 @@ public class PresentExtension implements Extension {
     private final java.util.concurrent.ConcurrentHashMap<Integer, WindowTiming> windowTimings =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    private final java.util.concurrent.ConcurrentHashMap<Integer, PendingIdle> pendingIdles =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    // Use a PriorityBlockingQueue instead of a ConcurrentHashMap keyed by window.id.
+    // The old map overwrote pending idles when a game submitted multiple frames before
+    // the previous one was released (triple buffering), permanently leaking swapchain
+    // images and stalling DXVK. The queue guarantees every frame's idle fence fires.
+    private final java.util.concurrent.PriorityBlockingQueue<PendingIdle> idleQueue =
+            new java.util.concurrent.PriorityBlockingQueue<>(16,
+                    (a, b) -> Long.compare(a.fireNs, b.fireNs));
 
-    private volatile android.view.Choreographer choreographer = null;
-    private boolean choreographerPosted = false;
+    private volatile Thread pacerThread;
 
-    private final android.view.Choreographer.FrameCallback vsyncCallback = frameTimeNs -> {
-        choreographerPosted = false;
-        boolean anyRemaining = false;
-        for (java.util.Iterator<java.util.Map.Entry<Integer, PendingIdle>> it = pendingIdles.entrySet().iterator(); it.hasNext(); ) {
-            PendingIdle p = it.next().getValue();
-            // Ludashi Logic: Only release if the hardware VSync signal has reached our target time
-            if (frameTimeNs >= p.fireNs) {
-                it.remove();
+    private void startPacer() {
+        if (pacerThread != null) return;
+        synchronized (this) {
+            if (pacerThread != null) return;
+            Thread t = new Thread(this::runPacer, "PresentPacer");
+            t.setDaemon(true);
+            t.setPriority(Thread.MAX_PRIORITY);
+            pacerThread = t;
+            t.start();
+        }
+    }
+
+    private void runPacer() {
+        while (!Thread.interrupted()) {
+            try {
+                PendingIdle p = idleQueue.take();
+                long remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
+                while (remaining > 0) {
+                    if (remaining > 100_000L) {
+                        LockSupport.parkNanos(remaining - 50_000L);
+                    }
+                    if (Thread.interrupted()) return;
+                    // Precision spin-finish for the final ~50µs
+                    remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
+                }
                 sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
-            } else {
-                anyRemaining = true;
+            } catch (InterruptedException e) {
+                return;
             }
         }
-        if (anyRemaining) postChoreographerCallback();
-    };
-
-    private void postChoreographerCallback() {
-        if (choreographer == null) {
-            // Ensure we get the Choreographer instance on a thread that can handle it
-            if (android.os.Looper.myLooper() == null) android.os.Looper.prepare();
-            choreographer = android.view.Choreographer.getInstance();
-        }
-        if (choreographerPosted) return;
-        choreographerPosted = true;
-        choreographer.postFrameCallback(vsyncCallback);
     }
 
     private void scheduleIdleNotify(Window window, Pixmap pixmap, int serial, int idleFence, int targetFps) {
@@ -265,23 +277,58 @@ public class PresentExtension implements Extension {
             } else {
                 wt.nextIdleNs += frameNs;
             }
-            // We set the fire time slightly earlier to give Choreographer room to catch the very next VSync
-            pendingIdles.put(window.id, new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs - FIRE_EARLY_NS));
+            idleQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs - FIRE_EARLY_NS));
         }
-        
-        // If we are not on the main thread, we need to post to a handler that has a looper
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            postChoreographerCallback();
-        } else {
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(this::postChoreographerCallback);
+        startPacer();
+    }
+
+    private boolean lifecycleListenersRegistered = false;
+    private XServer xServer;
+
+    private void registerLifecycleListeners(XServer xServer) {
+        if (lifecycleListenersRegistered || xServer == null) return;
+        synchronized (this) {
+            if (lifecycleListenersRegistered) return;
+            this.xServer = xServer;
+            xServer.pixmapManager.addOnResourceLifecycleListener(this);
+            xServer.windowManager.addOnWindowModificationListener(this);
+            lifecycleListenersRegistered = true;
+        }
+    }
+
+    private void drainAndFire(Window window, Pixmap pixmap) {
+        if (window != null) windowTimings.remove(window.id);
+        java.util.ArrayList<PendingIdle> hit = new java.util.ArrayList<>();
+        for (PendingIdle p : idleQueue) {
+            if ((window != null && p.window == window) || (pixmap != null && p.pixmap == pixmap)) hit.add(p);
+        }
+        for (PendingIdle p : hit) {
+            if (idleQueue.remove(p)) sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+        }
+    }
+
+    @Override
+    public void onFreeResource(XResource resource) {
+        if (resource instanceof Pixmap) {
+            drainAndFire(null, (Pixmap) resource);
+        }
+    }
+
+    @Override
+    public void onDestroyWindow(Window window) {
+        drainAndFire(window, null);
+        synchronized (events) {
+            for (int i = events.size() - 1; i >= 0; i--) {
+                if (events.valueAt(i).window == window) events.removeAt(i);
+            }
         }
     }
 
     public void drainAndFireAll() {
-        for (java.util.Iterator<java.util.Map.Entry<Integer, PendingIdle>> it = pendingIdles.entrySet().iterator(); it.hasNext(); ) {
-            PendingIdle p = it.next().getValue();
+        java.util.ArrayList<PendingIdle> remaining = new java.util.ArrayList<>();
+        idleQueue.drainTo(remaining);
+        for (PendingIdle p : remaining) {
             sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
-            it.remove();
         }
         windowTimings.clear();
     }
@@ -294,10 +341,21 @@ public class PresentExtension implements Extension {
 
     public void close() {
         drainAndFireAll();
+        Thread t = pacerThread;
+        if (t != null) {
+            t.interrupt();
+            pacerThread = null;
+        }
+        if (lifecycleListenersRegistered && xServer != null) {
+            xServer.pixmapManager.removeOnResourceLifecycleListener(this);
+            xServer.windowManager.removeOnWindowModificationListener(this);
+            lifecycleListenersRegistered = false;
+        }
     }
 
     @Override
     public void handleRequest(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
+        registerLifecycleListeners(client.xServer);
         int opcode = client.getRequestData();
         if (syncExtension == null) syncExtension = client.xServer.getExtension(SyncExtension.MAJOR_OPCODE);
 

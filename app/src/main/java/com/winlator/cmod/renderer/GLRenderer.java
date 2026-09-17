@@ -65,6 +65,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private int regularFrameCount = 0;
     private long lastPointerRenderTimeNs = 0;
     private static final long MIN_POINTER_RENDER_INTERVAL_NS = 8_000_000L; // ~125 Hz max pointer render rate
+    private long lastDiagLogTime = 0;
     private final java.util.concurrent.atomic.AtomicBoolean hasNewRealFrame = new java.util.concurrent.atomic.AtomicBoolean(true);
 
     public boolean consumeNewRealFrame() {
@@ -130,25 +131,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
-        boolean isApex = ApexNativeBridge.nativeIsActive();
-        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : 0;
-
-        if (fpsLimit > 0) {
-            long targetIntervalNanos = 1000000000L / fpsLimit;
-            long now = System.nanoTime();
-            if (nextRenderTimeNanos == 0 || (now - nextRenderTimeNanos) > targetIntervalNanos * 2 || now < nextRenderTimeNanos - targetIntervalNanos) {
-                nextRenderTimeNanos = now;
-            }
-            long waitNanos = nextRenderTimeNanos - now;
-            if (waitNanos > 0) {
-                if (waitNanos > 100000L) {
-                    java.util.concurrent.locks.LockSupport.parkNanos(waitNanos - 50000L);
-                }
-                while (System.nanoTime() < nextRenderTimeNanos);
-            }
-            nextRenderTimeNanos = Math.max(System.nanoTime(), nextRenderTimeNanos + targetIntervalNanos);
-        }
-
         if (toggleFullscreen) {
             fullscreen = !fullscreen;
             toggleFullscreen = false;
@@ -367,20 +349,20 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     @Override
     public void onMapWindow(Window window) {
         xServerView.queueEvent(this::updateScene);
-        xServerView.requestRender();
+        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
     }
 
     @Override
     public void onUnmapWindow(Window window) {
         xServerView.queueEvent(this::updateScene);
-        xServerView.requestRender();
+        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
     }
 
     @Override
     public void onChangeWindowZOrder(Window window) {
         markNewRealFrame();
         xServerView.queueEvent(this::updateScene);
-        xServerView.requestRender();
+        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
     }
 
     @Override
@@ -388,6 +370,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         markNewRealFrame();
         if (ApexNativeBridge.nativeIsActive()) {
             ApexNativeBridge.nativeOnFrameCaptured(true);
+            return;
         }
         xServerView.requestRender();
     }
@@ -401,7 +384,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public void onUpdateWindowGeometry(Window window, boolean resized) {
         markNewRealFrame();
         xServerView.queueEvent(this::updateScene);
-        xServerView.requestRender();
+        if (!ApexNativeBridge.nativeIsActive()) xServerView.requestRender();
     }
 
     @Override
@@ -416,7 +399,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // In relative mouse mode or when cursor is hidden, game rendering is driven by
         // window content changes, not pointer movement. Skip redundant render requests
         // to prevent high-polling-rate mice (500-1000 Hz) from flooding the GPU pipeline.
-        if (xServer.isRelativeMouseMovement() || !cursorVisible || !renderCursorEnabled) {
+        if (xServer.isRelativeMouseMovement() || !cursorVisible || !renderCursorEnabled || ApexNativeBridge.nativeIsActive()) {
             return;
         }
         // Throttle cursor-driven renders to ~125 Hz to prevent a 1000 Hz mouse
@@ -507,6 +490,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                     winlatorHUD.setApexStats(displayTotalFPS, liveMultiplier, true);
                 }
                 regularFrameCount = 0; // Reset even when Apex is active to avoid accumulation
+
+                if (now - lastDiagLogTime >= 2000000000L) {
+                    lastDiagLogTime = now;
+                    String diag = ApexNativeBridge.nativeGetDiagnostics();
+                    if (diag != null && !diag.isEmpty()) {
+                        android.util.Log.i("ApexDIS", diag);
+                    }
+                }
             } else {
                 displayTotalFPS = regularFrameCount / delta;
                 regularFrameCount = 0;
@@ -534,11 +525,32 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         choreographerRunning = false;
     }
 
+    private long lastChoreographerNanos = 0;
+
     @Override
     public void doFrame(long frameTimeNanos) {
         if (!choreographerRunning) return;
         if (ApexNativeBridge.nativeIsActive()) {
-            xServerView.requestRender();
+            int targetFPS = ApexNativeBridge.nativeGetTargetFPS();
+            int multiplier = ApexNativeBridge.nativeGetAutoMultiplier();
+            boolean hasNew = hasNewRealFrame.get();
+
+            // Pacing Logic: If multiplier is 1 (no generation), only trigger render when the game provides new content.
+            // This prevents frame repetition (e.g. 60 FPS game on 120Hz display) which causes judder.
+            if (multiplier <= 1 && !hasNew) {
+                android.view.Choreographer.getInstance().postFrameCallback(this);
+                return;
+            }
+
+            if (targetFPS > 0) {
+                long minInterval = (1000000000L / targetFPS) - 2000000L;
+                if (frameTimeNanos - lastChoreographerNanos >= minInterval) {
+                    lastChoreographerNanos = frameTimeNanos;
+                    xServerView.requestRender();
+                }
+            } else {
+                xServerView.requestRender();
+            }
             android.view.Choreographer.getInstance().postFrameCallback(this);
         } else {
             choreographerRunning = false;

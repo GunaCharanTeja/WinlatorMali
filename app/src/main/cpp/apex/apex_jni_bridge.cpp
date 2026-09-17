@@ -13,16 +13,32 @@ extern "C" {
 
 JNIEXPORT void JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeProcessFrame(
-    JNIEnv* env, jclass clazz, jint inputTextureId, jint outputFboId, jint width, jint height) {
+    JNIEnv* env, jclass clazz, jint inputTextureId, jint outputFboId, jint width, jint height,
+    jint viewX, jint viewY, jint viewWidth, jint viewHeight, jboolean isNewRealFrame) {
     (void)env; (void)clazz;
     
     if (apex::ApexEngine::getInstance().isActive()) {
         apex::ApexEngine::getInstance().processFrame(
             static_cast<GLuint>(inputTextureId),
             static_cast<GLuint>(outputFboId),
-            width, height
+            width, height,
+            viewX, viewY, viewWidth, viewHeight,
+            isNewRealFrame == JNI_TRUE
         );
     }
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetDiagnostics(JNIEnv* env, jclass clazz) {
+    (void)clazz;
+    std::string diag = apex::ApexEngine::getInstance().getDiagnostics();
+    return env->NewStringUTF(diag.c_str());
+}
+
+JNIEXPORT jint JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetCompiledShaderCount(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().getCompiledShaderCount();
 }
 
 JNIEXPORT void JNICALL
@@ -119,6 +135,42 @@ JNIEXPORT jfloat JNICALL
 Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetFlowScale(JNIEnv* env, jclass clazz) {
     (void)env; (void)clazz;
     return apex::ApexEngine::getInstance().getFlowScale();
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetLiquidFeel(JNIEnv* env, jclass clazz, jfloat feel) {
+    (void)env; (void)clazz;
+    apex::ApexEngine::getInstance().setLiquidFeel(feel);
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetLiquidFeel(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().getLiquidFeel();
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetEdgeGuard(JNIEnv* env, jclass clazz, jfloat guard) {
+    (void)env; (void)clazz;
+    apex::ApexEngine::getInstance().setEdgeGuard(guard);
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetEdgeGuard(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().getEdgeGuard();
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeSetRenderScale(JNIEnv* env, jclass clazz, jfloat scale) {
+    (void)env; (void)clazz;
+    apex::ApexEngine::getInstance().setRenderScale(scale);
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_winlator_cmod_renderer_ApexNativeBridge_nativeGetRenderScale(JNIEnv* env, jclass clazz) {
+    (void)env; (void)clazz;
+    return apex::ApexEngine::getInstance().getRenderScale();
 }
 
 JNIEXPORT void JNICALL

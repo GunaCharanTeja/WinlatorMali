@@ -198,20 +198,39 @@ public class SeekBar extends AppCompatImageView {
 
         switch (event.getAction()) {
             case android.view.MotionEvent.ACTION_DOWN:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
                 setPressed(true);
                 setNormalizedValue(event.getX());
+                if (onValueChangeListener != null) {
+                    onValueChangeListener.onValueChangeListener(this, getValue());
+                }
                 break;
             case android.view.MotionEvent.ACTION_MOVE:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
+                float prev = normalizedValue;
                 setNormalizedValue(event.getX());
+                if (normalizedValue != prev && onValueChangeListener != null) {
+                    onValueChangeListener.onValueChangeListener(this, getValue());
+                }
                 break;
             case android.view.MotionEvent.ACTION_UP:
                 setPressed(false);
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
                 if (onValueChangeListener != null) {
                     onValueChangeListener.onValueChangeListener(this, getValue());
                 }
                 break;
             case android.view.MotionEvent.ACTION_CANCEL:
                 setPressed(false);
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
                 break;
         }
         invalidate();

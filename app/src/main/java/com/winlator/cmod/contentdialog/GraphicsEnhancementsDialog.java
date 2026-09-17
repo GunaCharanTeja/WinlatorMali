@@ -28,6 +28,10 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private final LinearLayout llLSFGSettings;
     private final SeekBar sbLSFGMotionBlur;
     private final SeekBar sbLSFGFlowScale;
+    private final SeekBar sbLSFGLiquidFeel;
+    private final SeekBar sbLSFGEdgeGuard;
+    private final CheckBox cbEnableApexLogging;
+    private final Spinner sLSFGRenderScale;
     private final CheckBox cbEnableHDR;
     private final CheckBox cbEnableSharpen;
     private final Spinner sSharpenMode;
@@ -73,9 +77,13 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         cbEnableLSFG = findViewById(R.id.CBEnableLSFG);
         sLSFGQuality = findViewById(R.id.SLSFGQuality);
+        sLSFGRenderScale = findViewById(R.id.SLSFGRenderScale);
         llLSFGSettings = findViewById(R.id.LLLSFGSettings);
         sbLSFGMotionBlur = findViewById(R.id.SBLSFGMotionBlur);
         sbLSFGFlowScale = findViewById(R.id.SBLSFGFlowScale);
+        sbLSFGLiquidFeel = findViewById(R.id.SBLSFGLiquidFeel);
+        sbLSFGEdgeGuard = findViewById(R.id.SBLSFGEdgeGuard);
+        cbEnableApexLogging = findViewById(R.id.CBEnableApexLogging);
 
         boolean lsfgEnabled = com.winlator.cmod.renderer.ApexNativeBridge.nativeIsActive();
         lsfgPreviouslyEnabled = lsfgEnabled;
@@ -86,6 +94,20 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         sLSFGQuality.setSelection(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetQuality());
         sbLSFGMotionBlur.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetShutterGain());
         sbLSFGFlowScale.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetFlowScale());
+        sbLSFGLiquidFeel.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetLiquidFeel());
+        sbLSFGEdgeGuard.setValue(com.winlator.cmod.renderer.ApexNativeBridge.nativeGetEdgeGuard());
+        cbEnableApexLogging.setChecked(com.winlator.cmod.renderer.ApexNativeBridge.nativeIsLoggingEnabled());
+
+        float currentScale = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetRenderScale();
+        int scaleIndex = 0;
+        if (Math.abs(currentScale - 1.00f) < 0.04f) scaleIndex = 0;
+        else if (Math.abs(currentScale - 0.85f) < 0.04f) scaleIndex = 1;
+        else if (Math.abs(currentScale - 0.75f) < 0.04f) scaleIndex = 2;
+        else if (Math.abs(currentScale - 0.67f) < 0.04f) scaleIndex = 3;
+        else if (Math.abs(currentScale - 0.50f) < 0.04f) scaleIndex = 4;
+        else if (Math.abs(currentScale - 0.35f) < 0.04f) scaleIndex = 5;
+        else if (Math.abs(currentScale - 0.25f) < 0.04f) scaleIndex = 6;
+        sLSFGRenderScale.setSelection(scaleIndex);
         
         int targetFPS = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetTargetFPS();
         int targetFPSSelection = 0;
@@ -161,6 +183,16 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
 
+        sLSFGRenderScale.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                applyEffects();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
         sLSFGTargetFPS.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
@@ -174,6 +206,9 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         sbLSFGMotionBlur.setOnValueChangeListener((seekBar, value) -> applyEffects());
         sbLSFGFlowScale.setOnValueChangeListener((seekBar, value) -> applyEffects());
+        sbLSFGLiquidFeel.setOnValueChangeListener((seekBar, value) -> applyEffects());
+        sbLSFGEdgeGuard.setOnValueChangeListener((seekBar, value) -> applyEffects());
+        cbEnableApexLogging.setOnCheckedChangeListener((buttonView, isChecked) -> applyEffects());
 
         sFPSLimit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override
@@ -222,18 +257,19 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
     private void showLSFGInfo() {
         ContentDialog dialog = new ContentDialog(getContext(), R.layout.lsfg_info_dialog);
-        dialog.setTitle("Apex Frame Generation");
+        dialog.setTitle("Apex Elite: 10-Pass Fluid Engine");
         dialog.setIcon(R.drawable.ic_driver_info);
 
         TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
-        String message = "<b>What is Apex?</b><br/>" +
-                "Apex is a frame-generator born in Winlator Mali. It creates extra frames to turn low FPS (like 20-30) into a smooth 60-120 FPS experience.<br/><br/>" +
-                "<b>How it works:</b><br/>" +
-                "- <b>Direct Pacing:</b> Selecting a Target FPS (e.g. 60 FPS) forces the rendering calls to align directly with Android Choreographer VSYNC. It uses microsecond-precise thread sleeping to pace frame generation to your target.<br/>" +
-                "- <b>Dynamic Fake Frames:</b> If your game runs at a lower framerate (e.g. 15-20 FPS), Apex automatically generates more interpolated frames in a row (e.g. 3x or 4x interpolation) to bridge the gap and reach your target FPS.<br/><br/>" +
-                "<b>Important Warnings:</b><br/>" +
-                "- <b>Visual Artifacts:</b> If the base game runs extremely slow (below 20 FPS), generating too many fake frames in a row can cause input latency (sluggish controls) and visual ghosting or warping.<br/>" +
-                "- <b>GPU Workload:</b> Locking high Target FPS (e.g. 90/120 FPS) increases GPU workload. If the image stutters or vibrates, reduce the Target FPS or use the Performance preset to avoid GPU saturation.";
+        String message = "<b>What is Apex Elite?</b><br/>" +
+                "A next-generation frame generator optimized specifically for Mali-Gxxx GPUs. It uses a unified 10-pass pipeline to deliver buttery-smooth motion without affecting game performance.<br/><br/>" +
+                "<b>The Pillars of Smoothness:</b><br/>" +
+                "- <b>Fluid Motion:</b> Uses an elastic SOR solver to ensure the entire screen moves as a cohesive unit, eliminating the 'robotic' feel of standard generators.<br/>" +
+                "- <b>Atomic Pacing:</b> Immediately processes frames upon capture, protecting your game's raw FPS while generating extra smoothness up to 120 FPS.<br/>" +
+                "- <b>Elite Interpolation:</b> Employs motion-gradient weighting to eliminate halos and ghosting around characters and vehicles.<br/><br/>" +
+                "<b>Tips for Best Results:</b><br/>" +
+                "- <b>Liquid Feel Slider:</b> Increase this for a more cinematic, flexible flow. Decrease it for a sharper, more rigid movement lock.<br/>" +
+                "- <b>Render Scale:</b> Use this to downsample the frame-gen input on high-resolution screens. Our new Atomic Reset ensures artifact-free scaling.";
         tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
         
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
@@ -293,8 +329,26 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         if (lsfgEnabled) {
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetQuality(sLSFGQuality.getSelectedItemPosition());
+
+            float renderScale = 1.0f;
+            int scalePosition = sLSFGRenderScale.getSelectedItemPosition();
+            switch (scalePosition) {
+                case 0: renderScale = 1.00f; break;
+                case 1: renderScale = 0.85f; break;
+                case 2: renderScale = 0.75f; break;
+                case 3: renderScale = 0.67f; break;
+                case 4: renderScale = 0.50f; break;
+                case 5: renderScale = 0.35f; break;
+                case 6: renderScale = 0.25f; break;
+                default: renderScale = 1.00f; break;
+            }
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetRenderScale(renderScale);
+
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetShutterGain(sbLSFGMotionBlur.getValue());
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetFlowScale(sbLSFGFlowScale.getValue());
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLiquidFeel(sbLSFGLiquidFeel.getValue());
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetEdgeGuard(sbLSFGEdgeGuard.getValue());
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLoggingEnabled(cbEnableApexLogging.isChecked());
 
             int targetFPS = 0;
             int targetFPSSelection = sLSFGTargetFPS.getSelectedItemPosition();
@@ -306,6 +360,11 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             else if (targetFPSSelection == 6) targetFPS = 120;
             else if (targetFPSSelection == 7) targetFPS = parseIntSafe(etCustomTargetFPS.getText().toString(), 0);
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetTargetFPS(targetFPS);
+
+            int effectiveDisplayFps = targetFPS > 0 ? targetFPS : (fpsLimit > 0 ? fpsLimit * 2 : 60);
+            com.winlator.cmod.core.RefreshRateUtils.applyPreferredRefreshRate(activity, 0, effectiveDisplayFps);
+        } else {
+            com.winlator.cmod.core.RefreshRateUtils.applyPreferredRefreshRate(activity, 0, fpsLimit);
         }
 
         if (renderer != null) {

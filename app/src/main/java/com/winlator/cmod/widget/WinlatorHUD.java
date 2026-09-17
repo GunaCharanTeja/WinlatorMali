@@ -223,7 +223,7 @@ public class WinlatorHUD extends View {
 
         wVal100pct = pVal.measureText("100%");
         wValFps    = pFps.measureText("0000");
-        wValApex   = pFps.measureText("000 (0.0x)");
+        wValApex   = pFps.measureText("000 (0.0x) [13/13 OK]");
         wValWatt   = pVal.measureText("00.0W");
         wValTemp   = pVal.measureText("00°C");
         wValBInfo  = pVal.measureText("00.0W (100%)");
@@ -351,7 +351,9 @@ public class WinlatorHUD extends View {
 
     private String getFpsDisplayText() {
         if (apexActive) {
-            return String.format(Locale.US, "%d (%.1fx)", Math.round(snapTotalFps), apexMultiplier);
+            int shaderCount = com.winlator.cmod.renderer.ApexNativeBridge.nativeGetCompiledShaderCount();
+            String status = shaderCount >= 6 ? String.format(Locale.US, "[%d/6 OK]", shaderCount) : "[ERR]";
+            return String.format(Locale.US, "%d (%.1fx) %s", Math.round(snapTotalFps), apexMultiplier, status);
         }
         return strFps;
     }
