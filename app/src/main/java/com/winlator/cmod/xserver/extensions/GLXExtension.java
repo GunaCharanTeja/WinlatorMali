@@ -420,10 +420,7 @@ public class GLXExtension implements Extension {
 
         if (now < nextFrameTimeNs) {
             long waitNs = nextFrameTimeNs - now;
-            if (waitNs > 100_000L) {
-                java.util.concurrent.locks.LockSupport.parkNanos(waitNs - 50_000L);
-            }
-            while (System.nanoTime() < nextFrameTimeNs);
+            java.util.concurrent.locks.LockSupport.parkNanos(waitNs);
             lastFrameTimeNs = nextFrameTimeNs;
         } else {
             lastFrameTimeNs = now;

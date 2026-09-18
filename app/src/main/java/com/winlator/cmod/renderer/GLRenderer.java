@@ -135,7 +135,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     @Override
     public void onDrawFrame(GL10 gl) {
         boolean isApex = ApexNativeBridge.nativeIsActive();
-        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : currentFpsLimit;
+        int fpsLimit = isApex ? ApexNativeBridge.nativeGetTargetFPS() : 0;
 
         if (fpsLimit > 0) {
             long targetIntervalNanos = 1000000000L / fpsLimit;
@@ -145,12 +145,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             }
             long waitNanos = nextRenderTimeNanos - now;
             if (waitNanos > 0) {
-                if (waitNanos > 100000L) {
-                    java.util.concurrent.locks.LockSupport.parkNanos(waitNanos - 50000L);
-                }
-                while (System.nanoTime() < nextRenderTimeNanos);
+                java.util.concurrent.locks.LockSupport.parkNanos(waitNanos);
             }
-            nextRenderTimeNanos += targetIntervalNanos; // Accumulate precisely to hit target
+            nextRenderTimeNanos = Math.max(System.nanoTime(), nextRenderTimeNanos + targetIntervalNanos);
         }
 
         if (toggleFullscreen) {
@@ -389,9 +386,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onUpdateWindowContent(Window window) {
-        if (ApexNativeBridge.nativeIsActive()) {
-            ApexNativeBridge.nativeOnFrameCaptured(true);
-        }
         markNewRealFrame();
         xServerView.requestRender();
     }
@@ -557,20 +551,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             int multiplier = ApexNativeBridge.nativeGetAutoMultiplier();
             boolean hasNew = hasNewRealFrame.get();
 
-            // Pacing Logic: If multiplier is 1 (no generation), only trigger render when the game provides new content.
-            // This prevents frame repetition (e.g. 60 FPS game on 120Hz display) which causes judder.
-            if (multiplier <= 1 && !hasNew) {
-                android.view.Choreographer.getInstance().postFrameCallback(this);
-                return;
-            }
-
             if (targetFPS > 0) {
                 long minInterval = (1000000000L / targetFPS) - 2000000L;
                 if (frameTimeNanos - lastChoreographerNanos >= minInterval) {
                     lastChoreographerNanos = frameTimeNanos;
                     xServerView.requestRender();
                 }
-            } else {
+            } else if (multiplier > 1 || hasNew) {
                 xServerView.requestRender();
             }
             android.view.Choreographer.getInstance().postFrameCallback(this);

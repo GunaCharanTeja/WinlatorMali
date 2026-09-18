@@ -212,6 +212,15 @@
                     app:sbMaxValue="1.0"
                     app:sbMinValue="0.0"
                     app:sbStep="0.01" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableApexLogging"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Apex Debug / GPU Pass Logging"
+                    android:textSize="12sp"
+                    android:textColor="?android:attr/textColorSecondary" />
             </LinearLayout>
         </LinearLayout>
 

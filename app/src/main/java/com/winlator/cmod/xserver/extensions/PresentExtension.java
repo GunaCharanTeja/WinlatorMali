@@ -149,12 +149,9 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
                 content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);
             }
         }
+        window.usingPresent = true;
         sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
         scheduleIdleNotify(window, pixmap, serial, idleFence, targetFps);
-
-        if (client.xServer != null && client.xServer.getWinlatorHUD() != null) {
-            client.xServer.getWinlatorHUD().onFrame();
-        }
     }
 
     private void selectInput(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -197,89 +194,87 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
 
     private static final long FIRE_EARLY_NS = 700_000L; // 0.7 ms
 
-    private static class WindowTiming {
-        long nextIdleNs;
-    }
-
     private static class PendingIdle {
         final Window window;
         final Pixmap pixmap;
         final int serial;
         final int idleFence;
-        final long fireNs;
+        final long targetNs;
 
-        PendingIdle(Window window, Pixmap pixmap, int serial, int idleFence, long fireNs) {
-            this.window = window;
-            this.pixmap = pixmap;
-            this.serial = serial;
-            this.idleFence = idleFence;
-            this.fireNs = fireNs;
+        PendingIdle(Window w, Pixmap p, int s, int f, long t) {
+            this.window = w;
+            this.pixmap = p;
+            this.serial = s;
+            this.idleFence = f;
+            this.targetNs = t;
         }
+    }
+
+    private static class WindowTiming {
+        long nextIdleNs = 0;
     }
 
     private final java.util.concurrent.ConcurrentHashMap<Integer, WindowTiming> windowTimings =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    // Use a PriorityBlockingQueue instead of a ConcurrentHashMap keyed by window.id.
-    // The old map overwrote pending idles when a game submitted multiple frames before
-    // the previous one was released (triple buffering), permanently leaking swapchain
-    // images and stalling DXVK. The queue guarantees every frame's idle fence fires.
-    private final java.util.concurrent.PriorityBlockingQueue<PendingIdle> idleQueue =
-            new java.util.concurrent.PriorityBlockingQueue<>(16,
-                    (a, b) -> Long.compare(a.fireNs, b.fireNs));
+    private Thread cpuPacerThread = null;
+    private final java.util.concurrent.PriorityBlockingQueue<PendingIdle> cpuQueue =
+            new java.util.concurrent.PriorityBlockingQueue<>(11,
+                    java.util.Comparator.comparingLong(p -> p.targetNs));
 
-    private volatile Thread pacerThread;
-
-    private void startPacer() {
-        if (pacerThread != null) return;
-        synchronized (this) {
-            if (pacerThread != null) return;
-            Thread t = new Thread(this::runPacer, "PresentPacer");
-            t.setDaemon(true);
-            t.setPriority(Thread.MAX_PRIORITY);
-            pacerThread = t;
-            t.start();
-        }
-    }
-
-    private void runPacer() {
-        while (!Thread.interrupted()) {
-            try {
-                PendingIdle p = idleQueue.take();
-                long remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
-                while (remaining > 0) {
-                    if (remaining > 100_000L) {
-                        LockSupport.parkNanos(remaining - 50_000L);
-                    }
-                    if (Thread.interrupted()) return;
-                    // Precision spin-finish for the final ~50µs
-                    remaining = p.fireNs - FIRE_EARLY_NS - System.nanoTime();
+    private synchronized void startCpuPacer() {
+        if (cpuPacerThread != null && cpuPacerThread.isAlive()) return;
+        cpuPacerThread = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                PendingIdle p = cpuQueue.peek();
+                if (p == null) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(500_000L);
+                    continue;
                 }
-                sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
-            } catch (InterruptedException e) {
-                return;
+                long now = System.nanoTime();
+                if (now >= p.targetNs) {
+                    cpuQueue.poll();
+                    sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+                    if (p.window != null && p.window.originClient != null && p.window.originClient.xServer != null && p.window.originClient.xServer.getWinlatorHUD() != null) {
+                        p.window.originClient.xServer.getWinlatorHUD().onFrame();
+                    }
+                } else {
+                    long diff = p.targetNs - now;
+                    if (diff > 2_000_000L) {
+                        java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+                    } else {
+                        Thread.yield();
+                    }
+                }
             }
-        }
+        }, "PresentPacer-CPU");
+        cpuPacerThread.setDaemon(true);
+        cpuPacerThread.setPriority(Thread.MAX_PRIORITY);
+        cpuPacerThread.start();
     }
 
     private void scheduleIdleNotify(Window window, Pixmap pixmap, int serial, int idleFence, int targetFps) {
         if (targetFps <= 0) {
             sendIdleNotify(window, pixmap, serial, idleFence);
+            if (window != null && window.originClient != null && window.originClient.xServer != null && window.originClient.xServer.getWinlatorHUD() != null) {
+                window.originClient.xServer.getWinlatorHUD().onFrame();
+            }
             return;
         }
 
-        long frameNs = 1_000_000_000L / targetFps;
+        final long frameNs = 1_000_000_000L / targetFps;
         long now = System.nanoTime();
         WindowTiming wt = windowTimings.computeIfAbsent(window.id, k -> new WindowTiming());
         synchronized (wt) {
-            if (wt.nextIdleNs <= now - frameNs || now < wt.nextIdleNs - frameNs * 2) {
+            if (wt.nextIdleNs <= now - frameNs) {
                 wt.nextIdleNs = now + frameNs;
             } else {
                 wt.nextIdleNs += frameNs;
             }
-            idleQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs - FIRE_EARLY_NS));
+            long fireTime = wt.nextIdleNs - FIRE_EARLY_NS;
+            cpuQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, fireTime));
         }
-        startPacer();
+        startCpuPacer();
     }
 
     private boolean lifecycleListenersRegistered = false;
@@ -296,27 +291,32 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
         }
     }
 
-    private void drainAndFire(Window window, Pixmap pixmap) {
-        if (window != null) windowTimings.remove(window.id);
-        java.util.ArrayList<PendingIdle> hit = new java.util.ArrayList<>();
-        for (PendingIdle p : idleQueue) {
-            if ((window != null && p.window == window) || (pixmap != null && p.pixmap == pixmap)) hit.add(p);
-        }
-        for (PendingIdle p : hit) {
-            if (idleQueue.remove(p)) sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
-        }
-    }
-
     @Override
     public void onFreeResource(XResource resource) {
         if (resource instanceof Pixmap) {
-            drainAndFire(null, (Pixmap) resource);
+            Pixmap pixmap = (Pixmap) resource;
+            for (PendingIdle p : cpuQueue) {
+                if (p.pixmap == pixmap) {
+                    if (cpuQueue.remove(p)) {
+                        sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+                    }
+                }
+            }
         }
     }
 
     @Override
     public void onDestroyWindow(Window window) {
-        drainAndFire(window, null);
+        if (window != null) {
+            windowTimings.remove(window.id);
+            for (PendingIdle p : cpuQueue) {
+                if (p.window == window) {
+                    if (cpuQueue.remove(p)) {
+                        sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+                    }
+                }
+            }
+        }
         synchronized (events) {
             for (int i = events.size() - 1; i >= 0; i--) {
                 if (events.valueAt(i).window == window) events.removeAt(i);
@@ -325,27 +325,23 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
     }
 
     public void drainAndFireAll() {
-        java.util.ArrayList<PendingIdle> remaining = new java.util.ArrayList<>();
-        idleQueue.drainTo(remaining);
-        for (PendingIdle p : remaining) {
+        PendingIdle p;
+        while ((p = cpuQueue.poll()) != null) {
             sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
         }
         windowTimings.clear();
     }
 
     public void onFpsLimitChanged(int newLimit) {
-        if (newLimit <= 0) {
-            drainAndFireAll();
-        }
+        drainAndFireAll();
     }
 
     public void close() {
-        drainAndFireAll();
-        Thread t = pacerThread;
-        if (t != null) {
-            t.interrupt();
-            pacerThread = null;
+        if (cpuPacerThread != null) {
+            cpuPacerThread.interrupt();
+            cpuPacerThread = null;
         }
+        drainAndFireAll();
         if (lifecycleListenersRegistered && xServer != null) {
             xServer.pixmapManager.removeOnResourceLifecycleListener(this);
             xServer.windowManager.removeOnWindowModificationListener(this);

@@ -27,6 +27,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private final EditText etCustomTargetFPS;
     private final LinearLayout llLSFGSettings;
     private final SeekBar sbLSFGLiquidFeel;
+    private final CheckBox cbEnableApexLogging;
     private final Spinner sLSFGRenderScale;
     private final CheckBox cbEnableHDR;
     private final CheckBox cbEnableSharpen;
@@ -76,6 +77,8 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         sLSFGRenderScale = findViewById(R.id.SLSFGRenderScale);
         llLSFGSettings = findViewById(R.id.LLLSFGSettings);
         sbLSFGLiquidFeel = findViewById(R.id.SBLSFGLiquidFeel);
+        cbEnableApexLogging = findViewById(R.id.CBEnableApexLogging);
+        cbEnableApexLogging.setChecked(com.winlator.cmod.renderer.ApexNativeBridge.nativeIsLoggingEnabled());
 
         boolean lsfgEnabled = com.winlator.cmod.renderer.ApexNativeBridge.nativeIsActive();
         lsfgPreviouslyEnabled = lsfgEnabled;
@@ -332,7 +335,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetFlowScale(1.0f);
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLiquidFeel(sbLSFGLiquidFeel.getValue());
             com.winlator.cmod.renderer.ApexNativeBridge.nativeSetEdgeGuard(0.5f);
-            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLoggingEnabled(false);
+            com.winlator.cmod.renderer.ApexNativeBridge.nativeSetLoggingEnabled(cbEnableApexLogging.isChecked());
 
             int targetFPS = 0;
             int targetFPSSelection = sLSFGTargetFPS.getSelectedItemPosition();

@@ -13,8 +13,8 @@ ApexEngine& ApexEngine::getInstance() {
 }
 
 ApexEngine::ApexEngine() {
-    mDeltaHistory.fill(16666667.0f);
-    mSortedHistory.fill(16666667.0f);
+    mDeltaHistory.fill(0.0f);
+    mSortedHistory.fill(0.0f);
 }
 
 ApexEngine::~ApexEngine() {
@@ -142,6 +142,9 @@ void ApexEngine::compileShaders() {
             if (!prog) {
                 if (!mShaderErrorDetails.empty()) mShaderErrorDetails += "; ";
                 mShaderErrorDetails += err;
+                APEX_LOGE("[APEX SHADER FAILED] %s: %s", name, err.c_str());
+            } else {
+                APEX_LOGI("[APEX SHADER VERIFIED] %s: COMPILED & LINKED [OK] (Program ID=%u)", name, prog);
             }
         }
         if (prog) mCompiledShaderCount++;
@@ -184,7 +187,9 @@ void ApexEngine::compileShaders() {
         if (!mQuadProg) {
             if (!mShaderErrorDetails.empty()) mShaderErrorDetails += "; ";
             mShaderErrorDetails += qErr;
+            APEX_LOGE("[APEX SHADER FAILED] QuadBlit: %s", qErr.c_str());
         } else {
+            APEX_LOGI("[APEX SHADER VERIFIED] QuadBlit: COMPILED & LINKED [OK] (Program ID=%u)", mQuadProg);
             glUseProgram(mQuadProg);
             GLint uTexLoc = glGetUniformLocation(mQuadProg, "uTex");
             if (uTexLoc >= 0) glUniform1i(uTexLoc, 0);
@@ -202,6 +207,52 @@ void ApexEngine::compileShaders() {
                   mCompiledShaderCount, mShaderErrorDetails.c_str());
     } else {
         APEX_LOGI("ApexDIS Shader verification: SUCCESS (8/8 compute shaders + blit quad OK)");
+    }
+}
+
+void ApexEngine::auditHardwareAndExtensions() {
+    if (mHardwareAudited) return;
+    mHardwareAudited = true;
+
+    const char* vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+    const char* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    const char* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    mGpuVendor = vendor ? vendor : "Unknown";
+    mGpuRenderer = renderer ? renderer : "Unknown";
+    mGpuVersion = version ? version : "Unknown";
+
+    GLint numExtensions = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
+    for (GLint i = 0; i < numExtensions; i++) {
+        const char* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
+        if (!ext) continue;
+        if (strcmp(ext, "GL_OES_texture_half_float_linear") == 0) mExtHalfFloatLinear = true;
+        if (strcmp(ext, "GL_EXT_color_buffer_half_float") == 0) mExtColorBufferHalfFloat = true;
+    }
+
+    glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &mMaxComputeInvocations);
+    glGetIntegerv(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE, &mMaxComputeSharedMem);
+
+    APEX_LOGI("================ [APEX GPU HARDWARE & EXTENSION AUDIT] ================");
+    APEX_LOGI("• GPU Vendor    : %s", mGpuVendor.c_str());
+    APEX_LOGI("• GPU Renderer  : %s", mGpuRenderer.c_str());
+    APEX_LOGI("• GLES Version  : %s", mGpuVersion.c_str());
+    APEX_LOGI("• Extensions    : HalfFloatLinear=%s, ColorBufferHalfFloat=%s",
+              mExtHalfFloatLinear ? "SUPPORTED [OK]" : "UNSUPPORTED",
+              mExtColorBufferHalfFloat ? "SUPPORTED [OK]" : "UNSUPPORTED");
+    APEX_LOGI("• Compute Limits: MaxInvocations=%d, SharedMem=%d bytes",
+              mMaxComputeInvocations, mMaxComputeSharedMem);
+    APEX_LOGI("======================================================================");
+}
+
+void ApexEngine::checkGlPassError(const char* passName) {
+    if (!mLoggingEnabled.load(std::memory_order_relaxed)) return;
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        mLastGLError = err;
+        mLastGLErrorPass = passName ? passName : "Unknown";
+        APEX_LOGE("[APEX GPU PASS ERROR] Pass '%s' failed with GL error: %s (0x%x)",
+                  mLastGLErrorPass.c_str(), getGlErrorString(err), err);
     }
 }
 
@@ -271,7 +322,7 @@ void ApexEngine::ensureResources(int width, int height) {
     mFlowHeight = fh;
     mResourceAllocSuccess = true;
     mResourceErrorDetails.clear();
-
+    auditHardwareAndExtensions();
     compileShaders();
     if (!mShaderCompileSuccess) {
         mInitialized = false;
@@ -292,11 +343,8 @@ void ApexEngine::ensureResources(int width, int height) {
     mInterpOutTex = createStorageTexture(sw, sh, GL_RGBA8, GL_LINEAR, "InterpOutTex", err);
     if (!mInterpOutTex) { mResourceAllocSuccess = false; mResourceErrorDetails += err + "; "; }
 
-    glGenFramebuffers(1, &mCaptureFbo);
-    if (!mCaptureFbo) {
-        mResourceAllocSuccess = false;
-        mResourceErrorDetails += "glGenFramebuffers failed; ";
-    }
+    glGenFramebuffers(DIS_SLOTS, mCaptureFbo);
+    glGenFramebuffers(DIS_SLOTS, mFlowFbo);
 
     for (uint32_t i = 0; i < MAX_PYR_LEVELS; i++) {
         int lw = fw >> i, lh = fh >> i;
@@ -310,9 +358,10 @@ void ApexEngine::ensureResources(int width, int height) {
         for (uint32_t s = 0; s < DIS_SLOTS; s++) {
             mLevels[i].lumaTex[s] = createStorageTexture(lw, lh, GL_R32F, GL_LINEAR, "LumaTex", err);
             if (!mLevels[i].lumaTex[s]) { mResourceAllocSuccess = false; mResourceErrorDetails += err + "; "; }
+
+            mLevels[i].gradientTex[s] = createStorageTexture(lw, lh, GL_RGBA16F, GL_NEAREST, "GradientTex", err);
+            if (!mLevels[i].gradientTex[s]) { mResourceAllocSuccess = false; mResourceErrorDetails += err + "; "; }
         }
-        mLevels[i].gradientTex = createStorageTexture(lw, lh, GL_RGBA16F, GL_NEAREST, "GradientTex", err);
-        if (!mLevels[i].gradientTex) { mResourceAllocSuccess = false; mResourceErrorDetails += err + "; "; }
 
         mLevels[i].sparseFlowTex[0] = createStorageTexture(mLevels[i].sparseWidth, mLevels[i].sparseHeight, GL_RGBA16F, GL_LINEAR, "SparseFlow0", err);
         if (!mLevels[i].sparseFlowTex[0]) { mResourceAllocSuccess = false; mResourceErrorDetails += err + "; "; }
@@ -336,21 +385,36 @@ void ApexEngine::ensureResources(int width, int height) {
         if (!mLevels[i].vrDWTex[1]) { mResourceAllocSuccess = false; mResourceErrorDetails += err + "; "; }
     }
 
-    if (mCaptureFbo && mColorRingTex[0]) {
-        glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mColorRingTex[0], 0);
-        GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
-            mFboComplete = false;
-            mResourceAllocSuccess = false;
-            mResourceErrorDetails += "Capture FBO incomplete: 0x" + std::to_string(fboStatus) + "; ";
-            APEX_LOGE("ApexDIS Capture FBO incomplete: 0x%x", fboStatus);
-        } else {
-            mFboComplete = true;
+    if (!mTelemetrySsbo) {
+        glGenBuffers(1, &mTelemetrySsbo);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mTelemetrySsbo);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(ApexPipelineTelemetry), nullptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
+    bool fboOk = true;
+    for (uint32_t i = 0; i < DIS_SLOTS; i++) {
+        if (!mCaptureFbo[i] || !mFlowFbo[i] || !mColorRingTex[i] || !mFlowColorTex[i]) {
+            fboOk = false;
+            break;
         }
-    } else {
+        glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mColorRingTex[i], 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) fboOk = false;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, mFlowFbo[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mFlowColorTex[i], 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) fboOk = false;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    if (!fboOk) {
         mFboComplete = false;
+        mResourceAllocSuccess = false;
+        mResourceErrorDetails += "Capture/Flow FBO incomplete; ";
+        APEX_LOGE("ApexDIS Capture/Flow FBO setup incomplete");
+    } else {
+        mFboComplete = true;
     }
 
     if (mResourceAllocSuccess && mShaderCompileSuccess && mFboComplete) {
@@ -375,13 +439,16 @@ void ApexEngine::cleanupResources() {
     }
     if (mNativeWarpTex) { glDeleteTextures(1, &mNativeWarpTex); mNativeWarpTex = 0; }
     if (mInterpOutTex) { glDeleteTextures(1, &mInterpOutTex); mInterpOutTex = 0; }
-    if (mCaptureFbo) { glDeleteFramebuffers(1, &mCaptureFbo); mCaptureFbo = 0; }
+    for (uint32_t i = 0; i < DIS_SLOTS; i++) {
+        if (mCaptureFbo[i]) { glDeleteFramebuffers(1, &mCaptureFbo[i]); mCaptureFbo[i] = 0; }
+        if (mFlowFbo[i]) { glDeleteFramebuffers(1, &mFlowFbo[i]); mFlowFbo[i] = 0; }
+    }
 
     for (uint32_t i = 0; i < MAX_PYR_LEVELS; i++) {
         for (uint32_t s = 0; s < DIS_SLOTS; s++) {
             if (mLevels[i].lumaTex[s]) { glDeleteTextures(1, &mLevels[i].lumaTex[s]); mLevels[i].lumaTex[s] = 0; }
+            if (mLevels[i].gradientTex[s]) { glDeleteTextures(1, &mLevels[i].gradientTex[s]); mLevels[i].gradientTex[s] = 0; }
         }
-        if (mLevels[i].gradientTex) { glDeleteTextures(1, &mLevels[i].gradientTex); mLevels[i].gradientTex = 0; }
         if (mLevels[i].sparseFlowTex[0]) { glDeleteTextures(1, &mLevels[i].sparseFlowTex[0]); mLevels[i].sparseFlowTex[0] = 0; }
         if (mLevels[i].sparseFlowTex[1]) { glDeleteTextures(1, &mLevels[i].sparseFlowTex[1]); mLevels[i].sparseFlowTex[1] = 0; }
         if (mLevels[i].denseFlowTex) { glDeleteTextures(1, &mLevels[i].denseFlowTex); mLevels[i].denseFlowTex = 0; }
@@ -389,6 +456,10 @@ void ApexEngine::cleanupResources() {
         if (mLevels[i].vrBTex) { glDeleteTextures(1, &mLevels[i].vrBTex); mLevels[i].vrBTex = 0; }
         if (mLevels[i].vrDWTex[0]) { glDeleteTextures(1, &mLevels[i].vrDWTex[0]); mLevels[i].vrDWTex[0] = 0; }
         if (mLevels[i].vrDWTex[1]) { glDeleteTextures(1, &mLevels[i].vrDWTex[1]); mLevels[i].vrDWTex[1] = 0; }
+    }
+    if (mTelemetrySsbo) {
+        glDeleteBuffers(1, &mTelemetrySsbo);
+        mTelemetrySsbo = 0;
     }
     mInitialized = false;
 }
@@ -451,6 +522,9 @@ void ApexEngine::blitQuad(GLuint tex, float uMin, float vMin, float uScale, floa
     if (scissor)   glEnable(GL_SCISSOR_TEST);
     if (blend)     glEnable(GL_BLEND);
     if (stencil)   glEnable(GL_STENCIL_TEST);
+
+    mPassBlit.fetch_add(1, std::memory_order_relaxed);
+    checkGlPassError("BlitQuad");
 }
 
 void ApexEngine::dispatchLumaGrad(int level, GLuint inTex, uint32_t slot) {
@@ -458,9 +532,14 @@ void ApexEngine::dispatchLumaGrad(int level, GLuint inTex, uint32_t slot) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, inTex);
     glBindImageTexture(1, mLevels[level].lumaTex[slot], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-    glBindImageTexture(2, mLevels[level].gradientTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    glBindImageTexture(2, mLevels[level].gradientTex[slot], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    if (mTelemetrySsbo) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, mTelemetrySsbo);
+    glUniform1i(glGetUniformLocation(mProgLumaGrad, "u_isColor"), (level == 0 ? 1 : 0));
+    glUniform1i(glGetUniformLocation(mProgLumaGrad, "u_collectTelemetry"), mLoggingEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     glDispatchCompute((mLevels[level].width + 15) / 16, (mLevels[level].height + 15) / 16, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+    mPassLumaGrad.fetch_add(1, std::memory_order_relaxed);
+    checkGlPassError("DisLumaGrad");
 }
 
 void ApexEngine::dispatchHierarchicalSearch(int level, GLuint lastLuma, GLuint nextLuma, GLuint lastGrad,
@@ -471,32 +550,45 @@ void ApexEngine::dispatchHierarchicalSearch(int level, GLuint lastLuma, GLuint n
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, lastGrad);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, coarseFlow ? coarseFlow : lastLuma);
     glBindImageTexture(4, outSparse, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    if (mTelemetrySsbo) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, mTelemetrySsbo);
     glUniform1i(glGetUniformLocation(mProgInverseSearch, "u_level"), level);
     glUniform1i(glGetUniformLocation(mProgInverseSearch, "u_coarseLevel"), coarseLevel);
+    glUniform1i(glGetUniformLocation(mProgInverseSearch, "u_collectTelemetry"), mLoggingEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     glDispatchCompute((sw + 7) / 8, (sh + 7) / 8, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+    mPassInvSearch.fetch_add(1, std::memory_order_relaxed);
+    checkGlPassError("DisInverseSearch");
 }
 
 void ApexEngine::dispatchPropagate(int level, GLuint lastLuma, GLuint nextLuma, GLuint fi, GLuint fo, int sw, int sh, int dist) {
-    (void)level;
     glUseProgram(mProgPropagate);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, lastLuma);
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, nextLuma);
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, fi);
     glBindImageTexture(3, fo, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    if (mTelemetrySsbo) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, mTelemetrySsbo);
     glUniform1i(glGetUniformLocation(mProgPropagate, "u_dist"), dist);
+    glUniform1i(glGetUniformLocation(mProgPropagate, "u_level"), level);
+    glUniform1i(glGetUniformLocation(mProgPropagate, "u_collectTelemetry"), mLoggingEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     glDispatchCompute((sw + 7) / 8, (sh + 7) / 8, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+    mPassPropagate.fetch_add(1, std::memory_order_relaxed);
+    checkGlPassError("DisPropagate");
 }
 
-void ApexEngine::dispatchDensify(GLuint sparseFlow, GLuint lastLuma, GLuint nextLuma, GLuint denseFlow, int w, int h) {
+void ApexEngine::dispatchDensify(int level, GLuint sparseFlow, GLuint lastLuma, GLuint nextLuma, GLuint denseFlow, int w, int h) {
     glUseProgram(mProgDensify);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sparseFlow);
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, lastLuma);
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, nextLuma);
     glBindImageTexture(3, denseFlow, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    if (mTelemetrySsbo) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, mTelemetrySsbo);
+    glUniform1i(glGetUniformLocation(mProgDensify, "u_level"), level);
+    glUniform1i(glGetUniformLocation(mProgDensify, "u_collectTelemetry"), mLoggingEnabled.load(std::memory_order_relaxed) ? 1 : 0);
     glDispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+    mPassDensify.fetch_add(1, std::memory_order_relaxed);
+    checkGlPassError("DisDensify");
 }
 
 void ApexEngine::dispatchVrSetup(GLuint denseFlow, GLuint prevColor, GLuint nextColor, GLuint outA, GLuint outB, GLuint outDW, int w, int h) {
@@ -509,6 +601,7 @@ void ApexEngine::dispatchVrSetup(GLuint denseFlow, GLuint prevColor, GLuint next
     glBindImageTexture(5, outDW, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
     glDispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    checkGlPassError("DisVrSetup");
 }
 
 void ApexEngine::dispatchVrSor(GLuint at, GLuint bt, GLuint dwi, GLuint dwo, float om, int p, int w, int h) {
@@ -521,6 +614,7 @@ void ApexEngine::dispatchVrSor(GLuint at, GLuint bt, GLuint dwi, GLuint dwo, flo
     glUniform1i(glGetUniformLocation(mProgVrSor, "u_parity"), p);
     glDispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    checkGlPassError("DisVrSor");
 }
 
 void ApexEngine::dispatchInterpolate(GLuint pc, GLuint nc, GLuint df, GLuint dw, GLuint oi, float t, int w, int h) {
@@ -530,18 +624,22 @@ void ApexEngine::dispatchInterpolate(GLuint pc, GLuint nc, GLuint df, GLuint dw,
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, df);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, dw);
     glBindImageTexture(4, oi, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+    if (mTelemetrySsbo) glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, mTelemetrySsbo);
     glUniform1f(glGetUniformLocation(mProgInterpolate, "u_t"), t);
     glUniform1f(glGetUniformLocation(mProgInterpolate, "u_flowScale"), mFlowScale.load());
     glUniform1f(glGetUniformLocation(mProgInterpolate, "u_liquidFeel"), mLiquidFeel.load());
     glUniform1f(glGetUniformLocation(mProgInterpolate, "u_shutterGain"), mShutterGain.load());
     glUniform1f(glGetUniformLocation(mProgInterpolate, "u_edgeGuard"), mEdgeGuard.load());
-    glDispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
+    glUniform1i(glGetUniformLocation(mProgInterpolate, "u_collectTelemetry"), mLoggingEnabled.load(std::memory_order_relaxed) ? 1 : 0);
+    glDispatchCompute((w + 15) / 16, (h + 7) / 8, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
     glBindImageTexture(4, 0, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, 0);
+    mPassInterpolate.fetch_add(1, std::memory_order_relaxed);
+    checkGlPassError("DisInterpolate");
 }
 
 void ApexEngine::dispatchRcas(GLuint inTex, GLuint outImage, int w, int h, float sharpness) {
@@ -553,6 +651,7 @@ void ApexEngine::dispatchRcas(GLuint inTex, GLuint outImage, int w, int h, float
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
     glBindImageTexture(1, 0, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, 0);
+    checkGlPassError("DisRcas");
 }
 
 bool ApexEngine::isHealthy() const {
@@ -597,6 +696,7 @@ std::string ApexEngine::getDiagnostics() {
     }
     diag += " -> Flow: " + std::to_string(mFlowWidth) + "x" + std::to_string(mFlowHeight);
     diag += " (" + std::string(presetName) + ")\n";
+    diag += "• Optical Flow: 4-Level Pyramid (AMD FSR 3 Vector Median Filter, Guided Densification, Divergence-Shielded DIS)\n";
 
     float srcFps = (mTypicalDeltaNanos > 1000000.0f) ? (1000000000.0f / mTypicalDeltaNanos) : 0.0f;
     float deltaMs = mTypicalDeltaNanos / 1000000.0f;
@@ -616,11 +716,31 @@ std::string ApexEngine::getDiagnostics() {
              (unsigned long long)mFallbackCount);
     diag += pbuf;
 
+    if (mHardwareAudited) {
+        diag += "• GPU: " + mGpuVendor + " | " + mGpuRenderer + " | " + mGpuVersion + "\n";
+        diag += "• Extensions: HalfFloatLinear=" + std::string(mExtHalfFloatLinear ? "[OK]" : "[UNSUPPORTED]") +
+                " | ColorBufferHalfFloat=" + std::string(mExtColorBufferHalfFloat ? "[OK]" : "[UNSUPPORTED]") + "\n";
+    }
+
+    char passBuf[256];
+    snprintf(passBuf, sizeof(passBuf), "• Passes Executed: LumaGrad=%llu, InvSearch=%llu, Propagate=%llu, Densify=%llu, Interp=%llu, Blit=%llu\n",
+             (unsigned long long)mPassLumaGrad.load(std::memory_order_relaxed),
+             (unsigned long long)mPassInvSearch.load(std::memory_order_relaxed),
+             (unsigned long long)mPassPropagate.load(std::memory_order_relaxed),
+             (unsigned long long)mPassDensify.load(std::memory_order_relaxed),
+             (unsigned long long)mPassInterpolate.load(std::memory_order_relaxed),
+             (unsigned long long)mPassBlit.load(std::memory_order_relaxed));
+    diag += passBuf;
+
     GLenum glErr = glGetError();
     if (glErr != GL_NO_ERROR) {
         mLastGLError = glErr;
     }
     diag += "• Last GL Error: " + std::string(getGlErrorString(mLastGLError));
+    if (!mLastGLErrorPass.empty()) {
+        diag += " (in " + mLastGLErrorPass + ")";
+    }
+    diag += "\n";
 
     return diag;
 }
@@ -667,20 +787,15 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
         mCurrentSlot = (mCurrentSlot + 1) % DIS_SLOTS;
 
         // 1. Capture full native resolution real frame
-        glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mColorRingTex[mCurrentSlot], 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, mCaptureFbo[mCurrentSlot]);
         glViewport(0, 0, mScaledWidth, mScaledHeight);
         blitQuad(inputTextureId, (float)viewX / width, (float)viewY / height, (float)viewWidth / width, (float)viewHeight / height);
 
-        // Flush tile buffer before sampling mColorRingTex
-        glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
-
-        // 2. Downscale into decoupled flow texture (180p / 252p / 360p)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mFlowColorTex[mCurrentSlot], 0);
+        // 2. Downscale directly from input texture into decoupled flow texture (180p / 252p / 360p)
+        glBindFramebuffer(GL_FRAMEBUFFER, mFlowFbo[mCurrentSlot]);
         glViewport(0, 0, mFlowWidth, mFlowHeight);
-        blitQuad(mColorRingTex[mCurrentSlot], 0, 0, 1, 1);
+        blitQuad(inputTextureId, (float)viewX / width, (float)viewY / height, (float)viewWidth / width, (float)viewHeight / height);
 
-        glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT | GL_TEXTURE_FETCH_BARRIER_BIT);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         if (mRealFramesCaptured.load() < 2) {
@@ -710,40 +825,67 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
             return;
         }
 
-        // Passes 1-4: Luma & Gradient Pyramid for all 4 levels
+        // Zero-initialize telemetry buffer if logging is enabled
+        if (mTelemetrySsbo && mLoggingEnabled.load(std::memory_order_relaxed)) {
+            ApexPipelineTelemetry zeroTelem{};
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, mTelemetrySsbo);
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(ApexPipelineTelemetry), &zeroTelem);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+
+        // Passes 1-4: Luma & Gradient Pyramid for all levels
         dispatchLumaGrad(0, mFlowColorTex[mCurrentSlot], mCurrentSlot);
         for (uint32_t i = 1; i < MAX_PYR_LEVELS; i++) {
             dispatchLumaGrad(i, mLevels[i - 1].lumaTex[mCurrentSlot], mCurrentSlot);
         }
 
-        // Passes 5-12: Coarse-to-fine (Levels 3 down to 0)
+        // Passes 5-12: Coarse-to-fine
         GLuint coarseFlow = 0;
         int coarseLevel = MAX_PYR_LEVELS - 1;
         for (int i = coarseLevel; i >= 0; i--) {
             DisLevel& lvl = mLevels[i];
-            // Inverse Search (Passes 5-8)
+            // Inverse Search with temporal gradient from mPreviousSlot
             dispatchHierarchicalSearch(i, lvl.lumaTex[mPreviousSlot], lvl.lumaTex[mCurrentSlot],
-                                       lvl.gradientTex, coarseFlow, lvl.sparseFlowTex[0],
+                                       lvl.gradientTex[mPreviousSlot], coarseFlow, lvl.sparseFlowTex[0],
                                        lvl.sparseWidth, lvl.sparseHeight, coarseLevel);
 
-            // 4-Way Candidate Propagation (Passes 9-12)
+            // 4-Way Candidate Propagation:
+            // Multi-scale profile matching WinNative: coarse levels get dist 1, 2, 4
             dispatchPropagate(i, lvl.lumaTex[mPreviousSlot], lvl.lumaTex[mCurrentSlot],
                               lvl.sparseFlowTex[0], lvl.sparseFlowTex[1],
                               lvl.sparseWidth, lvl.sparseHeight, 1);
-            coarseFlow = lvl.sparseFlowTex[1];
+
+            dispatchPropagate(i, lvl.lumaTex[mPreviousSlot], lvl.lumaTex[mCurrentSlot],
+                              lvl.sparseFlowTex[1], lvl.sparseFlowTex[0],
+                              lvl.sparseWidth, lvl.sparseHeight, 2);
+
+            if (i >= 2) {
+                dispatchPropagate(i, lvl.lumaTex[mPreviousSlot], lvl.lumaTex[mCurrentSlot],
+                                  lvl.sparseFlowTex[0], lvl.sparseFlowTex[1],
+                                  lvl.sparseWidth, lvl.sparseHeight, 4);
+
+                dispatchPropagate(i, lvl.lumaTex[mPreviousSlot], lvl.lumaTex[mCurrentSlot],
+                                  lvl.sparseFlowTex[1], lvl.sparseFlowTex[0],
+                                  lvl.sparseWidth, lvl.sparseHeight, 1);
+            }
+
+            // 9-Tap Bilateral Guided Densification (sparse0 -> denseFlowTex for this level)
+            dispatchDensify(i, lvl.sparseFlowTex[0], lvl.lumaTex[mPreviousSlot], lvl.lumaTex[mCurrentSlot],
+                            lvl.denseFlowTex, lvl.width, lvl.height);
+
+            coarseFlow = lvl.denseFlowTex;
         }
 
-        // Pass 13: 9-Tap Bilateral Guided Densification on Level 0
         DisLevel& l0 = mLevels[0];
-        dispatchDensify(l0.sparseFlowTex[1], l0.lumaTex[mPreviousSlot], l0.lumaTex[mCurrentSlot],
-                        l0.denseFlowTex, l0.width, l0.height);
 
-        // Pass 14: Hardware-Accelerated Interpolator (G0.5)
-        float t = getInterpolationFactor(nowNanos);
+        // Pass 14: Hardware-Accelerated Interpolator
+        // Exact multiplier step: 2x -> t = 0.50f, 3x -> t = 0.333f, 4x -> t = 0.25f
+        int mult = std::max(2, mPlannedGen + 1);
+        float t = 1.0f / static_cast<float>(mult);
         dispatchInterpolate(mColorRingTex[mPreviousSlot], mColorRingTex[mCurrentSlot],
                             l0.denseFlowTex, l0.denseFlowTex, mInterpOutTex, t, mScaledWidth, mScaledHeight);
 
-        // PRESENT G0.5 FIRST!
+        // PRESENT GENERATED FRAME FIRST
         glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
         glViewport(viewX, viewY, viewWidth, viewHeight);
         blitQuad(mInterpOutTex, 0, 0, 1, 1);
@@ -759,14 +901,12 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
             return;
         }
 
-        int targetFPS = mTargetFPS.load(std::memory_order_relaxed);
-        int64_t lastPres = mLastPresentedNanos.load(std::memory_order_relaxed);
-
         int fs = mFramesSinceReal.fetch_add(1) + 1;
         if (fs < mPlannedGen) {
             // Multi-generation (3x or 4x): output intermediate frame G_t
-            // Relaxed pacing: prioritize generation to hit target FPS
-            float t = getInterpolationFactor(nowNanos);
+            // For 3x (fs=1): t = 2/3 = 0.667f; For 4x (fs=1): t = 2/4 = 0.50f; (fs=2): t = 3/4 = 0.75f
+            int mult = std::max(2, mPlannedGen + 1);
+            float t = static_cast<float>(fs + 1) / static_cast<float>(mult);
             dispatchInterpolate(mColorRingTex[mPreviousSlot], mColorRingTex[mCurrentSlot],
                                 mLevels[0].denseFlowTex, mLevels[0].denseFlowTex, mInterpOutTex, t, mScaledWidth, mScaledHeight);
             glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
@@ -776,8 +916,7 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
             mTotalGenFramesPresented++;
             mLastPresentedNanos.store(nowNanos, std::memory_order_relaxed);
         } else if (fs == mPlannedGen) {
-            // PRESENT BUFFERED REAL FRAME R1 SECOND!
-            onFrameCaptured(nowNanos, false);
+            // PRESENT BUFFERED REAL FRAME SECOND
             glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
             glViewport(viewX, viewY, viewWidth, viewHeight);
             blitQuad(mColorRingTex[mCurrentSlot], 0, 0, 1, 1);
@@ -785,19 +924,95 @@ void ApexEngine::processFrame(GLuint inputTextureId, GLuint outputFboId, int wid
             mTotalRealFramesPresented++;
             mLastPresentedNanos.store(nowNanos, std::memory_order_relaxed);
         } else {
-            // Safety fallback: if invoked beyond planned quota,
-            // blit the latest valid frame so Framebuffer 0 is never left un-rendered
+            // Real frame delayed (game FPS dropped below target):
+            // Hold the latest real frame without jumping backwards in time (eliminates wobble/shimmer)!
             glBindFramebuffer(GL_FRAMEBUFFER, outputFboId);
             glViewport(viewX, viewY, viewWidth, viewHeight);
             blitQuad(mColorRingTex[mCurrentSlot], 0, 0, 1, 1);
-            return;
+            mActualRealFrameCount.fetch_add(1);
+            mTotalRealFramesPresented++;
+            mLastPresentedNanos.store(nowNanos, std::memory_order_relaxed);
         }
     }
 
-    GLenum glErr = glGetError();
-    if (glErr != GL_NO_ERROR) {
-        mLastGLError = glErr;
-        APEX_LOGE("ApexDIS runtime GL error: %s (0x%x)", getGlErrorString(glErr), glErr);
+    if (mLoggingEnabled.load(std::memory_order_relaxed)) {
+        GLenum glErr = glGetError();
+        if (glErr != GL_NO_ERROR) {
+            mLastGLError = glErr;
+            APEX_LOGE("ApexDIS runtime GL error: %s (0x%x)", getGlErrorString(glErr), glErr);
+        }
+
+        if (mTotalFramesProcessed % 120 == 0) {
+            if (mTelemetrySsbo) {
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, mTelemetrySsbo);
+                ApexPipelineTelemetry* telem = static_cast<ApexPipelineTelemetry*>(glMapBufferRange(
+                    GL_SHADER_STORAGE_BUFFER, 0, sizeof(ApexPipelineTelemetry), GL_MAP_READ_BIT));
+                if (telem) {
+                    mMathTelemetry = *telem;
+                    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+                }
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            }
+
+            float searchActivePct = mMathTelemetry.searchTotalPatches > 0
+                ? (float)mMathTelemetry.searchActiveMovingCount / (float)mMathTelemetry.searchTotalPatches * 100.0f : 0.0f;
+            float searchZeroPct = mMathTelemetry.searchTotalPatches > 0
+                ? (float)mMathTelemetry.searchZeroCollapseCount / (float)mMathTelemetry.searchTotalPatches * 100.0f : 0.0f;
+            float searchRevertPct = mMathTelemetry.searchTotalPatches > 0
+                ? (float)mMathTelemetry.searchRevertedCount / (float)mMathTelemetry.searchTotalPatches * 100.0f : 0.0f;
+
+            float propImprovedPct = mMathTelemetry.propTotalPatches > 0
+                ? (float)mMathTelemetry.propImprovedCount / (float)mMathTelemetry.propTotalPatches * 100.0f : 0.0f;
+
+            float denseActivePct = mMathTelemetry.denseTotalPixels > 0
+                ? (float)mMathTelemetry.denseActiveMovingCount / (float)mMathTelemetry.denseTotalPixels * 100.0f : 0.0f;
+
+            float interpOcclPct = mMathTelemetry.interpTotalPixels > 0
+                ? (float)mMathTelemetry.interpOccludedCount / (float)mMathTelemetry.interpTotalPixels * 100.0f : 0.0f;
+            float interpClipPct = mMathTelemetry.interpTotalPixels > 0
+                ? (float)mMathTelemetry.interpOutOfBoundsCount / (float)mMathTelemetry.interpTotalPixels * 100.0f : 0.0f;
+
+            APEX_LOGI("[APEX GPU VALIDATION] Frame #%llu | RealPres=%llu GenPres=%llu Fallbacks=%llu | Passes: LumaGrad=%llu InvSearch=%llu Propagate=%llu Densify=%llu Interp=%llu Blit=%llu | Shaders: %d/8 | LastGLErr: %s (%s)",
+                      (unsigned long long)mTotalFramesProcessed,
+                      (unsigned long long)mTotalRealFramesPresented,
+                      (unsigned long long)mTotalGenFramesPresented,
+                      (unsigned long long)mFallbackCount,
+                      (unsigned long long)mPassLumaGrad.load(std::memory_order_relaxed),
+                      (unsigned long long)mPassInvSearch.load(std::memory_order_relaxed),
+                      (unsigned long long)mPassPropagate.load(std::memory_order_relaxed),
+                      (unsigned long long)mPassDensify.load(std::memory_order_relaxed),
+                      (unsigned long long)mPassInterpolate.load(std::memory_order_relaxed),
+                      (unsigned long long)mPassBlit.load(std::memory_order_relaxed),
+                      mCompiledShaderCount,
+                      getGlErrorString(mLastGLError),
+                      mLastGLErrorPass.empty() ? "None" : mLastGLErrorPass.c_str());
+
+            APEX_LOGI("[APEX GPU MATH AUDIT - ALL PASSES]");
+            APEX_LOGI("  • 1. LumaGrad     : Pixels=%u | NaN/Inf=%u",
+                      mMathTelemetry.lumaTotalPixels, mMathTelemetry.lumaNanInfCount);
+            APEX_LOGI("  • 2. InverseSearch: Active=%.1f%% (%u) | ZeroHUD=%.1f%% (%u) | Reverted=%.1f%% (%u) | NaN/Inf=%u",
+                      searchActivePct, mMathTelemetry.searchActiveMovingCount,
+                      searchZeroPct, mMathTelemetry.searchZeroCollapseCount,
+                      searchRevertPct, mMathTelemetry.searchRevertedCount,
+                      mMathTelemetry.searchNanInfCount);
+            APEX_LOGI("  • 3. Propagation  : Multi-Dist Patches=%u | Improved=%.1f%% (%u) | NaN/Inf=%u",
+                      mMathTelemetry.propTotalPatches, propImprovedPct, mMathTelemetry.propImprovedCount,
+                      mMathTelemetry.propNanInfCount);
+            APEX_LOGI("  • 4. Densification: Level 0 DenseMoving=%.1f%% (%u) | ZeroWeightFails=%u | NaN/Inf=%u",
+                      denseActivePct, mMathTelemetry.denseActiveMovingCount,
+                      mMathTelemetry.denseZeroWeightCount, mMathTelemetry.denseNanInfCount);
+            APEX_LOGI("  • 5. Interpolation: FSR 3 OcclusionRate=%.1f%% (%u) | BoundaryClip=%.1f%% (%u) | NaN/Inf=%u",
+                      interpOcclPct, mMathTelemetry.interpOccludedCount,
+                      interpClipPct, mMathTelemetry.interpOutOfBoundsCount,
+                      mMathTelemetry.interpNanInfCount);
+
+            uint32_t totalNanInf = mMathTelemetry.lumaNanInfCount + mMathTelemetry.searchNanInfCount +
+                                   mMathTelemetry.propNanInfCount + mMathTelemetry.denseNanInfCount +
+                                   mMathTelemetry.interpNanInfCount;
+            if (totalNanInf > 0) {
+                APEX_LOGE("[APEX MATH DIVERGENCE ALERT] Detected %u total NaN/Inf calculations across the pipeline!", totalNanInf);
+            }
+        }
     }
 }
 
