@@ -645,7 +645,7 @@ void main() {
     f *= edgeMix; // Fades flow smoothly to 0 at borders -> zero edge bleed at screen borders!
 
     // Liquid Smooth Motion Pacing: Enhanced Hermite S-curve for ultra-fluid liquid feel
-    float smoothT = mix(u_t, u_t * u_t * (3.0 - 2.0 * u_t), clamp(u_liquidFeel, 0.0, 1.0) * 0.40);
+    float smoothT = mix(u_t, u_t * u_t * (3.0 - 2.0 * u_t), clamp(u_liquidFeel, 0.0, 1.0) * 0.55);
 
     // Bilateral Forward-Backward Warp
     vec2 uv0 = uv - smoothT * f;
@@ -663,22 +663,21 @@ void main() {
     float out0 = clamp(max(e0.x, e0.y), 0.0, 1.0);
     float out1 = clamp(max(e1.x, e1.y), 0.0, 1.0);
 
+    // Pure halo-free bilateral motion interpolation along motion path
     float w0 = (1.0 - smoothT) * (1.0 - out0);
     float w1 = smoothT * (1.0 - out1);
-
-    // Continuous Photometric Confidence (bionic-fg / FSR 3 smooth synthesis):
-    // Compare warped samples with direct scene color to suppress trailing ghosting smoothly
-    // without any binary threshold cuts (eliminates edge flickering completely)
-    vec3 dir0 = textureLod(prevColor, uv, 0.0).rgb;
-    vec3 dir1 = textureLod(nextColor, uv, 0.0).rgb;
-    float sim0 = 1.0 / (1.0 + dot(abs(c0 - dir1), vec3(0.299, 0.587, 0.114)) * 3.0);
-    float sim1 = 1.0 / (1.0 + dot(abs(c1 - dir0), vec3(0.299, 0.587, 0.114)) * 3.0);
-
-    w0 *= sim0;
-    w1 *= sim1;
     float wsum = w0 + w1;
 
     vec3 result = wsum > 1e-4 ? (c0 * w0 + c1 * w1) / wsum : mix(c0, c1, smoothT);
+
+    // Smooth continuous S-curve disocclusion dampener:
+    // In high-contrast disocclusion boundaries (diff > 0.15), bias toward the temporally
+    // closer frame to prevent trailing edge ghosting/wobble without creating halos or steps.
+    float diff = dot(abs(c0 - c1), vec3(0.299, 0.587, 0.114));
+    float occl = smoothstep(0.15, 0.40, diff);
+    float tWeight = smoothstep(0.35, 0.65, smoothT);
+    vec3 closer = mix(c0, c1, tWeight);
+    result = mix(result, closer, occl * 0.50);
 
     if (u_collectTelemetry != 0) {
         float diff = dot(abs(c0 - c1), vec3(0.299, 0.587, 0.114));

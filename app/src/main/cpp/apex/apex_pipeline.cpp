@@ -300,8 +300,8 @@ void ApexEngine::ensureResources(int width, int height) {
 
     uint32_t minSide = 180;
     int preset = mQualityPreset.load();
-    if (preset == 1) minSide = 252;
-    else if (preset == 2) minSide = 360;
+    if (preset == 1) minSide = 216;
+    else if (preset == 2) minSide = 270;
 
     uint32_t minor = width < height ? width : height;
     float k = (float)minSide / (float)(minor > 0 ? minor : 1);
@@ -687,8 +687,8 @@ std::string ApexEngine::getDiagnostics() {
 
     const char* presetName = "Fast (180p)";
     int preset = mQualityPreset.load();
-    if (preset == 1) presetName = "Balanced (252p)";
-    else if (preset == 2) presetName = "Quality (360p)";
+    if (preset == 1) presetName = "Balanced (216p)";
+    else if (preset == 2) presetName = "Quality (270p)";
 
     diag += "• Native: " + std::to_string(mSurfaceWidth) + "x" + std::to_string(mSurfaceHeight);
     if (mScaledWidth != mSurfaceWidth || mScaledHeight != mSurfaceHeight) {
