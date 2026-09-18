@@ -610,7 +610,7 @@ uniform float u_shutterGain;
 uniform float u_edgeGuard;
 uniform int u_collectTelemetry;
 
-// Hardware-Independent Subpixel Bilinear Flow with Motion Discontinuity Protection
+// Hardware-Independent Subpixel Bilinear Flow (Bypasses missing Mali FP16 linear filter)
 vec2 sampleFlow(sampler2D flowMap, vec2 uv) {
     vec2 sz = vec2(textureSize(flowMap, 0));
     vec2 p = uv * sz - 0.5;
@@ -622,21 +622,6 @@ vec2 sampleFlow(sampler2D flowMap, vec2 uv) {
     vec2 b = texelFetch(flowMap, clamp(i0 + ivec2(1, 0), ivec2(0), mx), 0).xy;
     vec2 c = texelFetch(flowMap, clamp(i0 + ivec2(0, 1), ivec2(0), mx), 0).xy;
     vec2 e = texelFetch(flowMap, clamp(i0 + ivec2(1, 1), ivec2(0), mx), 0).xy;
-
-    // Motion Discontinuity Guard:
-    // Across object silhouettes (e.g. guns, weapons, character clothes against background),
-    // blending different velocity vectors creates a non-existent half-speed vector that
-    // smears foreground pixels into the background (color leaking).
-    // Snap to the nearest vector when vectors cross a sharp motion boundary!
-    vec2 d1 = a - b;
-    vec2 d2 = a - c;
-    vec2 d3 = a - e;
-    float maxDelta2 = max(max(dot(d1, d1), dot(d2, d2)), dot(d3, d3));
-    if (maxDelta2 > 0.00008) {
-        ivec2 nearest = i0 + ivec2(frac.x >= 0.5 ? 1 : 0, frac.y >= 0.5 ? 1 : 0);
-        return texelFetch(flowMap, clamp(nearest, ivec2(0), mx), 0).xy;
-    }
-
     return mix(mix(a, b, frac.x), mix(c, e, frac.x), frac.y);
 }
 
@@ -655,18 +640,18 @@ void main() {
     vec2 easedRamp = ramp * ramp * (3.0 - 2.0 * ramp);
     float edgeMix = min(easedRamp.x, easedRamp.y);
 
-    // Uniform optical flow with boundary anchoring (no destructive per-pixel HUD mask!)
+    // Uniform optical flow with boundary anchoring
     vec2 f = sampleFlow(denseFlow, uv) * (u_flowScale > 0.0 ? u_flowScale : 1.0);
     f *= edgeMix; // Fades flow smoothly to 0 at borders -> zero edge bleed at screen borders!
 
-    // Liquid Smooth Motion Pacing: Maintains uniform physical velocity across all frame generation steps
-    float smoothT = mix(u_t, u_t * u_t * (3.0 - 2.0 * u_t), clamp(u_liquidFeel, 0.0, 1.0) * 0.15);
+    // Liquid Smooth Motion Pacing: Enhanced Hermite S-curve for ultra-fluid liquid feel
+    float smoothT = mix(u_t, u_t * u_t * (3.0 - 2.0 * u_t), clamp(u_liquidFeel, 0.0, 1.0) * 0.40);
 
     // Bilateral Forward-Backward Warp
     vec2 uv0 = uv - smoothT * f;
     vec2 uv1 = uv + (1.0 - smoothT) * f;
 
-    // Stable, non-ringing hardware bilinear texture sampling (Zero wobble / Zero flicker)
+    // Stable, non-ringing hardware bilinear texture sampling
     vec3 c0 = textureLod(prevColor, clamp(uv0, 0.0, 1.0), 0.0).rgb;
     vec3 c1 = textureLod(nextColor, clamp(uv1, 0.0, 1.0), 0.0).rgb;
 
@@ -680,22 +665,25 @@ void main() {
 
     float w0 = (1.0 - smoothT) * (1.0 - out0);
     float w1 = smoothT * (1.0 - out1);
+
+    // Continuous Photometric Confidence (bionic-fg / FSR 3 smooth synthesis):
+    // Compare warped samples with direct scene color to suppress trailing ghosting smoothly
+    // without any binary threshold cuts (eliminates edge flickering completely)
+    vec3 dir0 = textureLod(prevColor, uv, 0.0).rgb;
+    vec3 dir1 = textureLod(nextColor, uv, 0.0).rgb;
+    float sim0 = 1.0 / (1.0 + dot(abs(c0 - dir1), vec3(0.299, 0.587, 0.114)) * 3.0);
+    float sim1 = 1.0 / (1.0 + dot(abs(c1 - dir0), vec3(0.299, 0.587, 0.114)) * 3.0);
+
+    w0 *= sim0;
+    w1 *= sim1;
     float wsum = w0 + w1;
 
-    vec3 blended = wsum > 1e-4 ? (c0 * w0 + c1 * w1) / wsum : (out0 <= out1 ? c0 : c1);
-
-    // Continuous Bilateral Motion Synthesis (bionic-fg / FSR 3 continuous weighting):
-    // Zero temporal popping and zero edge flickering across t = 0.5.
-    // Softly weights continuous blending, preserving 100% of fluid character motion
-    // without hard binary threshold cutting.
-    float diff = dot(abs(c0 - c1), vec3(0.299, 0.587, 0.114));
-    float occl = smoothstep(0.08, 0.32, diff);
-    float blendWeight = mix(smoothT, (smoothT < 0.5 ? 0.0 : 1.0), occl * 0.65);
-    vec3 result = mix(c0, c1, clamp(blendWeight, 0.0, 1.0));
+    vec3 result = wsum > 1e-4 ? (c0 * w0 + c1 * w1) / wsum : mix(c0, c1, smoothT);
 
     if (u_collectTelemetry != 0) {
+        float diff = dot(abs(c0 - c1), vec3(0.299, 0.587, 0.114));
         atomicAdd(u_interpTotalPixels, 1u);
-        if (occl > 0.5) atomicAdd(u_interpOccludedCount, 1u);
+        if (diff > 0.20) atomicAdd(u_interpOccludedCount, 1u);
         if (out0 > 0.0 || out1 > 0.0) atomicAdd(u_interpOutOfBoundsCount, 1u);
         if (any(isnan(result)) || any(isinf(result))) atomicAdd(u_interpNanInfCount, 1u);
     }

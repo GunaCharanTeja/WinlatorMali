@@ -91,11 +91,11 @@ void ApexEngine::onFrameCaptured(int64_t nowNanos, bool isActualNewFrame) {
         mDropSinceNanos = 0;
     }
 
-    // Debounced step UP (12 frames ~ 350ms) to prevent hitch-induced 4x spikes
+    // Prompt step UP (3 frames ~ 80ms) for instant smooth FPS feel
     if (proposedGen > currentGen) {
         mGenHighStreak++;
         mGenLowStreak = 0;
-        if (mGenHighStreak >= 12) {
+        if (mGenHighStreak >= 3) {
             mPlannedGen = proposedGen;
             mGenHighStreak = 0;
             mDeltaAtRaise = mTypicalDeltaNanos;
