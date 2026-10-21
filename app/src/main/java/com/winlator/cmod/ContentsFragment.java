@@ -36,6 +36,7 @@ import com.winlator.cmod.R;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ContentInfoDialog;
 import com.winlator.cmod.contentdialog.ContentUntrustedDialog;
+import com.winlator.cmod.contents.ContentDownloads;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.Downloader;
@@ -78,6 +79,39 @@ public class ContentsFragment extends Fragment {
             FileUtils.clear(getContext().getCacheDir());
         }
         super.onDestroy();
+    }
+
+    private final Runnable progressUpdater = new Runnable() {
+        @Override
+        public void run() {
+            if (recyclerView == null) return;
+            if (recyclerView.getAdapter() instanceof ContentItemAdapter)
+                ((ContentItemAdapter) recyclerView.getAdapter()).refreshDownloadStates();
+            recyclerView.postDelayed(this, 300);
+        }
+    };
+
+    private final ContentDownloads.Listener downloadListener = task -> {
+        if (getContext() == null) return;
+        AppUtils.showToast(getContext(), task.message);
+        if (task.state == ContentDownloads.State.DONE) {
+            manager.syncContents();
+            if (isInstalledFilter) loadContentList();
+        }
+    };
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        ContentDownloads.addListener(downloadListener);
+        if (recyclerView != null) recyclerView.post(progressUpdater);
+    }
+
+    @Override
+    public void onPause() {
+        ContentDownloads.removeListener(downloadListener);
+        if (recyclerView != null) recyclerView.removeCallbacks(progressUpdater);
+        super.onPause();
     }
 
     @Override
@@ -518,6 +552,7 @@ public class ContentsFragment extends Fragment {
             private final View llDownloadProgress;
             private final ProgressBar horizontalProgressBar;
             private final TextView tvProgressDetails;
+            private ContentProfile profile;
 
             public ViewHolder(@NonNull View view) {
                 super(view);
@@ -663,59 +698,50 @@ public class ContentsFragment extends Fragment {
                 selectionMenu.show();
             });
 
-            // Download button & live progress
-            holder.ibDownload.setVisibility((profile.remoteUrl != null) ? View.VISIBLE : View.GONE);
-            holder.llDownloadProgress.setVisibility(View.GONE);
+            // Download button & live progress: the download runs in ContentDownloads, this only shows its state.
+            holder.profile = profile;
+            bindDownloadState(holder);
 
             holder.ibDownload.setOnClickListener(v -> {
-                holder.ibDownload.setVisibility(View.GONE);
-                holder.llDownloadProgress.setVisibility(View.VISIBLE);
-                holder.horizontalProgressBar.setProgress(0);
-                holder.tvProgressDetails.setText("Connecting...");
-
-                Intent intent = new Intent();
-                intent.setData(Uri.parse(profile.remoteUrl));
-                new Thread(() -> {
-                    long timestamp = System.currentTimeMillis();
-                    File cacheDir = getContext() != null ? getContext().getCacheDir() : (getActivity() != null ? getActivity().getCacheDir() : null);
-                    if (cacheDir == null) return;
-                    File output = new File(cacheDir, "temp_" + timestamp);
-                    boolean success = Downloader.downloadFile(profile.remoteUrl, output, (currentBytes, totalBytes, percent, speedMBs) -> {
-                        if (isAdded() && getActivity() != null) {
-                            getActivity().runOnUiThread(() -> {
-                                if (percent >= 0) {
-                                    holder.horizontalProgressBar.setIndeterminate(false);
-                                    holder.horizontalProgressBar.setProgress(percent);
-                                    holder.tvProgressDetails.setText(String.format(java.util.Locale.US, "%s / %s (%d%%) • %.1f MB/s",
-                                        Downloader.formatFileSize(currentBytes), Downloader.formatFileSize(totalBytes), percent, speedMBs));
-                                } else {
-                                    holder.horizontalProgressBar.setIndeterminate(true);
-                                    holder.tvProgressDetails.setText(String.format(java.util.Locale.US, "%s • %.1f MB/s",
-                                        Downloader.formatFileSize(currentBytes), speedMBs));
-                                }
-                            });
-                        }
-                    });
-
-                    if (success) {
-                        intent.setData(Uri.parse(output.getAbsolutePath()));
-                    }
-
-                    if (isAdded() && getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            holder.llDownloadProgress.setVisibility(View.GONE);
-                            holder.ibDownload.setVisibility(View.VISIBLE);
-                            if (success) {
-                                onActivityResult(MainActivity.OPEN_FILE_REQUEST_CODE, Activity.RESULT_OK, intent);
-                            } else {
-                                if (getContext() != null) {
-                                    AppUtils.showToast(getContext(), "Download failed. Please check network connection.");
-                                }
-                            }
-                        });
-                    }
-                }).start();
+                if (getContext() == null) return;
+                ContentDownloads.start(getContext(), profile);
+                bindDownloadState(holder);
             });
+        }
+
+        private void bindDownloadState(ViewHolder holder) {
+            ContentProfile profile = holder.profile;
+            ContentDownloads.Task task = profile != null ? ContentDownloads.get(profile.remoteUrl) : null;
+            if (task == null || !task.isActive()) {
+                holder.ibDownload.setVisibility(profile != null && profile.remoteUrl != null ? View.VISIBLE : View.GONE);
+                holder.llDownloadProgress.setVisibility(View.GONE);
+                return;
+            }
+
+            holder.ibDownload.setVisibility(View.GONE);
+            holder.llDownloadProgress.setVisibility(View.VISIBLE);
+            if (task.state == ContentDownloads.State.INSTALLING) {
+                holder.horizontalProgressBar.setIndeterminate(true);
+                holder.tvProgressDetails.setText("Installing...");
+            } else if (task.percent >= 0) {
+                holder.horizontalProgressBar.setIndeterminate(false);
+                holder.horizontalProgressBar.setProgress(task.percent);
+                holder.tvProgressDetails.setText(String.format(java.util.Locale.US, "%s / %s (%d%%) • %.1f MB/s",
+                    Downloader.formatFileSize(task.currentBytes), Downloader.formatFileSize(task.totalBytes), task.percent, task.speedMBs));
+            } else {
+                holder.horizontalProgressBar.setIndeterminate(true);
+                holder.tvProgressDetails.setText(task.currentBytes > 0 ? String.format(java.util.Locale.US, "%s • %.1f MB/s",
+                    Downloader.formatFileSize(task.currentBytes), task.speedMBs) : "Connecting...");
+            }
+        }
+
+        // Refreshes the progress of the visible rows.
+        private void refreshDownloadStates() {
+            if (recyclerView == null) return;
+            for (int i = 0; i < recyclerView.getChildCount(); i++) {
+                RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(recyclerView.getChildAt(i));
+                if (holder instanceof ViewHolder) bindDownloadState((ViewHolder) holder);
+            }
         }
 
         @Override

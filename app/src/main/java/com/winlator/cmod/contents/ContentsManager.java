@@ -408,8 +408,13 @@ public class ContentsManager {
     }
 
     public void extraContentFile(Uri uri, OnInstallFinishedCallback callback) {
-        cleanTmpDir(context);
-        File file = getTmpDir(context);
+        extraContentFile(uri, getTmpDir(context), callback);
+    }
+
+    // Extracts into the given staging directory, so several packages can be installed at the same time.
+    public void extraContentFile(Uri uri, File file, OnInstallFinishedCallback callback) {
+        FileUtils.delete(file);
+        file.mkdirs();
 
         boolean ret = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, uri, file);
         if (!ret)
@@ -457,6 +462,7 @@ public class ContentsManager {
 
         if (FileUtils.copy(srcDir, optDir)) {
             FileUtils.delete(srcDir);
+            profile.installedDirect = true;
             callback.onSucceed(profile);
         } else {
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
@@ -548,6 +554,10 @@ public class ContentsManager {
     }
 
     public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {
+        finishInstallContent(profile, getTmpDir(context), callback);
+    }
+
+    public void finishInstallContent(ContentProfile profile, File stagingDir, OnInstallFinishedCallback callback) {
         File installPath = getInstallDir(context, profile);
         if (installPath.exists()) {
             callback.onFailed(InstallFailedReason.ERROR_EXIST, null);
@@ -559,7 +569,7 @@ public class ContentsManager {
             return;
         }
 
-        if (!getTmpDir(context).renameTo(installPath)) {
+        if (!stagingDir.renameTo(installPath)) {
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
             return;
         }

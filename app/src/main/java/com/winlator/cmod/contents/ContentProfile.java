@@ -69,4 +69,6 @@ public class ContentProfile {
     public String sizeFormatted;
     public long releaseDate;
     public String releaseDateFormatted;
+    // A Wine/Proton tarball without a profile: installed while it was extracted, nothing left to finish.
+    public boolean installedDirect;
 }
