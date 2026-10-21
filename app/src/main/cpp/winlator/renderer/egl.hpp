@@ -111,6 +111,11 @@ class EGLRenderer {
         std::atomic<int64_t> contentSource{0};
         std::chrono::steady_clock::time_point contentCountsSince{};
         void chooseContentWindow();
+        // Debug capture of the presented frames (see captureFrame).
+        int captureLeft = 0;
+        int captureIndex = 0;
+        std::chrono::steady_clock::time_point captureCheckedAt{};
+        void captureFrame(const char* kind, float phase);
         // Times of the game's frames, taken when they arrive (not when the renderer gets to them, which is late while it
         // is showing generated frames and would make the game look slower than it is).
         std::mutex realLock;

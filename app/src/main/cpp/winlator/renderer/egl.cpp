@@ -226,6 +226,34 @@ void EGLRenderer::renderingThreadLoop() {
     }
 }
 
+// Debug capture of the frames as shown, for checking frame generation on real games: `adb shell run-as com.winlator.mali
+// touch files/fgcap/trigger` saves the next six frames presented (real ones and generated ones, with their phase) as raw
+// RGBA files in files/fgcap. Nothing but a file check once a second otherwise.
+void EGLRenderer::captureFrame(const char* kind, float phase) {
+    static const char* dir = "/data/user/0/com.winlator.mali/files/fgcap";
+    auto now = std::chrono::steady_clock::now();
+    if (captureLeft == 0) {
+        if (now - captureCheckedAt < std::chrono::seconds(1))
+            return;
+        captureCheckedAt = now;
+        std::string trigger = std::string(dir) + "/trigger";
+        if (access(trigger.c_str(), F_OK) != 0)
+            return;
+        unlink(trigger.c_str());
+        captureLeft = 6;
+        captureIndex = 0;
+    }
+    std::vector<uint8_t> pixels((size_t)surfaceWidth * surfaceHeight * 4);
+    glReadPixels(0, 0, surfaceWidth, surfaceHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    char path[256];
+    snprintf(path, sizeof(path), "%s/%d_%s_%.2f_%dx%d.raw", dir, captureIndex++, kind, phase, surfaceWidth, surfaceHeight);
+    if (FILE* file = fopen(path, "wb")) {
+        fwrite(pixels.data(), 1, pixels.size(), file);
+        fclose(file);
+    }
+    captureLeft--;
+}
+
 // A new frame of a window. Only the game's count as real frames for frame generation: a taskbar clock, a launcher or
 // a second window presenting at the same time would make the game look faster than it is and the pacing uneven.
 void EGLRenderer::markContentUpdate(int windowId, bool direct) {
@@ -515,6 +543,7 @@ EGLBoolean EGLRenderer::drawFrame() {
                         renderCursor();
                     drawableShader->disable();
                     glDisable(GL_SCISSOR_TEST);
+                    captureFrame("gen", float(p));
                     presentAt(fgNextPresent);
                     eglSwapBuffers(display, surface);
                     fgNextPresent += step;
@@ -563,6 +592,7 @@ EGLBoolean EGLRenderer::drawFrame() {
             presentationTime(display, surface, (EGLnsecsANDROID)std::chrono::duration_cast<std::chrono::nanoseconds>(realPresentAt.time_since_epoch()).count());
         realPresentAt = {};
     }
+    captureFrame("real", 1.0f);
     return eglSwapBuffers(display, surface);
 }
 
