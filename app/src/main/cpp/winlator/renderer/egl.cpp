@@ -225,8 +225,17 @@ void EGLRenderer::markContentUpdate(int windowId, bool direct) {
         contentCounts[source]++;
     }
     int64_t chosen = contentSource.load();
-    if (chosen == 0 || chosen == source)
-        contentSerial++;
+    if (chosen != 0 && chosen != source)
+        return;
+    double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    {
+        std::lock_guard<std::mutex> lock(realLock);
+        lastRealGap = lastRealTime > 0 ? now - lastRealTime : 0;
+        if (lastRealTime > 0)
+            realIntervals[realIntervalCount++ % 8] = lastRealGap;
+        lastRealTime = now;
+    }
+    contentSerial++;
 }
 
 // Once a second: the game is the window (and path) that updated the most in that second.
@@ -258,6 +267,7 @@ void EGLRenderer::chooseContentWindow() {
 
 // The game's frame interval: the mean of the last eight without the longest and the shortest (0 until there are eight).
 double EGLRenderer::realInterval() {
+    std::lock_guard<std::mutex> lock(realLock);
     if (realIntervalCount < 8)
         return 0;
     double sum = 0, low = realIntervals[0], high = realIntervals[0];
@@ -388,13 +398,11 @@ EGLBoolean EGLRenderer::drawFrame() {
         uint32_t serial = contentSerial.load();
         if (frameGenOn && serial != frameGenSerial) {
             frameGenSerial = serial;
-            double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-            double gap = lastRealTime > 0 ? now - lastRealTime : 0;
-            if (lastRealTime > 0) {
-                realIntervals[realIntervalCount % 8] = gap;
-                realIntervalCount++;
+            double gap;
+            {
+                std::lock_guard<std::mutex> lock(realLock);
+                gap = lastRealGap;
             }
-            lastRealTime = now;
             // Frames shown per real one: 2 without a target; with one, target / game rate, fractional (a game at 24 with a
             // target of 60 shows 2.5 per real frame, so 60 exactly), at most 4. Generated only between frames of a running
             // game: over 10 fps (a stall, a menu or a loading screen is not motion to interpolate).
@@ -455,8 +463,15 @@ EGLBoolean EGLRenderer::drawFrame() {
                 double p = fgPhase > 0 ? fgPhase : r;
                 float gpuMs = 0;
                 int generated = 0;
-                bool failed = false;
+                bool failed = false, overtaken = false;
                 for (; p < 1.0 - snap; p += r) {
+                    // A whole real frame behind (two newer ones arrived): the rest of this pair is dropped and the next pair
+                    // starts, rather than falling further behind the game. One newer frame is normal: the last frames of a
+                    // pair are shown a little after the next real frame arrives (the one frame of latency).
+                    if (generated > 0 && contentSerial.load() - frameGenSerial >= 2) {
+                        overtaken = true;
+                        break;
+                    }
                     if (!frameGen.generate(float(p))) {
                         failed = true;
                         break;
@@ -477,6 +492,10 @@ EGLBoolean EGLRenderer::drawFrame() {
                 if (generated > 0)
                     fgStatGenerateMs = gpuMs / float(generated);
 
+                if (overtaken) {
+                    fgPhase = r;
+                    return EGL_TRUE;
+                }
                 if (failed || p <= 1.0 + snap) {
                     // This real frame's turn.
                     schedule(0);
