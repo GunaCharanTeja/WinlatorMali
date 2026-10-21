@@ -95,15 +95,24 @@ public class ContentsFragment extends Fragment {
         if (getContext() == null) return;
         AppUtils.showToast(getContext(), task.message);
         if (task.state == ContentDownloads.State.DONE) {
+            // The installed copy replaces the catalog entry in the list; keep the user's place in it.
+            seenInstalledCount = ContentDownloads.installedCount;
             manager.syncContents();
-            if (isInstalledFilter) loadContentList();
+            loadContentList(true);
         }
     };
+
+    private int seenInstalledCount = ContentDownloads.installedCount;
 
     @Override
     public void onResume() {
         super.onResume();
         ContentDownloads.addListener(downloadListener);
+        if (seenInstalledCount != ContentDownloads.installedCount) {
+            seenInstalledCount = ContentDownloads.installedCount;
+            manager.syncContents();
+            loadContentList(true);
+        }
         if (recyclerView != null) recyclerView.post(progressUpdater);
     }
 
@@ -517,8 +526,13 @@ public class ContentsFragment extends Fragment {
         }
     }
 
-    private synchronized void loadContentList() {
+    private void loadContentList() {
+        loadContentList(false);
+    }
+
+    private synchronized void loadContentList(boolean keepScroll) {
         if (!isAdded() || getContext() == null) return;
+        android.os.Parcelable scroll = keepScroll && recyclerView.getLayoutManager() != null ? recyclerView.getLayoutManager().onSaveInstanceState() : null;
         if (pbLoading != null) pbLoading.setVisibility(View.VISIBLE);
         List<ContentProfile> rawProfiles = isInstalledFilter ? manager.getInstalledProfiles(currentContentType) : manager.getProfiles(currentContentType);
         List<ContentProfile> profiles = new ArrayList<>(rawProfiles);
@@ -531,7 +545,10 @@ public class ContentsFragment extends Fragment {
             emptyText.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
             recyclerView.setAdapter(new ContentItemAdapter(profiles));
-            recyclerView.scrollToPosition(0);
+            if (scroll != null)
+                recyclerView.getLayoutManager().onRestoreInstanceState(scroll);
+            else
+                recyclerView.scrollToPosition(0);
         }
         if (pbLoading != null) {
             pbLoading.postDelayed(() -> {

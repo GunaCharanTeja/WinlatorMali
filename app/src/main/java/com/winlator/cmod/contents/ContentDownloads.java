@@ -59,6 +59,9 @@ public final class ContentDownloads {
     private static final ExecutorService executor = Executors.newFixedThreadPool(MAX_PARALLEL);
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    // Installs finished so far, so a screen that was away can tell whether its list is out of date.
+    public static volatile int installedCount = 0;
+
     private ContentDownloads() {}
 
     public static synchronized Task get(String url) {
@@ -189,6 +192,7 @@ public final class ContentDownloads {
     private static void finish(Task task, State state, String message) {
         task.message = message;
         task.state = state;
+        if (state == State.DONE) installedCount++;
         mainHandler.post(() -> {
             for (Listener listener : listeners) listener.onTaskFinished(task);
         });
