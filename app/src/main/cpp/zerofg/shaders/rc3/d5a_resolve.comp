@@ -1,5 +1,5 @@
 #version 460
-// Modified in WinlatorMali: ZFG_SPLIT_A/B (split resolve), ZFG_FIELD_TEX, ZFG_FIXED, ZFG_CR5_HALF, ZFG_SONE_GAIN and the Mali register trims.
+// Modified in WinlatorMali: ZFG_SPLIT_A/B (split resolve), ZFG_FIELD_TEX, ZFG_FIXED, ZFG_CR5_HALF, ZFG_SONE_GAIN and the Mali register trims; the zero-vector candidate in the fixed form and the one-sided warp at the picture edge.
 #extension GL_GOOGLE_include_directive : require
 // SPLIT form (Mali): the alternatives make the kernel twice the registers of the rest (53 against 32 on a Mali-G615, half
 // the occupancy for every pixel), while only the pixels whose base candidate disagrees by more than `margin` evaluate them.
@@ -137,7 +137,9 @@ layout(push_constant) uniform ResolvePush {
 // The product's values of three switches, as constants (ZFG_FIXED): the compiler then drops the disabled alternatives and
 // trust modes and their registers. The same values as the push constants the host sends, so the picture is the same.
 #ifdef ZFG_FIXED
-#define PC_CAND 1
+// The parents and the zero vector: a static overlay (HUD text, a minimap, subtitles) over a moving scene keeps its place,
+// where the scene's motion would drag it along (the zero vector wins only where it agrees by the margin).
+#define PC_CAND 5
 #define PC_TRUST_MODE 3
 #define PC_EARLY 1
 #else
@@ -535,6 +537,12 @@ void main() {
       base_bil_a = warp_a;
       base_bil_b = warp_b;
       final_from_base = true;
+    } else if (GeometricallyValid(t_a) != GeometricallyValid(t_b)) {
+      // Content entering or leaving at the picture's edge: only one of the two pictures has it there. That one alone,
+      // rather than the blend of A and B in place (a double image along the edge during a camera turn).
+      const bool from_b = GeometricallyValid(t_b);
+      const hvec4 one_side = from_b ? SampleActive(source_b, t_b) : SampleActive(source_a, t_a);
+      result = mix(fallback, one_side, half(clamp(support_sum, 0.0, 1.0)));
     }
   }
 

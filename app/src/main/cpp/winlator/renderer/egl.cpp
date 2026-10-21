@@ -242,16 +242,27 @@ void EGLRenderer::captureFrame(const char* kind, float phase) {
         unlink(trigger.c_str());
         captureLeft = 6;
         captureIndex = 0;
+        captured.clear();
     }
-    std::vector<uint8_t> pixels((size_t)surfaceWidth * surfaceHeight * 4);
-    glReadPixels(0, 0, surfaceWidth, surfaceHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-    char path[256];
-    snprintf(path, sizeof(path), "%s/%d_%s_%.2f_%dx%d.raw", dir, captureIndex++, kind, phase, surfaceWidth, surfaceHeight);
-    if (FILE* file = fopen(path, "wb")) {
-        fwrite(pixels.data(), 1, pixels.size(), file);
-        fclose(file);
+    // Kept in memory while capturing and written after the last one: writing 10 MB per frame in between slowed the game
+    // and changed what frame generation did.
+    CapturedFrame frame;
+    frame.pixels.resize((size_t)surfaceWidth * surfaceHeight * 4);
+    glReadPixels(0, 0, surfaceWidth, surfaceHeight, GL_RGBA, GL_UNSIGNED_BYTE, frame.pixels.data());
+    char name[128];
+    snprintf(name, sizeof(name), "%d_%s_%.2f_%dx%d.raw", captureIndex++, kind, phase, surfaceWidth, surfaceHeight);
+    frame.name = name;
+    captured.push_back(std::move(frame));
+    if (--captureLeft > 0)
+        return;
+    for (auto& f : captured) {
+        std::string path = std::string(dir) + "/" + f.name;
+        if (FILE* file = fopen(path.c_str(), "wb")) {
+            fwrite(f.pixels.data(), 1, f.pixels.size(), file);
+            fclose(file);
+        }
     }
-    captureLeft--;
+    captured.clear();
 }
 
 // A new frame of a window. Only the game's count as real frames for frame generation: a taskbar clock, a launcher or

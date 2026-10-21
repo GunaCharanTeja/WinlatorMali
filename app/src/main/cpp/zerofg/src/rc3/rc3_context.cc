@@ -63,7 +63,8 @@ constexpr uint32_t kCtrD2aCells = 4, kCtrD2aH1 = 5, kCtrD2bCells = 6, kCtrD2bH1 
 // The frozen parameters (the defaults of the lab profile at the freeze).
 constexpr float kRidge = 0.015f, kDeltaCost = 0.06f, kRidgeFull = 0.05f, kConfMin = 0.05f;
 constexpr float kMargin = 0.08f, kErrorCap = 0.2f;
-constexpr int32_t kCandidates = 1, kTrustMode = 3;
+// Candidates: the parents and the zero vector (WinlatorMali: a see-through HUD text over a moving scene keeps its place).
+constexpr int32_t kCandidates = 5, kTrustMode = 3;
 constexpr float kFlatLow = 0.01f, kFlatHigh = 0.04f, kAmbiguityFloor = 0.02f;
 constexpr float kQualityLow = 0.04f, kQualityHigh = 0.14f;
 constexpr float kGuard = 0.6f, kGuardCost = 0.06f, kGuardUnique = 0.0f, kGuardCorrelation = 0.3f, kGuardFlat = 0.1f;

@@ -115,6 +115,8 @@ class EGLRenderer {
         int captureLeft = 0;
         int captureIndex = 0;
         std::chrono::steady_clock::time_point captureCheckedAt{};
+        struct CapturedFrame { std::string name; std::vector<uint8_t> pixels; };
+        std::vector<CapturedFrame> captured;
         void captureFrame(const char* kind, float phase);
         // Times of the game's frames, taken when they arrive (not when the renderer gets to them, which is late while it
         // is showing generated frames and would make the game look slower than it is).
