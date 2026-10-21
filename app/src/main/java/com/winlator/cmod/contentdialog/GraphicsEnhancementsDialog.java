@@ -43,6 +43,8 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private final CheckBox cbFrameGen;
     private final Spinner sColorPreset;
     private final Spinner sFrameGenTarget;
+    private final Spinner sFrameGenQuality;
+    private static final String[] FG_QUALITY_NAMES = {"Balanced (faster)", "Quality (better motion, ~40% more GPU)"};
     private static final String[] FG_TARGET_NAMES = {"2x (fixed)", "Auto - target 60 fps", "Auto - target 90 fps", "Auto - target 120 fps"};
     private static final int[] FG_TARGETS = {0, 60, 90, 120};
     private final View llPresetStrength;
@@ -85,6 +87,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         cbFrameGen = findViewById(R.id.CBFrameGen);
         sColorPreset = findViewById(R.id.SColorPreset);
         sFrameGenTarget = findViewById(R.id.SFrameGenTarget);
+        sFrameGenQuality = findViewById(R.id.SFrameGenQuality);
         llPresetStrength = findViewById(R.id.LLPresetStrength);
         sbPresetStrength = findViewById(R.id.SBPresetStrength);
         sSharpenMode = findViewById(R.id.SSharpenMode);
@@ -105,12 +108,13 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         fitScrollToDialog();
         applyThemeToEditText(etCustomFPSLimit, isDarkMode);
-        for (Spinner spinner : new Spinner[]{sUpscaler, sColorPreset, sSharpenMode, sFPSLimit, sFrameGenTarget}) {
+        for (Spinner spinner : new Spinner[]{sUpscaler, sColorPreset, sSharpenMode, sFPSLimit, sFrameGenTarget, sFrameGenQuality}) {
             spinner.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         }
         sUpscaler.setAdapter(createAdapter(activity, PostProcessing.UPSCALERS));
         sColorPreset.setAdapter(createAdapter(activity, PostProcessing.PRESET_NAMES));
         sFrameGenTarget.setAdapter(createAdapter(activity, FG_TARGET_NAMES));
+        sFrameGenQuality.setAdapter(createAdapter(activity, FG_QUALITY_NAMES));
         sSharpenMode.setAdapter(createAdapter(activity, PostProcessing.SHARPEN_MODES));
         sbUpscalerSharpness.setSuffix("%");
         sbPresetStrength.setSuffix("%");
@@ -184,6 +188,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         setOnItemSelected(sUpscaler, position -> settings.upscaler = position);
         setOnItemSelected(sColorPreset, position -> settings.setPresetIndex(position));
         setOnItemSelected(sFrameGenTarget, position -> settings.frameGenTarget = FG_TARGETS[position]);
+        setOnItemSelected(sFrameGenQuality, position -> settings.frameGenQuality = position == 1);
         setOnItemSelected(sSharpenMode, position -> settings.sharpenMode = position - 1);
         setOnItemSelected(sFPSLimit, position -> {
             etCustomFPSLimit.setVisibility(position == FPS_LIMITS.length ? View.VISIBLE : View.GONE);
@@ -250,6 +255,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         int fgTargetIndex = 0;
         for (int i = 0; i < FG_TARGETS.length; i++) if (FG_TARGETS[i] == settings.frameGenTarget) fgTargetIndex = i;
         sFrameGenTarget.setSelection(fgTargetIndex);
+        sFrameGenQuality.setSelection(settings.frameGenQuality ? 1 : 0);
         sbPresetStrength.setValue(settings.presetStrength * 100f);
         sSharpenMode.setSelection(settings.sharpenMode + 1);
         sbSharpenLevel.setValue(settings.sharpenLevel);
@@ -326,7 +332,10 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
                 "<b>Cost:</b><br/>" +
                 "- About 3 ms (800x600) to 5 ms (1280x720) of GPU time per generated frame, run at high GPU priority so frames are on time.<br/>" +
                 "- One frame of added input latency: a frame between two others can only be made once the newer one exists.<br/>" +
-                "- Needs Vulkan 1.3. Menus, loading screens and stalls (under 10 fps) are not interpolated.";
+                "- Needs Vulkan 1.3. Menus, loading screens and stalls (under 10 fps) are not interpolated.<br/><br/>" +
+                "<b>Quality:</b><br/>" +
+                "- <b>Balanced</b>: two motion refinement passes (the default).<br/>" +
+                "- <b>Quality</b>: four passes: more accurate motion on moving objects (fewer warps and trails, most visible at 800x600 and below), about 40% more GPU time. Best for games limited by the CPU.";
         tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
 
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);

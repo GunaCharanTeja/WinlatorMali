@@ -38,6 +38,8 @@ class FrameGen {
         GLuint generatedTexture() const { return output.texture; }
         // A cut, a pause or a size change: the next real frame starts over (no frame is generated from across it).
         void reset() { havePrevious = false; }
+        // Balanced (ReallyZero, false) or Quality (Zero, true); applied at the next real frame.
+        void setQuality(bool high) { quality = high; }
         void destroy();
         bool failed() const { return broken; }
 
@@ -92,8 +94,11 @@ class FrameGen {
         bool timestampsWritten = false;
         float timestampPeriod = 1.0f;
         std::unique_ptr<zerofg::Interpolator> engine;
+        zerofg::CreateInfo engineInfo;
+        bool quality = false, engineQuality = false;
 
         bool initVulkan();
+        bool createEngine();
         bool resize(int width, int height);
         bool createShared(Shared &shared, uint32_t ahbFormat, VkFormat format, bool output);
         void destroyShared(Shared &shared);

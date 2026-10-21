@@ -173,13 +173,23 @@ bool FrameGen::initVulkan() {
     info.capabilities.subgroup_supported_operations = subgroup.supportedOperations;
     info.capabilities.subgroup_supported_stages = subgroup.supportedStages;
     info.frame_context_count = 1;
+    engineInfo = info;
+    if (!createEngine()) return false;
+    FG_LOG("ready on %s (subgroup %u, high priority %s, GPU sync %s)", props.deviceName, subgroup.subgroupSize, priority ? "yes" : "no", syncFiles ? "yes" : "no");
+    return true;
+}
+
+// ReallyZero (Balanced) runs two D4 refinement passes, Zero (Quality) four: +0.7 dB at 1280 x 720 and +2.1 dB at 960 x 540
+// against the true in-between frame, for ~2.4 ms more at 1280 x 720 on a Mali-G615.
+bool FrameGen::createEngine() {
+    engineInfo.mode = quality ? zerofg::Mode::kZero : zerofg::Mode::kReallyZero;
     zerofg::Status status;
-    engine = zerofg::Interpolator::Create(info, &status);
+    engine = zerofg::Interpolator::Create(engineInfo, &status);
     if (!engine) {
         FG_LOG("engine create failed: %d", (int)status);
         return false;
     }
-    FG_LOG("ready on %s (subgroup %u, high priority %s, GPU sync %s)", props.deviceName, subgroup.subgroupSize, priority ? "yes" : "no", syncFiles ? "yes" : "no");
+    engineQuality = quality;
     return true;
 }
 
@@ -324,6 +334,17 @@ bool FrameGen::pushReal(EGLDisplay display, GLuint scene, int w, int h) {
             noVulkan = true;
             return false;
         }
+    }
+    if (quality != engineQuality) {
+        // Another quality: a new engine (its working resources are made by the resize below).
+        destroySized();
+        engine.reset();
+        if (!createEngine()) {
+            broken = true;
+            noVulkan = true;
+            return false;
+        }
+        FG_LOG("quality: %s", quality ? "Quality (Zero)" : "Balanced (ReallyZero)");
     }
     if (w != width || h != height) {
         if (!resize(w, h)) {

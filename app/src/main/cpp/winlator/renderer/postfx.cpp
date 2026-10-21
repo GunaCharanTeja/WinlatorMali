@@ -65,6 +65,7 @@ PostFX::Settings PostFX::Settings::parse(const std::string& config) {
             else if (key == "fitWindow") s.fitWindow = parseBool(value);
             else if (key == "frameGen") s.frameGen = parseBool(value);
             else if (key == "fgTarget") s.frameGenTarget = std::clamp(i, 0, 240);
+            else if (key == "fgQuality") s.frameGenQuality = parseBool(value);
         }
 
         start = end + 1;
@@ -139,6 +140,11 @@ bool PostFX::isActive() {
 bool PostFX::fitGameWindow() {
     applyPendingConfig();
     return settings.fitWindow;
+}
+
+bool PostFX::frameGenerationQuality() {
+    applyPendingConfig();
+    return settings.frameGenQuality;
 }
 
 int PostFX::frameGenerationTarget() {

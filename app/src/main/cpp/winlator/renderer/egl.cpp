@@ -364,6 +364,7 @@ EGLBoolean EGLRenderer::drawFrame() {
                 frameGen.reset();
             fgStatMultiplier = multiplier;
             fgStatRealFps = interval > 0 ? float(1.0 / interval) : 0.0f;
+            frameGen.setQuality(postFX.frameGenerationQuality());
             if (frameGen.pushReal(display, postFX.sceneTexture(), postFX.sceneWidth(), postFX.sceneHeight()) && multiplier >= 2) {
                 // The generated frames 1/M, 2/M ... of the way from the previous real frame to this one, each 1/M of a real
                 // frame after the last (the swap returns once the buffer is queued), then this frame.

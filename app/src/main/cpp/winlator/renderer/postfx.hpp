@@ -47,6 +47,7 @@ class PostFX {
             float sharpenLevel = 3.0f;
             bool fitWindow = false;
             bool frameGen = false;
+            bool frameGenQuality = false;  // Quality (ZeroFG Zero, 4 refinement passes) instead of Balanced (ReallyZero, 2)
             int frameGenTarget = 0;  // the output frame rate the multiplier stays under (0: always 2x)
 
             static Settings parse(const std::string& config);
@@ -62,6 +63,7 @@ class PostFX {
         bool fitGameWindow();
         bool frameGeneration();
         int frameGenerationTarget();
+        bool frameGenerationQuality();
         bool beginScene(int width, int height);
         void applyEffects();
         void present(float xform[], float viewWidth, float viewHeight);

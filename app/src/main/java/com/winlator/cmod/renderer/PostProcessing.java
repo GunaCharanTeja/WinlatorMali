@@ -63,6 +63,8 @@ public class PostProcessing {
     public boolean frameGen = false;
     /** The output frame rate the multiplier stays at or under (0: always 2x). */
     public int frameGenTarget = 0;
+    /** Quality (4 motion refinement passes) instead of Balanced (2): better motion, ~40% more GPU time. */
+    public boolean frameGenQuality = false;
     /** The game's frame rate cap (0 = none), saved with the rest so it holds on the next launch. */
     public int fpsLimit = 0;
 
@@ -88,6 +90,7 @@ public class PostProcessing {
         fitWindow = flag(kv, "fitWindow", fitWindow);
         frameGen = flag(kv, "frameGen", frameGen);
         frameGenTarget = Math.round(kv.getFloat("fgTarget", frameGenTarget));
+        frameGenQuality = flag(kv, "fgQuality", frameGenQuality);
         fpsLimit = Math.max(0, Math.round(kv.getFloat("fpsLimit", fpsLimit)));
 
         // Profiles saved by the old Screen Effects dialog
@@ -135,6 +138,7 @@ public class PostProcessing {
         kv.put("fitWindow", fitWindow ? "1" : "0");
         kv.put("frameGen", frameGen ? "1" : "0");
         kv.put("fgTarget", String.valueOf(frameGenTarget));
+        kv.put("fgQuality", frameGenQuality ? "1" : "0");
         kv.put("fpsLimit", String.valueOf(fpsLimit));
         return kv.toString();
     }
