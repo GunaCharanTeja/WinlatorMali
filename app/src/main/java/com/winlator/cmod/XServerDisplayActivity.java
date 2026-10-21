@@ -617,7 +617,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         advertisePanelRefreshRates();
 
         boolean[] winStarted = {false};
-        boolean[] startupTimeoutPosted = {false};
         android.os.Handler startupHandler = new android.os.Handler(getMainLooper());
 
         // Add the OnWindowModificationListener for dynamic workarounds
@@ -625,14 +624,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onUpdateWindowContentDirect(Window window, Drawable drawable) {
                 // A game drawing through the GPU (its window may be a child, not an application window).
-                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10)
+                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
+                    Log.d("XServerDisplayActivity", "startup content (direct): " + window.id + " '" + window.getClassName() + "' " + window.getWidth() + "x" + window.getHeight() + " app=" + window.isApplicationWindow());
                     onStartupContent();
+                }
             }
 
             @Override
             public void onUpdateWindowContent(Window window) {
-                if (!winStarted[0] && window != null && window.isApplicationWindow())
+                if (!winStarted[0] && window != null && window.isApplicationWindow()) {
+                    Log.d("XServerDisplayActivity", "startup content: " + window.id + " '" + window.getClassName() + "' " + window.getWidth() + "x" + window.getHeight());
                     onStartupContent();
+                }
             }
 
             // The Wine desktop paints in steps (background, wallpaper, icons), so the startup screen waits until its
@@ -647,6 +650,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 startupHandler.postAtTime(() -> {
                     if (winStarted[0]) return;
                     winStarted[0] = true;
+                    Log.d("XServerDisplayActivity", "startup screen closed");
                     if (xServerView != null) xServerView.setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
                 }, closeAt);
@@ -656,17 +660,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             public void onMapWindow(Window window) {
                 // Log the class name of the mapped window
                 Log.d("XServerDisplayActivity", "onMapWindow: Mapping window: " + window.getClassName());
-                // A mapped window has nothing drawn yet (the Wine desktop takes seconds to paint), so the startup screen
-                // stays until a window gets content; the timeout only covers a window that never draws.
-                if (!winStarted[0] && !startupTimeoutPosted[0] && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
-                    startupTimeoutPosted[0] = true;
-                    new android.os.Handler(getMainLooper()).postDelayed(() -> {
-                        if (winStarted[0]) return;
-                        if (xServerView != null) xServerView.setCursorVisible(true);
-                        preloaderDialog.closeOnUiThread();
-                        winStarted[0] = true;
-                    }, 20000);
-                }
+                // A mapped window has nothing drawn yet (the Wine desktop takes seconds to paint): the startup screen
+                // stays until a window gets content (or the startup watchdog gives up).
                 assignTaskAffinity(window);
             }
 
@@ -1500,13 +1495,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (wineRequestHandler != null) wineRequestHandler.start();
 
-        // Startup watchdog: guarantees preloader dialog dismisses once environment is running
+        // Startup watchdog: the startup screen closes when a window draws; this only uncovers a session that never
+        // draws. A first boot sets up the Wine prefix for half a minute or more, so it must not fire before that.
         handler.postDelayed(() -> {
-            if (!isFinishing() && !isDestroyed()) {
+            if (!isFinishing() && !isDestroyed() && preloaderDialog.isShowing()) {
+                Log.d("XServerDisplayActivity", "startup screen closed by watchdog");
                 if (xServerView != null) xServerView.setCursorVisible(true);
                 preloaderDialog.closeOnUiThread();
             }
-        }, 8000);
+        }, 60000);
 
         // Reset dxwrapper config
         dxwrapperConfig = null;
