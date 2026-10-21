@@ -550,14 +550,20 @@ public class ControlElement {
         return text;
     }
 
-    // ---- Glass (after Madeira's touch controls) -------------------------------------------------------------------
-    // Translucent glass with a thin rim and a highlight along its top edge; the face buttons tinted in Xbox colours,
-    // wide rounded shoulders, pill Start/Back, round buttons, a soft knob on the sticks, a D-pad of four round arrow
-    // buttons. Drawn without a backdrop blur: blurring the game under every control would cost GPU time on every frame.
+    // ---- Glass (after Madeira's touch controls, iOS Liquid Glass) ---------------------------------------------------
+    // Glass whose edge catches the light (bright at the upper left, softer at the lower right), brighter toward its rim
+    // as a lens is, with a soft highlight near the top, a faint glow inside the rim and a soft shadow under it; the face
+    // buttons tinted in Xbox colours, wide rounded shoulders, pill Start/Back, round buttons, a soft knob on the sticks,
+    // a D-pad of four round arrow buttons. Each control's glass is drawn once into a bitmap (normal and pressed) and
+    // only that bitmap is drawn per frame, so the gradients and blurs cost nothing while playing; there is no live
+    // backdrop blur, which would cost GPU time on every frame.
     private static final int[] GLASS_FACE_TINTS = {0xFF5CC24D, 0xFFE0473D, 0xFF3D87EB, 0xFFF5C229};  // A B X Y
     private static Typeface glassTypeface;
+    private static final Paint glassBitmapPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
     private final RectF glassRect = new RectF();
     private final RectF glassInner = new RectF();
+    private final Bitmap[] glassCache = new Bitmap[2];  // normal, pressed
+    private String glassCacheKey;
 
     private static int glassWhite(float alpha) {
         return ColorUtils.setAlphaComponent(Color.WHITE, (int) Math.min(255, Math.max(0, alpha)));
@@ -586,52 +592,76 @@ public class ControlElement {
             else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X")) tint = GLASS_FACE_TINTS[2];
             else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y")) tint = GLASS_FACE_TINTS[3];
 
-            canvas.save();
-            if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
+            int w, h;
             float radius;
             if (shape == Shape.CIRCLE || shape == Shape.OVAL && box.width() == box.height()) {
-                float r = Math.min(box.width(), box.height()) * 0.5f;
-                glassRect.set(cx - r, cy - r, cx + r, cy + r);
-                radius = r;
+                w = h = Math.min(box.width(), box.height());
+                radius = w * 0.5f;
             } else {
-                glassRect.set(box);
-                radius = shape == Shape.CAPSULE || shape == Shape.OVAL ? glassRect.height() * 0.5f : glassRect.height() * 0.30f;
+                w = box.width();
+                h = box.height();
+                radius = shape == Shape.CAPSULE || shape == Shape.OVAL ? h * 0.5f : h * 0.30f;
             }
-            drawGlassBody(canvas, paint, glassRect, radius, pressed, alpha, tint, rim);
-            if (iconId > 0)
+            String text = iconId > 0 ? null : getDisplayText();
+            boolean pill = shape == Shape.CAPSULE;
+            String key = w + "," + h + "," + (int) radius + "," + tint + "," + (int) alpha + "," + selected + "," + text + "," + pill;
+            if (!key.equals(glassCacheKey)) {
+                recycleGlassCache();
+                glassCacheKey = key;
+            }
+            int state = pressed ? 1 : 0;
+            if (glassCache[state] == null)
+                glassCache[state] = makeGlass(w, h, radius, tint, pressed, alpha, text, pill);
+            drawGlassBitmap(canvas, glassCache[state], cx, cy);
+            if (iconId > 0) {
+                canvas.save();
+                if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
                 drawIcon(canvas, cx, cy, box.width(), box.height(), iconId, false);
-            else
-                drawGlassLabel(canvas, paint, getDisplayText(), glassRect, pressed, alpha, shape == Shape.CAPSULE);
-            canvas.restore();
+                canvas.restore();
+            }
             return true;
         }
 
         if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
-            float r = box.height() * 0.5f;
-            glassRect.set(cx - r, cy - r, cx + r, cy + r);
-            drawGlassBody(canvas, paint, glassRect, r, false, alpha, 0, rim);
+            int d = box.height();
+            String key = "stick," + d + "," + (int) alpha + "," + selected;
+            if (!key.equals(glassCacheKey)) {
+                recycleGlassCache();
+                glassCacheKey = key;
+            }
+            if (glassCache[0] == null)
+                glassCache[0] = makeGlass(d, d, d * 0.5f, 0, false, alpha, null, false);
+            drawGlassBitmap(canvas, glassCache[0], cx, cy);
             boolean held = getCurrentPointerId() != -1;
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(glassWhite(alpha * (held ? 0.55f : 0.25f)));
-            canvas.drawCircle(getCurrentPosition().x, getCurrentPosition().y, r * 0.42f, paint);
+            canvas.drawCircle(getCurrentPosition().x, getCurrentPosition().y, d * 0.21f, paint);
             return true;
         }
 
         // D-pad: four round buttons with an arrow each (up, right, down, left, as its states).
         float r = Math.min(box.width(), box.height()) * 0.19f;
+        int d = Math.round(r * 2);
+        String key = "dpad," + d + "," + (int) alpha + "," + selected;
+        if (!key.equals(glassCacheKey)) {
+            recycleGlassCache();
+            glassCacheKey = key;
+        }
         for (int i = 0; i < 4; i++) {
             float px = i == 1 ? box.right - r : (i == 3 ? box.left + r : cx);
             float py = i == 0 ? box.top + r : (i == 2 ? box.bottom - r : cy);
             boolean down = states[i];
+            int state = down ? 1 : 0;
+            if (glassCache[state] == null)
+                glassCache[state] = makeGlass(d, d, d * 0.5f, 0, down, alpha, null, false);
+            drawGlassBitmap(canvas, glassCache[state], px, py);
             canvas.save();
             if (down) canvas.scale(0.92f, 0.92f, px, py);
-            glassRect.set(px - r, py - r, px + r, py + r);
-            drawGlassBody(canvas, paint, glassRect, r, down, alpha, 0, rim);
             canvas.rotate(90 * i, px, py);
             float a = r * 0.34f;
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(Math.max(2f, r * 0.15f));
-            paint.setColor(glassWhite(alpha * (down ? 1.0f : 0.88f)));
+            paint.setColor(glassWhite(alpha * (down ? 1.0f : 0.9f)));
             canvas.drawLine(px - a, py + a * 0.5f, px, py - a * 0.5f, paint);
             canvas.drawLine(px, py - a * 0.5f, px + a, py + a * 0.5f, paint);
             canvas.restore();
@@ -639,26 +669,94 @@ public class ControlElement {
         return true;
     }
 
-    private void drawGlassBody(Canvas canvas, Paint paint, RectF rect, float radius, boolean pressed, float alpha, int tint, float rim) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(tint != 0 ? ColorUtils.setAlphaComponent(tint, (int) (alpha * (pressed ? 0.62f : 0.42f)))
-                                 : glassWhite(alpha * (pressed ? 0.24f : 0.13f)));
-        canvas.drawRoundRect(rect, radius, radius, paint);
+    private void recycleGlassCache() {
+        for (int i = 0; i < glassCache.length; i++) {
+            if (glassCache[i] != null) glassCache[i].recycle();
+            glassCache[i] = null;
+        }
+    }
 
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(rim);
-        paint.setColor(glassWhite(alpha * (selected ? 0.95f : (pressed ? 0.5f : 0.28f))));
-        canvas.drawRoundRect(rect, radius, radius, paint);
+    // The margin around a glass bitmap for its shadow.
+    private static int glassMargin(int w, int h) {
+        return Math.max(2, (int) (Math.min(w, h) * 0.12f));
+    }
 
-        // The light catching the glass along its top edge.
-        float inset = rim * 1.6f;
-        glassInner.set(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset);
-        canvas.save();
-        canvas.clipRect(rect.left, rect.top, rect.right, rect.top + rect.height() * 0.38f);
-        paint.setColor(glassWhite(alpha * 0.30f));
-        float innerRadius = Math.max(0, radius - inset);
-        canvas.drawRoundRect(glassInner, innerRadius, innerRadius, paint);
-        canvas.restore();
+    private static void drawGlassBitmap(Canvas canvas, Bitmap bitmap, float cx, float cy) {
+        canvas.drawBitmap(bitmap, cx - bitmap.getWidth() * 0.5f, cy - bitmap.getHeight() * 0.5f, glassBitmapPaint);
+    }
+
+    // One control's glass, w x h with a margin for its shadow; pressed: 92 % of the size, a little brighter.
+    private Bitmap makeGlass(int w, int h, float radius, int tint, boolean pressed, float alpha, String text, boolean pill) {
+        int m = glassMargin(w, h);
+        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, w + m * 2), Math.max(1, h + m * 2), Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        float cx = m + w * 0.5f, cy = m + h * 0.5f;
+        if (pressed) c.scale(0.92f, 0.92f, cx, cy);
+        RectF rect = new RectF(m, m, m + w, m + h);
+        float min = Math.min(w, h);
+        float rim = Math.max(1.5f, min * 0.022f);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float a = alpha / 255f;
+        Path shapePath = new Path();
+        shapePath.addRoundRect(rect, radius, radius, Path.Direction.CW);
+
+        // Soft shadow under the glass.
+        p.setColor(Color.argb((int) (255 * a * 0.28f), 0, 0, 0));
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, min * 0.07f), android.graphics.BlurMaskFilter.Blur.NORMAL));
+        c.save();
+        c.translate(0, min * 0.035f);
+        c.drawRoundRect(rect, radius, radius, p);
+        c.restore();
+        p.setMaskFilter(null);
+
+        // The glass: its tint, then lighter toward the rim (a lens), a little more when pressed.
+        c.save();
+        c.clipPath(shapePath);
+        if (tint != 0) {
+            p.setColor(ColorUtils.setAlphaComponent(tint, (int) (255 * a * (pressed ? 0.66f : 0.50f))));
+            c.drawRect(rect, p);
+        } else {
+            p.setColor(Color.argb((int) (255 * a * 0.18f), 20, 22, 28));
+            c.drawRect(rect, p);
+        }
+        float lens = pressed ? 1.5f : 1.0f;
+        p.setShader(new android.graphics.RadialGradient(cx, cy, Math.max(w, h) * 0.62f,
+            new int[]{Color.argb((int) (255 * a * 0.04f * lens), 255, 255, 255), Color.argb((int) (255 * a * 0.09f * lens), 255, 255, 255),
+                      Color.argb((int) (255 * a * 0.24f * lens), 255, 255, 255)},
+            new float[]{0f, 0.72f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(rect, p);
+        // The highlight near the top, toward the left.
+        p.setShader(new android.graphics.RadialGradient(cx - w * 0.14f, rect.top + h * 0.16f, min * 0.55f,
+            new int[]{Color.argb((int) (255 * a * 0.26f), 255, 255, 255), Color.argb(0, 255, 255, 255)},
+            null, android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(rect, p);
+        p.setShader(null);
+        // A faint glow just inside the rim.
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(rim * 3f);
+        p.setColor(Color.argb((int) (255 * a * 0.16f), 255, 255, 255));
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(rim * 2f, android.graphics.BlurMaskFilter.Blur.NORMAL));
+        c.drawRoundRect(rect, radius, radius, p);
+        p.setMaskFilter(null);
+        c.restore();
+
+        // The rim, catching the light: bright at the upper left, softer at the lower right, dim at the sides.
+        float[] rimAlpha = {0.16f, 0.48f, 0.20f, 0.30f, 0.92f, 0.55f, 0.16f};  // right, lower right, bottom, left, upper left, top, right
+        float[] rimStops = {0f, 0.125f, 0.25f, 0.5f, 0.625f, 0.75f, 1f};
+        int[] rimColors = new int[rimAlpha.length];
+        for (int i = 0; i < rimAlpha.length; i++)
+            rimColors[i] = Color.argb((int) (255 * a * Math.min(1f, rimAlpha[i] * (selected ? 1.6f : (pressed ? 1.2f : 1f)))), 255, 255, 255);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(selected ? rim * 1.8f : rim);
+        p.setShader(new android.graphics.SweepGradient(cx, cy, rimColors, rimStops));
+        RectF rimRect = new RectF(rect.left + rim * 0.5f, rect.top + rim * 0.5f, rect.right - rim * 0.5f, rect.bottom - rim * 0.5f);
+        float rimRadius = Math.max(0, radius - rim * 0.5f);
+        c.drawRoundRect(rimRect, rimRadius, rimRadius, p);
+        p.setShader(null);
+
+        if (text != null && !text.isEmpty())
+            drawGlassLabel(c, p, text, rect, pressed, alpha, pill);
+        return bitmap;
     }
 
     private void drawGlassLabel(Canvas canvas, Paint paint, String text, RectF rect, boolean pressed, float alpha, boolean pill) {
