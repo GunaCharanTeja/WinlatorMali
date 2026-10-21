@@ -56,8 +56,8 @@ constexpr uint32_t kPyramidSide = 64;      // the long side of the cell field
 constexpr uint32_t kCameraSamples = 256;   // kCamSamples of shaders/rc3/rc3_common.glsl
 constexpr uint32_t kCounterCount = 56;     // kCtrCount of shaders/rc3/rc3_common.glsl
 constexpr int32_t kSamples = 4;            // D4 sample points per axis in a cell
-constexpr int32_t kFineIterations = 4;     // D4 propagation passes (the descriptor sets; RC3 Lite runs the first two)
-constexpr int32_t kLiteFineIterations = 2;  // Mode::kReallyZero: two fine passes
+constexpr int32_t kFineIterations = 8;     // D4 propagation passes (the descriptor sets; RC3 Lite runs the first half)
+constexpr int32_t kLiteFineIterations = 4;  // Mode::kReallyZero: four fine passes
 constexpr uint32_t kCtrD2aCells = 4, kCtrD2aH1 = 5, kCtrD2bCells = 6, kCtrD2bH1 = 7;
 
 // The frozen parameters (the defaults of the lab profile at the freeze).
