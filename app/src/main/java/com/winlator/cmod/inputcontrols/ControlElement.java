@@ -468,7 +468,7 @@ public class ControlElement {
                 if (text.equalsIgnoreCase("RT")) return "R2";
                 if (text.equalsIgnoreCase("LS")) return "L3";
                 if (text.equalsIgnoreCase("RS")) return "R3";
-                if (text.equalsIgnoreCase("VIEW")) return "SHARE";
+                if (text.equalsIgnoreCase("VIEW") || text.equalsIgnoreCase("SHARE") || text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("BACK")) return "CREATE";
                 if (text.equalsIgnoreCase("MENU")) return "OPTIONS";
             } else if (stylePreset == ControlStylePreset.GLASS) {
                 // Madeira's labels: Xbox shoulder names, stick clicks L3/R3, START/SELECT.
@@ -504,7 +504,7 @@ public class ControlElement {
                     case GAMEPAD_BUTTON_R2: return "R2";
                     case GAMEPAD_BUTTON_L3: return "L3";
                     case GAMEPAD_BUTTON_R3: return "R3";
-                    case GAMEPAD_BUTTON_SELECT: return "SHARE";
+                    case GAMEPAD_BUTTON_SELECT: return "CREATE";
                     case GAMEPAD_BUTTON_START: return "OPTIONS";
                 }
             } else if (stylePreset == ControlStylePreset.GLASS) {
@@ -805,6 +805,359 @@ public class ControlElement {
         paint.setTypeface(Typeface.DEFAULT);
     }
 
+    // ---- Xbox and PlayStation (their controllers' own look) ------------------------------------------------------
+    // Dark glossy buttons as on the Xbox Series controller and the DualSense. Xbox: A/B/X/Y letters in their colours,
+    // rounded bumpers and taller triggers, round View/Menu buttons with their icons, a cross on a round dish, a rim that
+    // glows Xbox green while pressed. PlayStation: the cross, circle, square and triangle in their colours, Create and
+    // Options pills, four separate arrow keys, a rim that glows PlayStation blue. Drawn once per control into the same
+    // cached bitmaps as the glass, so they cost nothing per frame either.
+    private static final int[] XBOX_FACE = {0xFF5DC53F, 0xFFE8473C, 0xFF2D8CF0, 0xFFF4C430};  // A B X Y
+    private static final int[] PS_FACE = {0xFF7FA9FF, 0xFFFF5D6E, 0xFFEC8FD0, 0xFF3FD5B6};    // cross circle square triangle
+    private static final int XBOX_GLOW = 0xFF2FD04A, PS_GLOW = 0xFF4E8DFF;
+    private static Typeface controllerTypeface;
+
+    private boolean drawController(Canvas canvas, Paint paint, boolean pressed, float alpha, Binding b0, String label, boolean xbox) {
+        boolean button = type == Type.BUTTON || type == Type.EXPANDABLE_BUTTON || type == Type.BUTTON_GRID;
+        if (button && customIconAsButton && iconId > 0)
+            return false;
+        if (!button && type != Type.STICK && type != Type.DYNAMIC_STICK && type != Type.D_PAD)
+            return false;
+        if (controllerTypeface == null) {
+            try {
+                controllerTypeface = new Typeface.Builder(inputControlsView.getContext().getAssets(), "fonts/Inter.ttf")
+                    .setFontVariationSettings("'wght' 700").build();
+            } catch (Exception e) {
+                controllerTypeface = null;
+            }
+            if (controllerTypeface == null)
+                controllerTypeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
+        }
+
+        Rect box = getBoundingBox();
+        float cx = box.centerX(), cy = box.centerY();
+        String prefix = xbox ? "xbox," : "ps,";
+        int glow = xbox ? XBOX_GLOW : PS_GLOW;
+
+        if (button) {
+            int face = -1;
+            if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A") || label.equals("✕") || label.equals("CROSS")) face = 0;
+            else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B") || label.equals("◯") || label.equals("O") || label.equals("CIRCLE")) face = 1;
+            else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X") || label.equals("▢") || label.equals("SQUARE")) face = 2;
+            else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y") || label.equals("△") || label.equals("TRIANGLE")) face = 3;
+            boolean bumper = label.matches("LB|RB|L1|R1") || b0 == Binding.GAMEPAD_BUTTON_L1 || b0 == Binding.GAMEPAD_BUTTON_R1;
+            boolean trigger = label.matches("LT|RT|L2|R2") || b0 == Binding.GAMEPAD_BUTTON_L2 || b0 == Binding.GAMEPAD_BUTTON_R2;
+            boolean menu = label.matches("START|MENU|OPTIONS") || b0 == Binding.GAMEPAD_BUTTON_START;
+            boolean view = label.matches("SELECT|BACK|VIEW|SHARE|CREATE") || b0 == Binding.GAMEPAD_BUTTON_SELECT;
+            boolean stickClick = label.matches("L3|R3|LS|RS") || b0 == Binding.GAMEPAD_BUTTON_L3 || b0 == Binding.GAMEPAD_BUTTON_R3;
+
+            int bw = box.width(), bh = box.height();
+            int w, h;
+            float radius;
+            if (bumper || trigger || (!xbox && (menu || view))) {
+                float aspect = bumper ? 2.3f : (trigger ? 1.5f : 2.0f);
+                w = Math.round(Math.min(bw, bh * aspect));
+                h = Math.round(w / aspect);
+                radius = trigger ? h * 0.38f : h * 0.5f;
+            } else if (menu || view || stickClick || Math.abs(bw - bh) <= Math.max(bw, bh) * 0.15f) {
+                w = h = Math.round(Math.min(bw, bh) * (menu || view ? 0.72f : (stickClick ? 0.8f : 1f)));
+                radius = w * 0.5f;
+            } else {
+                w = bw;
+                h = bh;
+                radius = h * 0.30f;
+            }
+            // 0 text, 1 Xbox Menu, 2 Xbox View, 3 PS Options, 4 PS Create, 10 + face the PS symbols.
+            int glyph = face >= 0 ? (xbox ? 0 : 10 + face) : (menu ? (xbox ? 1 : 3) : (view ? (xbox ? 2 : 4) : 0));
+            int textColor = face >= 0 && xbox ? XBOX_FACE[face] : Color.WHITE;
+            String text = glyph == 0 ? getDisplayText() : null;
+            String key = prefix + w + "," + h + "," + (int) radius + "," + glyph + "," + textColor + "," + (int) alpha + "," + selected + "," + text;
+            if (!key.equals(glassCacheKey)) {
+                recycleGlassCache();
+                glassCacheKey = key;
+            }
+            int state = pressed ? 1 : 0;
+            if (glassCache[state] == null)
+                glassCache[state] = makeControllerButton(w, h, radius, pressed, alpha, text, glyph, textColor, xbox);
+            drawGlassBitmap(canvas, glassCache[state], cx, cy);
+            return true;
+        }
+
+        if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
+            int d = box.height();
+            int knob = Math.round(d * (xbox ? 0.48f : 0.44f));
+            String key = prefix + "stick," + d + "," + (int) alpha + "," + selected;
+            if (!key.equals(glassCacheKey)) {
+                recycleGlassCache();
+                glassCacheKey = key;
+            }
+            if (glassCache[0] == null)
+                glassCache[0] = makeStickBase(d, alpha);
+            if (glassCache[1] == null)
+                glassCache[1] = makeStickKnob(knob, alpha, xbox);
+            drawGlassBitmap(canvas, glassCache[0], cx, cy);
+            PointF position = getCurrentPosition();
+            drawGlassBitmap(canvas, glassCache[1], position.x, position.y);
+            if (getCurrentPointerId() != -1) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Math.max(2f, knob * 0.05f));
+                paint.setColor(ColorUtils.setAlphaComponent(glow, (int) (alpha * 0.9f)));
+                canvas.drawCircle(position.x, position.y, knob * 0.5f, paint);
+            }
+            return true;
+        }
+
+        // D-pad, by its states: up, right, down, left.
+        int s = Math.min(box.width(), box.height());
+        String key = prefix + "dpad," + s + "," + (int) alpha + "," + selected;
+        if (!key.equals(glassCacheKey)) {
+            recycleGlassCache();
+            glassCacheKey = key;
+        }
+        if (xbox) {
+            if (glassCache[0] == null)
+                glassCache[0] = makeXboxDpad(s, alpha);
+            drawGlassBitmap(canvas, glassCache[0], cx, cy);
+            float armWidth = s * 0.32f, armEnd = s * 0.46f;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(ColorUtils.setAlphaComponent(glow, (int) (alpha * 0.45f)));
+            for (int i = 0; i < 4; i++) {
+                if (!states[i]) continue;
+                canvas.save();
+                canvas.rotate(90 * i, cx, cy);
+                canvas.drawRoundRect(cx - armWidth * 0.5f, cy - armEnd, cx + armWidth * 0.5f, cy - armWidth * 0.5f, armWidth * 0.25f, armWidth * 0.25f, paint);
+                canvas.restore();
+            }
+        } else {
+            for (int i = 0; i < 4; i++) {
+                int state = states[i] ? 1 : 0;
+                if (glassCache[state] == null)
+                    glassCache[state] = makePsArrowKey(s, state == 1, alpha);
+                Bitmap key0 = glassCache[state];
+                canvas.save();
+                canvas.rotate(90 * i, cx, cy);
+                // The key's bitmap: centred horizontally, its top (the arrow's tip side) at the D-pad's top edge.
+                canvas.drawBitmap(key0, cx - key0.getWidth() * 0.5f, cy - s * 0.5f - glassMargin(s, s) * 0.5f, glassBitmapPaint);
+                canvas.restore();
+            }
+        }
+        return true;
+    }
+
+    // The dark controller plastic: lighter at the top, a gloss highlight toward the upper left, a soft shadow under it,
+    // a rim that glows in the console's colour while pressed.
+    private void paintControllerBody(Canvas c, Path shape, RectF rect, float radius, boolean pressed, float a, boolean xbox, float rim) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float min = Math.min(rect.width(), rect.height());
+        p.setColor(Color.argb((int) (255 * a * 0.35f), 0, 0, 0));
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, min * 0.07f), android.graphics.BlurMaskFilter.Blur.NORMAL));
+        c.save();
+        c.translate(0, min * 0.04f);
+        c.drawPath(shape, p);
+        c.restore();
+        p.setMaskFilter(null);
+
+        c.save();
+        c.clipPath(shape);
+        int top = xbox ? (pressed ? 0xFF3A3D44 : 0xFF2F3137) : (pressed ? 0xFF33353B : 0xFF27292E);
+        int bottom = xbox ? 0xFF141518 : 0xFF0F1013;
+        p.setShader(new android.graphics.LinearGradient(0, rect.top, 0, rect.bottom,
+            ColorUtils.setAlphaComponent(top, (int) (255 * a * 0.9f)), ColorUtils.setAlphaComponent(bottom, (int) (255 * a * 0.9f)),
+            android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(rect, p);
+        // Gloss (Xbox's buttons are glossier than the DualSense's).
+        p.setShader(new android.graphics.RadialGradient(rect.centerX() - rect.width() * 0.18f, rect.top + rect.height() * 0.2f, min * 0.62f,
+            Color.argb((int) (255 * a * (xbox ? 0.24f : 0.14f)), 255, 255, 255), Color.argb(0, 255, 255, 255), android.graphics.Shader.TileMode.CLAMP));
+        c.drawRect(rect, p);
+        p.setShader(null);
+        c.restore();
+
+        p.setStyle(Paint.Style.STROKE);
+        if (pressed) {
+            p.setStrokeWidth(rim * 1.7f);
+            p.setColor(ColorUtils.setAlphaComponent(xbox ? XBOX_GLOW : PS_GLOW, (int) (255 * a * 0.95f)));
+        } else {
+            p.setStrokeWidth(selected ? rim * 1.8f : rim);
+            p.setColor(Color.argb((int) (255 * a * (selected ? 0.95f : 0.22f)), 255, 255, 255));
+        }
+        c.drawPath(shape, p);
+    }
+
+    private Bitmap makeControllerButton(int w, int h, float radius, boolean pressed, float alpha, String text, int glyph, int textColor, boolean xbox) {
+        int m = glassMargin(w, h);
+        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, w + m * 2), Math.max(1, h + m * 2), Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        float cx = m + w * 0.5f, cy = m + h * 0.5f, min = Math.min(w, h);
+        if (pressed) c.scale(0.94f, 0.94f, cx, cy);
+        RectF rect = new RectF(m, m, m + w, m + h);
+        Path shape = new Path();
+        shape.addRoundRect(rect, radius, radius, Path.Direction.CW);
+        float a = alpha / 255f;
+        paintControllerBody(c, shape, rect, radius, pressed, a, xbox, Math.max(1.5f, min * 0.025f));
+
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        int white = Color.argb((int) (255 * a * 0.92f), 255, 255, 255);
+        switch (glyph) {
+            case 1 -> drawXboxMenuIcon(c, cx, cy, min, p, white);
+            case 2 -> drawXboxViewIcon(c, cx, cy, min, p, white);
+            case 3 -> drawPlayStationOptionsIcon(c, cx, cy, min * 1.2f, p, white);
+            case 4 -> drawPlayStationShareIcon(c, cx, cy, min * 1.2f, p, white);
+            case 10 -> drawPlayStationCross(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[0], (int) (255 * a)));
+            case 11 -> drawPlayStationCircle(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[1], (int) (255 * a)));
+            case 12 -> drawPlayStationSquare(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[2], (int) (255 * a)));
+            case 13 -> drawPlayStationTriangle(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[3], (int) (255 * a)));
+            default -> {
+                if (text != null && !text.isEmpty()) {
+                    p.setTypeface(controllerTypeface);
+                    p.setTextAlign(Paint.Align.CENTER);
+                    p.setColor(ColorUtils.setAlphaComponent(textColor, (int) (255 * a * (textColor == Color.WHITE ? 0.92f : 1f))));
+                    float size = h * (text.length() <= 2 ? 0.46f : 0.30f);
+                    p.setTextSize(size);
+                    float width = p.measureText(text), maxWidth = w * 0.78f;
+                    if (width > maxWidth) p.setTextSize(size * maxWidth / width);
+                    c.drawText(text, cx, cy - (p.descent() + p.ascent()) * 0.5f, p);
+                }
+            }
+        }
+        return bitmap;
+    }
+
+    // A stick's well: dark, deeper in the middle.
+    private Bitmap makeStickBase(int d, float alpha) {
+        int m = glassMargin(d, d);
+        Bitmap bitmap = Bitmap.createBitmap(d + m * 2, d + m * 2, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        float cx = m + d * 0.5f, cy = cx, r = d * 0.5f, a = alpha / 255f;
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.argb((int) (255 * a * 0.30f), 0, 0, 0));
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, d * 0.06f), android.graphics.BlurMaskFilter.Blur.NORMAL));
+        c.drawCircle(cx, cy + d * 0.03f, r, p);
+        p.setMaskFilter(null);
+        p.setShader(new android.graphics.RadialGradient(cx, cy, r, ColorUtils.setAlphaComponent(0xFF0B0C0E, (int) (255 * a * 0.85f)),
+            ColorUtils.setAlphaComponent(0xFF2B2D32, (int) (255 * a * 0.85f)), android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(cx, cy, r, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1.5f, d * 0.015f));
+        p.setColor(Color.argb((int) (255 * a * (selected ? 0.95f : 0.20f)), 255, 255, 255));
+        c.drawCircle(cx, cy, r - p.getStrokeWidth() * 0.5f, p);
+        p.setColor(Color.argb((int) (255 * a * 0.06f), 255, 255, 255));
+        c.drawCircle(cx, cy, r * 0.86f, p);
+        return bitmap;
+    }
+
+    // The thumbstick: Xbox's with a gripped outer ring and a small dish, the DualSense's with a wide dish.
+    private Bitmap makeStickKnob(int k, float alpha, boolean xbox) {
+        int m = glassMargin(k, k);
+        Bitmap bitmap = Bitmap.createBitmap(k + m * 2, k + m * 2, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        float cx = m + k * 0.5f, cy = cx, r = k * 0.5f, a = alpha / 255f;
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.argb((int) (255 * a * 0.45f), 0, 0, 0));
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, k * 0.08f), android.graphics.BlurMaskFilter.Blur.NORMAL));
+        c.drawCircle(cx, cy + k * 0.05f, r, p);
+        p.setMaskFilter(null);
+        p.setShader(new android.graphics.RadialGradient(cx - r * 0.3f, cy - r * 0.35f, r * 1.3f, ColorUtils.setAlphaComponent(0xFF44474E, (int) (255 * a)),
+            ColorUtils.setAlphaComponent(0xFF16171A, (int) (255 * a)), android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(cx, cy, r, p);
+        // The dish in the middle.
+        float dish = r * (xbox ? 0.56f : 0.72f);
+        p.setShader(new android.graphics.RadialGradient(cx, cy + dish * 0.2f, dish, ColorUtils.setAlphaComponent(0xFF1B1C20, (int) (255 * a)),
+            ColorUtils.setAlphaComponent(0xFF2E3036, (int) (255 * a)), android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(cx, cy, dish, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        if (xbox) {
+            // The grip ring: short ridges around the edge.
+            p.setStrokeWidth(Math.max(1f, k * 0.025f));
+            p.setColor(Color.argb((int) (255 * a * 0.16f), 255, 255, 255));
+            for (int i = 0; i < 24; i++) {
+                double angle = Math.PI * 2 * i / 24;
+                float ox = (float) Math.cos(angle), oy = (float) Math.sin(angle);
+                c.drawLine(cx + ox * r * 0.72f, cy + oy * r * 0.72f, cx + ox * r * 0.92f, cy + oy * r * 0.92f, p);
+            }
+        }
+        p.setStrokeWidth(Math.max(1.5f, k * 0.03f));
+        p.setColor(Color.argb((int) (255 * a * 0.24f), 255, 255, 255));
+        c.drawCircle(cx, cy, r - p.getStrokeWidth() * 0.5f, p);
+        return bitmap;
+    }
+
+    // Xbox Series D-pad: a cross on a round dish, an arrow at the end of each arm.
+    private Bitmap makeXboxDpad(int s, float alpha) {
+        int m = glassMargin(s, s);
+        Bitmap bitmap = Bitmap.createBitmap(s + m * 2, s + m * 2, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        float cx = m + s * 0.5f, cy = cx, a = alpha / 255f;
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        // The dish.
+        p.setShader(new android.graphics.RadialGradient(cx, cy, s * 0.5f, ColorUtils.setAlphaComponent(0xFF0E0F12, (int) (255 * a * 0.8f)),
+            ColorUtils.setAlphaComponent(0xFF26282D, (int) (255 * a * 0.8f)), android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(cx, cy, s * 0.5f, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(Math.max(1.5f, s * 0.012f));
+        p.setColor(Color.argb((int) (255 * a * (selected ? 0.95f : 0.16f)), 255, 255, 255));
+        c.drawCircle(cx, cy, s * 0.5f - p.getStrokeWidth() * 0.5f, p);
+        // The cross.
+        float armWidth = s * 0.32f, armEnd = s * 0.46f, corner = armWidth * 0.25f;
+        Path cross = new Path();
+        cross.addRoundRect(cx - armWidth * 0.5f, cy - armEnd, cx + armWidth * 0.5f, cy + armEnd, corner, corner, Path.Direction.CW);
+        cross.addRoundRect(cx - armEnd, cy - armWidth * 0.5f, cx + armEnd, cy + armWidth * 0.5f, corner, corner, Path.Direction.CW);
+        cross.setFillType(Path.FillType.WINDING);
+        Path outline = new Path();
+        outline.op(cross, Path.Op.UNION);
+        paintControllerBody(c, outline, new RectF(cx - armEnd, cy - armEnd, cx + armEnd, cy + armEnd), corner, false, a, true, Math.max(1.5f, s * 0.012f));
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.argb((int) (255 * a * 0.8f), 255, 255, 255));
+        float t = armWidth * 0.2f;
+        for (int i = 0; i < 4; i++) {
+            c.save();
+            c.rotate(90 * i, cx, cy);
+            Path arrow = new Path();
+            float tipY = cy - armEnd + armWidth * 0.22f;
+            arrow.moveTo(cx, tipY);
+            arrow.lineTo(cx + t, tipY + t * 1.2f);
+            arrow.lineTo(cx - t, tipY + t * 1.2f);
+            arrow.close();
+            c.drawPath(arrow, p);
+            c.restore();
+        }
+        return bitmap;
+    }
+
+    // One DualSense arrow key, pointing up: flat at the outer end, pointed toward the centre. The D-pad draws it four
+    // times, turned.
+    private Bitmap makePsArrowKey(int s, boolean pressed, float alpha) {
+        int m = glassMargin(s, s) / 2;
+        float kw = s * 0.30f, kl = s * 0.38f;
+        Bitmap bitmap = Bitmap.createBitmap(Math.round(kw) + m * 2, Math.round(kl) + m * 2, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        float left = m, top = m, cx = m + kw * 0.5f, a = alpha / 255f;
+        if (pressed) c.scale(0.94f, 0.94f, cx, top + kl * 0.5f);
+        Path key = new Path();
+        key.moveTo(left, top);
+        key.lineTo(left + kw, top);
+        key.lineTo(left + kw, top + kl * 0.66f);
+        key.lineTo(cx, top + kl);
+        key.lineTo(left, top + kl * 0.66f);
+        key.close();
+        Path rounded = new Path();
+        Paint corners = new Paint();
+        corners.setPathEffect(new android.graphics.CornerPathEffect(kw * 0.14f));
+        corners.getFillPath(key, rounded);
+        paintControllerBody(c, rounded, new RectF(left, top, left + kw, top + kl), kw * 0.14f, pressed, a, false, Math.max(1.5f, s * 0.012f));
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.argb((int) (255 * a * 0.85f), 255, 255, 255));
+        float t = kw * 0.17f, tipY = top + kl * 0.22f;
+        Path arrow = new Path();
+        arrow.moveTo(cx, tipY);
+        arrow.lineTo(cx + t, tipY + t * 1.25f);
+        arrow.lineTo(cx - t, tipY + t * 1.25f);
+        arrow.close();
+        c.drawPath(arrow, p);
+        return bitmap;
+    }
+
     public void draw(Canvas canvas) {
         int snappingSize = inputControlsView.getSnappingSize();
         Paint paint = inputControlsView.getPaint();
@@ -834,6 +1187,9 @@ public class ControlElement {
         String label = getDisplayText().toUpperCase();
 
         if (stylePreset == ControlStylePreset.GLASS && drawGlass(canvas, paint, pressed, alpha, b0, label))
+            return;
+        if ((stylePreset == ControlStylePreset.XBOX || stylePreset == ControlStylePreset.PLAYSTATION) &&
+            drawController(canvas, paint, pressed, alpha, b0, label, stylePreset == ControlStylePreset.XBOX))
             return;
 
         switch (stylePreset) {
