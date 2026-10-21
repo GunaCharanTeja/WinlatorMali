@@ -550,6 +550,132 @@ public class ControlElement {
         return text;
     }
 
+    // ---- Glass (after Madeira's touch controls) -------------------------------------------------------------------
+    // Translucent glass with a thin rim and a highlight along its top edge; the face buttons tinted in Xbox colours,
+    // wide rounded shoulders, pill Start/Back, round buttons, a soft knob on the sticks, a D-pad of four round arrow
+    // buttons. Drawn without a backdrop blur: blurring the game under every control would cost GPU time on every frame.
+    private static final int[] GLASS_FACE_TINTS = {0xFF5CC24D, 0xFFE0473D, 0xFF3D87EB, 0xFFF5C229};  // A B X Y
+    private static Typeface glassTypeface;
+    private final RectF glassRect = new RectF();
+    private final RectF glassInner = new RectF();
+
+    private static int glassWhite(float alpha) {
+        return ColorUtils.setAlphaComponent(Color.WHITE, (int) Math.min(255, Math.max(0, alpha)));
+    }
+
+    private boolean drawGlass(Canvas canvas, Paint paint, boolean pressed, float alpha, Binding b0, String label) {
+        boolean button = type == Type.BUTTON || type == Type.EXPANDABLE_BUTTON || type == Type.BUTTON_GRID;
+        if (button && customIconAsButton && iconId > 0)
+            return false;
+        if (!button && type != Type.STICK && type != Type.DYNAMIC_STICK && type != Type.D_PAD)
+            return false;
+
+        Rect box = getBoundingBox();
+        float cx = box.centerX(), cy = box.centerY();
+        float rim = Math.max(1.5f, inputControlsView.getSnappingSize() * 0.06f * scale);
+        if (glassTypeface == null)
+            glassTypeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
+        paint.clearShadowLayer();
+        paint.setAntiAlias(true);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+
+        if (button) {
+            int tint = 0;
+            if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A")) tint = GLASS_FACE_TINTS[0];
+            else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B")) tint = GLASS_FACE_TINTS[1];
+            else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X")) tint = GLASS_FACE_TINTS[2];
+            else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y")) tint = GLASS_FACE_TINTS[3];
+
+            canvas.save();
+            if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
+            float radius;
+            if (shape == Shape.CIRCLE || shape == Shape.OVAL && box.width() == box.height()) {
+                float r = Math.min(box.width(), box.height()) * 0.5f;
+                glassRect.set(cx - r, cy - r, cx + r, cy + r);
+                radius = r;
+            } else {
+                glassRect.set(box);
+                radius = shape == Shape.CAPSULE || shape == Shape.OVAL ? glassRect.height() * 0.5f : glassRect.height() * 0.30f;
+            }
+            drawGlassBody(canvas, paint, glassRect, radius, pressed, alpha, tint, rim);
+            if (iconId > 0)
+                drawIcon(canvas, cx, cy, box.width(), box.height(), iconId, false);
+            else
+                drawGlassLabel(canvas, paint, getDisplayText(), glassRect, pressed, alpha, shape == Shape.CAPSULE);
+            canvas.restore();
+            return true;
+        }
+
+        if (type == Type.STICK || type == Type.DYNAMIC_STICK) {
+            float r = box.height() * 0.5f;
+            glassRect.set(cx - r, cy - r, cx + r, cy + r);
+            drawGlassBody(canvas, paint, glassRect, r, false, alpha, 0, rim);
+            boolean held = getCurrentPointerId() != -1;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(glassWhite(alpha * (held ? 0.55f : 0.25f)));
+            canvas.drawCircle(getCurrentPosition().x, getCurrentPosition().y, r * 0.42f, paint);
+            return true;
+        }
+
+        // D-pad: four round buttons with an arrow each (up, right, down, left, as its states).
+        float r = Math.min(box.width(), box.height()) * 0.19f;
+        for (int i = 0; i < 4; i++) {
+            float px = i == 1 ? box.right - r : (i == 3 ? box.left + r : cx);
+            float py = i == 0 ? box.top + r : (i == 2 ? box.bottom - r : cy);
+            boolean down = states[i];
+            canvas.save();
+            if (down) canvas.scale(0.92f, 0.92f, px, py);
+            glassRect.set(px - r, py - r, px + r, py + r);
+            drawGlassBody(canvas, paint, glassRect, r, down, alpha, 0, rim);
+            canvas.rotate(90 * i, px, py);
+            float a = r * 0.34f;
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(2f, r * 0.15f));
+            paint.setColor(glassWhite(alpha * (down ? 1.0f : 0.88f)));
+            canvas.drawLine(px - a, py + a * 0.5f, px, py - a * 0.5f, paint);
+            canvas.drawLine(px, py - a * 0.5f, px + a, py + a * 0.5f, paint);
+            canvas.restore();
+        }
+        return true;
+    }
+
+    private void drawGlassBody(Canvas canvas, Paint paint, RectF rect, float radius, boolean pressed, float alpha, int tint, float rim) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(tint != 0 ? ColorUtils.setAlphaComponent(tint, (int) (alpha * (pressed ? 0.62f : 0.42f)))
+                                 : glassWhite(alpha * (pressed ? 0.24f : 0.13f)));
+        canvas.drawRoundRect(rect, radius, radius, paint);
+
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(rim);
+        paint.setColor(glassWhite(alpha * (selected ? 0.95f : (pressed ? 0.5f : 0.28f))));
+        canvas.drawRoundRect(rect, radius, radius, paint);
+
+        // The light catching the glass along its top edge.
+        float inset = rim * 1.6f;
+        glassInner.set(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset);
+        canvas.save();
+        canvas.clipRect(rect.left, rect.top, rect.right, rect.top + rect.height() * 0.38f);
+        paint.setColor(glassWhite(alpha * 0.30f));
+        float innerRadius = Math.max(0, radius - inset);
+        canvas.drawRoundRect(glassInner, innerRadius, innerRadius, paint);
+        canvas.restore();
+    }
+
+    private void drawGlassLabel(Canvas canvas, Paint paint, String text, RectF rect, boolean pressed, float alpha, boolean pill) {
+        paint.setTypeface(glassTypeface);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(glassWhite(alpha * (pressed ? 1.0f : 0.9f)));
+        if (pill) paint.setLetterSpacing(0.06f);
+        float size = rect.height() * (pill || text.length() <= 2 ? 0.40f : 0.26f);
+        paint.setTextSize(size);
+        float maxWidth = rect.width() * 0.78f, width = paint.measureText(text);
+        if (width > maxWidth) paint.setTextSize(size * maxWidth / width);
+        canvas.drawText(text, rect.centerX(), rect.centerY() - (paint.descent() + paint.ascent()) * 0.5f, paint);
+        paint.setLetterSpacing(0);
+        paint.setTypeface(Typeface.DEFAULT);
+    }
+
     public void draw(Canvas canvas) {
         int snappingSize = inputControlsView.getSnappingSize();
         Paint paint = inputControlsView.getPaint();
@@ -577,6 +703,9 @@ public class ControlElement {
 
         Binding b0 = getBindingAt(0);
         String label = getDisplayText().toUpperCase();
+
+        if (stylePreset == ControlStylePreset.GLASS && drawGlass(canvas, paint, pressed, alpha, b0, label))
+            return;
 
         switch (stylePreset) {
             case XBOX: {

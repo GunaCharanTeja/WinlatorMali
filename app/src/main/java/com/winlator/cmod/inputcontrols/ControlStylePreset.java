@@ -6,7 +6,8 @@ public enum ControlStylePreset {
     PLAYSTATION("PlayStation Edition", 2),
     CYBERPUNK("Cyberpunk Neon", 3),
     RETRO_ARCADE("Retro Arcade (90s)", 4),
-    STEALTH("Stealth Minimal", 5);
+    STEALTH("Stealth Minimal", 5),
+    GLASS("Glass (Madeira)", 6);
 
     public final String title;
     public final int id;
@@ -24,7 +25,7 @@ public enum ControlStylePreset {
     }
 
     public static ControlStylePreset parse(String name) {
-        if (name == null || name.isEmpty()) return WINLATOR_MALI;
+        if (name == null || name.isEmpty()) return GLASS;
         try {
             return valueOf(name.trim().toUpperCase().replace(" ", "_").replace("-", "_"));
         } catch (IllegalArgumentException e) {

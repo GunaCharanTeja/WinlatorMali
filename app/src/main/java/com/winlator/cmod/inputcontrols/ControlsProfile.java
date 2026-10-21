@@ -29,7 +29,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     private boolean controllersLoaded = false;
     private boolean wheelsLoaded = false;
     private boolean virtualGamepad = false;
-    private ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
+    private ControlStylePreset stylePreset = ControlStylePreset.GLASS;
     private float overlayOpacity = InputControlsView.DEFAULT_OVERLAY_OPACITY;
     private final Context context;
     private GamepadState gamepadState;
@@ -77,6 +77,12 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                     case STEALTH:
                         if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.CAPSULE);
                         else el.setShape(ControlElement.Shape.OVAL);
+                        break;
+                    case GLASS:
+                        // Madeira's shapes: wide rounded shoulders, pill Start/Back, round everything else.
+                        if (isTrigger) el.setShape(ControlElement.Shape.ROUND_RECT);
+                        else if (isStartSelect) el.setShape(ControlElement.Shape.CAPSULE);
+                        else el.setShape(ControlElement.Shape.CIRCLE);
                         break;
                     case XBOX:
                     case PLAYSTATION:
@@ -349,7 +355,7 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
-            this.stylePreset = ControlStylePreset.parse(profileJSONObject.optString("stylePreset", "WINLATOR_MALI"));
+            this.stylePreset = ControlStylePreset.parse(profileJSONObject.optString("stylePreset", "GLASS"));
             this.overlayOpacity = (float) profileJSONObject.optDouble("overlayOpacity", (double) InputControlsView.DEFAULT_OVERLAY_OPACITY);
             if (profileJSONObject.has("customIcons")) {
                 CustomIconManager iconManager = CustomIconManager.getInstance(context);
