@@ -1,0 +1,126 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D4c, stage 1 of 3: the histogram and its two peaks (the global translation candidates, the camera of
+// the spec, v0: a translation, not an affine model). One 256-lane workgroup, no host readback.
+//   1. Every cell votes its M-level vector into a histogram of 8 px bins over +-320 px (the RC1 search
+//      range). Most M vectors on high-frequency content are wrong, but wrong vectors scatter while the
+//      camera's repeat, so the peak survives (5 % right cells against a 1 in 1600 bin chance).
+//   2. The two strongest peaks (3 x 3 bin sums, the second outside the first's neighbourhood) become the
+//      centres of the window search of d4c_cost.comp, which refines them against the FULL-resolution luma.
+//   3. The A luma at the 256 sample points is fetched once here for the search.
+// A candidate is never imposed: the fine stage keeps it only where it matches (spec section 4.2).
+#define CAM_WORK_BINDING 2
+#include "rc3_common.glsl"
+#include "d4c_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 23) const int ZFG_AGRID = 0;  // 1: luma_a is the 256 x 1 image of D0a with A's luma at the sample points
+
+layout(local_size_x = 256, local_size_y = 1) in;
+
+layout(binding = 0) uniform sampler2D luma_a;
+layout(std430, binding = 1) readonly buffer FieldIn {
+  vec4 field_in[];
+};
+layout(std430, binding = 3) buffer Counters {
+  uint counters[];
+};
+
+layout(push_constant) uniform CameraPush {
+  ivec2 field_extent;
+  ivec2 source_extent;
+} pc;
+
+// Two 16-bit bin counts per word (a bin never holds more than the cell count, 2304 at 64 x 36).
+shared uint histogram[kCamBins * kCamBins / 2];
+shared float reduce_score[256];
+shared int reduce_index[256];
+shared int mode_bin[2];
+
+uint BinCount(int index) {
+  return (histogram[index >> 1] >> uint((index & 1) * 16)) & 0xFFFFu;
+}
+
+uint Smoothed(int bin) {
+  ivec2 b = ivec2(bin % kCamBins, bin / kCamBins);
+  uint sum = 0u;
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      ivec2 q = clamp(b + ivec2(dx, dy), ivec2(0), ivec2(kCamBins - 1));
+      sum += BinCount(q.y * kCamBins + q.x);
+    }
+  }
+  return sum;
+}
+
+void main() {
+  uint lane = gl_LocalInvocationIndex;
+  int cells = pc.field_extent.x * pc.field_extent.y;
+
+  for (int b = int(lane); b < kCamBins * kCamBins / 2; b += 256) {
+    histogram[b] = 0u;
+  }
+  a_luma[lane] = ZFG_AGRID != 0 ? CameraLuma(luma_a, ivec2(int(lane), 0))
+                                : CameraLuma(luma_a, CameraSamplePoint(int(lane), pc.source_extent));
+  barrier();
+
+  for (int c = int(lane); c < cells; c += 256) {
+    vec4 v = field_in[c];
+    if (Reliability(v) > 0.05) {
+      ivec2 bin = ivec2(floor(v.xy / kCamBinPx)) + ivec2(kCamBins / 2);
+      if (all(greaterThanEqual(bin, ivec2(0))) && all(lessThan(bin, ivec2(kCamBins)))) {
+        int index = bin.y * kCamBins + bin.x;
+        atomicAdd(histogram[index >> 1], 1u << uint((index & 1) * 16));
+      }
+    }
+  }
+  barrier();
+
+  for (int pass_index = 0; pass_index < 2; ++pass_index) {
+    float best_score = -1.0;
+    int best_index = -1;
+    for (int b = int(lane); b < kCamBins * kCamBins; b += 256) {
+      if (pass_index == 1) {
+        ivec2 d = abs(ivec2(b % kCamBins, b / kCamBins) -
+                      ivec2(mode_bin[0] % kCamBins, mode_bin[0] / kCamBins));
+        if (max(d.x, d.y) <= 2) {
+          continue;
+        }
+      }
+      float s = float(Smoothed(b));
+      if (s > best_score) {
+        best_score = s;
+        best_index = b;
+      }
+    }
+    reduce_score[lane] = best_score;
+    reduce_index[lane] = best_index;
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1u) {
+      if (lane < stride) {
+        float other_score = reduce_score[lane + stride];
+        int other_index = reduce_index[lane + stride];
+        if (other_score > reduce_score[lane] ||
+            (other_score == reduce_score[lane] && other_index >= 0 &&
+             (reduce_index[lane] < 0 || other_index < reduce_index[lane]))) {
+          reduce_score[lane] = other_score;
+          reduce_index[lane] = other_index;
+        }
+      }
+      barrier();
+    }
+    if (lane == 0u) {
+      int bin = reduce_index[0];
+      mode_bin[pass_index] = bin;
+      if (ZFG_COUNTERS != 0) {
+        counters[kCtrCamVotes0 + uint(pass_index)] = uint(max(reduce_score[0], 0.0));
+      }
+      // The peak's centre in whole pixels; not valid when the histogram had no vote outside the first.
+      camera[2 + pass_index] = bin < 0
+          ? vec4(0.0)
+          : vec4(round((vec2(bin % kCamBins, bin / kCamBins) - float(kCamBins / 2) + 0.5) * kCamBinPx),
+                 reduce_score[0], 1.0);
+    }
+    barrier();
+  }
+}

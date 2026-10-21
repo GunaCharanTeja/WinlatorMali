@@ -1,0 +1,835 @@
+#version 460
+// Modified in WinlatorMali: ZFG_SPLIT_A/B (split resolve), ZFG_FIELD_TEX, ZFG_FIXED, ZFG_CR5_HALF, ZFG_SONE_GAIN and the Mali register trims.
+#extension GL_GOOGLE_include_directive : require
+// SPLIT form (Mali): the alternatives make the kernel twice the registers of the rest (53 against 32 on a Mali-G615, half
+// the occupancy for every pixel), while only the pixels whose base candidate disagrees by more than `margin` evaluate them.
+//   ZFG_SPLIT_A  every pixel, without the alternatives; a pixel that would evaluate them is appended to a list (binding 9)
+//                and its count (binding 10) sizes the indirect dispatch of the second pass.
+//   ZFG_SPLIT_B  the listed pixels only, with the whole kernel (it overwrites what A wrote there).
+// A pixel that is not listed would not have evaluated the alternatives, and a listed one runs the full kernel: the picture is
+// the one-pass picture word for word.
+#if defined(ZFG_SPLIT_A) || defined(ZFG_SPLIT_B)
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_ballot : require
+#endif
+// D5 Resolve.
+//   mode 0  the RC1 Generate: the whole image is one class; each pixel blends the four surrounding
+//           cells' motions with the RC1 confidence and agreement weights and warps A and B with the
+//           sampler's bilinear filter.
+//   mode 1  the bridge: the RC1 result is candidate 0. Alternatives (`cand` bit mask): 1 = the H0 of
+//           the four surrounding cells (the VMC parents), 2 = their H1, 4 = the zero vector. The
+//           alternative whose two warps agree best (the smallest difference between A and B at the
+//           pixel, the VMC rule) replaces candidate 0 only if it wins by `margin` (a preference for
+//           the smooth RC1 field, so cells that agree do not stair-step) and its own difference is
+//           under `error_cap` (a vector that does not even agree with itself is not an answer: a
+//           scene cut or an ambiguous pattern then keeps the RC1 behaviour).
+// `trust_mode` is how far a warp is trusted against the held picture B: 0 is the RC1 rule (field
+// confidence times photometric agreement: a good field is thrown away wherever the two warps disagree),
+// 1 trusts the warp when EITHER the field or the photometric evidence is high (the RC2 "veto max"
+// rule, with the photometric term softened by smoothstep(0.02, 0.35)).
+// The tile lists, the smooth4 hardware-filtered fetch, the geometry and the detail resolves and the
+// pixel guard of the spec (section 8) replace this in later steps.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+// The kernel of the FINAL colour (the decisions below always use the sampler's bilinear taps, as the core's F1 does):
+//   0 bilinear (the colour of the decision taps), 1 Catmull-Rom from nine bilinear taps (the Compat form of the sharp
+//   kernel), 2 Catmull-Rom from five taps (renormalised), 3 the hardware cubic sampler (VK_EXT_filter_cubic, the Modern
+//   form; away from the picture border, Catmull-Rom nine taps there). Every kernel is clamped to the range of the 2 x 2
+//   texels around the sample, so a hard edge cannot ring. The colour is resampled ONCE, at the pixel's final decision.
+#ifdef ZFG_SHARP_FORCE
+const int ZFG_SHARP = ZFG_SHARP_FORCE;  // a kernel chosen at build time (the host's constant 26 is then ignored)
+#else
+layout(constant_id = 26) const int ZFG_SHARP = 0;
+#endif
+layout(constant_id = 32) const int ZFG_LAYER = 0;   // EXPERIMENT: a screen-space persistent layer (the same high-frequency structure at the same pixel in A and B) keeps the still colour
+layout(constant_id = 33) const int ZFG_LYWORLD = 0; // EXPERIMENT (lyw=1): the layer yields where the warp's own motion explains what A and B show at the pixel (the world hypothesis)
+layout(constant_id = 34) const int ZFG_FBUNK = 0;   // EXPERIMENT (fbunk=1): with fb=4, a pair whose A-B correlation could not be measured blends like a continuous one
+// EXPERIMENT (soft=N, thousandths): the alternative does not replace the base candidate in one step at `margin` but over a ramp of half width N/1000 around it,
+// the two (sharp) warps mixed in between: the decision boundary between neighbouring vectors becomes a blend instead of a pixel-to-pixel switch (the two-
+// hypothesis form of an exponentially weighted combination of warp hypotheses). 0 = the hard rule, word for word.
+layout(constant_id = 35) const int ZFG_SOFT = 0;
+layout(constant_id = 36) const int ZFG_GREL = 0;    // the relative guard: per mille of the informative cells that must beat half of their own texture (0 = the absolute share only)
+layout(constant_id = 37) const int ZFG_GINFO = 150;  // ... and the per mille of the cells that must be informative for that test to count
+layout(constant_id = 31) const int ZFG_STATIC = 0;  // 1 = a pixel that is the same in A and B and has structure around it, but whose output the warp changed, stays the still colour (a static overlay: text, a HUD)
+layout(constant_id = 30) const int ZFG_PHOTO = 0;  // 1 = the photometric agreement of the two warps reads A at B's exposure (d0p_photo.comp)
+layout(constant_id = 29) const int ZFG_FB = 0;       // EXPERIMENT: the untrusted pixel shows 1 the blend of A and B, 2 the blend only where one of the two is dark (instead of the held B)
+layout(constant_id = 28) const int ZFG_SDETAIL = 0;  // EXPERIMENT: the sharp colour is blended with the bilinear one by how well the two warps agree: 1 over a 0.02..0.15 photometric error, 2 over 0.06..0.30
+#ifndef ZFG_SONE_GAIN
+#define ZFG_SONE_GAIN 1.0
+#endif
+#ifdef ZFG_SONE_FORCE
+const int ZFG_SONE = ZFG_SONE_FORCE;
+#else
+layout(constant_id = 39) const int ZFG_SONE = 0;
+#endif    // EXPERIMENT (sone=1|2): the sharp detail of ONE source (1: B, 2: A) added to the bilinear blend of the two warps (half the sharp fetches; not the same picture)
+layout(constant_id = 27) const int ZFG_SGUARD = 1;  // 1 = the nine-tap and hardware kernels are clamped to the 2 x 2 texel range (4 more fetches per source); 0 = unguarded
+
+#ifdef ZFG_SPLIT_B
+layout(local_size_x = 64, local_size_y = 1) in;
+#else
+layout(local_size_x = 8, local_size_y = 8) in;
+#endif
+
+#if defined(ZFG_SPLIT_A) || defined(ZFG_SPLIT_B)
+layout(std430, binding = 9) buffer SplitList {
+  uint split_list[];  // the pixels of the second pass, x | y << 16
+};
+layout(std430, binding = 10) buffer SplitArgs {
+  uint split_count;
+  uint split_groups_x;  // the indirect dispatch (x, 1, 1) of the second pass, 64 pixels per workgroup
+  uint split_groups_y;
+  uint split_groups_z;
+};
+#endif
+
+layout(binding = 0) uniform sampler2D source_a;
+layout(binding = 1) uniform sampler2D source_b;
+layout(binding = 6) uniform sampler2D cubic_a;  // the same images through a VK_FILTER_CUBIC_EXT sampler (sharp = 3)
+layout(binding = 7) uniform sampler2D cubic_b;
+layout(std430, binding = 2) readonly buffer CellField {
+  vec4 cell_field[];
+};
+layout(rgb10_a2, binding = 3) uniform writeonly image2D output_image;
+layout(std430, binding = 4) readonly buffer CellAlt {
+  vec4 cell_alt[];  // H1 of the cell: motion, confidence, valid
+};
+layout(std430, binding = 5) buffer Counters {
+  uint counters[];
+};
+layout(std430, binding = 8) readonly buffer Photo {
+  vec4 photo;  // gain, bias of A onto B (the identity when no exposure change was found)
+  vec4 stats;  // x: the correlation of A and B (1 = a continuous pair, near 0 = a scene cut); y: 1 when it was measured (0: no spread to measure it on);
+               // z: the texture ratio sigma_min / sigma_max of A and B (-1 when neither is clearly textured)
+  vec4 chroma;  // the gain of each colour channel relative to the luma gain (1, 1, 1 = none)
+};
+
+layout(push_constant) uniform ResolvePush {
+  ivec2 source_extent;
+  ivec2 active_origin;
+  ivec2 active_extent;
+  ivec2 output_extent;
+  ivec2 field_extent;
+  float phase;
+  float margin;     // an alternative must beat the RC1 candidate's A/B difference by this much
+  float error_cap;  // and its own A/B difference must be under this
+  int cand;         // bit mask of the alternatives: 1 parents (H0), 2 H1, 4 zero
+  int trust_mode;   // 0 RC1 product, 1 max of field and photometric evidence
+  float guard;      // pair guard: when fewer than this share of the cells matched, hold B (0 = off)
+  int early;        // 1 = skip the alternatives of a pixel whose base candidate already agrees to within `margin` (exact)
+  float fb_low;     // fb=3: the coverage at which the blend starts to show
+  float fb_high;    // ... and at which it is fully shown
+  float st_eps;     // zstatic: A and B agree at the pixel (and on its four neighbours at 2 px) to within this ...
+  float st_delta;   // ... the warp's colour is farther than this from the still colour ...
+  float st_grad;    // ... and the still picture has at least this much structure around the pixel (flat or dark areas are not overlays)
+  float ly_mag;     // layer: the luma gradient (per ly_off px) both A and B must have at the pixel ...
+  float ly_cos;     // ... the cosine of their gradient directions from which the structure counts as the same ...
+  float ly_away;    // ... and the colour the warp moved the pixel from the still one by more than this ...
+  float ly_off;     // ... gradients by central differences at +-ly_off px
+  float flat_lo;    // trust_mode 3: a photometric error under this is an exact agreement (a flat area), whatever the vector ...
+  float flat_hi;    // ... and over this it can be luck
+  float amb_floor;  // trust_mode 2: the share of the photometric rescue that a cell with no unique vector keeps (1 = all, as mode 1)
+  int st_n;         // zstatic: at least this many of the four neighbours (at 2 px) must also be the same in A and B (0 = the pixel alone)
+  float guard_corr; // pair guard: a pair whose measured A-B correlation is at least this is not a cut, whatever its match costs (an exposure change)
+  float guard_flat; // pair guard: a texture ratio under this makes the match fraction no evidence (0 = off)
+} pc;
+
+// The product's values of three switches, as constants (ZFG_FIXED): the compiler then drops the disabled alternatives and
+// trust modes and their registers. The same values as the push constants the host sends, so the picture is the same.
+#ifdef ZFG_FIXED
+#define PC_CAND 1
+#define PC_TRUST_MODE 3
+#define PC_EARLY 1
+#else
+#define PC_CAND pc.cand
+#define PC_TRUST_MODE pc.trust_mode
+#define PC_EARLY pc.early
+#endif
+
+#ifdef ZFG_FIELD_TEX
+// The same cells as an image (a copy the host makes after D3): the texture unit fetches them, and the load/store unit (this
+// kernel's bottleneck on a Mali-G615) only stores the pixel. The same 32-bit values, so the picture is the same.
+layout(binding = 11) uniform sampler2D cell_field_texels;
+#endif
+
+vec4 ReadField(ivec2 p) {
+  p = clamp(p, ivec2(0), pc.field_extent - ivec2(1));
+#ifdef ZFG_FIELD_TEX
+  return texelFetch(cell_field_texels, p, 0);
+#else
+  return cell_field[p.y * pc.field_extent.x + p.x];
+#endif
+}
+
+vec4 ReadAlt(ivec2 p) {
+  p = clamp(p, ivec2(0), pc.field_extent - ivec2(1));
+  return cell_alt[p.y * pc.field_extent.x + p.x];
+}
+
+hvec4 SampleActive(sampler2D image_sampler, vec2 local_position) {
+  vec2 half_texel = 0.5 / vec2(pc.active_extent);
+  vec2 safe_position = clamp(local_position, half_texel,
+                             vec2(1.0) - half_texel);
+  vec2 source_pixel = vec2(pc.active_origin) +
+      safe_position * vec2(pc.active_extent);
+  return hvec4(textureLod(image_sampler,
+                          source_pixel / vec2(pc.source_extent), 0.0));
+}
+
+// Catmull-Rom as nine bilinear taps (the core's RC1 Test F1 kernel, generate_motion_policy.comp): three taps per axis
+// whose weights are the kernel's, the two middle texels merged into one tap placed by the ratio of their weights.
+struct CatmullRomTaps {
+  vec2 source_pixel;
+  vec2 p0, p12, p3;
+  vec2 w0, w12, w3;
+};
+
+CatmullRomTaps CatmullRomSetup(vec2 local_position) {
+  CatmullRomTaps taps;
+  vec2 half_texel = 0.5 / vec2(pc.active_extent);
+  vec2 safe_position = clamp(local_position, half_texel, vec2(1.0) - half_texel);
+  vec2 origin = vec2(pc.active_origin);
+  taps.source_pixel = origin + safe_position * vec2(pc.active_extent);
+  vec2 centre1 = floor(taps.source_pixel - 0.5) + 0.5;
+  vec2 f = taps.source_pixel - centre1;
+  taps.w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+  vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+  vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+  taps.w3 = f * f * (-0.5 + 0.5 * f);
+  taps.w12 = w1 + w2;
+  vec2 low = origin + 0.5;
+  vec2 high = origin + vec2(pc.active_extent) - 0.5;
+  vec2 inverse_extent = 1.0 / vec2(pc.source_extent);
+  taps.p0 = clamp(centre1 - 1.0, low, high) * inverse_extent;
+  taps.p12 = clamp(centre1 + w2 / taps.w12, low, high) * inverse_extent;
+  taps.p3 = clamp(centre1 + 2.0, low, high) * inverse_extent;
+  return taps;
+}
+
+// The range of the 2 x 2 texels around the sample point: the ringing guard of every sharp kernel.
+void CornerRange(sampler2D image_sampler, vec2 source_pixel, out vec4 low, out vec4 high) {
+  ivec2 base = ivec2(floor(source_pixel - 0.5));
+  ivec2 first = pc.active_origin;
+  ivec2 last = pc.active_origin + pc.active_extent - ivec2(1);
+  vec4 t00 = texelFetch(image_sampler, clamp(base, first, last), 0);
+  vec4 t10 = texelFetch(image_sampler, clamp(base + ivec2(1, 0), first, last), 0);
+  vec4 t01 = texelFetch(image_sampler, clamp(base + ivec2(0, 1), first, last), 0);
+  vec4 t11 = texelFetch(image_sampler, clamp(base + ivec2(1, 1), first, last), 0);
+  low = min(min(t00, t10), min(t01, t11));
+  high = max(max(t00, t10), max(t01, t11));
+}
+
+vec4 CatmullRom9(sampler2D image_sampler, vec2 local_position) {
+  CatmullRomTaps t = CatmullRomSetup(local_position);
+  vec4 result =
+      (textureLod(image_sampler, vec2(t.p0.x, t.p0.y), 0.0) * t.w0.x +
+       textureLod(image_sampler, vec2(t.p12.x, t.p0.y), 0.0) * t.w12.x +
+       textureLod(image_sampler, vec2(t.p3.x, t.p0.y), 0.0) * t.w3.x) * t.w0.y +
+      (textureLod(image_sampler, vec2(t.p0.x, t.p12.y), 0.0) * t.w0.x +
+       textureLod(image_sampler, vec2(t.p12.x, t.p12.y), 0.0) * t.w12.x +
+       textureLod(image_sampler, vec2(t.p3.x, t.p12.y), 0.0) * t.w3.x) * t.w12.y +
+      (textureLod(image_sampler, vec2(t.p0.x, t.p3.y), 0.0) * t.w0.x +
+       textureLod(image_sampler, vec2(t.p12.x, t.p3.y), 0.0) * t.w12.x +
+       textureLod(image_sampler, vec2(t.p3.x, t.p3.y), 0.0) * t.w3.x) * t.w3.y;
+  if (ZFG_SGUARD == 0) {
+    return result;
+  }
+  vec4 low, high;
+  CornerRange(image_sampler, t.source_pixel, low, high);
+  return clamp(result, low, high);
+}
+
+// The five-tap form (the four corner taps carry products of two negative lobes, well under 1 % of the weight): the
+// ringing guard is the range of the five taps themselves.
+#ifdef ZFG_CR5_HALF
+// The five-tap kernel with its taps and weights in half precision (the taps are 8-bit colours): half the registers.
+vec4 CatmullRom5(sampler2D image_sampler, vec2 local_position) {
+  CatmullRomTaps t = CatmullRomSetup(local_position);
+  half weight_top = half(t.w12.x * t.w0.y);
+  half weight_left = half(t.w0.x * t.w12.y);
+  half weight_middle = half(t.w12.x * t.w12.y);
+  half weight_right = half(t.w3.x * t.w12.y);
+  half weight_bottom = half(t.w12.x * t.w3.y);
+  hvec4 top = hvec4(textureLod(image_sampler, vec2(t.p12.x, t.p0.y), 0.0));
+  hvec4 left = hvec4(textureLod(image_sampler, vec2(t.p0.x, t.p12.y), 0.0));
+  hvec4 middle = hvec4(textureLod(image_sampler, vec2(t.p12.x, t.p12.y), 0.0));
+  hvec4 right = hvec4(textureLod(image_sampler, vec2(t.p3.x, t.p12.y), 0.0));
+  hvec4 bottom = hvec4(textureLod(image_sampler, vec2(t.p12.x, t.p3.y), 0.0));
+  hvec4 result = (top * weight_top + left * weight_left + middle * weight_middle + right * weight_right +
+                  bottom * weight_bottom) /
+      (weight_top + weight_left + weight_middle + weight_right + weight_bottom);
+  hvec4 low = min(min(min(top, left), min(middle, right)), bottom);
+  hvec4 high = max(max(max(top, left), max(middle, right)), bottom);
+  return vec4(clamp(result, low, high));
+}
+#else
+vec4 CatmullRom5(sampler2D image_sampler, vec2 local_position) {
+  CatmullRomTaps t = CatmullRomSetup(local_position);
+  float weight_top = t.w12.x * t.w0.y;
+  float weight_left = t.w0.x * t.w12.y;
+  float weight_middle = t.w12.x * t.w12.y;
+  float weight_right = t.w3.x * t.w12.y;
+  float weight_bottom = t.w12.x * t.w3.y;
+  vec4 top = textureLod(image_sampler, vec2(t.p12.x, t.p0.y), 0.0);
+  vec4 left = textureLod(image_sampler, vec2(t.p0.x, t.p12.y), 0.0);
+  vec4 middle = textureLod(image_sampler, vec2(t.p12.x, t.p12.y), 0.0);
+  vec4 right = textureLod(image_sampler, vec2(t.p3.x, t.p12.y), 0.0);
+  vec4 bottom = textureLod(image_sampler, vec2(t.p12.x, t.p3.y), 0.0);
+  vec4 result = (top * weight_top + left * weight_left + middle * weight_middle + right * weight_right +
+                 bottom * weight_bottom) /
+      (weight_top + weight_left + weight_middle + weight_right + weight_bottom);
+  vec4 low = min(min(min(top, left), min(middle, right)), bottom);
+  vec4 high = max(max(max(top, left), max(middle, right)), bottom);
+  return clamp(result, low, high);
+}
+#endif
+
+// The hardware cubic fetch, used where its whole 4 x 4 footprint is inside the active rect (the sampler's border rule
+// would differ from the clamped taps of the shader form there); the guard is the same 2 x 2 range.
+vec4 HardwareCubic(sampler2D image_sampler, sampler2D cubic_sampler, vec2 local_position) {
+  vec2 half_texel = 0.5 / vec2(pc.active_extent);
+  vec2 safe_position = clamp(local_position, half_texel, vec2(1.0) - half_texel);
+  vec2 source_pixel = vec2(pc.active_origin) + safe_position * vec2(pc.active_extent);
+  vec2 relative = source_pixel - vec2(pc.active_origin);
+  ivec2 base = ivec2(floor(source_pixel - 0.5));
+  bool interior = all(greaterThanEqual(relative, vec2(2.5))) &&
+      all(lessThanEqual(relative, vec2(pc.active_extent) - 2.5)) &&
+      all(greaterThanEqual(base - ivec2(1), pc.active_origin)) &&
+      all(lessThanEqual(base + ivec2(2), pc.active_origin + pc.active_extent - ivec2(1)));
+  if (!interior) {
+    return CatmullRom9(image_sampler, local_position);
+  }
+  vec4 result = textureLod(cubic_sampler, source_pixel / vec2(pc.source_extent), 0.0);
+  if (ZFG_SGUARD == 0) {
+    return result;
+  }
+  vec4 low, high;
+  CornerRange(image_sampler, source_pixel, low, high);
+  return clamp(result, low, high);
+}
+
+hvec4 SampleSharpA(vec2 local_position) {
+  if (ZFG_SHARP == 1) return hvec4(CatmullRom9(source_a, local_position));
+  if (ZFG_SHARP == 2) return hvec4(CatmullRom5(source_a, local_position));
+  return hvec4(HardwareCubic(source_a, cubic_a, local_position));
+}
+
+hvec4 SampleSharpB(vec2 local_position) {
+  if (ZFG_SHARP == 1) return hvec4(CatmullRom9(source_b, local_position));
+  if (ZFG_SHARP == 2) return hvec4(CatmullRom5(source_b, local_position));
+  return hvec4(HardwareCubic(source_b, cubic_b, local_position));
+}
+
+half WarpTrust(half field_trust, half photo_error, half uniqueness) {
+  if (ZFG_MODE == 0 || PC_TRUST_MODE == 0) {
+    return field_trust * clamp(half(1.0) - photo_error, half(0.0), half(1.0));
+  }
+  half rescue = half(1.0) - smoothstep(half(0.02), half(0.35), photo_error);
+  if (PC_TRUST_MODE == 2) {
+    // The photometric rescue of a cell whose best vector is not unique (a periodic texture: the aliased vector agrees photometrically too) counts less.
+    rescue *= half(pc.amb_floor) + (half(1.0) - half(pc.amb_floor)) * uniqueness;
+  }
+  if (PC_TRUST_MODE == 3) {
+    // A vector whose field has (almost) no confidence is not rescued by an accidental photometric agreement: where nothing matches (a cape that
+    // deforms under the camera), the agreement of two warps of a periodic or noisy texture is luck, and trusting it paints a mosaic of the cell grid.
+    // A flat area (the two warps agree to within a hair: any vector gives the same colour) is not a luck of the draw and keeps its rescue.
+    half lucky = smoothstep(half(pc.flat_lo), half(pc.flat_hi), photo_error);
+    rescue *= mix(half(1.0), smoothstep(half(0.25) * half(pc.amb_floor), half(pc.amb_floor), field_trust), lucky);
+  }
+  return max(field_trust, rescue);
+}
+
+// A's colour at B's exposure, for the AGREEMENT test only (a fade is not a motion error): the output colour is the two pictures as they are.
+hvec3 AtBExposure(hvec3 color_a) {
+  return ZFG_PHOTO != 0 ? clamp(color_a * (half(photo.x) * hvec3(chroma.xyz)) + half(photo.y), half(0.0), half(1.0)) : color_a;
+}
+
+bool GeometricallyValid(vec2 p) {
+  return all(greaterThanEqual(p, vec2(0.0))) &&
+      all(lessThanEqual(p, vec2(1.0)));
+}
+
+// Tile modes use one-pixel in-tile differences; layer 5 also uses that spacing for the halo (the parser requires ly_off == 1).
+// layer = 4: the luma of A and of B of the 8 x 8 workgroup, so that a pixel reads its neighbours' values (the gradients of the persistent-layer test) from
+// shared memory: no fetch at all (the pixel's own A and B are in hand already).
+shared float tile_a[64];
+shared float tile_b[64];
+
+// The gradient of a tile at the local pixel (luma per pixel): central differences inside the tile, one-sided on its edge. (Two functions on the shared arrays,
+// not one that takes the array: a shared array passed by value is copied.)
+vec2 TileGradientA(ivec2 l) {
+  int index = l.y * 8 + l.x;
+  int xp = l.x < 7 ? 1 : 0, xm = l.x > 0 ? 1 : 0, yp = l.y < 7 ? 8 : 0, ym = l.y > 0 ? 8 : 0;
+  return vec2((tile_a[index + xp] - tile_a[index - xm]) / float(max(1, xp + xm)), (tile_a[index + yp] - tile_a[index - ym]) / float(max(1, (yp + ym) / 8)));
+}
+
+vec2 TileGradientB(ivec2 l) {
+  int index = l.y * 8 + l.x;
+  int xp = l.x < 7 ? 1 : 0, xm = l.x > 0 ? 1 : 0, yp = l.y < 7 ? 8 : 0, ym = l.y > 0 ? 8 : 0;
+  return vec2((tile_b[index + xp] - tile_b[index - xm]) / float(max(1, xp + xm)), (tile_b[index + yp] - tile_b[index - ym]) / float(max(1, (yp + ym) / 8)));
+}
+
+void main() {
+#ifdef ZFG_SPLIT_B
+  if (gl_GlobalInvocationID.x >= split_count) {
+    return;
+  }
+  const uint listed = split_list[gl_GlobalInvocationID.x];
+  ivec2 output_coordinate = ivec2(int(listed & 0xFFFFu), int(listed >> 16));
+#else
+  ivec2 output_coordinate = ivec2(gl_GlobalInvocationID.xy);
+#endif
+  const bool inside = all(lessThan(output_coordinate, pc.output_extent));
+  if (ZFG_LAYER < 4 && !inside) {
+    return;
+  }
+  // layer >= 4: every invocation of the workgroup stays alive up to the barrier (the lanes beyond the picture work on the clamped edge and do not store).
+  vec2 t = (vec2(min(output_coordinate, pc.output_extent - ivec2(1))) + 0.5) / vec2(pc.output_extent);
+  hvec4 fallback = SampleActive(source_b, t);
+  vec2 field_position = t * vec2(pc.field_extent) - 0.5;
+  ivec2 field_base = ivec2(floor(field_position));
+  vec2 fraction = fract(field_position);
+  // Mali: the four cells' coordinates are derived from the slot (s & 1, s >> 1) rather than kept in an array; a runtime-indexed local array
+  // (indexed by alt_slot or anchor) is spilled to the stack on Valhall.
+#define CELL(s) (field_base + ivec2((s) & 1, (s) >> 1))
+  float bilinear[4] = float[4]((1.0 - fraction.x) * (1.0 - fraction.y),
+      fraction.x * (1.0 - fraction.y),
+      (1.0 - fraction.x) * fraction.y, fraction.x * fraction.y);
+  // The four cells, read once: the alternatives below reuse them instead of reading the buffer again (FIELD(s) selects
+  // without indexing an array, so a runtime slot does not put them on the stack).
+  vec4 field[4];
+  field[0] = ReadField(CELL(0));
+  field[1] = ReadField(CELL(1));
+  field[2] = ReadField(CELL(2));
+  field[3] = ReadField(CELL(3));
+  vec4 field0 = field[0], field1 = field[1], field2 = field[2], field3 = field[3];
+#define FIELD(s) ((s) == 0 ? field0 : ((s) == 1 ? field1 : ((s) == 2 ? field2 : field3)))
+  vec4 anchor_field = vec4(0.0);
+  float anchor_score = -1.0;
+  float anchor_confidence = -1.0;
+  float anchor_weight = -1.0;
+  for (int i = 0; i < 4; ++i) {
+    float confidence = clamp(field[i].z, 0.0, 1.0);
+    float score = bilinear[i] * confidence;
+    if (score > anchor_score ||
+        (score == anchor_score &&
+         (confidence > anchor_confidence ||
+          (confidence == anchor_confidence &&
+           bilinear[i] > anchor_weight)))) {
+      anchor_field = field[i];
+      anchor_score = score;
+      anchor_confidence = confidence;
+      anchor_weight = bilinear[i];
+    }
+  }
+
+  vec2 motion_sum = vec2(0.0);
+  float support_sum = 0.0;
+  for (int i = 0; i < 4; ++i) {
+    vec2 delta_mid_output = 0.5 * (field[i].xy - anchor_field.xy) *
+        vec2(pc.output_extent) / vec2(pc.active_extent);
+    float agreement =
+        1.0 / (1.0 + dot(delta_mid_output, delta_mid_output));
+    float weight = bilinear[i] * clamp(field[i].z, 0.0, 1.0) * agreement;
+    support_sum += weight;
+    motion_sum += weight * field[i].xy;
+  }
+  hvec4 here_b = fallback;  // the held picture at the pixel, before the fallback below
+  hvec4 here_a = hvec4(0.0);
+  if (ZFG_FB != 0 || ZFG_STATIC != 0 || ZFG_LAYER != 0) {
+    here_a = SampleActive(source_a, t);
+  }
+  if (ZFG_FB != 0) {
+    // What an untrusted pixel shows instead of the held B: the blend of A and B at the same pixel (the warp with no motion), so that where the
+    // trust switches the two pictures look alike (a smear, not a patch of another brightness). 1 everywhere; 2 where one of the two is dark;
+    // 4 where the PAIR is continuous (the correlation of A and B, from d0p_photo.comp; a scene cut keeps the hold);
+    // 3 where the NEIGHBOURHOOD is continuous (the coverage of D3, interpolated): a scene cut, where nothing around matches, keeps the hold.
+    half share = half(1.0);
+    if (ZFG_FB == 2) {
+      half dark = min(dot(here_a.rgb, hvec3(half(0.2126), half(0.7152), half(0.0722))), dot(fallback.rgb, hvec3(half(0.2126), half(0.7152), half(0.0722))));
+      share = half(1.0) - smoothstep(half(0.02), half(0.15), dark);
+    } else if (ZFG_FB == 4) {
+      share = half(smoothstep(pc.fb_low, pc.fb_high, stats.x));
+      if (ZFG_FBUNK != 0 && stats.y < 0.5) {
+        // An unmeasured correlation (a flat or black picture) is not a measured decorrelation: the pair blends as a continuous one does, as the exposure
+        // model itself treats it (d0p_photo.comp: `continuous = !correlation_known || ...`).
+        share = half(1.0);
+      }
+    } else if (ZFG_FB == 3) {
+      float coverage = 0.0;
+      for (int i = 0; i < 4; ++i) {
+        coverage += bilinear[i] * field[i].w;
+      }
+      share = half(smoothstep(pc.fb_low, pc.fb_high, coverage));
+    }
+    fallback = mix(fallback, half(0.5) * (here_a + fallback), share);
+  }
+  hvec4 result = fallback;
+  half base_error = half(1.0);
+  // The pixel's final warp (the base candidate, or the alternative that wins): where to resample the sharp colour.
+  vec2 final_t_a = vec2(0.0);
+  vec2 final_t_b = vec2(0.0);
+  // The base warp's own bilinear taps at final_t_a / final_t_b, kept for the one-source sharp colour: while no alternative
+  // replaces the base (final_from_base), they are the taps SampleActive would fetch again at the same coordinates.
+  hvec4 base_bil_a = hvec4(0.0), base_bil_b = hvec4(0.0);
+  bool final_from_base = false;
+  half final_trust = half(0.0);
+  half final_error = half(0.0);  // the photometric disagreement of the final warp (sharp detail is trusted less where the two warps disagree)
+  bool final_warp = false;
+  // The pair guard (the continuity input of the plan, F10): a pair whose cells mostly fail to match at
+  // full resolution is a scene cut or a failed estimate, and the held picture B is the safe answer (B itself,
+  // not the fallback: with fb=1 the fallback is the blend of A and B, a double image on a cut). Uniform over
+  // the dispatch (a counter, the photometric buffer and push constants), so no invocation is left waiting at the layer's barrier.
+  // A cut is a pair where nothing MATCHES and nothing CORRELATES: the match costs alone are fooled by an exposure change that the
+  // exposure model could not take (a flash while the camera moves: every cost rises), while the co-located correlation of A and B
+  // (d0p_photo.comp) is blind to a gain; a measured correlation of at least guard_corr says "the same scene in about the same place".
+  // An unmeasured one (a black or flat picture: a cut to or from black) does not veto. The match fraction is evidence of continuity only
+  // when its witnesses can testify: with guard_flat > 0, a pair whose texture ratio (sigma_min / sigma_max of A and B, d0p_photo.comp,
+  // stats.z; -1 when neither is textured) is under guard_flat has degenerate witnesses (a flat A matches any region of B of its colour),
+  // and only the correlation can then vouch for the pair.
+  const bool guard_correlated = stats.y > 0.5 && stats.x >= pc.guard_corr;
+  const bool guard_witnesses_degenerate = pc.guard_flat > 0.0 && stats.z >= 0.0 && stats.z < pc.guard_flat;
+  // The match fraction. In a dark or low-contrast picture an absolute cost is no evidence (two unrelated dark shots match in 80 % of their cells), so
+  // when enough cells have texture (guard_info) the share that counts is that of the INFORMATIVE cells whose cost beats half of their own texture
+  // (d3_cells.comp, kCtrD3Rel50 over kCtrD3Info) and it has to reach guard_rel; with too few informative cells (a flat picture) the absolute share of
+  // the old rule decides.
+  const float guard_cells = float(pc.field_extent.x * pc.field_extent.y);
+  const bool guard_relative = ZFG_GREL > 0 && float(counters[kCtrD3Info]) >= 0.001 * float(ZFG_GINFO) * guard_cells;
+  const bool guard_share = guard_relative
+      ? float(counters[kCtrD3Rel50]) >= 0.001 * float(ZFG_GREL) * float(counters[kCtrD3Info])
+      : float(counters[kCtrD3Good]) >= pc.guard * guard_cells;
+  const bool guard_matched = !guard_witnesses_degenerate && guard_share;
+  if (pc.guard > 0.0 && !guard_correlated && !guard_matched) {
+    if (inside) {
+      imageStore(output_image, output_coordinate, vec4(here_b));
+    }
+    if (all(equal(gl_GlobalInvocationID.xy, uvec2(0u)))) {
+      ZFG_COUNT(kCtrGuardFired);  // the census of the guard's triggers (the diagnostic form only)
+    }
+    return;
+  }
+  if (support_sum > 1e-6) {
+    vec2 motion = motion_sum / support_sum;
+    vec2 motion_normalized = motion / vec2(pc.active_extent);
+    vec2 t_a = t - pc.phase * motion_normalized;
+    vec2 t_b = t + (1.0 - pc.phase) * motion_normalized;
+    if (GeometricallyValid(t_a) && GeometricallyValid(t_b)) {
+      hvec4 warp_a = SampleActive(source_a, t_a);
+      hvec4 warp_b = SampleActive(source_b, t_b);
+      hvec4 warp_color = half(0.5) * (warp_a + warp_b);
+      hvec3 difference = abs(AtBExposure(warp_a.rgb) - warp_b.rgb);
+      half photo_error = max(difference.r, max(difference.g, difference.b));
+      half field_trust = half(clamp(support_sum, 0.0, 1.0));
+      half uniq_here = half(0.0);
+      for (int i = 0; i < 4; ++i) {
+        uniq_here += half(bilinear[i]) * half(field[i].w);
+      }
+      half warp_trust = WarpTrust(field_trust, photo_error, uniq_here);
+      result = mix(fallback, warp_color, warp_trust);
+      base_error = photo_error;
+      final_t_a = t_a;
+      final_t_b = t_b;
+      final_trust = warp_trust;
+      final_error = photo_error;
+      final_warp = true;
+      base_bil_a = warp_a;
+      base_bil_b = warp_b;
+      final_from_base = true;
+    }
+  }
+
+  // An alternative replaces the base candidate only when `alt_error + margin < base_error`, and an error is never
+  // negative: a pixel whose base candidate already agrees to within `margin` cannot be improved, so its alternatives
+  // (up to eight bilinear samples) are not evaluated. Exact: the picture is the same word for word. (With the soft ramp
+  // the alternative starts to show at `margin - soft`, so the skip moves down by the ramp's half width: still exact.)
+  const float soft_band = float(ZFG_SOFT) * 0.001;
+  half alt_weight = half(0.0);  // soft: the share of the alternative in the output
+  vec2 alt_final_t_a = vec2(0.0);
+  vec2 alt_final_t_b = vec2(0.0);
+  half alt_final_trust = half(0.0);
+#ifdef ZFG_SPLIT_A
+  // The pixels that evaluate the alternatives go to the second pass (one atomic per subgroup); this pass skips them.
+  {
+    const bool listed = inside && ZFG_MODE >= 1 && (PC_EARLY == 0 || base_error > half(pc.margin - soft_band));
+    const uvec4 ballot = subgroupBallot(listed);
+    const uint count = subgroupBallotBitCount(ballot);
+    if (count > 0u) {
+      uint first = 0u;
+      if (subgroupElect()) {
+        first = atomicAdd(split_count, count);
+        atomicMax(split_groups_x, (first + count + 63u) / 64u);
+      }
+      first = subgroupBroadcastFirst(first);
+      if (listed) {
+        split_list[first + subgroupBallotExclusiveBitCount(ballot)] = uint(output_coordinate.x) | (uint(output_coordinate.y) << 16);
+      }
+    }
+  }
+  if (false) {
+#else
+  if (ZFG_MODE >= 1 && (PC_EARLY == 0 || base_error > half(pc.margin - soft_band))) {
+#endif
+    hvec4 alt_color = fallback;
+    half alt_error = half(2.0);
+    int alt_kind = 0;  // 1 parent, 2 H1, 3 zero
+    int alt_slot = 0;
+    bool any_alt = false;
+    bool any_h1 = false;
+    // Slots: 0..3 the H0 of the four cells, 4..7 their H1, 8 the zero vector.
+    for (int slot = 0; slot < 9; ++slot) {
+      vec2 alt_motion = vec2(0.0);
+      float alt_confidence = 1.0;
+      int kind = 3;
+      if (slot < 4) {
+        if ((PC_CAND & 1) == 0) {
+          continue;
+        }
+        vec4 parent = FIELD(slot);
+        if (parent.z < 0.05) {
+          continue;
+        }
+        alt_motion = parent.xy;
+        alt_confidence = parent.z;
+        kind = 1;
+      } else if (slot < 8) {
+        if ((PC_CAND & 2) == 0) {
+          continue;
+        }
+        vec4 h1 = ReadAlt(CELL(slot - 4));
+        if (h1.w < 0.5) {
+          continue;
+        }
+        alt_motion = h1.xy;
+        alt_confidence = h1.z;
+        kind = 2;
+        any_h1 = true;
+      } else if ((PC_CAND & 4) == 0) {
+        continue;
+      }
+      any_alt = true;
+      vec2 alt_normalized = alt_motion / vec2(pc.active_extent);
+      vec2 alt_t_a = t - pc.phase * alt_normalized;
+      vec2 alt_t_b = t + (1.0 - pc.phase) * alt_normalized;
+      if (!GeometricallyValid(alt_t_a) || !GeometricallyValid(alt_t_b)) {
+        continue;
+      }
+      hvec4 alt_a = SampleActive(source_a, alt_t_a);
+      hvec4 alt_b = SampleActive(source_b, alt_t_b);
+      hvec3 alt_difference = abs(AtBExposure(alt_a.rgb) - alt_b.rgb);
+      half error_here = max(alt_difference.r, max(alt_difference.g, alt_difference.b));
+      if (error_here < alt_error && error_here <= half(pc.error_cap)) {
+        alt_error = error_here;
+        alt_kind = kind;
+        alt_slot = slot;
+        if (ZFG_SHARP == 0) {
+          half trust = WarpTrust(half(clamp(alt_confidence, 0.0, 1.0)), error_here, slot < 4 ? half(FIELD(slot).w) : half(1.0));
+          alt_color = mix(fallback, half(0.5) * (alt_a + alt_b), trust);
+        }
+      }
+    }
+    if (any_h1) {
+      ZFG_COUNT(kCtrD5AltCells);
+    }
+    // soft: how far the alternative is past the margin (positive: it wins), and its share over the ramp.
+    const float alt_lead = float(base_error) - float(alt_error) - pc.margin;
+    if (ZFG_SOFT != 0 && alt_kind != 0 && alt_lead > -soft_band && alt_lead < soft_band) {
+      alt_weight = half(smoothstep(-soft_band, soft_band, alt_lead));
+      if (ZFG_SHARP != 0) {
+        vec2 win_motion = vec2(0.0);
+        float win_confidence = 1.0;
+        if (alt_slot < 4) {
+          vec4 parent = FIELD(alt_slot);
+          win_motion = parent.xy;
+          win_confidence = parent.z;
+        } else if (alt_slot < 8) {
+          vec4 h1 = ReadAlt(CELL(alt_slot - 4));
+          win_motion = h1.xy;
+          win_confidence = h1.z;
+        }
+        vec2 win_normalized = win_motion / vec2(pc.active_extent);
+        alt_final_t_a = t - pc.phase * win_normalized;
+        alt_final_t_b = t + (1.0 - pc.phase) * win_normalized;
+        alt_final_trust = WarpTrust(half(clamp(win_confidence, 0.0, 1.0)), alt_error, alt_slot < 4 ? half(FIELD(alt_slot).w) : half(1.0));
+      } else {
+        result = mix(result, alt_color, alt_weight);
+      }
+    } else if (ZFG_SOFT != 0 ? (alt_kind != 0 && alt_lead >= soft_band) : (alt_kind != 0 && alt_error + half(pc.margin) < base_error)) {
+      result = alt_color;
+      if (ZFG_SHARP != 0) {
+        // The winner's motion and confidence again from its slot (cheaper than carrying them through the loop).
+        vec2 win_motion = vec2(0.0);
+        float win_confidence = 1.0;
+        if (alt_slot < 4) {
+          vec4 parent = FIELD(alt_slot);
+          win_motion = parent.xy;
+          win_confidence = parent.z;
+        } else if (alt_slot < 8) {
+          vec4 h1 = ReadAlt(CELL(alt_slot - 4));
+          win_motion = h1.xy;
+          win_confidence = h1.z;
+        }
+        vec2 win_normalized = win_motion / vec2(pc.active_extent);
+        final_t_a = t - pc.phase * win_normalized;
+        final_t_b = t + (1.0 - pc.phase) * win_normalized;
+        final_trust = WarpTrust(half(clamp(win_confidence, 0.0, 1.0)), alt_error, alt_slot < 4 ? half(FIELD(alt_slot).w) : half(1.0));
+        final_error = alt_error;
+        final_warp = true;
+        final_from_base = false;
+      }
+      ZFG_COUNT(alt_kind == 1 ? kCtrD5Parent : (alt_kind == 2 ? kCtrD5Alt : kCtrD5Zero));
+    } else if (any_alt) {
+      ZFG_COUNT(kCtrD5Kept);
+    }
+  }
+  if (ZFG_MODE >= 1 && ZFG_SHARP != 0 && final_warp) {
+    hvec4 sharp_color;
+    if (ZFG_SONE != 0) {
+      // One source's detail: the bilinear blend of the two warps plus what the sharp kernel adds to ONE of them (1: B's, 2: A's); the two warps
+      // are the same content at the same place, so the detail of one stands for both at half the sharp fetches.
+      hvec4 bil_a = final_from_base ? base_bil_a : SampleActive(source_a, final_t_a);
+      hvec4 bil_b = final_from_base ? base_bil_b : SampleActive(source_b, final_t_b);
+      // The detail is doubled (ZFG_SONE_GAIN): the blend of two warps loses about as much as one source's kernel restores,
+      // and a generated frame softer than the real ones around it flickers (measured: 0.88 of the true frame's detail at
+      // gain 1, 0.98 at 2, against 1.02 for a real frame; -0.05 dB against the truth).
+      sharp_color = half(0.5) * (bil_a + bil_b) +
+          half(ZFG_SONE_GAIN) * (ZFG_SONE == 1 ? SampleSharpB(final_t_b) - bil_b : SampleSharpA(final_t_a) - bil_a);
+    } else {
+      sharp_color = half(0.5) * (SampleSharpA(final_t_a) + SampleSharpB(final_t_b));
+    }
+    if (ZFG_SDETAIL != 0) {
+      // The detail the sharp kernel adds to the bilinear warp, scaled down where the two warps disagree (a boundary, an occlusion, a
+      // wrong vector): there the sharp tap would amplify a mismatch, not detail.
+      hvec4 bilinear_color = half(0.5) * (SampleActive(source_a, final_t_a) + SampleActive(source_b, final_t_b));
+      half detail_weight = half(1.0) - (ZFG_SDETAIL == 1 ? smoothstep(half(0.02), half(0.15), final_error) : smoothstep(half(0.06), half(0.30), final_error));
+      sharp_color = bilinear_color + detail_weight * (sharp_color - bilinear_color);
+    }
+    result = mix(fallback, sharp_color, final_trust);
+    if (ZFG_SOFT != 0 && alt_weight > half(0.0)) {
+      // On the ramp: the alternative's own sharp warp, mixed in by its share.
+      hvec4 alt_sharp = half(0.5) * (SampleSharpA(alt_final_t_a) + SampleSharpB(alt_final_t_b));
+      result = mix(result, mix(fallback, alt_sharp, alt_final_trust), alt_weight);
+    }
+  }
+  if (ZFG_STATIC != 0) {
+    // A static overlay (text, a HUD) over a moving picture: the cell's vector is the scene's, and the warp reads the scene where the overlay
+    // is (the strokes vanish: the photometric agreement of two warps of flat background is perfect). The overlay pixel is the same in A and
+    // B, and so is its neighbourhood, and it has structure; the pixel then keeps the still colour. A flat or dark area that merely agrees is
+    // not an overlay (no structure), and an object crossing at mid time is dark in both frames and in their neighbourhood (no structure).
+    hvec3 same = abs(here_a.rgb - here_b.rgb);
+    if (max(same.r, max(same.g, same.b)) <= half(pc.st_eps)) {
+      hvec4 still = half(0.5) * (here_a + here_b);
+      hvec3 away = abs(result.rgb - still.rgb);
+      if (max(away.r, max(away.g, away.b)) > half(pc.st_delta)) {
+        vec2 o = vec2(2.0) / vec2(pc.output_extent);
+        const vec2 step_[4] = vec2[4](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0));
+        int still_count = 0;
+        half structure = half(0.0);
+        for (int i = 0; i < 4; ++i) {
+          hvec3 na = SampleActive(source_a, t + o * step_[i]).rgb;
+          hvec3 nb = SampleActive(source_b, t + o * step_[i]).rgb;
+          hvec3 d = abs(na - nb);
+          still_count += max(d.r, max(d.g, d.b)) <= half(pc.st_eps) ? 1 : 0;
+          hvec3 g = abs(na - here_a.rgb);
+          structure = max(structure, max(g.r, max(g.g, g.b)));
+        }
+        if (still_count >= pc.st_n && structure >= half(pc.st_grad)) {
+          result = still;
+        }
+      }
+    }
+  }
+  if (ZFG_LAYER >= 4) {
+    // The luma of A and B of the workgroup's pixels, written for the neighbours (every invocation of the workgroup reaches this barrier).
+    tile_a[gl_LocalInvocationIndex] = dot(vec3(here_a.rgb), vec3(0.2126, 0.7152, 0.0722));
+    tile_b[gl_LocalInvocationIndex] = dot(vec3(here_b.rgb), vec3(0.2126, 0.7152, 0.0722));
+    barrier();
+  }
+  if (ZFG_LAYER != 0) {
+    // A persistent screen-space layer (a HUD, text, an icon, a subtitle over a moving picture): the world moves under it and the layer does not, so the
+    // high-frequency STRUCTURE stays at the same pixel in A and B (the same gradient direction and a similar strength) even where the colour does not
+    // (a translucent layer over a changing background). Where the warp moved the pixel away from the still colour and the structure persists, the pixel
+    // is the still mix of A and B at the same pixel: the letters stay where they are and only the background under them is blended in time.
+    // Soft all the way (no hard mask), and at the pixel, not at the cell: a letter that crosses a cell is not the cell's.
+    hvec3 away_v = abs(result.rgb - half(0.5) * (here_a.rgb + here_b.rgb));
+    half away = max(away_v.r, max(away_v.g, away_v.b));
+    if (away > half(pc.ly_away)) {
+      vec2 o = vec2(pc.ly_off) / vec2(pc.output_extent);
+      const vec3 w709 = vec3(0.2126, 0.7152, 0.0722);
+      vec2 at_xp = t + vec2(o.x, 0.0), at_xm = t - vec2(o.x, 0.0), at_yp = t + vec2(0.0, o.y), at_ym = t - vec2(0.0, o.y);
+      vec2 ga, gb;
+      if (ZFG_LAYER == 4) {
+        // From the tile in shared memory: no fetch (central differences inside the 8 x 8 tile, one-sided on its edge).
+        ga = TileGradientA(ivec2(gl_LocalInvocationID.xy));
+        gb = TileGradientB(ivec2(gl_LocalInvocationID.xy));
+      } else if (ZFG_LAYER == 5) {
+        // The tile, and the neighbour that lies outside it fetched by the lanes on its edge (central differences everywhere).
+        ivec2 l = ivec2(gl_LocalInvocationID.xy);
+        int li = int(gl_LocalInvocationIndex);
+        float la = tile_a[li], lb = tile_b[li];
+        float axp = la, axm = la, ayp = la, aym = la, bxp = lb, bxm = lb, byp = lb, bym = lb;
+        if (l.x < 7) { axp = tile_a[li + 1]; bxp = tile_b[li + 1]; }
+        else { axp = dot(vec3(SampleActive(source_a, at_xp).rgb), w709); bxp = dot(vec3(SampleActive(source_b, at_xp).rgb), w709); }
+        if (l.x > 0) { axm = tile_a[li - 1]; bxm = tile_b[li - 1]; }
+        else { axm = dot(vec3(SampleActive(source_a, at_xm).rgb), w709); bxm = dot(vec3(SampleActive(source_b, at_xm).rgb), w709); }
+        if (l.y < 7) { ayp = tile_a[li + 8]; byp = tile_b[li + 8]; }
+        else { ayp = dot(vec3(SampleActive(source_a, at_yp).rgb), w709); byp = dot(vec3(SampleActive(source_b, at_yp).rgb), w709); }
+        if (l.y > 0) { aym = tile_a[li - 8]; bym = tile_b[li - 8]; }
+        else { aym = dot(vec3(SampleActive(source_a, at_ym).rgb), w709); bym = dot(vec3(SampleActive(source_b, at_ym).rgb), w709); }
+        ga = 0.5 * vec2(axp - axm, ayp - aym);
+        gb = 0.5 * vec2(bxp - bxm, byp - bym);
+      } else if (ZFG_LAYER == 3) {
+        // Forward differences: the pixel's own colours are already in hand, so a gradient costs two new fetches per source.
+        float la = dot(vec3(here_a.rgb), w709), lb = dot(vec3(here_b.rgb), w709);
+        ga = vec2(dot(vec3(SampleActive(source_a, at_xp).rgb), w709) - la, dot(vec3(SampleActive(source_a, at_yp).rgb), w709) - la);
+        gb = vec2(dot(vec3(SampleActive(source_b, at_xp).rgb), w709) - lb, dot(vec3(SampleActive(source_b, at_yp).rgb), w709) - lb);
+      } else {
+        float ax1 = dot(vec3(SampleActive(source_a, at_xp).rgb), w709), ax0 = dot(vec3(SampleActive(source_a, at_xm).rgb), w709);
+        float ay1 = dot(vec3(SampleActive(source_a, at_yp).rgb), w709), ay0 = dot(vec3(SampleActive(source_a, at_ym).rgb), w709);
+        float bx1 = dot(vec3(SampleActive(source_b, at_xp).rgb), w709), bx0 = dot(vec3(SampleActive(source_b, at_xm).rgb), w709);
+        float by1 = dot(vec3(SampleActive(source_b, at_yp).rgb), w709), by0 = dot(vec3(SampleActive(source_b, at_ym).rgb), w709);
+        ga = 0.5 * vec2(ax1 - ax0, ay1 - ay0);
+        gb = 0.5 * vec2(bx1 - bx0, by1 - by0);
+      }
+      float ma2 = dot(ga, ga), mb2 = dot(gb, gb);
+      // An edge in both pictures or nothing (squared magnitudes: no root, no division for the pixels that are not edges, which are most of them).
+      if (min(ma2, mb2) > pc.ly_mag * pc.ly_mag) {
+      float ma = sqrt(ma2), mb = sqrt(mb2);
+      float strong = smoothstep(pc.ly_mag, 2.5 * pc.ly_mag, min(ma, mb));
+      float aligned = smoothstep(pc.ly_cos, min(1.0, pc.ly_cos + 0.25), dot(ga, gb) / (ma * mb));
+      float alike = smoothstep(0.3, 0.6, min(ma, mb) / max(ma, mb));
+      float moved = smoothstep(float(pc.ly_away), 3.0 * float(pc.ly_away), float(away));
+      float layer_weight = strong * aligned * alike * moved;
+      if (ZFG_LYWORLD != 0 && layer_weight > 0.0 && final_warp) {
+        // The dispute of the two hypotheses. The structure persists at the pixel in A and B: either a layer holds it there (a HUD), or the world moved by
+        // the warp's vector v and the persistence is a coincidence of the world's texture (a period that divides v, an edge that moves along itself).
+        // Under the world hypothesis B shows at the pixel the world point that A shows at p - v, and A the one that B shows at p + v. Where both agree (to
+        // within the scale at which the output counts as moved), the world's motion explains the pixel and the warp stays; where either does not, the
+        // structure is the layer's. A side whose world point lies outside the picture says nothing (a clamped sample is not the world point); with neither
+        // side inside, the layer keeps its verdict. (With sharp=0 the vector is the base candidate's even when an alternative won.)
+        vec2 v = final_t_b - final_t_a;
+        float unexplained = 0.0;
+        bool witnessed = false;
+        if (GeometricallyValid(t - v)) {
+          hvec3 world_b = abs(AtBExposure(SampleActive(source_a, t - v).rgb) - here_b.rgb);
+          unexplained = float(max(world_b.r, max(world_b.g, world_b.b)));
+          witnessed = true;
+        }
+        if (GeometricallyValid(t + v)) {
+          hvec3 world_a = abs(AtBExposure(here_a.rgb) - SampleActive(source_b, t + v).rgb);
+          unexplained = max(unexplained, float(max(world_a.r, max(world_a.g, world_a.b))));
+          witnessed = true;
+        }
+        if (witnessed) {
+          // (Measured 2026-10-06: the same test relative to the warp's own disagreement at p -+ v/2 kept less of the HUD and protected the world less.)
+          layer_weight *= smoothstep(float(pc.ly_away), 3.0 * float(pc.ly_away), unexplained);
+        }
+      }
+      if (layer_weight > 0.0) ZFG_COUNT(kCtrD5LayerApplied);
+      result = mix(result, half(0.5) * (here_a + here_b), half(layer_weight));
+      }
+    }
+  }
+  if (inside) {
+    imageStore(output_image, output_coordinate, vec4(result));
+  }
+}

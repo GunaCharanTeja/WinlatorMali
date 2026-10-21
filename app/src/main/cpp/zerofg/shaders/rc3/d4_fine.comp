@@ -1,0 +1,1301 @@
+#version 460
+// Modified in WinlatorMali: ZFG_MALI / ZFG_MALI2 / ZFG_TRANSPOSE (one 16-wide subgroup per cell).
+#extension GL_GOOGLE_include_directive : require
+// MODERN form (ZFG_SUBGROUP): the three tournaments over shared memory become subgroup reductions. The workgroup
+// is one subgroup (64 lanes, a 64-wide wave: the Adreno, the Vega); the host builds this variant only when the
+// device reports a subgroup of exactly 64 with arithmetic, ballot and shuffle. The result is bit-identical to the
+// Compat tournament (the order is the same: cost, |v|^2, direction), which is what the equality gate checks.
+#ifdef ZFG_SUBGROUP
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_ballot : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#endif
+#ifdef ZFG_QCOM
+#extension GL_QCOM_image_processing : require
+#endif
+// MALI form (ZFG_MALI): for 16-wide subgroups (Valhall). The lanes of one candidate (or window entry) are adjacent, so its
+// partial costs add with one clustered subgroup add instead of a shared array and a barrier; the tournaments run in each
+// subgroup (the same key as the MODERN form) and the four subgroup winners meet in shared memory behind one barrier; the
+// sample offsets are arithmetic instead of shared loads. Every cost is the same integer and the order is the same RC1
+// total order, so the result is bit-identical to the Compat form.
+#ifdef ZFG_MALI2
+#extension GL_EXT_control_flow_attributes : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_ballot : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#endif
+#ifdef ZFG_MALI
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_ballot : require
+#extension GL_KHR_shader_subgroup_clustered : require
+#endif
+// D4 Fine verification and propagation, mode 1. One 64-lane workgroup per M cell (20 x 20 px at
+// 1280 x 720). The M-level estimate (D2) is made on a 20 px average of the luma, where the
+// high-frequency content that identifies a surface is already gone; this stage tests the candidate
+// vectors against the FULL-resolution luma plane of D0b and keeps the one that really matches.
+//   candidates                 the cell's own vector, its H1, the eight neighbours' vectors, zero, the
+//                              two global translations of D4c, the eight neighbours' H1. Rounded to
+//                              whole pixels.
+//   cost                       sum of absolute luma differences over a grid of samples inside the cell
+//                              (ZFG_SAMPLES per axis); a sample whose A or B position leaves the image
+//                              costs the maximum. The luma is 8 bit, so the cost is an INTEGER in 1/255
+//                              units: exact, and the same whatever the lane split or the summation order.
+//   phase 2                    the exhaustive window of +-radius pixels around the best candidate, then
+//                              the RC1 parabola on the best's four neighbours for the sub-pixel part.
+//   second                     the best cost at least 3 px away from the winner (its uniqueness).
+//   phase 3 (H1)               the second surface of a mixed cell. Each candidate at least 3 px from the
+//                              winner is scored as a MIXTURE with it: per sample the better of the two
+//                              errors, averaged. A candidate that explains the samples the winner does
+//                              not lowers that mean (the gain) and wins a share of the samples; a wrong
+//                              vector does neither. H1 is the candidate with the largest gain, kept if
+//                              the gain and the share pass their gates. No ridge test is needed: the
+//                              mixture asks directly whether a second vector adds explanatory value.
+//   support prior             a cell with no texture (the inside of a flat moving object) ties every
+//                              candidate at the same cost, and the RC1 order then picks the shortest
+//                              vector, the zero one: the aperture problem. A candidate within 1 px of the
+//                              vector of a CONFIDENT neighbour (or of the cell's own previous vector) is
+//                              exempt from a small penalty (`prior`, in 1/255 units summed over the
+//                              samples), so a tie goes to what the confident cells around agree on; the
+//                              winner then lends its supporter's uniqueness (decayed) to the cell, so the
+//                              next pass can propagate it one cell further into the object. A confident
+//                              cell is one whose second best is `prior_conf` above its best.
+//   coarse proposals           With `l1` the same shader runs first on the L1 field (32 x 18 cells of 40 px, the
+//                              D2a output) and its result reaches the M level (this shader again) as four extra
+//                              candidates per cell: the L1 cell that covers it and the three L1 cells nearest to its
+//                              centre. A proposal PROPOSES and never imposes: it is one candidate among the others,
+//                              unbacked (it pays the tie penalty), and the full-resolution cost decides.
+//   support record            What a neighbour can vouch for is kept apart from what a cell measured.
+//                              LOCAL: the margin (second best - best) the cell measured itself; it is the only
+//                              thing D3 and the resolve see (`borrow` = 0). SUPPORT: a record that travels
+//                              with the vector, (margin, hops, root vector), written for the next pass: a
+//                              locally confident cell is its own root; a cell that adopts a candidate a
+//                              supporter backs inherits the supporter's root with its margin decayed by
+//                              `prior_decay` and one more hop, and drops it below `prior_conf`. A candidate
+//                              is backed by a neighbour when it is within `drift` px of that neighbour's ROOT
+//                              vector (so the vector cannot walk away from its origin one pixel per hop). A
+//                              tie goes to a backed candidate (a penalty exempts it); two or more DISTINCT
+//                              roots backing it earn a bonus (`consensus`): the same root arriving by two
+//                              paths is one witness. The neighbourhood of a pass is the 8 cells at distance
+//                              `step` (a jump-flooding schedule from the host, 1 = adjacent).
+// Lane layout: a candidate (or window entry) is scored by `groups` lanes, each taking every groups-th
+// sample (3 x 21 candidates = 63 lanes, 2 x 25 window entries = 50), and the minimum is a tournament
+// over shared memory, so no lane walks a list alone. A 64-lane workgroup is a single wave on the
+// Adreno (the barriers are cheap there) and works on any wave size.
+// Run `fine` times: iteration k reads the field and the H1 of iteration k-1 for the neighbours (Jacobi
+// propagation, a PatchMatch step without randomness); the first reads the D2 field. Output has the
+// RC1 field layout (motion in source pixels, best cost, second cost) and the H1 record (motion, its
+// own cost, the gain or 0), so D3 reads them unchanged.
+// QCOM form (ZFG_QCOM): the cost of a candidate vector is ONE call of the block-match unit instead of samples x samples fetches: the cell's lattice
+// block of A (D0a, one block per cell) against the block of B's phase layout (D0b, see d0b_luma_full.comp) that the displaced lattice makes. The sum
+// is the same integer (an 8-bit luma on both sides, the absolute differences added in the unit), so the result is bit-identical to the shader loop; a
+// candidate whose lattice leaves the image keeps the loop (its out-of-image samples cost the maximum). The lanes that took the other slices of a
+// candidate in the loop form return zero.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 7) const int ZFG_SAMPLES = 10;  // sample points per axis in the cell (at most 10)
+
+layout(local_size_x = 64, local_size_y = 1) in;
+
+layout(binding = 0) uniform sampler2D luma_a;
+layout(binding = 1) uniform sampler2D luma_b;
+layout(std430, binding = 2) readonly buffer FieldIn {
+  vec4 field_in[];
+};
+layout(std430, binding = 3) writeonly buffer FieldOut {
+  vec4 field_out[];
+};
+layout(std430, binding = 4) readonly buffer AltIn {
+  vec4 alt_in[];  // H1 of the previous level or iteration: motion, cost, gain or ridge (0 = none)
+};
+layout(std430, binding = 5) buffer Counters {
+  uint counters[];
+};
+layout(std430, binding = 6) readonly buffer Camera {
+  vec4 camera[];  // two global translation hypotheses: x, y, cost, valid
+};
+layout(std430, binding = 7) writeonly buffer AltOut {
+  vec4 alt_out[];
+};
+layout(std430, binding = 8) readonly buffer AuxIn {
+  vec4 aux_in[];  // support records of the previous pass: margin, hops, root vector
+};
+layout(std430, binding = 9) writeonly buffer AuxOut {
+  vec4 aux_out[];
+};
+layout(std430, binding = 10) writeonly buffer ChangedOut {
+  uint changed_out[];  // 1 = the cell's vector or support record changed in this pass
+};
+layout(std430, binding = 12) readonly buffer L1In {
+  vec4 l1_in[];  // the L1 field after its own passes: motion, cost, second
+};
+layout(std430, binding = 13) readonly buffer History {
+  uint history[];  // the previous pair, narrow, three words per cell (PackHistoryVector in rc3_common.glsl): vector, margin and hops, root and id
+};
+layout(std430, binding = 14) writeonly buffer Observ {
+  vec4 observ[];  // per cell: curvature x, curvature y (1/255 units over the samples, -1 = the winner is on the window edge), plateau (window entries within 8 of the best), best cost
+};
+layout(std430, binding = 11) readonly buffer ActiveList {
+  uint active_list[];  // the cells of this pass when skip = 1 (d4a_scan.comp builds it, the dispatch is indirect)
+};
+#ifdef ZFG_QCOM
+layout(binding = 15) uniform texture2D block_a;  // A's per-cell lattice (the image of binding 0 when ZFG_AGRID), as a block-match image
+layout(binding = 16) uniform texture2D block_b;  // B's luma in the phase layout (d0b_luma_full.comp)
+layout(binding = 17) uniform sampler block_sampler;
+#endif
+
+layout(push_constant) uniform FinePush {
+  ivec2 field_extent;
+  ivec2 source_extent;
+  ivec2 cell_size;     // source pixels per cell
+  float h1_gain;       // minimum mixture gain (mean cost saved) for an H1
+  float h1_share;      // minimum share of the samples the H1 must win
+  float prior_conf;    // the floor of a propagated support record
+  float prior_root;    // margin (second best - best) that makes a cell a ROOT
+  float prior_decay;   // share of its supporter's margin a cell inherits
+  int step;            // neighbour distance of this pass, in cells
+  int pass;            // index of this pass (0 = every cell is active)
+  int l1_w;            // the L1 grid (the proposals of the coarse level)
+  int l1_h;
+  int phase_tile_x;    // QCOM: the tile of the phase layout, ceil(source / stride)
+  int phase_tile_y;
+} pc;
+
+// What a pipeline is built for is a SPECIALIZATION CONSTANT, not a push constant: the driver then removes the dead
+// sections (the H1 phase, the proposals, the consensus count...) and allocates registers for the code that runs. With
+// the switches as push constants the kernel carried the registers of its heaviest disabled section.
+layout(constant_id = 10) const int ZFG_RADIUS = 2;     // half width of the phase-2 window, pixels (at most 3)
+layout(constant_id = 11) const int ZFG_H1 = 0;         // phase 3 on (the second surface by mixture gain)
+layout(constant_id = 12) const int ZFG_PRIOR = 12;     // support prior penalty, 1/255 units over the samples (0 = off)
+layout(constant_id = 13) const int ZFG_RING2 = 0;      // the eight neighbours at twice the step as candidates
+layout(constant_id = 14) const int ZFG_L1 = 0;         // 0 = none; 1..4 = that many candidates per cell come from the L1 field (binding 12): the covering cell, then the nearest horizontal, vertical and diagonal ones
+layout(constant_id = 15) const int ZFG_COMPACT = 0;    // the cells come from the active list (d4a_scan.comp)
+layout(constant_id = 16) const int ZFG_CONSENSUS = 0;  // bonus for a candidate backed by two or more distinct roots
+layout(constant_id = 17) const int ZFG_DRIFT = 1;      // px a backed candidate may be from its root's vector
+layout(constant_id = 18) const int ZFG_BORROW = 0;     // 1 = lend the supporter's margin to the second best
+layout(constant_id = 19) const int ZFG_NONE = 0;       // 1 = a cell with no tested alternative reports second = its cost
+layout(constant_id = 20) const int ZFG_MOVE = 1;       // what makes a cell changed for the next pass
+layout(constant_id = 21) const int ZFG_WINPEN = 1;     // the support penalty also orders the phase-2 window
+layout(constant_id = 22) const int ZFG_ABLATE = 0;     // PROFILING ONLY: 1 no penalty, 2 no neighbour records, 4 no output record, 8 no phase-1 penalty
+layout(constant_id = 26) const int ZFG_TEMPORAL = 0;   // bit mask: 1 the previous pair's final vector of the cell is a candidate (lane 1); 2 the cell's previous support record, decayed, backs it (pass 0) with its RECORDED root; 8 the same with the final vector as the root (the first version: the root drifts); 4 the previous pair is read one cell back along its vector (where the surface was)
+layout(constant_id = 31) const int ZFG_PLAUS = 0;      // plausibility tie-break: 1/8 of a cost unit per pixel of distance from the nearest of {zero, the two global translations}, capped at the support penalty (0 = off)
+layout(constant_id = 30) const int ZFG_OBSERV = 0;     // EXPERIMENT: a sidecar of the cost surface at the winner (curvature in x and y, plateau size) for the analysis
+layout(constant_id = 28) const int ZFG_FREEC = 0;      // EXPERIMENT: synthesized candidates in the free lanes (up to 16 candidates cost the same as 13): bit 1 the mean of the eight neighbours, 2 their component-wise median, 4 the mean of the four axis neighbours
+layout(constant_id = 29) const int ZFG_FREELANES = 0;  // how many free lanes after the proposals the host gave them (the highest bit of FREEC)
+layout(constant_id = 27) const int ZFG_L1LANE1 = 0;    // 1 = the first L1 proposal sits in lane 1, the lane that would only duplicate the own vector (so four proposals are 16 candidates, not 17)
+layout(constant_id = 25) const int ZFG_ALTIN = 1;      // 0 = alt_in is all zeros (no refine H1 and no fine H1): the cell's own H1 is not read
+layout(constant_id = 24) const int ZFG_PENFORM = 0;    // the support penalty: 0 the list of distinct roots and an early-exit loop after the fetches, 1 branch-free over the nine neighbours, 2 = 1 evaluated BEFORE the fetches (its latency hides behind theirs)
+layout(constant_id = 23) const int ZFG_AGRID = 0;      // 0: luma_a is the full plane; 1: it is the per-cell block image of D0a (this level's), one samples x samples block per cell
+
+
+// Lane 1 (the cell's own H1) duplicates the own vector when no H1 exists, so the first L1 proposal can take it (see main).
+const int kL1InLane1 = ZFG_L1LANE1;  // decided by the host (no refine H1, no fine H1, no temporal candidate)
+const int kL1Lanes = ZFG_L1 - kL1InLane1;  // the proposals that need a lane of their own, from lane 13
+
+const int kLanes = 64;
+const int kCandidates = 21;
+const int kSamples = ZFG_SAMPLES;  // per axis (stride = cell size / samples)
+const int kSampleCount = kSamples * kSamples;
+const int kWindow = 7;             // 2 * radius + 1, radius at most 3
+const int kOutside = 255;          // the cost of a sample that leaves the image (1.0 in 1/255 units)
+const int kNone = 0x7fffffff;
+
+shared int a_luma[100];  // kSampleCount, at most 10 x 10
+shared ivec2 sample_offset[100];  // SampleOffset(s), computed once per workgroup instead of in every loop turn
+shared float neighbour_support[9];  // what each of the cell itself and its eight neighbours vouches for
+shared ivec2 neighbour_root[9];     // ... and the root vector it vouches with
+shared int neighbour_id[9];         // ... and the index of the cell that measured that root
+shared ivec2 unique_root[9];        // the distinct root vectors among the backers (usually one to three)
+shared ivec2 plaus_ref[3];          // the plausible vectors a tie-break prefers: zero and the two global translations (a missing one repeats zero)
+shared ivec2 backer_root[9];        // the root of each neighbour that backs anything, a far sentinel for one that does not
+shared int unique_count;
+shared float neighbour_hops[9];
+shared ivec2 candidate_vector[kCandidates];
+shared int candidate_cost[kCandidates];
+shared int partial[kLanes];
+shared int window_cost[kWindow * kWindow];
+shared int reduce_cost[kLanes];
+shared ivec2 reduce_vector[kLanes];
+shared ivec2 winner_vector;
+shared int winner_cost;
+shared int winner_error[100];
+shared float mixture_cost[kCandidates];
+shared float mixture_share[kCandidates];
+#ifdef ZFG_TRANSPOSE
+shared int mali_a[4][16];  // MALI2 transposed: A's 16 samples of each subgroup's cell
+#endif
+#ifdef ZFG_MALI
+shared int group_cost[16];      // the winner of each subgroup (64 lanes / 16-wide subgroups = 4 used)
+shared ivec2 group_vector[16];
+#endif
+
+// The cell of the previous pair that holds what is at `cell` now: with TEMPORAL 2 one cell back along the previous vector (the surface
+// was there one pair ago), else the same cell.
+int HistoryIndex(ivec2 cell, int index) {
+  if ((ZFG_TEMPORAL & 4) == 0) {
+    return index;
+  }
+  vec2 previous = vec2(UnpackHistoryVector(history[3 * index]));
+  ivec2 source = clamp(cell - ivec2(roundEven(previous / vec2(pc.cell_size))), ivec2(0), pc.field_extent - ivec2(1));
+  return source.y * pc.field_extent.x + source.x;
+}
+
+// Distance between sample points inside the cell: the cell size over the samples per axis, rounded up.
+int SampleStride() {
+  return (pc.cell_size.x + kSamples - 1) / kSamples;
+}
+
+ivec2 SampleOffsetMath(int s) {
+  return ivec2(1 + SampleStride() * (s % kSamples), 1 + SampleStride() * (s / kSamples));
+}
+
+ivec2 SampleOffset(int s) {
+  return sample_offset[s];
+}
+
+// The 8-bit luma as an integer 0..255 (the plane is R8, so this is exact).
+int FetchLuma(sampler2D plane, ivec2 p) {
+  return int(texelFetch(plane, p, 0).r * 255.0 + 0.5);
+}
+
+bool Inside(ivec2 p) {
+  return all(greaterThanEqual(p, ivec2(0))) && all(lessThan(p, pc.source_extent));
+}
+
+int SampleError(int s, ivec2 origin, ivec2 v) {
+  ivec2 pb = origin + SampleOffset(s) + v;
+  return Inside(pb) ? abs(a_luma[s] - FetchLuma(luma_b, pb)) : kOutside;
+}
+
+#ifdef ZFG_QCOM
+// The whole cost of a candidate whose displaced lattice is inside the image, from the block-match unit: the lattice of B is one block of the tile of
+// its phase (the position modulo the stride) at the position divided by the stride.
+int BlockMatchCost(ivec2 origin, ivec2 first) {
+  const int stride = SampleStride();
+  const ivec2 phase = first % stride;
+  const ivec2 block = first / stride;
+  const uvec2 reference = uvec2(phase * ivec2(pc.phase_tile_x, pc.phase_tile_y) + block);
+  const uvec2 lattice = uvec2((origin / pc.cell_size) * kSamples);
+  const float sad = textureBlockMatchSADQCOM(sampler2D(block_b, block_sampler), reference, sampler2D(block_a, block_sampler), lattice,
+                                             uvec2(kSamples)).r;
+  return int(sad * 255.0 + 0.5);
+}
+#endif
+
+// The part of a candidate's cost that one lane computes: every `groups`-th sample from `slice`.
+int PartialCost(ivec2 origin, ivec2 v, int slice, int groups) {
+  int sum = 0;
+  // The sample points of a cell lie in the box from the first to the last offset (they grow with the index): when the
+  // whole box is inside the image no sample needs the border test (exact: the same terms are summed).
+  ivec2 first = origin + sample_offset[0] + v;
+  ivec2 last = origin + sample_offset[kSampleCount - 1] + v;
+  if (all(greaterThanEqual(first, ivec2(0))) && all(lessThan(last, pc.source_extent))) {
+#ifdef ZFG_QCOM
+    return slice == 0 ? BlockMatchCost(origin, first) : 0;
+#endif
+    for (int s = slice; s < kSampleCount; s += groups) {
+      sum += abs(a_luma[s] - FetchLuma(luma_b, origin + sample_offset[s] + v));
+    }
+    return sum;
+  }
+  for (int s = slice; s < kSampleCount; s += groups) {
+    sum += SampleError(s, origin, v);
+  }
+  return sum;
+}
+
+// RC1 total order on (cost, |v|^2, direction) so ties resolve the same on every device.
+bool Better(int cost, ivec2 v, int reference_cost, ivec2 reference) {
+  int r2 = v.x * v.x + v.y * v.y;
+  int q2 = reference.x * reference.x + reference.y * reference.y;
+  return cost < reference_cost ||
+      (cost == reference_cost && (r2 < q2 || (r2 == q2 && DirectionLess(v, reference))));
+}
+
+ivec2 Round(vec2 v) {
+  return ivec2(roundEven(v));
+}
+
+// The entries of the tournaments are the phase-1 candidates (at most 21) and the phase-2 window ((2 * radius + 1)^2, 25 at
+// radius 2): all below lane 32, so the first step compares lane + 16 and the step at stride 32 is not needed (one of six).
+const uint kFirstStride = ((2 * ZFG_RADIUS + 1) * (2 * ZFG_RADIUS + 1) <= 32) ? 16u : 32u;
+
+// Tournament over reduce_cost / reduce_vector (every one of the 64 entries filled by the caller, unused
+// ones with kNone): entry 0 ends as the Better-minimum. Every lane calls it, and it ends on a barrier.
+void ReduceBest() {
+  uint lane = gl_LocalInvocationIndex;
+  for (uint stride = kFirstStride; stride > 0u; stride >>= 1u) {
+    barrier();
+    if (lane < stride) {
+      if (Better(reduce_cost[lane + stride], reduce_vector[lane + stride], reduce_cost[lane],
+                 reduce_vector[lane])) {
+        reduce_cost[lane] = reduce_cost[lane + stride];
+        reduce_vector[lane] = reduce_vector[lane + stride];
+      }
+    }
+  }
+  barrier();
+}
+
+// The same for the minimum of reduce_cost alone.
+void ReduceMin() {
+  uint lane = gl_LocalInvocationIndex;
+  for (uint stride = kFirstStride; stride > 0u; stride >>= 1u) {
+    barrier();
+    if (lane < stride) {
+      reduce_cost[lane] = min(reduce_cost[lane], reduce_cost[lane + stride]);
+    }
+  }
+  barrier();
+}
+
+#ifdef ZFG_SUBGROUP
+// The Better-minimum of one (cost, vector) per lane: lowest cost, then the shorter vector, then the direction
+// order (y first, then x). Identical vectors with identical costs are the same answer, so any lane of the winning
+// key may be broadcast.
+ivec2 SubgroupBest(int cost, ivec2 v) {
+  int lowest = subgroupMin(cost);
+  bool tied = cost == lowest;
+  int length2 = v.x * v.x + v.y * v.y;
+  int shortest = subgroupMin(tied ? length2 : kNone);
+  tied = tied && length2 == shortest;
+  int order = (v.y + 1024) * 2048 + (v.x + 1024);
+  int first = subgroupMin(tied ? order : kNone);
+  bool winner = tied && order == first;
+  return subgroupShuffle(v, subgroupBallotFindLSB(subgroupBallot(winner)));
+}
+#endif
+
+#ifdef ZFG_MALI
+// PartialCost with the offsets computed (SampleOffsetMath fills sample_offset, so the terms are the same).
+int PartialCostMali(ivec2 origin, ivec2 v, int slice, int groups) {
+  int sum = 0;
+  ivec2 first = origin + SampleOffsetMath(0) + v;
+  ivec2 last = origin + SampleOffsetMath(kSampleCount - 1) + v;
+  if (all(greaterThanEqual(first, ivec2(0))) && all(lessThan(last, pc.source_extent))) {
+    for (int s = slice; s < kSampleCount; s += groups) {
+      sum += abs(a_luma[s] - FetchLuma(luma_b, origin + SampleOffsetMath(s) + v));
+    }
+    return sum;
+  }
+  for (int s = slice; s < kSampleCount; s += groups) {
+    ivec2 pb = origin + SampleOffsetMath(s) + v;
+    sum += Inside(pb) ? abs(a_luma[s] - FetchLuma(luma_b, pb)) : kOutside;
+  }
+  return sum;
+}
+
+// The sum over the `groups` adjacent lanes of one entry (groups is a power of two up to 16).
+int ClusterSum(int x, int groups) {
+  if (groups == 1) return x;
+  if (groups == 2) return subgroupClusteredAdd(x, 2);
+  if (groups == 4) return subgroupClusteredAdd(x, 4);
+  if (groups == 8) return subgroupClusteredAdd(x, 8);
+  return subgroupClusteredAdd(x, 16);
+}
+
+bool PowerOfTwoUpTo16(int x) {
+  return x == 1 || x == 2 || x == 4 || x == 8 || x == 16;
+}
+
+// The Better-minimum of one (cost, vector) per lane over the workgroup: the MODERN subgroup key in each subgroup, then
+// the subgroup winners in shared memory. Every lane calls it; it ends on a barrier. kNone entries lose to any other.
+void WorkgroupBest(int cost, ivec2 v, out int best_cost, out ivec2 best_vector) {
+  int lowest = subgroupMin(cost);
+  bool tied = cost == lowest;
+  int length2 = v.x * v.x + v.y * v.y;
+  int shortest = subgroupMin(tied ? length2 : kNone);
+  tied = tied && length2 == shortest;
+  int order = (v.y + 1024) * 2048 + (v.x + 1024);
+  int first = subgroupMin(tied ? order : kNone);
+  if (subgroupElect()) {
+    group_cost[gl_SubgroupID] = lowest;
+    group_vector[gl_SubgroupID] = ivec2(first % 2048 - 1024, first / 2048 - 1024);  // the key encodes the vector
+  }
+  barrier();
+  best_cost = group_cost[0];
+  best_vector = group_vector[0];
+  for (uint g = 1u; g < gl_NumSubgroups; ++g) {
+    if (Better(group_cost[g], group_vector[g], best_cost, best_vector)) {
+      best_cost = group_cost[g];
+      best_vector = group_vector[g];
+    }
+  }
+  barrier();
+}
+
+int WorkgroupMin(int x) {
+  int lowest = subgroupMin(x);
+  if (subgroupElect()) {
+    group_cost[gl_SubgroupID] = lowest;
+  }
+  barrier();
+  int result = group_cost[0];
+  for (uint g = 1u; g < gl_NumSubgroups; ++g) {
+    result = min(result, group_cost[g]);
+  }
+  barrier();
+  return result;
+}
+#endif
+
+// The p-th proposal of the L1 field for a cell: the L1 cell that covers it, then the nearest horizontal, vertical and diagonal ones.
+vec2 L1Proposal(ivec2 cell, int p) {
+  ivec2 side = ivec2((cell.x & 1) == 0 ? -1 : 1, (cell.y & 1) == 0 ? -1 : 1);
+  ivec2 offset = p == 1 ? ivec2(side.x, 0) : (p == 2 ? ivec2(0, side.y) : (p == 3 ? side : ivec2(0)));
+  ivec2 coarse = clamp(cell / 2 + offset, ivec2(0), ivec2(pc.l1_w, pc.l1_h) - ivec2(1));
+  return l1_in[coarse.y * pc.l1_w + coarse.x].xy;
+}
+
+int Chebyshev(ivec2 a, ivec2 b) {
+  ivec2 d = abs(a - b);
+  return max(d.x, d.y);
+}
+
+// Who backs the candidate `v`: the number of distinct roots, and the strongest backer.
+struct Backing {
+  int roots;
+  int best;
+};
+
+Backing Back(ivec2 v) {
+  Backing b = Backing(0, -1);
+  float strength = 0.0;
+  for (int i = 0; i < 9; ++i) {
+    if (neighbour_support[i] > 0.0 && Chebyshev(v, neighbour_root[i]) <= ZFG_DRIFT) {
+      bool fresh = true;
+      for (int j = 0; j < i; ++j) {
+        if (neighbour_support[j] > 0.0 && Chebyshev(v, neighbour_root[j]) <= ZFG_DRIFT &&
+            neighbour_id[j] == neighbour_id[i]) {
+          fresh = false;
+          break;
+        }
+      }
+      b.roots += fresh ? 1 : 0;
+      if (neighbour_support[i] > strength) {
+        strength = neighbour_support[i];
+        b.best = i;
+      }
+    }
+  }
+  return b;
+}
+
+// The tie-break penalty of a candidate. Without the consensus bonus only "is anybody backing it" matters, and
+// that is nine comparisons and an early exit instead of the distinct-roots count of Back().
+// The plausibility tie-break (see ZFG_PLAUS): a cost that is flat along a direction (the aperture problem: the stripes of a cape, a fence) lets noise pick a
+// far vector along it; among near-ties the vector nearest to zero or to a global translation wins. The camera's own surface is at zero distance.
+int Plausibility(ivec2 v) {
+  ivec2 d0 = abs(v - plaus_ref[0]), d1 = abs(v - plaus_ref[1]), d2 = abs(v - plaus_ref[2]);
+  int dist = min(min(max(d0.x, d0.y), max(d1.x, d1.y)), max(d2.x, d2.y));
+  return min(ZFG_PRIOR, (dist * ZFG_PLAUS) >> 3);
+}
+
+int SupportPenalty(ivec2 v) {
+  if (ZFG_PRIOR <= 0 || (ZFG_ABLATE & 1) != 0) {
+    return 0;
+  }
+  if (ZFG_CONSENSUS == 0 && ZFG_PENFORM != 0) {
+    // Branch-free: nine independent reads and compares, no early exit and no dependent loop. A neighbour that backs
+    // nothing holds a sentinel root no candidate is near, so the support test is folded into the root.
+    int backed = 0;
+    for (int i = 0; i < 9; ++i) {
+      ivec2 d = abs(v - backer_root[i]);
+      backed |= int(d.x <= ZFG_DRIFT && d.y <= ZFG_DRIFT);
+    }
+    return backed != 0 ? 0 : ZFG_PRIOR;
+  }
+  if (ZFG_CONSENSUS == 0) {
+    for (int i = 0; i < unique_count; ++i) {
+      if (Chebyshev(v, unique_root[i]) <= ZFG_DRIFT) {
+        return 0;
+      }
+    }
+    return ZFG_PRIOR;
+  }
+  Backing b = Back(v);
+  return b.roots == 0 ? ZFG_PRIOR : (b.roots >= 2 ? -ZFG_CONSENSUS : 0);
+}
+
+int Penalty(ivec2 v) {
+  return SupportPenalty(v) + (ZFG_PLAUS > 0 ? Plausibility(v) : 0);
+}
+
+#ifdef ZFG_MALI2
+// MALI2 form: ONE 16-WIDE SUBGROUP PER CELL, four cells per 64-lane workgroup (dispatched as ceil(cells / 4) x 1). Lane s
+// holds sample s of the cell (ZFG_SAMPLES = 4: 16 samples), so a candidate's cost is one subgroupAdd of the lanes' absolute
+// differences; the tournaments are subgroup reductions on the MODERN key; nothing crosses a subgroup, so there is no barrier
+// and no shared memory. The integers summed and the RC1 order are those of the Compat form: the output is bit-identical.
+// Built for the product configuration: H1 0, no counters, no observation sidecar, no active list, CONSENSUS 0, PENFORM != 0,
+// at most 16 candidates and at most 32 window entries (radius <= 2).
+
+// The support penalty from the nine backer roots the lanes 0..8 hold (backer: that lane's root or the far sentinel).
+// The k-th of the eight neighbours in the Compat order (-1,-1) (0,-1) (1,-1) (-1,0) (1,0) (-1,1) (0,1) (1,1): the 3 x 3 grid in
+// row order without its centre. Arithmetic, because a constant array indexed by the lane is placed on the stack on Valhall.
+ivec2 Around(int k) {
+  int i = k < 4 ? k : k + 1;
+  return ivec2(i % 3 - 1, i / 3 - 1);
+}
+
+// Every lane must call it (the shuffles read lanes 0..8). ZFG_PLAUS is 0 in this form.
+int PenaltyMali2(ivec2 v, ivec2 backer) {
+  int backed = 0;
+  for (uint i = 0u; i < 9u; ++i) {
+    ivec2 d = abs(v - subgroupShuffle(backer, i));
+    backed |= int(d.x <= ZFG_DRIFT && d.y <= ZFG_DRIFT);
+  }
+  return (ZFG_PRIOR <= 0 || (ZFG_ABLATE & 1) != 0 || backed != 0) ? 0 : ZFG_PRIOR;
+}
+
+// The Better-minimum key over the subgroup: (cost, |v|^2, direction), as SubgroupBest; returns the vector and the cost.
+ivec2 SubgroupBestKey(int cost, ivec2 v, out int best_cost) {
+  int lowest = subgroupMin(cost);
+  bool tied = cost == lowest;
+  int length2 = v.x * v.x + v.y * v.y;
+  int shortest = subgroupMin(tied ? length2 : kNone);
+  tied = tied && length2 == shortest;
+  int order = (v.y + 1024) * 2048 + (v.x + 1024);
+  int first = subgroupMin(tied ? order : kNone);
+  best_cost = lowest;
+  return ivec2(first % 2048 - 1024, first / 2048 - 1024);
+}
+
+// The absolute difference of this lane's sample under the vector v (kOutside when B's position leaves the image).
+int SampleCostMali2(int a, ivec2 sample_position, ivec2 v) {
+  ivec2 pb = sample_position + v;
+  return Inside(pb) ? abs(a - FetchLuma(luma_b, pb)) : kOutside;
+}
+
+void main() {
+  uint lane = gl_SubgroupInvocationID;  // = the sample index
+  uint cells_total = uint(pc.field_extent.x * pc.field_extent.y);
+  uint index = gl_WorkGroupID.x * gl_NumSubgroups + gl_SubgroupID;
+  if (index >= cells_total) {
+    return;  // the whole subgroup: nothing below synchronises with another subgroup
+  }
+  ivec2 cell = ivec2(int(index) % pc.field_extent.x, int(index) / pc.field_extent.x);
+  ivec2 origin = cell * pc.cell_size;
+  const float cost_scale = 1.0 / float(kOutside * kSampleCount);
+  const int candidates = 13 + kL1Lanes + ZFG_FREELANES;
+
+  // This lane's sample of A and its position.
+  int s = int(lane);
+  ivec2 sample_position = origin + SampleOffsetMath(s);
+  int a = FetchLuma(luma_a, ZFG_AGRID != 0 ? cell * kSamples + ivec2(s % kSamples, s / kSamples) : sample_position);
+
+  // The support records: lane i < 9 holds neighbour i's (as the Compat form's lanes 0..8).
+  float support = 0.0;
+  ivec2 root = ivec2(0);
+  float hops = 0.0;
+  int id = 0;
+  if (lane < 9u && (ZFG_ABLATE & 2) == 0) {
+    ivec2 n = clamp(cell + (lane == 0u ? ivec2(0) : Around(int(lane) - 1)) * pc.step, ivec2(0), pc.field_extent - ivec2(1));
+    if (pc.pass == 0) {
+      vec4 f = field_in[n.y * pc.field_extent.x + n.x];
+      float margin = f.w - f.z;
+      if (margin >= pc.prior_root && f.z <= 0.12 && f.w < 0.999) {
+        support = margin;
+        root = Round(f.xy);
+        id = n.y * pc.field_extent.x + n.x;
+      }
+      if ((ZFG_TEMPORAL & 10) != 0 && lane == 0u) {
+        int from = HistoryIndex(cell, int(index));
+        vec2 margin_hops = unpackHalf2x16(history[3 * from + 1]);
+        float carried = margin_hops.x * pc.prior_decay;
+        if (carried >= pc.prior_conf && carried > support) {
+          uint root_word = history[3 * from + 2];
+          support = carried;
+          root = (ZFG_TEMPORAL & 2) != 0 ? UnpackRoot(float(root_word & 0xFFFFFu)) : UnpackHistoryVector(history[3 * from]);
+          hops = margin_hops.y + 1.0;
+          id = int(root_word >> 20);
+        }
+      }
+    } else if (ZFG_PRIOR > 0) {
+      vec4 record = aux_in[n.y * pc.field_extent.x + n.x];
+      if (record.x >= pc.prior_conf) {
+        support = record.x;
+        hops = record.y;
+        root = UnpackRoot(record.z);
+        id = int(record.w);
+      }
+    }
+  }
+  ivec2 backer = (lane < 9u && support > 0.0) ? root : ivec2(1 << 20);
+
+  // Candidate list: lane c < candidates holds candidate c (as the Compat form).
+  ivec2 my_candidate = ivec2(0);
+  if (lane < uint(candidates)) {
+    vec2 v = field_in[index].xy;
+    ivec2 neighbour = ivec2(0);
+    bool use_alt = false;
+    if (lane == 1u) {
+      use_alt = ZFG_ALTIN != 0;
+      neighbour = cell;
+      if ((ZFG_TEMPORAL & 1) != 0) {
+        v = vec2(UnpackHistoryVector(history[3 * HistoryIndex(cell, int(index))]));
+      } else if (kL1InLane1 != 0) {
+        v = L1Proposal(cell, 0);
+      }
+    } else if (lane >= 2u && lane <= 9u) {
+      neighbour = clamp(cell + Around(int(lane) - 2) * pc.step, ivec2(0), pc.field_extent - ivec2(1));
+      v = field_in[neighbour.y * pc.field_extent.x + neighbour.x].xy;
+    } else if (lane == 10u) {
+      v = vec2(0.0);
+    } else if (lane == 11u || lane == 12u) {
+      vec4 global_hypothesis = camera[lane - 11u];
+      v = global_hypothesis.w > 0.5 ? global_hypothesis.xy : v;
+    } else if (lane >= 13u && lane < uint(13 + kL1Lanes) && ZFG_L1 != 0) {
+      v = L1Proposal(cell, int(lane) - 13 + kL1InLane1);
+    }
+    if (use_alt) {
+      vec4 alt = alt_in[neighbour.y * pc.field_extent.x + neighbour.x];
+      if (alt.w > 0.0) {
+        v = alt.xy;
+      }
+    }
+    my_candidate = Round(v);
+  }
+
+#ifdef ZFG_TRANSPOSE
+  // TRANSPOSED: lane c scores its own candidate over the 16 samples, reading A's samples from the subgroup's slot of shared
+  // memory (written by the lane that fetched each): no cross-lane sum per candidate. The integers are the same; an integer sum
+  // does not depend on its order.
+  // A's 16 samples (8-bit) packed four per word in every lane: 16 shuffles once, then byte extracts instead of shared loads.
+  uvec4 packed_a = uvec4(0u);
+  [[unroll]] for (int k = 0; k < 16; ++k) {
+    packed_a[k >> 2] |= uint(subgroupShuffle(a, uint(k))) << (8 * (k & 3));
+  }
+  int my_candidate_cost = 0;
+  {
+    ivec2 base = origin + my_candidate;
+    [[unroll]] for (int k = 0; k < kSampleCount; ++k) {
+      ivec2 pb = base + SampleOffsetMath(k);
+      my_candidate_cost += Inside(pb) ? abs(int(bitfieldExtract(packed_a[k >> 2], 8 * (k & 3), 8)) - FetchLuma(luma_b, pb)) : kOutside;
+    }
+  }
+#else
+  // Phase 1: every candidate, one subgroup sum each; lane c keeps candidate c's cost.
+  int my_candidate_cost = 0;
+  [[dont_unroll]] for (int c = 0; c < candidates; ++c) {
+    ivec2 v = subgroupShuffle(my_candidate, uint(c));
+    int cost = subgroupAdd(SampleCostMali2(a, sample_position, v));
+    if (int(lane) == c) {
+      my_candidate_cost = cost;
+    }
+  }
+#endif
+  int penalty1 = PenaltyMali2(my_candidate, backer);  // every lane runs the shuffles
+  int key_cost = lane < uint(candidates) ? my_candidate_cost + ((ZFG_ABLATE & 8) != 0 ? 0 : penalty1) : kNone;
+  int ignored;
+  ivec2 best_phase1 = SubgroupBestKey(key_cost, lane < uint(candidates) ? my_candidate : ivec2(0), ignored);
+
+  // Phase 2: the window around the phase-1 winner; lane l keeps entries l and l + 16.
+  int radius = min(ZFG_RADIUS, 3);
+  int side = 2 * radius + 1;
+  int windows = side * side;
+  int e_lo = int(lane), e_hi = int(lane) + 16;
+  ivec2 entry_lo = best_phase1 + ivec2(e_lo % side - radius, e_lo / side - radius);
+  ivec2 entry_hi = best_phase1 + ivec2(e_hi % side - radius, e_hi / side - radius);
+  int window_lo = kNone, window_hi = kNone;
+#ifdef ZFG_TRANSPOSE
+  {
+    int sum_lo = 0, sum_hi = 0;
+    ivec2 base_lo = origin + entry_lo, base_hi = origin + entry_hi;
+    bool has_hi = e_hi < windows;
+    [[unroll]] for (int k = 0; k < kSampleCount; ++k) {
+      ivec2 offset = SampleOffsetMath(k);
+      int ak = int(bitfieldExtract(packed_a[k >> 2], 8 * (k & 3), 8));
+      ivec2 pl = base_lo + offset;
+      sum_lo += Inside(pl) ? abs(ak - FetchLuma(luma_b, pl)) : kOutside;
+      if (has_hi) {
+        ivec2 ph = base_hi + offset;
+        sum_hi += Inside(ph) ? abs(ak - FetchLuma(luma_b, ph)) : kOutside;
+      }
+    }
+    if (e_lo < windows) window_lo = sum_lo;
+    if (has_hi) window_hi = sum_hi;
+  }
+#else
+  [[dont_unroll]] for (int e = 0; e < windows; ++e) {
+    ivec2 entry = best_phase1 + ivec2(e % side - radius, e / side - radius);
+    int cost = subgroupAdd(SampleCostMali2(a, sample_position, entry));
+    if (e == int(lane)) {
+      window_lo = cost;
+    }
+    if (e == int(lane) + 16) {
+      window_hi = cost;
+    }
+  }
+#endif
+  int key_lo = kNone, key_hi = kNone;
+  int pen_lo = ZFG_WINPEN != 0 ? PenaltyMali2(entry_lo, backer) : 0;
+  int pen_hi = ZFG_WINPEN != 0 ? PenaltyMali2(entry_hi, backer) : 0;
+  if (e_lo < windows) key_lo = window_lo + pen_lo;
+  if (e_hi < windows) key_hi = window_hi + pen_hi;
+  ivec2 v_lo = e_lo < windows ? entry_lo : ivec2(0);
+  ivec2 v_hi = e_hi < windows ? entry_hi : ivec2(0);
+  int lane_key = key_lo;
+  ivec2 lane_vector = v_lo;
+  if (Better(key_hi, v_hi, key_lo, v_lo)) {
+    lane_key = key_hi;
+    lane_vector = v_hi;
+  }
+  ivec2 winner = SubgroupBestKey(lane_key, lane_vector, ignored);
+  ivec2 winner_offset = winner - best_phase1;
+
+  // A window entry's raw cost, from the lane that holds it.
+  #define WINDOW_COST(e) ((e) < 16 ? subgroupShuffle(window_lo, uint(e)) : subgroupShuffle(window_hi, uint((e) - 16)))
+  int winner_entry = (winner_offset.y + radius) * side + (winner_offset.x + radius);
+  int best_cost = WINDOW_COST(winner_entry);
+
+  // The best cost at least 3 px away from the winner: the window and the phase-1 candidates.
+  int mine = kNone;
+  if (e_lo < windows && Chebyshev(entry_lo, winner) >= 3) mine = min(mine, window_lo);
+  if (e_hi < windows && Chebyshev(entry_hi, winner) >= 3) mine = min(mine, window_hi);
+  if (lane < uint(candidates) && Chebyshev(my_candidate, winner) >= 3) mine = min(mine, my_candidate_cost);
+  int second_cost = subgroupMin(mine);
+
+  // Sub-pixel: the RC1 parabola on the winner's four neighbours, accepted only inside the window.
+  bool inside = winner_offset.x > -radius && winner_offset.x < radius &&
+                      winner_offset.y > -radius && winner_offset.y < radius;
+  int centre = inside ? winner_entry : 0;
+  int c0 = WINDOW_COST(centre);
+  int cxm = WINDOW_COST(inside ? centre - 1 : 0), cxp = WINDOW_COST(inside ? centre + 1 : 0);
+  int cym = WINDOW_COST(inside ? centre - side : 0), cyp = WINDOW_COST(inside ? centre + side : 0);
+
+  // The strongest backer of the winner (the Compat Back(): the first neighbour with the largest support among those within
+  // the drift of the winner).
+  bool backs = lane < 9u && support > 0.0 && Chebyshev(winner, root) <= ZFG_DRIFT;
+  float strongest = subgroupMax(backs ? support : -1.0);
+  uvec4 strongest_ballot = subgroupBallot(backs && support == strongest);
+  int best_backer = strongest > 0.0 ? int(subgroupBallotFindLSB(strongest_ballot)) : -1;
+  // The backer's record, by reductions over "mine if I am the backer" (a shuffle with this lane index is lowered through the
+  // stack on Valhall). Support and hops are >= 0, ids >= 0, roots within -512..511: the sentinel never wins.
+  bool is_backer = int(lane) == max(best_backer, 0);
+  float backer_support = subgroupMax(is_backer ? support : -1.0);
+  float backer_hops = subgroupMax(is_backer ? hops : -1.0);
+  ivec2 backer_root_vector = subgroupMax(is_backer ? root : ivec2(-1 << 30));
+  int backer_id = subgroupMax(is_backer ? id : -1);
+
+  if (lane == 0u) {
+    vec2 subpixel = vec2(0.0);
+    if (inside && c0 > 0) {
+      float dxm = float(cxm - c0), dxp = float(cxp - c0);
+      if (dxm > 0.0 && dxp > 0.0) {
+        float raw = 0.5 * (dxm - dxp) / (dxm + dxp);
+        subpixel.x = abs(raw) > 0.5001 ? 0.0 : clamp(raw, -0.5, 0.5);
+      }
+      float dym = float(cym - c0), dyp = float(cyp - c0);
+      if (dym > 0.0 && dyp > 0.0) {
+        float raw = 0.5 * (dym - dyp) / (dym + dyp);
+        subpixel.y = abs(raw) > 0.5001 ? 0.0 : clamp(raw, -0.5, 0.5);
+      }
+    }
+    float own_cost = float(best_cost) * cost_scale;
+    float second = second_cost == kNone ? (ZFG_NONE != 0 ? own_cost : 1.0) : float(second_cost) * cost_scale;
+    vec4 record = vec4(0.0);
+    if (ZFG_PRIOR > 0 && (ZFG_ABLATE & 4) == 0) {
+      float margin = second_cost == kNone ? 0.0 : second - own_cost;
+      if (margin >= pc.prior_root && own_cost <= 0.12) {
+        record = vec4(margin, 0.0, PackRoot(winner), float(index));
+      } else if (best_backer >= 0) {
+        record = vec4(backer_support * pc.prior_decay, backer_hops + 1.0, PackRoot(backer_root_vector), float(backer_id));
+      }
+      if (record.x < pc.prior_conf) {
+        record = vec4(0.0);
+      }
+      if (ZFG_BORROW != 0 && best_backer >= 0) {
+        second = min(1.0, max(second, own_cost + pc.prior_decay * backer_support));
+      }
+    }
+    field_out[index] = vec4(vec2(winner) + subpixel, own_cost, second);
+    aux_out[index] = record;
+  }
+}
+#else
+void main() {
+  ivec2 cell = ivec2(gl_WorkGroupID.xy);
+  if (ZFG_COMPACT != 0) {
+    uint listed = active_list[gl_WorkGroupID.x];
+    cell = ivec2(int(listed) % pc.field_extent.x, int(listed) / pc.field_extent.x);
+  }
+  uint lane = gl_LocalInvocationIndex;
+  uint index = uint(cell.y * pc.field_extent.x + cell.x);
+  ivec2 origin = cell * pc.cell_size;
+  const float cost_scale = 1.0 / float(kOutside * kSampleCount);  // the integer cost to the 0..1 mean
+  // 13 candidates (own, 8 neighbours, zero, two global, own H1) unless H1 or ring 2 fill the other 8 lanes. Up to 16 candidates cost the same as 13:
+  // the phase-1 lanes per candidate are 64 / candidates = 4 for 13..16 and drop to 3 at 17. Lane 1 (the cell's own H1) duplicates the own vector when
+  // no H1 exists, so the first L1 proposal takes it and four proposals make 16 candidates, not 17.
+  const int candidates = ZFG_H1 != 0 || ZFG_RING2 != 0 ? kCandidates : 13 + kL1Lanes + ZFG_FREELANES;
+
+  // The cell's A samples are shared by every candidate. With the lattice they sit at (cell * samples + k) * f.
+  for (uint s = lane; s < uint(kSampleCount); s += 64u) {
+    sample_offset[s] = SampleOffsetMath(int(s));
+    a_luma[s] = FetchLuma(luma_a, ZFG_AGRID != 0 ? cell * kSamples + ivec2(int(s) % kSamples, int(s) / kSamples)
+                                                  : origin + sample_offset[s]);
+  }
+
+  if (lane == 0u && ZFG_PLAUS > 0) {
+    plaus_ref[0] = ivec2(0);
+    vec4 g0 = camera[0], g1 = camera[1];
+    plaus_ref[1] = g0.w > 0.5 ? Round(g0.xy) : ivec2(0);
+    plaus_ref[2] = g1.w > 0.5 ? Round(g1.xy) : ivec2(0);
+  }
+  // The support records: the cell itself and its eight neighbours at distance `step`, one lane each.
+  if (lane < 9u && (ZFG_ABLATE & 2) == 0) {
+    const ivec2 around9[9] = ivec2[9](ivec2(0, 0), ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1),
+                                      ivec2(-1, 0), ivec2(1, 0), ivec2(-1, 1), ivec2(0, 1), ivec2(1, 1));
+    ivec2 n = clamp(cell + around9[lane] * pc.step, ivec2(0), pc.field_extent - ivec2(1));
+    float support = 0.0;
+    ivec2 root = ivec2(0);
+    float hops = 0.0;
+    int id = 0;
+    if (pc.pass == 0) {
+      // The D2 field carries no record: its measured margin makes a root (a second best of 1 is the "nothing
+      // tested" sentinel, never evidence).
+      vec4 f = field_in[n.y * pc.field_extent.x + n.x];
+      float margin = f.w - f.z;
+      if (margin >= pc.prior_root && f.z <= 0.12 && f.w < 0.999) {
+        support = margin;
+        root = Round(f.xy);
+        id = n.y * pc.field_extent.x + n.x;
+      }
+      if ((ZFG_TEMPORAL & 10) != 0 && lane == 0u) {
+        // The cell's own record of the previous pair, decayed, backs a candidate near its root when it is stronger than what this
+        // pair measured: a flat cell then keeps its previous motion instead of the shortest vector. The support keeps its ORIGIN:
+        // the root of the record, with its id and hops, travels (a root that were re-centred on the final vector would walk away from
+        // what was measured by the drift of every pair).
+        int from = HistoryIndex(cell, int(index));
+        vec2 margin_hops = unpackHalf2x16(history[3 * from + 1]);
+        float carried = margin_hops.x * pc.prior_decay;
+        if (carried >= pc.prior_conf && carried > support) {
+          uint root_word = history[3 * from + 2];
+          support = carried;
+          root = (ZFG_TEMPORAL & 2) != 0 ? UnpackRoot(float(root_word & 0xFFFFFu)) : UnpackHistoryVector(history[3 * from]);
+          hops = margin_hops.y + 1.0;
+          id = int(root_word >> 20);
+        }
+      }
+    } else if (ZFG_PRIOR > 0) {
+      // Every later pass reads the record the previous one wrote: a root is a record with zero hops.
+      vec4 record = aux_in[n.y * pc.field_extent.x + n.x];
+      if (record.x >= pc.prior_conf) {
+        support = record.x;
+        hops = record.y;
+        root = UnpackRoot(record.z);
+        id = int(record.w);
+      }
+    }
+    neighbour_support[lane] = support;
+    neighbour_root[lane] = root;
+    backer_root[lane] = support > 0.0 ? root : ivec2(1 << 20);
+    neighbour_hops[lane] = hops;
+    neighbour_id[lane] = id;
+  }
+
+  // Candidate list, one lane per entry.
+  if (lane < uint(candidates)) {
+    vec2 v = field_in[index].xy;
+    ivec2 neighbour = ivec2(0);
+    bool use_alt = false;
+    const ivec2 around[8] = ivec2[8](ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1), ivec2(-1, 0),
+                                     ivec2(1, 0), ivec2(-1, 1), ivec2(0, 1), ivec2(1, 1));
+    if (lane == 1u) {
+      use_alt = ZFG_ALTIN != 0;
+      neighbour = cell;
+      if ((ZFG_TEMPORAL & 1) != 0) {
+        v = vec2(UnpackHistoryVector(history[3 * HistoryIndex(cell, int(index))]));  // where this cell's surface went in the previous pair (lane 1 duplicated the own vector)
+      } else if (kL1InLane1 != 0) {
+        v = L1Proposal(cell, 0);
+      }
+    } else if (lane >= 2u && lane <= 9u) {
+      neighbour = clamp(cell + around[lane - 2u] * pc.step, ivec2(0), pc.field_extent - ivec2(1));
+      v = field_in[neighbour.y * pc.field_extent.x + neighbour.x].xy;
+    } else if (lane == 10u) {
+      v = vec2(0.0);
+    } else if (lane == 11u || lane == 12u) {
+      vec4 global_hypothesis = camera[lane - 11u];
+      v = global_hypothesis.w > 0.5 ? global_hypothesis.xy : v;
+    } else if (lane >= 13u && lane < uint(13 + kL1Lanes) && ZFG_H1 == 0 && ZFG_L1 != 0) {
+      // The L1 cell that covers this cell and the three nearest to its centre (the first one in lane 1 when that lane is free).
+      v = L1Proposal(cell, int(lane) - 13 + kL1InLane1);
+    } else if (lane >= uint(13 + kL1Lanes) && ZFG_FREELANES != 0 && ZFG_H1 == 0 && ZFG_RING2 == 0) {
+      // A synthesized candidate: the neighbours' vectors combined (a smooth field is better described by their mean than by any one of them).
+      const int slot = int(lane) - 13 - kL1Lanes;
+      const int bit = slot == 0 ? 1 : (slot == 1 ? 2 : 4);
+      if ((ZFG_FREEC & bit) != 0) {
+        vec2 values[8];
+        for (int i = 0; i < 8; ++i) {
+          ivec2 q = clamp(cell + around[i] * pc.step, ivec2(0), pc.field_extent - ivec2(1));
+          values[i] = field_in[q.y * pc.field_extent.x + q.x].xy;
+        }
+        if (bit == 1) {
+          vec2 sum = vec2(0.0);
+          for (int i = 0; i < 8; ++i) sum += values[i];
+          v = sum * 0.125;
+        } else if (bit == 2) {
+          for (int i = 0; i < 8; ++i)
+            for (int j = i + 1; j < 8; ++j) {
+              vec2 low = min(values[i], values[j]);
+              vec2 high = max(values[i], values[j]);
+              values[i] = low;
+              values[j] = high;
+            }
+          v = 0.5 * (values[3] + values[4]);
+        } else {
+          v = 0.25 * (values[1] + values[3] + values[4] + values[6]);  // up, left, right, down
+        }
+      }
+    } else if (lane >= 13u && ZFG_H1 == 0) {
+      // The eight neighbours at twice the step.
+      neighbour = clamp(cell + 2 * pc.step * around[lane - 13u], ivec2(0), pc.field_extent - ivec2(1));
+      v = field_in[neighbour.y * pc.field_extent.x + neighbour.x].xy;
+    } else if (lane >= 13u) {
+      use_alt = true;
+      neighbour = clamp(cell + around[lane - 13u], ivec2(0), pc.field_extent - ivec2(1));
+    }
+    if (use_alt) {
+      vec4 alt = alt_in[neighbour.y * pc.field_extent.x + neighbour.x];
+      if (alt.w > 0.0) {
+        v = alt.xy;
+      }
+    }
+    candidate_vector[lane] = Round(v);
+  }
+  barrier();
+
+  // The distinct root vectors that back anything, for the penalty: lane 0 builds the list while the other lanes
+  // cost their samples, and the barrier after phase 1 publishes it.
+  if (lane == 0u && ZFG_PENFORM == 0) {
+    int n = 0;
+    for (int i = 0; i < 9; ++i) {
+      if (neighbour_support[i] > 0.0) {
+        bool seen = false;
+        for (int j = 0; j < n; ++j) {
+          seen = seen || all(equal(neighbour_root[i], unique_root[j]));
+        }
+        if (!seen) {
+          unique_root[n++] = neighbour_root[i];
+        }
+      }
+    }
+    unique_count = n;
+  }
+
+#ifdef ZFG_MALI
+  const int groups1 = kLanes / candidates;
+  const int radius = min(ZFG_RADIUS, 3);
+  const int side = 2 * radius + 1;
+  const int windows = side * side;
+  const int groups2 = kLanes / windows;
+  // Phase 1, one entry per `groups1` adjacent lanes: lane = candidate * groups1 + slice.
+  ivec2 best_phase1;
+  {
+    int c = int(lane) / groups1;
+    int slice = int(lane) % groups1;
+    bool live = c < candidates;
+    ivec2 v = live ? candidate_vector[c] : ivec2(0);
+    int part = live ? PartialCostMali(origin, v, slice, groups1) : 0;
+    int sum = ClusterSum(part, groups1);
+    if (ZFG_PENFORM == 0) {
+      barrier();  // lane 0's list of distinct roots (the penalty's input in that form)
+    }
+    int cost = kNone;
+    if (live) {
+      if (slice == 0) {
+        candidate_cost[c] = sum;
+      }
+      cost = sum + ((ZFG_ABLATE & 8) != 0 ? 0 : Penalty(v));
+    }
+    int ignored;
+    WorkgroupBest(cost, live ? v : ivec2(0), ignored, best_phase1);
+  }
+  // Phase 2: the window around the phase-1 winner, lane = entry * groups2 + slice.
+  ivec2 winner;
+  {
+    int w = int(lane) / groups2;
+    int slice = int(lane) % groups2;
+    bool live = w < windows;
+    ivec2 entry = best_phase1 + ivec2(w % side - radius, w / side - radius);
+    int part = live ? PartialCostMali(origin, entry, slice, groups2) : 0;
+    int sum = ClusterSum(part, groups2);
+    int cost = kNone;
+    if (live) {
+      if (slice == 0) {
+        window_cost[w] = sum;
+      }
+      cost = sum + (ZFG_WINPEN != 0 ? Penalty(entry) : 0);
+    }
+    int ignored;
+    WorkgroupBest(cost, live ? entry : ivec2(0), ignored, winner);
+  }
+  ivec2 winner_offset = winner - best_phase1;
+  int best_cost = window_cost[(winner_offset.y + radius) * side + (winner_offset.x + radius)];  // raw
+
+  // The best cost at least 3 px away from the winner: the window and the phase-1 candidates.
+  int mine = kNone;
+  if (lane < uint(windows)) {
+    ivec2 v = best_phase1 + ivec2(int(lane) % side - radius, int(lane) / side - radius);
+    if (Chebyshev(v, winner) >= 3) {
+      mine = window_cost[lane];
+    }
+  }
+  if (lane < uint(candidates) && Chebyshev(candidate_vector[lane], winner) >= 3) {
+    mine = min(mine, candidate_cost[lane]);
+  }
+  int second_cost = WorkgroupMin(mine);
+#else
+  // Phase 1: every candidate against the full-resolution luma, three lanes per candidate.
+  const int groups1 = kLanes / candidates;
+  // PENFORM 2: the penalty of the lane's own candidate is computed here, before the fetches are consumed.
+  int penalty1 = 0;
+  if (ZFG_PENFORM == 2 && lane < uint(candidates) && (ZFG_ABLATE & 8) == 0) {
+    penalty1 = Penalty(candidate_vector[lane]);
+  }
+  if (lane < uint(groups1 * candidates)) {
+    partial[lane] = PartialCost(origin, candidate_vector[int(lane) % candidates],
+                                int(lane) / candidates, groups1);
+  }
+  barrier();
+  int my_cost = kNone;
+  ivec2 my_vector = ivec2(0);
+  if (lane < uint(candidates)) {
+    int sum = 0;
+    for (int k = 0; k < groups1; ++k) {
+      sum += partial[int(lane) + k * candidates];
+    }
+    candidate_cost[lane] = sum;
+    my_cost = sum + (ZFG_PENFORM == 2 ? penalty1 : ((ZFG_ABLATE & 8) != 0 ? 0 : Penalty(candidate_vector[lane])));
+    my_vector = candidate_vector[lane];
+  }
+#ifdef ZFG_SUBGROUP
+  ivec2 best_phase1 = SubgroupBest(my_cost, my_vector);
+  barrier();  // candidate_cost is read by the second-best search below
+#else
+  reduce_cost[lane] = my_cost;
+  reduce_vector[lane] = my_vector;
+  ReduceBest();
+  ivec2 best_phase1 = reduce_vector[0];
+  barrier();  // every lane has read entry 0 before the tournament arrays are refilled
+#endif
+
+  // Phase 2: the exhaustive window around the phase-1 winner.
+  int radius = min(ZFG_RADIUS, 3);
+  int side = 2 * radius + 1;
+  int windows = side * side;
+  int groups2 = kLanes / windows;
+  int penalty2 = 0;
+  if (ZFG_PENFORM == 2 && ZFG_WINPEN != 0 && lane < uint(windows)) {
+    penalty2 = Penalty(best_phase1 + ivec2(int(lane) % side - radius, int(lane) / side - radius));
+  }
+  if (lane < uint(groups2 * windows)) {
+    int w = int(lane) % windows;
+    partial[lane] = PartialCost(origin, best_phase1 + ivec2(w % side - radius, w / side - radius),
+                                int(lane) / windows, groups2);
+  }
+  barrier();
+  if (lane < uint(windows)) {
+    int sum = 0;
+    for (int k = 0; k < groups2; ++k) {
+      sum += partial[int(lane) + k * windows];
+    }
+    window_cost[lane] = sum;
+    ivec2 entry = best_phase1 + ivec2(int(lane) % side - radius, int(lane) / side - radius);
+    my_cost = sum + (ZFG_WINPEN != 0 ? (ZFG_PENFORM == 2 ? penalty2 : Penalty(entry)) : 0);
+    my_vector = entry;
+  } else {
+    my_cost = kNone;
+    my_vector = ivec2(0);
+  }
+#ifdef ZFG_SUBGROUP
+  ivec2 winner = SubgroupBest(my_cost, my_vector);
+  barrier();  // window_cost is read below
+#else
+  reduce_cost[lane] = my_cost;
+  reduce_vector[lane] = my_vector;
+  ReduceBest();
+  ivec2 winner = reduce_vector[0];
+#endif
+  ivec2 winner_offset = winner - best_phase1;
+  int best_cost = window_cost[(winner_offset.y + radius) * side + (winner_offset.x + radius)];  // raw
+  barrier();
+
+  // The best cost at least 3 px away from the winner: the window and the phase-1 candidates.
+  int mine = kNone;
+  if (lane < uint(windows)) {
+    ivec2 v = best_phase1 + ivec2(int(lane) % side - radius, int(lane) / side - radius);
+    if (Chebyshev(v, winner) >= 3) {
+      mine = window_cost[lane];
+    }
+  }
+  if (lane < uint(candidates) && Chebyshev(candidate_vector[lane], winner) >= 3) {
+    mine = min(mine, candidate_cost[lane]);
+  }
+#ifdef ZFG_SUBGROUP
+  int second_cost = subgroupMin(mine);
+#else
+  reduce_cost[lane] = mine;
+  ReduceMin();
+  int second_cost = reduce_cost[0];
+#endif
+#endif  // ZFG_MALI
+
+  if (lane == 0u) {
+    ivec2 best_offset = winner - best_phase1;
+    // Sub-pixel: the RC1 parabola on the winner's four neighbours, accepted only inside the window.
+    vec2 subpixel = vec2(0.0);
+    bool inside = best_offset.x > -radius && best_offset.x < radius &&
+                  best_offset.y > -radius && best_offset.y < radius;
+    if (inside) {
+      int centre = (best_offset.y + radius) * side + (best_offset.x + radius);
+      int c0 = window_cost[centre];
+      if (c0 > 0) {
+        float dxm = float(window_cost[centre - 1] - c0), dxp = float(window_cost[centre + 1] - c0);
+        if (dxm > 0.0 && dxp > 0.0) {
+          float raw = 0.5 * (dxm - dxp) / (dxm + dxp);
+          subpixel.x = abs(raw) > 0.5001 ? 0.0 : clamp(raw, -0.5, 0.5);
+        }
+        float dym = float(window_cost[centre - side] - c0), dyp = float(window_cost[centre + side] - c0);
+        if (dym > 0.0 && dyp > 0.0) {
+          float raw = 0.5 * (dym - dyp) / (dym + dyp);
+          subpixel.y = abs(raw) > 0.5001 ? 0.0 : clamp(raw, -0.5, 0.5);
+        }
+      }
+    }
+    if (ZFG_OBSERV != 0) {
+      // The shape of the cost surface at the winner, from the window costs already in shared memory: no fetch, no barrier.
+      float curvature_x = -1.0, curvature_y = -1.0;
+      int plateau = 0;
+      if (inside) {
+        int centre = (best_offset.y + radius) * side + (best_offset.x + radius);
+        int c0 = window_cost[centre];
+        curvature_x = float(window_cost[centre - 1] + window_cost[centre + 1] - 2 * c0);
+        curvature_y = float(window_cost[centre - side] + window_cost[centre + side] - 2 * c0);
+        for (int i = 0; i < windows; ++i) {
+          plateau += window_cost[i] <= c0 + 8 ? 1 : 0;
+        }
+      }
+      observ[index] = vec4(curvature_x, curvature_y, float(plateau), float(best_cost));
+    }
+    // Nothing farther was tested: as unique as the scale allows.
+    float own_cost = float(best_cost) * cost_scale;
+    // Nothing farther than 3 px was tested: RC1 says "as unique as the scale allows" (second = 1); with none_mode
+    // the cell says it does not know (second = its own cost), which is what D3 should read as no uniqueness.
+    float second = second_cost == kNone ? (ZFG_NONE != 0 ? own_cost : 1.0) : float(second_cost) * cost_scale;
+    vec4 record = vec4(0.0);
+    if (ZFG_PRIOR > 0 && (ZFG_ABLATE & 4) == 0) {
+      Backing b = Back(winner);
+      // Locally confident only when an alternative farther than 3 px was really tested and lost.
+      float margin = second_cost == kNone ? 0.0 : second - own_cost;
+      if (margin >= pc.prior_root && own_cost <= 0.12) {
+        record = vec4(margin, 0.0, PackRoot(winner), float(index));  // a root: this cell measured it
+      } else if (b.best >= 0) {
+        record = vec4(neighbour_support[b.best] * pc.prior_decay, neighbour_hops[b.best] + 1.0,
+                      PackRoot(neighbour_root[b.best]), float(neighbour_id[b.best]));
+      }
+      if (record.x < pc.prior_conf) {
+        record = vec4(0.0);
+      }
+      if (ZFG_BORROW != 0 && b.best >= 0) {
+        second = min(1.0, max(second, own_cost + pc.prior_decay * neighbour_support[b.best]));
+      }
+    }
+    field_out[index] = vec4(vec2(winner) + subpixel, own_cost, second);
+    aux_out[index] = record;
+    if (ZFG_COMPACT != 0) {
+      // Only the active-list scan of the next pass reads the flag: without the list the two loads and the store are not made.
+      vec4 before = field_in[index];
+      vec4 record_before = aux_in[index];
+      bool moved = any(notEqual(Round(before.xy), winner));
+      if (ZFG_MOVE == 1) {
+        moved = moved || abs(record.x - record_before.x) > 0.01 || any(notEqual(ivec2(record.zw), ivec2(record_before.zw)));
+      } else if (ZFG_MOVE == 2) {
+        moved = moved || (record.x > 0.0) != (record_before.x > 0.0) ||
+                (record.x > 0.0 && any(notEqual(ivec2(record.zw), ivec2(record_before.zw))));
+      }
+      changed_out[index] = moved ? 1u : 0u;
+    }
+    winner_vector = winner;
+    winner_cost = best_cost;
+
+    // Counters: how often the fine stage moved the estimate, and which candidate won phase 1.
+    if (ZFG_COUNTERS != 0) {
+      ZFG_COUNT(kCtrD4Cells);
+      if (length(vec2(winner) - field_in[index].xy) > 4.0) {
+        ZFG_COUNT(kCtrD4Changed);
+      }
+      int winner_lane = 0;
+      for (int k = 0; k < candidates; ++k) {
+        if (all(equal(candidate_vector[k], best_phase1))) {
+          winner_lane = k;
+          break;
+        }
+      }
+      if (winner_lane == 10) {
+        ZFG_COUNT(kCtrD4Zero);
+      } else if ((winner_lane == 11 || winner_lane == 12) && camera[winner_lane - 11].w > 0.5) {
+        ZFG_COUNT(kCtrD4Camera);
+      } else if (winner_lane >= 2) {
+        ZFG_COUNT(kCtrD4Neighbour);
+      }
+      if (float(best_cost) * cost_scale < 0.03) {
+        ZFG_COUNT(kCtrD4Good);
+      }
+    }
+  }
+  barrier();
+
+  // Phase 3: the second surface, by mixture gain against the winner.
+  if (ZFG_H1 == 0) {
+    // alt_out stays what the host zeroed at start: nothing ever writes a non-zero H1 without the phase.
+    return;
+  }
+  for (uint s = lane; s < uint(kSampleCount); s += 64u) {
+    winner_error[s] = SampleError(int(s), origin, winner_vector);
+  }
+  barrier();
+  if (lane < uint(kCandidates)) {
+    ivec2 v = candidate_vector[lane];
+    float sum = 0.0;
+    int wins = 0;
+    if (Chebyshev(v, winner_vector) >= 3) {
+      const float unit = 1.0 / float(kOutside);
+      for (int s = 0; s < kSampleCount; ++s) {
+        float error_here = float(SampleError(s, origin, v)) * unit;
+        float error_winner = float(winner_error[s]) * unit;
+        sum += min(error_winner, error_here);
+        wins += error_here + 0.02 < error_winner ? 1 : 0;
+      }
+      mixture_cost[lane] = sum * (1.0 / float(kSampleCount));
+      mixture_share[lane] = float(wins) / float(kSampleCount);
+    } else {
+      mixture_cost[lane] = 2.0;
+      mixture_share[lane] = 0.0;
+    }
+  }
+  barrier();
+  if (lane == 0u) {
+    int best = -1;
+    for (int k = 0; k < kCandidates; ++k) {
+      if (mixture_cost[k] < 1.5 && (best < 0 || mixture_cost[k] < mixture_cost[best])) {
+        best = k;
+      }
+    }
+    vec4 record = vec4(0.0);
+    if (best >= 0) {
+      float gain = float(winner_cost) * cost_scale - mixture_cost[best];
+      if (gain >= pc.h1_gain && mixture_share[best] >= pc.h1_share) {
+        record = vec4(vec2(candidate_vector[best]), float(candidate_cost[best]) * cost_scale, gain);
+        ZFG_COUNT(kCtrD4H1);
+        if (gain > 0.05) {
+          ZFG_COUNT(kCtrD4H1Strong);
+        }
+      }
+    }
+    alt_out[index] = record;
+  }
+}
+#endif  // ZFG_MALI2

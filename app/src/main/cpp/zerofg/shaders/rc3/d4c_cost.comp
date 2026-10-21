@@ -1,0 +1,50 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D4c, stage 2 of 3: the window search against the FULL-resolution luma. One 64-lane workgroup per
+// (offset, peak): the 17 x 17 whole-pixel offsets around a peak's centre, scored on the 256 sample
+// points (four per lane) as the sum of |A - B(offset)| in 1/255 units, then summed over the lanes.
+// 578 workgroups instead of one: the search was one workgroup on a GPU with many idle cores.
+#define CAM_WORK_BINDING 1
+#include "rc3_common.glsl"
+#include "d4c_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+
+layout(local_size_x = 64, local_size_y = 1) in;
+
+layout(binding = 0) uniform sampler2D luma_b;
+
+layout(push_constant) uniform CostPush {
+  ivec2 source_extent;
+} pc;
+
+shared int partial[64];
+
+void main() {
+  int k = int(gl_WorkGroupID.x);
+  int peak = int(gl_WorkGroupID.y);
+  uint lane = gl_LocalInvocationIndex;
+  vec4 record = camera[2 + peak];
+  if (record.w < 0.5) {
+    return;  // no peak: the whole workgroup leaves together, d4c_pick.comp does not read the costs
+  }
+  ivec2 offset = ivec2(record.xy) + ivec2(k % kCamSide - kCamRadius, k / kCamSide - kCamRadius);
+  int sum = 0;
+  for (int j = 0; j < kCamSamples / 64; ++j) {
+    int i = int(lane) + 64 * j;
+    ivec2 pb = CameraSamplePoint(i, pc.source_extent) + offset;
+    sum += all(greaterThanEqual(pb, ivec2(0))) && all(lessThan(pb, pc.source_extent))
+        ? abs(a_luma[i] - CameraLuma(luma_b, pb))
+        : kCamOutside;
+  }
+  partial[lane] = sum;
+  for (uint stride = 32u; stride > 0u; stride >>= 1u) {
+    barrier();
+    if (lane < stride) {
+      partial[lane] += partial[lane + stride];
+    }
+  }
+  if (lane == 0u) {
+    window_cost[peak * kCamWindow + k] = partial[0];
+  }
+}

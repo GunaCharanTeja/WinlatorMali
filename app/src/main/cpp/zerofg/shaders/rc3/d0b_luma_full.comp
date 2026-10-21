@@ -1,0 +1,42 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D0b Frontend, full-resolution luma plane (R8). One source per dispatch. It is what the fine
+// verification (D4) matches against: the 20 px pyramid of D0 averages the high-frequency content away
+// (a cell of grain is a constant plus noise at that scale), while at full resolution the same grain
+// is a sharp, unique correlation peak. Rec.709 luma of the sampled RGB, as the pyramid.
+// Only B needs the full plane (the candidate vectors move its sample points anywhere): A's samples sit on a fixed
+// lattice and come from D0a (`agrid`); this pass writes A's full plane only for the fallback form (agrid=0).
+// The QCOM form of the fine stage (ZFG_PHASE) also writes B into the PHASE layout, the form the block-match unit can read (spec section 7):
+// D4 tests a candidate vector with the cell's samples x samples lattice of A, whose points are `stride` pixels apart, against the same lattice
+// of B displaced by the vector. The points of that displaced lattice are one pixel in `stride` on each axis, so they are NOT a contiguous block
+// of the plane; in the phase layout they are: the image is stride x stride tiles, tile (px, py) holds the pixels (x, y) with x % stride = px and
+// y % stride = py, at (x / stride, y / stride). A displaced lattice is then one block of one tile, and the hardware SAD of that block against A's
+// lattice block is the same integer sum the shader loop makes.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 3) const int ZFG_PHASE = 0;  // 1 = also write the phase layout (binding 2)
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D source_image;
+layout(r8, binding = 1) uniform writeonly image2D luma_out;
+layout(r8, binding = 2) uniform writeonly image2D phase_out;
+
+layout(push_constant) uniform LumaPush {
+  ivec2 extent;
+  ivec2 phase_tile;  // the tile size: ceil(extent / stride)
+  int stride;
+} pc;
+
+void main() {
+  ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(p, pc.extent))) {
+    return;
+  }
+  const vec4 luma = vec4(SourceLuma(source_image, p), 0.0, 0.0, 1.0);
+  imageStore(luma_out, p, luma);
+  if (ZFG_PHASE != 0) {
+    imageStore(phase_out, (p % pc.stride) * pc.phase_tile + p / pc.stride, luma);
+  }
+}

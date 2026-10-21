@@ -1,0 +1,459 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D0p Photometric estimate (rc3 photo): the global exposure change between A and B, so that the matching and the photometric trust of the
+// later stages compare like with like. A fade, a flash, an auto-exposure step or a lightning is a gain (and a bias) on the whole picture; the
+// cost the estimation reads (a sum of absolute luma differences) and the photometric agreement of the resolve both read it as a motion error,
+// and the field is then not trusted (a hold) or fabricated (a vector that matches a bright texel to a bright one).
+//
+// ONE workgroup of 1024 invocations. 2048 sample points on a 64 x 32 grid (jittered, so a periodic texture does not alias with it), each the
+// mean of four bilinear fetches (a 7 x 7 footprint), read from the SOURCES (the pass has no dependency on D0). Samples whose A is black are
+// not used (a ratio needs a numerator).
+//
+//   F1 gain only (photo=1). The luma ratio B / A of every sample goes into a histogram of its log2 (1/8 octave per bin, -5..+3 octaves); a
+//      global gain is the DOMINANT MODE of that histogram, so the picture that moves (the ratio of a moving edge is anything) and the part that
+//      changed for another reason (a wipe, a mask, new content) do not pull it. The estimate is the mean log ratio of the samples in the three
+//      bins around the peak (exact, not the bin's centre: a picture that did not change has every ratio exactly 1, on a bin's edge); their
+//      share of the valid samples is the confidence.
+//   F2 gain and bias (photo=2; B ~ gain * A + bias: a fade to white, a flash, a contrast change). The dominant LINE of the (A, B) samples that
+//      is NOT the identity: a Hough vote of pairs of samples (their slope and offset, weighted by how far apart their A values are; a pair whose
+//      two samples both lie on the identity does not vote), the densest 3 x 3 cells, then a least squares fit over the samples near that line.
+//      It replaces F1 (or no change) only where it explains clearly more samples, and it is never used when degenerate. When no pair voted at
+//      all (a picture that did not change) the whole F2 branch is skipped.
+//
+// The result is the identity unless a model is found, so a picture with no exposure change gets gain 1.0 and bias 0.0 exactly and every later
+// stage is bit-for-bit the one without this pass. The gain maps A onto B; D1 and D2 (the pyramid of A), D0a (the blocks of A) and D5a (the
+// photometric error of the two warps) apply it to A. The OUTPUT COLOUR never uses it: a fade's middle frame is the mean of the two pictures
+// as they are.
+//
+// Cost notes (measured on the Adreno 840, stock and Turnip): the passes are a serial chain of shared atomics and barriers, and the first version
+// spent its time on a few HOT shared addresses (the valid count, the dominant bin, the dominant Hough cell, the counters), which serialise. So
+// every counter many invocations add to is REPLICATED (eight copies, by invocation index) and summed by one invocation, the sample count comes
+// from the histogram, and the Hough vote skips what the identity already explains.
+#include "rc3_common.glsl"
+
+layout(constant_id = 2) const int ZFG_F2 = 0;
+layout(constant_id = 3) const int ZFG_CHROMA = 0;  // 1 = the gain of each colour channel is also estimated (a red flash, an ice tint): three more histograms  // 1 = the gain-and-bias line (F2) is also estimated
+
+layout(local_size_x = 1024) in;
+
+layout(binding = 0) uniform sampler2D source_a;
+layout(binding = 1) uniform sampler2D source_b;
+layout(std430, binding = 2) buffer Photo {
+  vec4 photo;  // gain, bias, confidence, share of valid samples
+  vec4 stats;  // the correlation of A and B over the valid samples (1 = a continuous pair, 0 = a scene cut), ...
+  vec4 chroma;  // the gain of each colour channel relative to the luma gain (1, 1, 1 = the channels changed as the luma did)
+};
+layout(std430, binding = 3) buffer Counters {
+  uint counters[];
+};
+
+layout(push_constant) uniform PhotoPush {
+  ivec2 extent;
+  float conf_min;   // the share of the valid samples the F1 peak must hold
+  float dead_zone;  // |log2 gain| under this is no exposure change
+  float corr_min;   // the A-B correlation under which the pair is too far apart for co-located samples to say anything (a fast pan, a cut): no model
+} pc;
+
+const int kBins = 64;
+const float kBinsPerOctave = 8.0;
+const float kLowOctave = -5.0;
+const int kSamples = 2048;
+const int kReplicas = 8;
+const int kHoughG = 32;  // slope bins: 1/4 octave over -4..+4
+const int kHoughB = 32;  // offset bins: 1/16 over -1..+1
+const float kTight = 0.025;    // a sample is on a model when it is within this of the line (luma)
+const float kBiasDead = 0.03;  // |bias| under this (and no gain) is no change
+const float kF2Margin = 0.15;  // the share of samples F2 must explain beyond the model it replaces
+const float kF2Share = 0.40;   // and at least this share of the valid samples
+
+shared uint chroma_count[3 * 2 * kBins];   // the ratio histograms of the three colour channels (two replicas each): [(channel * 2 + replica) * kBins + bin]
+shared int chroma_sum[3 * 2 * kBins];
+shared uint histogram[kReplicas * kBins];  // replica r at r * kBins; the sum is left in replica 0
+shared int octave_sum[kReplicas * kBins];  // the same, the sum of the log2 ratios in 1/4096 octave
+shared vec2 samples[kSamples];             // (A, B) of a sample; A < 0 = not valid
+shared int moments[kReplicas * 8];         // per replica: sum a, b, a*a, b*b, a*b (1/256 units) over the valid samples (the correlation)
+shared uint hough[kHoughG * kHoughB];
+shared uint best_window;                   // atomicMax of (votes << 10) | window; 0 = nobody voted
+shared int fit[kReplicas * 8];             // per replica: n, sum a, sum b, sum a*a, sum a*b (1/256 units) over the samples near the coarse line
+shared uint inliers[kReplicas * 4];        // per replica: samples within kTight of no change, F1, F2
+shared float f1_octaves, f1_confidence, valid_total, correlation;
+shared bool correlation_known;  // false when a picture has no spread (a flat or black frame): the correlation says nothing and does not gate the model
+shared float texture_ratio;     // sigma_min / sigma_max of the valid samples' luma of A and B (-1: neither picture is clearly textured), stats.z
+shared float sigma_a, sigma_b;   // their spreads, in 1/256 (the diagnostic log)
+shared float f2_gain, f2_bias;
+shared bool f2_valid;
+
+float LumaOf(vec3 rgb) {
+  return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+}
+
+// The mean colour of four bilinear fetches around the point (a 7 x 7 footprint).
+vec3 Footprint(sampler2D source, vec2 p) {
+  vec2 inverse_extent = 1.0 / vec2(pc.extent);
+  vec3 sum = vec3(0.0);
+  sum += textureLod(source, (p + vec2(-3.0, -3.0)) * inverse_extent, 0.0).rgb;
+  sum += textureLod(source, (p + vec2(3.0, -3.0)) * inverse_extent, 0.0).rgb;
+  sum += textureLod(source, (p + vec2(-3.0, 3.0)) * inverse_extent, 0.0).rgb;
+  sum += textureLod(source, (p + vec2(3.0, 3.0)) * inverse_extent, 0.0).rgb;
+  return 0.25 * sum;
+}
+
+// The coarse line of a Hough window: the weighted centre of its 3 x 3 cells.
+void LineOfWindow(uint window, out float gain, out float bias) {
+  int at = int(window & 1023u);
+  int cx = at % (kHoughB - 2), cy = at / (kHoughB - 2);
+  float weight = 0.0, log_gain = 0.0, offset = 0.0;
+  for (int dy = 0; dy < 3; ++dy) {
+    for (int dx = 0; dx < 3; ++dx) {
+      float w = float(hough[(cy + dy) * kHoughB + cx + dx]);
+      weight += w;
+      log_gain += w * ((float(cy + dy) + 0.5) / 4.0 - 4.0);
+      offset += w * ((float(cx + dx) + 0.5) / 16.0 - 1.0);
+    }
+  }
+  gain = weight > 0.0 ? exp2(log_gain / weight) : 1.0;
+  bias = weight > 0.0 ? offset / weight : 0.0;
+}
+
+void main() {
+  uint tid = gl_LocalInvocationIndex;
+  uint replica = tid & uint(kReplicas - 1);
+
+  for (int i = int(tid); i < kReplicas * kBins; i += 1024) {
+    histogram[i] = 0u;
+    octave_sum[i] = 0;
+  }
+  for (int i = int(tid); i < 3 * 2 * kBins; i += 1024) {
+    chroma_count[i] = 0u;
+    chroma_sum[i] = 0;
+  }
+  hough[tid] = 0u;  // 1024 invocations, 1024 cells
+  if (tid < uint(kReplicas * 4)) {
+    inliers[tid] = 0u;
+  }
+  if (tid < uint(kReplicas * 8)) {
+    fit[tid] = 0;
+    moments[tid] = 0;
+  }
+  if (tid == 0u) {
+    best_window = 0u;
+    f2_valid = false;
+    f2_gain = 1.0;
+    f2_bias = 0.0;
+  }
+  barrier();
+
+  // The samples and the ratio histogram of F1.
+  vec2 cell = vec2(pc.extent) / vec2(64.0, 32.0);
+  for (int k = 0; k < kSamples / 1024; ++k) {
+    int i = int(tid) + 1024 * k;
+    int gx = i % 64, gy = i / 64;
+    vec2 jitter = vec2(float((gy * 37 + gx * 11) % 32) / 32.0, float((gx * 29 + gy * 13) % 32) / 32.0) * 0.8 - 0.4;
+    vec2 p = (vec2(gx, gy) + vec2(0.5) + jitter) * cell;
+    vec3 ca = Footprint(source_a, p);
+    vec3 cb = Footprint(source_b, p);
+    float ya = LumaOf(ca);
+    float yb = LumaOf(cb);
+    for (int c = 0; ZFG_CHROMA != 0 && c < 3; ++c) {
+      // The ratio of each colour channel (the tint of a red flash, a blue ice effect): its own histogram, a channel that is nearly black has no ratio.
+      if (ca[c] > 0.03) {
+        float octaves_c = log2(max(cb[c], 0.002) / ca[c]);
+        int bin_c = clamp(int(floor((octaves_c - kLowOctave) * kBinsPerOctave)), 0, kBins - 1);
+        int at_c = (c * 2 + int(tid & 1u)) * kBins + bin_c;
+        atomicAdd(chroma_count[at_c], 1u);
+        atomicAdd(chroma_sum[at_c], int(round(octaves_c * 4096.0)));
+      }
+    }
+    if (ya > 0.03) {
+      samples[i] = vec2(ya, yb);
+      float octaves = log2(max(yb, 0.002) / ya);
+      int bin = clamp(int(floor((octaves - kLowOctave) * kBinsPerOctave)), 0, kBins - 1);
+      atomicAdd(histogram[int(replica) * kBins + bin], 1u);
+      atomicAdd(octave_sum[int(replica) * kBins + bin], int(round(octaves * 4096.0)));
+      int a8 = int(round(ya * 256.0)), b8 = int(round(yb * 256.0));
+      int at = int(replica) * 8;
+      atomicAdd(moments[at], a8);
+      atomicAdd(moments[at + 1], b8);
+      atomicAdd(moments[at + 2], a8 * a8);
+      atomicAdd(moments[at + 3], b8 * b8);
+      atomicAdd(moments[at + 4], a8 * b8);
+    } else {
+      samples[i] = vec2(-1.0, 0.0);
+    }
+  }
+  barrier();
+
+  // The replicas of the histogram are summed bin by bin (64 invocations) while the others vote the lines of F2: they touch different shared data.
+  if (tid < uint(kBins)) {
+    uint count = 0u;
+    int sum = 0;
+    for (int r = 0; r < kReplicas; ++r) {
+      count += histogram[r * kBins + int(tid)];
+      sum += octave_sum[r * kBins + int(tid)];
+    }
+    histogram[tid] = count;
+    octave_sum[tid] = sum;
+  }
+  if (ZFG_F2 != 0) {
+    for (int k = 0; k < kSamples / 1024; ++k) {
+      int i = int(tid) + 1024 * k;
+      vec2 a = samples[i];
+      if (a.x < 0.0) {
+        continue;
+      }
+      bool a_on_identity = abs(a.y - a.x) < kTight;
+      for (int m = 1; m <= 4; ++m) {
+        vec2 b = samples[(i + 331 * m) % kSamples];
+        float da = b.x - a.x;
+        if (b.x < 0.0 || abs(da) < 0.1) {
+          continue;
+        }
+        if (a_on_identity && abs(b.y - b.x) < kTight) {
+          continue;  // both on the identity: what no change explains does not vote
+        }
+        float slope = (b.y - a.y) / da;
+        if (slope < 0.0625 || slope > 16.0) {
+          continue;
+        }
+        float offset = a.y - slope * a.x;
+        if (abs(offset) >= 1.0) {
+          continue;
+        }
+        int gb = clamp(int(floor((log2(slope) + 4.0) * 4.0)), 0, kHoughG - 1);
+        int bb = clamp(int(floor((offset + 1.0) * 16.0)), 0, kHoughB - 1);
+        atomicAdd(hough[gb * kHoughB + bb], 1u + uint(abs(da) * 16.0));
+      }
+    }
+  }
+  barrier();
+
+  // F1 (one invocation) and the densest 3 x 3 window of the Hough space (the windows with votes only).
+  // A peak in an END bin of the histogram is a ratio that left its range (-5..+3 octaves in one pair): not an exposure change but a cut to or
+  // from black (content against a black picture: every ratio far under -5 octaves). Mapping A onto that "gain" would turn A black, every
+  // cell would then match and the scene-cut guard would never see the cut (2026-10-06); the model stays the identity instead. Only invocation
+  // 0 writes and reads it.
+  bool f1_in_range = true;
+  if (tid == 0u) {
+    uint valid = 0u;
+    for (int k = 0; k < kBins; ++k) {
+      valid += histogram[k];
+    }
+    uint best = 0u;
+    int best_at = 0;
+    for (int k = 0; k + 2 < kBins; ++k) {
+      uint window = histogram[k] + histogram[k + 1] + histogram[k + 2];
+      if (window > best) {
+        best = window;
+        best_at = k;
+      }
+    }
+    int sum = 0;
+    float weight = 0.0;
+    for (int j = 0; j < 3; ++j) {
+      sum += octave_sum[best_at + j];
+      weight += float(histogram[best_at + j]);
+    }
+    f1_in_range = best_at > 0 && best_at + 2 < kBins - 1;
+    f1_octaves = weight > 0.0 ? float(sum) / (4096.0 * weight) : 0.0;
+    f1_confidence = valid > 0u ? float(best) / float(valid) : 0.0;
+    valid_total = float(valid);
+    // The correlation of A and B over the valid samples: the large-scale structure a continuous pair keeps and a scene cut does not.
+    int sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+    for (int r = 0; r < kReplicas; ++r) {
+      sa += moments[r * 8];
+      sb += moments[r * 8 + 1];
+      saa += moments[r * 8 + 2];
+      sbb += moments[r * 8 + 3];
+      sab += moments[r * 8 + 4];
+    }
+    float n = float(valid);
+    correlation = 0.0;
+    correlation_known = false;
+    texture_ratio = -1.0;
+    sigma_a = 0.0;
+    sigma_b = 0.0;
+    if (valid >= 64u) {
+      float mean_a = float(sa) / n, mean_b = float(sb) / n;
+      float variance_a = float(saa) / n - mean_a * mean_a, variance_b = float(sbb) / n - mean_b * mean_b;
+      float covariance = float(sab) / n - mean_a * mean_b;
+      if (variance_a > 4.0 && variance_b > 4.0) {  // a spread of at least 2/256 in both
+        correlation = clamp(covariance / sqrt(variance_a * variance_b), -1.0, 1.0);
+        correlation_known = true;
+      }
+      // The texture ratio: how much structure the flatter picture has against the other one. A flat A cannot WITNESS continuity: a vector
+      // that points at a region of B of A's flat colour (a white sky) matches at no cost, and D4 propagates it, so the match fraction of the
+      // guard means nothing for a pair from a flat screen (2026-10-06: the cut from white was missed). The guard of D5 reads it (guard_flat).
+      // -1 when neither picture is clearly textured (a spread under 8/256): nothing to compare (a black-out, a white-out, a fade's end).
+      sigma_a = sqrt(max(variance_a, 0.0));
+      sigma_b = sqrt(max(variance_b, 0.0));
+      float sigma_max = max(sigma_a, sigma_b);
+      texture_ratio = sigma_max >= 8.0 ? min(sigma_a, sigma_b) / sigma_max : -1.0;
+    }
+  }
+  if (ZFG_F2 != 0 && tid < uint((kHoughG - 2) * (kHoughB - 2))) {
+    int cx = int(tid) % (kHoughB - 2), cy = int(tid) / (kHoughB - 2);
+    uint sum = 0u;
+    for (int dy = 0; dy < 3; ++dy) {
+      for (int dx = 0; dx < 3; ++dx) {
+        sum += hough[(cy + dy) * kHoughB + cx + dx];
+      }
+    }
+    if (sum > 0u) {
+      atomicMax(best_window, (sum << 10) | tid);
+    }
+  }
+  barrier();
+
+  float f1_gain = exp2(f1_octaves);
+  uint window = best_window;  // the same for every invocation: the branch below is uniform
+  if (ZFG_F2 != 0 && window != 0u) {
+    // The least squares line over the samples near the coarse one (the cell's width in slope and offset is the tolerance); every invocation
+    // derives the coarse line itself (nine shared reads), so no barrier stands between the peak and the fit.
+    float coarse_gain, coarse_bias;
+    LineOfWindow(window, coarse_gain, coarse_bias);
+    for (int k = 0; k < kSamples / 1024; ++k) {
+      vec2 s = samples[int(tid) + 1024 * k];
+      if (s.x >= 0.0 && abs(s.y - (coarse_gain * s.x + coarse_bias)) < 0.04 + 0.1 * s.x) {
+        int a8 = int(round(s.x * 256.0)), b8 = int(round(s.y * 256.0));
+        int at = int(replica) * 8;
+        atomicAdd(fit[at], 1);
+        atomicAdd(fit[at + 1], a8);
+        atomicAdd(fit[at + 2], b8);
+        atomicAdd(fit[at + 3], a8 * a8);
+        atomicAdd(fit[at + 4], a8 * b8);
+      }
+    }
+    barrier();
+
+    if (tid == 0u) {
+      int fit_n = 0, fit_a = 0, fit_b = 0, fit_aa = 0, fit_ab = 0;
+      for (int r = 0; r < kReplicas; ++r) {
+        fit_n += fit[r * 8];
+        fit_a += fit[r * 8 + 1];
+        fit_b += fit[r * 8 + 2];
+        fit_aa += fit[r * 8 + 3];
+        fit_ab += fit[r * 8 + 4];
+      }
+      float n = float(fit_n);
+      if (fit_n >= 128) {
+        float mean_a = float(fit_a) / n, mean_b = float(fit_b) / n;
+        float variance = float(fit_aa) / n - mean_a * mean_a;
+        float covariance = float(fit_ab) / n - mean_a * mean_b;
+        if (variance > 144.0) {  // the A values of the samples near the line spread over at least 0.047: a gain and a bias can be told apart
+          float g = covariance / variance;
+          if (g >= 0.0625 && g <= 16.0) {
+            f2_valid = true;
+            f2_gain = g;
+            f2_bias = (mean_b - g * mean_a) / 256.0;
+          }
+        }
+      }
+    }
+    barrier();
+
+    // How many samples each model explains (within kTight): no change, F1 (the gain of the ratio peak), F2.
+    for (int k = 0; k < kSamples / 1024; ++k) {
+      vec2 s = samples[int(tid) + 1024 * k];
+      if (s.x >= 0.0) {
+        int at = int(replica) * 4;
+        if (abs(s.y - s.x) < kTight) {
+          atomicAdd(inliers[at], 1u);
+        }
+        if (abs(s.y - f1_gain * s.x) < kTight) {
+          atomicAdd(inliers[at + 1], 1u);
+        }
+        if (f2_valid && abs(s.y - (f2_gain * s.x + f2_bias)) < kTight) {
+          atomicAdd(inliers[at + 2], 1u);
+        }
+      }
+    }
+    barrier();
+  }
+
+  if (tid == 0u) {
+    float valid = valid_total;
+    float share = valid / float(kSamples);
+    float gain = 1.0, bias = 0.0;
+    int model = 0;
+    bool continuous = !correlation_known || correlation >= pc.corr_min;
+    bool f1_accept = continuous && f1_in_range && f1_confidence >= pc.conf_min && share >= 0.25 && abs(f1_octaves) >= pc.dead_zone;
+    if (f1_accept) {
+      gain = f1_gain;
+      model = 1;
+    }
+    if (ZFG_F2 != 0 && window != 0u && valid > 0.0 && continuous) {
+      uint none = 0u, one = 0u, two = 0u;
+      for (int r = 0; r < kReplicas; ++r) {
+        none += inliers[r * 4];
+        one += inliers[r * 4 + 1];
+        two += inliers[r * 4 + 2];
+      }
+      float reference = float(f1_accept ? one : none) / valid;
+      if (f2_valid && share >= 0.25 && (abs(log2(f2_gain)) >= pc.dead_zone || abs(f2_bias) >= kBiasDead)) {
+        float f2_share = float(two) / valid;
+        if (f2_share >= kF2Share && f2_share >= reference + kF2Margin) {
+          gain = f2_gain;
+          bias = f2_bias;
+          model = 2;
+        }
+      }
+    }
+    // The colour channels: each one's mode of the ratio, relative to the gain the luma model applies. Used only where the luma model is a plain gain (or
+    // none) and a channel's ratio is clear and differs from it (more than the dead zone): otherwise the identity, exactly.
+    vec3 chroma_out = vec3(1.0);
+    float chroma_confidence = 0.0;
+    if (ZFG_CHROMA != 0 && model != 2) {
+      vec3 channel_gain = vec3(1.0);
+      bool clear = true;
+      for (int c = 0; c < 3; ++c) {
+        uint total = 0u;
+        uint best_c = 0u;
+        int best_at = 0;
+        for (int b = 0; b < kBins; ++b) {
+          total += chroma_count[(c * 2) * kBins + b] + chroma_count[(c * 2 + 1) * kBins + b];
+        }
+        for (int b = 0; b + 2 < kBins; ++b) {
+          uint window_count = 0u;
+          for (int j = 0; j < 3; ++j) {
+            window_count += chroma_count[(c * 2) * kBins + b + j] + chroma_count[(c * 2 + 1) * kBins + b + j];
+          }
+          if (window_count > best_c) {
+            best_c = window_count;
+            best_at = b;
+          }
+        }
+        int sum_c = 0;
+        float weight_c = 0.0;
+        for (int j = 0; j < 3; ++j) {
+          sum_c += chroma_sum[(c * 2) * kBins + best_at + j] + chroma_sum[(c * 2 + 1) * kBins + best_at + j];
+          weight_c += float(chroma_count[(c * 2) * kBins + best_at + j] + chroma_count[(c * 2 + 1) * kBins + best_at + j]);
+        }
+        float confidence_c = total > 0u ? float(best_c) / float(total) : 0.0;
+        channel_gain[c] = weight_c > 0.0 ? exp2(float(sum_c) / (4096.0 * weight_c)) : 1.0;
+        // (a channel whose peak sits in an end bin left the histogram's range: a cut to or from black in that channel, not a tint)
+        clear = clear && confidence_c >= pc.conf_min && float(total) >= 0.25 * float(kSamples) && best_at > 0 && best_at + 2 < kBins - 1;
+        chroma_confidence = c == 0 ? confidence_c : min(chroma_confidence, confidence_c);
+      }
+      vec3 relative = channel_gain / gain;
+      float spread = max(abs(log2(relative.x)), max(abs(log2(relative.y)), abs(log2(relative.z))));
+      if (continuous && clear && spread >= pc.dead_zone) {
+        chroma_out = relative;
+      }
+    }
+    photo = vec4(gain, bias, f1_confidence, share);
+    // y: whether the correlation was measured at all (a flat or black picture has no spread: x is then 0 by convention, not a measured decorrelation).
+    stats = vec4(correlation, correlation_known ? 1.0 : 0.0, texture_ratio, 0.0);
+    counters[kCtrPhotoSigmaA] = uint(round(sigma_a * 1000.0 / 256.0));
+    counters[kCtrPhotoSigmaB] = uint(round(sigma_b * 1000.0 / 256.0));
+    chroma = vec4(chroma_out, chroma_confidence);
+    counters[kCtrPhotoChromaR] = uint(int(round(chroma_out.x * 1000.0)));
+    counters[kCtrPhotoChromaG] = uint(int(round(chroma_out.y * 1000.0)));
+    counters[kCtrPhotoChromaB] = uint(int(round(chroma_out.z * 1000.0)));
+    counters[kCtrPhotoGain] = floatBitsToUint(gain);
+    counters[kCtrPhotoConfidence] = uint(f1_confidence * 1000.0);
+    counters[kCtrPhotoShare] = uint(share * 1000.0);
+    counters[kCtrPhotoBias] = uint(int(round(bias * 1000.0)));
+    counters[kCtrPhotoModel] = uint(model);
+    counters[kCtrPhotoCorrelation] = uint(int(round(correlation * 1000.0)));
+  }
+}

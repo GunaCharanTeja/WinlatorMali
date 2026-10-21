@@ -1,0 +1,443 @@
+#version 460
+// Modified in WinlatorMali: ZFG_NO_COMPACT.
+#extension GL_GOOGLE_include_directive : require
+// D2 Refine: the RC1 Refine (L2 to L1, ZFG_SUBPIXEL = 0, dispatch D2a) and the RC1 Final Refine (L1 to
+// L0 with the sub-pixel fit, ZFG_SUBPIXEL = 1, dispatch D2b).
+//   mode 0  H0 only: the RC1 chain, in the structure of RC1's "exact cleanup" shaders (the A patch is
+//           cached once per invocation, anchor costs are computed once, coverage is separate from the
+//           cost): bit-identical to RC1 and about ten times faster than the frozen RC1 source on the
+//           AMD proprietary driver, where a candidate array in private memory dominates.
+//   mode 1  H0 as in mode 0 (still bit-identical), plus H1: a second DISTINCT surface per cell, found
+//           in the candidate pool the H0 search already evaluated (the RC1 anchors and the plus or
+//           minus 2 window around the base) extended with the neighbours' own alternative hypotheses.
+//           H1 is the best candidate that is not in H0's basin: more than one cell of offset away,
+//           with a ridge between H0 and H1 (the cost at the offset midway exceeds both ends by at
+//           least `ridge`; a valley is one surface, a ridge is two) and a cost not above H0's by more
+//           than `delta_cost`. It gets the same sub-pixel fit as H0 at the M level.
+// The H1 code is compiled out (-DZFG_H1_ENABLED=0) for mode 0: a mode that is a specialization
+// constant leaves the larger shader's register and scratch footprint on some drivers.
+// Hypothesis-carrying refine with predictors from the camera, the temporal prior and chain B (spec
+// section 5) replaces the pool in later steps.
+#include "rc3_common.glsl"
+
+#ifndef ZFG_H1_ENABLED
+#define ZFG_H1_ENABLED 1
+#endif
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 9) const int ZFG_PHOTO = 0;  // 1 = A's pyramid is read at B's exposure (d0p_photo.comp)
+layout(constant_id = 2) const int ZFG_SUBPIXEL = 0;
+layout(constant_id = 4) const int ZFG_ALT_STRIDE = 1;  // alternative records per coarse cell
+layout(constant_id = 5) const int ZFG_COUNTER_CELLS = 4;  // counter index of this level's cells
+layout(constant_id = 6) const int ZFG_COUNTER_H1 = 5;     // counter index of this level's valid H1
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D pyramid_a;
+layout(binding = 1) uniform sampler2D pyramid_b;
+layout(std430, binding = 2) readonly buffer CoarseField {
+  vec4 coarse_field[];
+};
+layout(std430, binding = 3) writeonly buffer FineField {
+  vec4 fine_field[];
+};
+// Alternative hypotheses of the coarse level (mean cost; ridge or 0 in w) and of this level.
+layout(std430, binding = 4) readonly buffer CoarseAlt {
+  vec4 coarse_alt[];
+};
+layout(std430, binding = 5) writeonly buffer FineAlt {
+  vec4 fine_alt[];
+};
+layout(std430, binding = 7) readonly buffer Photo {
+  vec4 photo;
+};
+layout(std430, binding = 6) buffer Counters {
+  uint counters[];
+};
+
+layout(push_constant) uniform RefinePush {
+  ivec2 fine_extent;
+  ivec2 coarse_extent;
+  vec2 source_pixels_per_fine_texel;
+  float ridge;       // minimum ridge between H0 and H1, mean-cost units
+  float delta_cost;  // H1 cost may exceed H0's by at most this
+} pc;
+
+// Private per-invocation cache of the invariant A patch.
+float a_patch[9];
+
+bool Valid(ivec2 p) {
+  return all(greaterThanEqual(p, ivec2(0))) &&
+      all(lessThan(p, pc.fine_extent));
+}
+
+// The A patch is invariant for this invocation: the nine values are cached once, the float SAD order
+// and the invalid-pair penalty are the RC1 ones.
+float CostFromPatchA(ivec2 origin, ivec2 offset) {
+  float sum = 0.0;
+  for (int y = -1; y <= 1; ++y) {
+    for (int x = -1; x <= 1; ++x) {
+      ivec2 pa = origin + ivec2(x, y);
+      int patch_index = (y + 1) * 3 + x + 1;
+      sum += Valid(pa) && Valid(pa + offset)
+          ? abs(a_patch[patch_index] -
+                texelFetch(pyramid_b, pa + offset, 0).r)
+          : 1.0;
+    }
+  }
+  return sum / 9.0;
+}
+
+uint CoverageMask(ivec2 origin, ivec2 offset) {
+  uint coverage = 0u;
+  uint bit = 1u;
+  for (int y = -1; y <= 1; ++y) {
+    for (int x = -1; x <= 1; ++x) {
+      ivec2 pa = origin + ivec2(x, y);
+      if (Valid(pa) && Valid(pa + offset)) {
+        coverage |= bit;
+      }
+      bit <<= 1u;
+    }
+  }
+  return coverage;
+}
+
+vec4 ReadCoarse(ivec2 p) {
+  p = clamp(p, ivec2(0), pc.coarse_extent - ivec2(1));
+  return coarse_field[p.y * pc.coarse_extent.x + p.x];
+}
+
+#if ZFG_H1_ENABLED
+vec4 ReadCoarseAlt(ivec2 p, int slot) {
+  p = clamp(p, ivec2(0), pc.coarse_extent - ivec2(1));
+  return coarse_alt[(p.y * pc.coarse_extent.x + p.x) * ZFG_ALT_STRIDE + slot];
+}
+#endif
+
+void ConsiderCandidate(ivec2 candidate, float candidate_cost,
+                       ivec2 base_offset, inout float best,
+                       inout float second, inout ivec2 best_offset,
+                       inout ivec2 second_offset, inout bool have_best,
+                       inout bool have_second) {
+  ivec2 delta = candidate - base_offset;
+  int distance = delta.x * delta.x + delta.y * delta.y;
+  ivec2 best_delta = best_offset - base_offset;
+  int best_distance = best_delta.x * best_delta.x +
+      best_delta.y * best_delta.y;
+  ivec2 second_delta = second_offset - base_offset;
+  int second_distance = second_delta.x * second_delta.x +
+      second_delta.y * second_delta.y;
+  bool better = !have_best || candidate_cost < best ||
+      (candidate_cost == best &&
+       (distance < best_distance ||
+        (distance == best_distance &&
+         DirectionLess(candidate, best_offset))));
+  if (better) {
+    if (have_best) {
+      second = best;
+      second_offset = best_offset;
+      have_second = true;
+    }
+    best = candidate_cost;
+    best_offset = candidate;
+    have_best = true;
+  } else if (any(notEqual(candidate, best_offset)) &&
+             (!have_second || candidate_cost < second ||
+              (candidate_cost == second &&
+               (distance < second_distance ||
+                (distance == second_distance &&
+                 DirectionLess(candidate, second_offset)))))) {
+    second = candidate_cost;
+    second_offset = candidate;
+    have_second = true;
+  }
+}
+
+float SubpixelDelta(float minus_cost, float center_cost, float plus_cost,
+                    uint minus_coverage, uint center_coverage,
+                    uint plus_coverage) {
+  const float epsilon = 1e-6;
+  float dm = minus_cost - center_cost;
+  float dp = plus_cost - center_cost;
+  if (center_cost <= epsilon || minus_coverage != center_coverage ||
+      plus_coverage != center_coverage || dm <= epsilon || dp <= epsilon) {
+    return 0.0;
+  }
+  float raw = 0.5 * (dm - dp) / (dm + dp);
+  if (abs(raw) > 0.5001) {
+    return 0.0;
+  }
+  return clamp(raw, -0.5, 0.5);
+}
+
+// The RC1 sub-pixel fit around an integer offset whose cost is `center_cost`: a parabola on the cost
+// along each axis, accepted only with a strict local minimum, a non-zero centre cost and identical
+// coverage of the probes.
+vec2 Subpixel(ivec2 f, ivec2 offset, float center_cost) {
+  vec2 subpixel = vec2(0.0);
+  const float epsilon = 1e-6;
+  const uint center_coverage = CoverageMask(f, offset);
+  if (center_cost > epsilon) {
+    const uint left_coverage = CoverageMask(f, offset + ivec2(-1, 0));
+    const uint right_coverage = CoverageMask(f, offset + ivec2(1, 0));
+    if (left_coverage == center_coverage &&
+        right_coverage == center_coverage) {
+      const float left_cost = CostFromPatchA(f, offset + ivec2(-1, 0));
+      const float right_cost = CostFromPatchA(f, offset + ivec2(1, 0));
+      subpixel.x = SubpixelDelta(left_cost, center_cost, right_cost,
+                                 left_coverage, center_coverage,
+                                 right_coverage);
+    }
+
+    const uint up_coverage = CoverageMask(f, offset + ivec2(0, -1));
+    const uint down_coverage = CoverageMask(f, offset + ivec2(0, 1));
+    if (up_coverage == center_coverage &&
+        down_coverage == center_coverage) {
+      const float up_cost = CostFromPatchA(f, offset + ivec2(0, -1));
+      const float down_cost = CostFromPatchA(f, offset + ivec2(0, 1));
+      subpixel.y = SubpixelDelta(up_cost, center_cost, down_cost,
+                                 up_coverage, center_coverage,
+                                 down_coverage);
+    }
+  }
+  return subpixel;
+}
+
+#if ZFG_H1_ENABLED
+// H1 candidate order: lower cost, then closer to H0's offset, then the fixed direction.
+bool H1Better(float cost, ivec2 offset, float reference_cost, ivec2 reference, ivec2 h0_offset) {
+  ivec2 delta = offset - h0_offset;
+  ivec2 reference_delta = reference - h0_offset;
+  int distance = delta.x * delta.x + delta.y * delta.y;
+  int reference_distance = reference_delta.x * reference_delta.x +
+      reference_delta.y * reference_delta.y;
+  return cost < reference_cost ||
+      (cost == reference_cost &&
+       (distance < reference_distance ||
+        (distance == reference_distance && DirectionLess(offset, reference))));
+}
+#endif
+
+void main() {
+  ivec2 f = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(f, pc.fine_extent))) {
+    return;
+  }
+
+  vec2 coarse_position = (vec2(f) + 0.5) *
+      vec2(pc.coarse_extent) / vec2(pc.fine_extent) - 0.5;
+  ivec2 coarse_base = ivec2(floor(coarse_position));
+  vec2 fraction = fract(coarse_position);
+  ivec2 coarse_coordinates[4] = ivec2[4](
+      coarse_base, coarse_base + ivec2(1, 0),
+      coarse_base + ivec2(0, 1), coarse_base + ivec2(1, 1));
+  float bilinear[4] = float[4]((1.0 - fraction.x) * (1.0 - fraction.y),
+      fraction.x * (1.0 - fraction.y),
+      (1.0 - fraction.x) * fraction.y, fraction.x * fraction.y);
+  vec4 coarse[4];
+  float reliability[4];
+  float r_bar = 0.0;
+  for (int i = 0; i < 4; ++i) {
+    coarse[i] = ReadCoarse(coarse_coordinates[i]);
+    reliability[i] = Reliability(coarse[i]);
+    r_bar += bilinear[i] * reliability[i];
+  }
+  r_bar = clamp(r_bar, 0.0, 1.0);
+  vec2 motion_predictor = vec2(0.0);
+  for (int i = 0; i < 4; ++i) {
+    motion_predictor += bilinear[i] *
+        ((1.0 - r_bar) + reliability[i]) * coarse[i].xy;
+  }
+
+  ivec2 predictor_offset = ivec2(roundEven(
+      motion_predictor / pc.source_pixels_per_fine_texel));
+  ivec2 anchors[6];
+  anchors[0] = predictor_offset;
+  anchors[1] = ivec2(0);
+  for (int i = 0; i < 4; ++i) {
+    anchors[i + 2] = ivec2(roundEven(
+        coarse[i].xy / pc.source_pixels_per_fine_texel));
+  }
+
+  for (int y = -1; y <= 1; ++y) {
+    for (int x = -1; x <= 1; ++x) {
+      ivec2 p = f + ivec2(x, y);
+      int patch_index = (y + 1) * 3 + x + 1;
+      a_patch[patch_index] = Valid(p)
+          ? (ZFG_PHOTO != 0 ? PhotoNormalize(texelFetch(pyramid_a, p, 0).r, photo) : texelFetch(pyramid_a, p, 0).r)
+          : 0.0;
+    }
+  }
+
+  float anchor_costs[6];
+  for (int i = 0; i < 6; ++i) {
+    anchor_costs[i] = CostFromPatchA(f, anchors[i]);
+  }
+
+  ivec2 base_offset = anchors[0];
+  float base_cost = anchor_costs[0];
+  ivec2 initial_delta = base_offset - predictor_offset;
+  int base_distance = initial_delta.x * initial_delta.x +
+      initial_delta.y * initial_delta.y;
+  for (int i = 1; i < 6; ++i) {
+    ivec2 predictor_delta = anchors[i] - predictor_offset;
+    int distance = predictor_delta.x * predictor_delta.x +
+        predictor_delta.y * predictor_delta.y;
+    if (anchor_costs[i] < base_cost ||
+        (anchor_costs[i] == base_cost &&
+         (distance < base_distance ||
+          (distance == base_distance &&
+           DirectionLess(anchors[i], base_offset))))) {
+      base_offset = anchors[i];
+      base_cost = anchor_costs[i];
+      base_distance = distance;
+    }
+  }
+
+#ifdef ZFG_NO_COMPACT
+  // Mali: no compaction of the duplicates (a runtime-indexed write puts anchors[] on the stack on Valhall). Exact: a
+  // duplicate anchor has the same vector and the same cost, and ConsiderCandidate, the window's duplicate test and H1Better
+  // all leave their state unchanged when they meet a candidate equal to one already met; the first occurrences keep their order.
+  const int unique_anchor_count = 6;
+#else
+  int unique_anchor_count = 0;
+  for (int i = 0; i < 6; ++i) {
+    bool duplicate = false;
+    for (int j = 0; j < unique_anchor_count; ++j) {
+      duplicate = duplicate || all(equal(anchors[j], anchors[i]));
+    }
+    if (!duplicate) {
+      anchors[unique_anchor_count] = anchors[i];
+      anchor_costs[unique_anchor_count] = anchor_costs[i];
+      ++unique_anchor_count;
+    }
+  }
+#endif
+
+  float best = 1.0 / 0.0;
+  float second = 1.0 / 0.0;
+  ivec2 best_offset = anchors[0];
+  ivec2 second_offset = anchors[0];
+  bool have_best = false;
+  bool have_second = false;
+
+#if ZFG_H1_ENABLED
+  float window_cost[25];
+#endif
+  // Anchors and residuals use the same candidate update path. The nested residual order is the frozen
+  // RC1 candidate list.
+  for (int i = 0; i < unique_anchor_count; ++i) {
+    ConsiderCandidate(
+        anchors[i], anchor_costs[i], base_offset, best, second, best_offset,
+        second_offset, have_best, have_second);
+  }
+  for (int dy = -2; dy <= 2; ++dy) {
+    for (int dx = -2; dx <= 2; ++dx) {
+      ivec2 candidate = base_offset + ivec2(dx, dy);
+      bool duplicate = false;
+      float duplicate_cost = 0.0;
+      for (int i = 0; i < unique_anchor_count; ++i) {
+        if (all(equal(anchors[i], candidate))) {
+          duplicate = true;
+          duplicate_cost = anchor_costs[i];
+        }
+      }
+      float candidate_cost = duplicate_cost;
+      if (!duplicate) {
+        candidate_cost = CostFromPatchA(f, candidate);
+        ConsiderCandidate(
+            candidate, candidate_cost, base_offset, best, second, best_offset,
+            second_offset, have_best, have_second);
+      }
+#if ZFG_H1_ENABLED
+      window_cost[(dy + 2) * 5 + (dx + 2)] = candidate_cost;
+#endif
+    }
+  }
+
+  vec2 subpixel = vec2(0.0);
+  if (ZFG_SUBPIXEL != 0) {
+    subpixel = Subpixel(f, best_offset, best);
+  }
+
+  uint index = uint(f.y * pc.fine_extent.x + f.x);
+  fine_field[index] = vec4(
+      (vec2(best_offset) + subpixel) * pc.source_pixels_per_fine_texel,
+      best, second);
+
+#if ZFG_H1_ENABLED
+  if (ZFG_MODE >= 1) {
+    // ---- H1: the best candidate outside H0's basin ----
+    bool have_h1 = false;
+    float h1_cost = 0.0;
+    ivec2 h1_offset = ivec2(0);
+    for (int i = 0; i < unique_anchor_count; ++i) {
+      if (max(abs(anchors[i].x - best_offset.x), abs(anchors[i].y - best_offset.y)) > 1 &&
+          (!have_h1 || H1Better(anchor_costs[i], anchors[i], h1_cost, h1_offset, best_offset))) {
+        have_h1 = true;
+        h1_cost = anchor_costs[i];
+        h1_offset = anchors[i];
+      }
+    }
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        ivec2 candidate = base_offset + ivec2(dx, dy);
+        float candidate_cost = window_cost[(dy + 2) * 5 + (dx + 2)];
+        if (max(abs(candidate.x - best_offset.x), abs(candidate.y - best_offset.y)) > 1 &&
+            (!have_h1 || H1Better(candidate_cost, candidate, h1_cost, h1_offset, best_offset))) {
+          have_h1 = true;
+          h1_cost = candidate_cost;
+          h1_offset = candidate;
+        }
+      }
+    }
+    // The neighbours' own alternative hypotheses, rounded to this level's offset grid.
+    for (int n = 0; n < 4; ++n) {
+      for (int slot = 0; slot < ZFG_ALT_STRIDE; ++slot) {
+        vec4 alt = ReadCoarseAlt(coarse_coordinates[n], slot);
+        if (alt.w <= 0.0) {
+          continue;
+        }
+        ivec2 candidate = ivec2(roundEven(alt.xy / pc.source_pixels_per_fine_texel));
+        if (max(abs(candidate.x - best_offset.x), abs(candidate.y - best_offset.y)) <= 1) {
+          continue;
+        }
+        float candidate_cost = CostFromPatchA(f, candidate);
+        if (!have_h1 || H1Better(candidate_cost, candidate, h1_cost, h1_offset, best_offset)) {
+          have_h1 = true;
+          h1_cost = candidate_cost;
+          h1_offset = candidate;
+        }
+      }
+    }
+
+    float ridge_value = 0.0;
+    vec2 h1_subpixel = vec2(0.0);
+    if (have_h1 && h1_cost <= best + pc.delta_cost) {
+      ivec2 mid = ivec2(roundEven(0.5 * (vec2(best_offset) + vec2(h1_offset))));
+      float mid_cost = CostFromPatchA(f, mid);
+      float ridge_here = mid_cost - max(best, h1_cost);
+      if (ridge_here >= max(pc.ridge, 1e-4)) {
+        ridge_value = ridge_here;
+        if (ZFG_SUBPIXEL != 0) {
+          h1_subpixel = Subpixel(f, h1_offset, h1_cost);
+        }
+      }
+    }
+    if (ridge_value > 0.0) {
+      fine_alt[index] = vec4((vec2(h1_offset) + h1_subpixel) * pc.source_pixels_per_fine_texel,
+                             h1_cost, ridge_value);
+    } else {
+      fine_alt[index] = vec4(0.0);
+    }
+    ZFG_COUNT(ZFG_COUNTER_CELLS);
+    if (ridge_value > 0.0) {
+      ZFG_COUNT(ZFG_COUNTER_H1);
+      if (ZFG_SUBPIXEL != 0 && h1_cost <= best + 0.02) {
+        ZFG_COUNT(kCtrD2bH1Cost);
+      }
+    }
+  }
+#endif
+}

@@ -1,0 +1,246 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D1 Evidence, chain A (A to B): the RC1 exact offset-parallel Seed (best and second cost), one 64-lane
+// workgroup per C cell. The float cost and its tie order are the RC1 ones, so mode 0 is comparable bit
+// for bit.
+//   mode 0  RC1 Seed only (K = 1).
+//   mode 1  also K = 3: the second and third DISTINCT basins by non-maximum suppression in offset space
+//           (Chebyshev radius 1 around every pick), each kept only if a ridge separates it from the
+//           picks before it (the cost at the offset midway is higher than both ends by at least
+//           `ridge`): a valley between two offsets is one surface, a ridge is two. The first pick is
+//           the RC1 best (counted if it ever differs). Written to `coarse_alt` as
+//           (offset in source pixels, mean cost, ridge or 0 when not valid).
+// Integer SAD, chain B (B to A), the camera and the temporal prior arrive in later steps (spec
+// section 4), and the local size becomes 256 when the chains are fused.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 9) const int ZFG_PHOTO = 0;  // 1 = A's pyramid is read at B's exposure (d0p_photo.comp)
+
+layout(local_size_x = 64, local_size_y = 1) in;
+
+layout(binding = 0) uniform sampler2D pyramid_a;
+layout(binding = 1) uniform sampler2D pyramid_b;
+layout(std430, binding = 2) writeonly buffer CoarseField {
+  vec4 field[];
+};
+
+layout(std430, binding = 3) writeonly buffer CoarseAlt {
+  vec4 coarse_alt[];  // two records per cell: the second and third distinct basin
+};
+layout(std430, binding = 5) readonly buffer Photo {
+  vec4 photo;
+};
+layout(std430, binding = 4) buffer Counters {
+  uint counters[];
+};
+
+layout(push_constant) uniform EvidencePush {
+  ivec2 extent;
+  vec2 source_pixels_per_texel;
+  float ridge;  // minimum ridge (mean-cost units) between two distinct basins
+  float pad;
+} pc;
+
+shared float a_patch[9];
+shared float all_costs[81];
+shared float best_costs[64];
+shared float second_costs[64];
+shared ivec2 best_offsets[64];
+shared ivec2 second_offsets[64];
+
+bool Valid(ivec2 p) {
+  return all(greaterThanEqual(p, ivec2(0))) && all(lessThan(p, pc.extent));
+}
+
+float SadSumFromPatchA(ivec2 origin, ivec2 offset) {
+  precise float sum = 0.0;
+  for (int y = -1; y <= 1; ++y) {
+    for (int x = -1; x <= 1; ++x) {
+      ivec2 pa = origin + ivec2(x, y);
+      ivec2 pb = pa + offset;
+      int patch_index = (y + 1) * 3 + x + 1;
+      sum += Valid(pa) && Valid(pb)
+          ? abs(a_patch[patch_index] - texelFetch(pyramid_b, pb, 0).r)
+          : 1.0;
+    }
+  }
+  return sum;
+}
+
+bool SeedBetter(float cost, ivec2 offset, float reference_cost,
+                ivec2 reference_offset) {
+  int radius2 = offset.x * offset.x + offset.y * offset.y;
+  int reference_radius2 = reference_offset.x * reference_offset.x +
+      reference_offset.y * reference_offset.y;
+  return cost < reference_cost ||
+      (cost == reference_cost &&
+       (radius2 < reference_radius2 ||
+        (radius2 == reference_radius2 &&
+         DirectionLess(offset, reference_offset))));
+}
+
+void AddCandidate(float cost, ivec2 offset, inout float best,
+                  inout ivec2 best_offset, inout float second,
+                  inout ivec2 second_offset) {
+  if (SeedBetter(cost, offset, best, best_offset)) {
+    second = best;
+    second_offset = best_offset;
+    best = cost;
+    best_offset = offset;
+  } else if (SeedBetter(cost, offset, second, second_offset)) {
+    second = cost;
+    second_offset = offset;
+  }
+}
+
+ivec2 OffsetForIndex(int k) {
+  return ivec2(k % 9 - 4, k / 9 - 4);
+}
+
+void main() {
+  ivec2 p = ivec2(gl_WorkGroupID.xy);
+  uint lane = gl_LocalInvocationIndex;
+  if (lane == 0u) {
+    for (int y = -1; y <= 1; ++y) {
+      for (int x = -1; x <= 1; ++x) {
+        ivec2 pa = p + ivec2(x, y);
+        int patch_index = (y + 1) * 3 + x + 1;
+        a_patch[patch_index] =
+            Valid(pa) ? (ZFG_PHOTO != 0 ? PhotoNormalize(texelFetch(pyramid_a, pa, 0).r, photo) : texelFetch(pyramid_a, pa, 0).r) : 0.0;
+      }
+    }
+  }
+  barrier();
+
+  const float infinity = 1.0 / 0.0;
+  const ivec2 sentinel = ivec2(127);
+  float best = infinity;
+  float second = infinity;
+  ivec2 best_offset = sentinel;
+  ivec2 second_offset = sentinel;
+
+  int k = int(lane);
+  ivec2 offset = OffsetForIndex(k);
+  precise float cost = SadSumFromPatchA(p, offset);
+  all_costs[k] = cost;
+  AddCandidate(cost, offset, best, best_offset, second, second_offset);
+  if (lane < 17u) {
+    k = int(lane) + 64;
+    offset = OffsetForIndex(k);
+    cost = SadSumFromPatchA(p, offset);
+    all_costs[k] = cost;
+    AddCandidate(cost, offset, best, best_offset, second, second_offset);
+  }
+
+  best_costs[lane] = best;
+  second_costs[lane] = second;
+  best_offsets[lane] = best_offset;
+  second_offsets[lane] = second_offset;
+  barrier();
+
+  for (uint stride = 32u; stride > 0u; stride >>= 1u) {
+    if (lane < stride) {
+      float a_best = best_costs[lane];
+      float a_second = second_costs[lane];
+      ivec2 a_best_offset = best_offsets[lane];
+      ivec2 a_second_offset = second_offsets[lane];
+      float b_best = best_costs[lane + stride];
+      float b_second = second_costs[lane + stride];
+      ivec2 b_best_offset = best_offsets[lane + stride];
+      ivec2 b_second_offset = second_offsets[lane + stride];
+      if (SeedBetter(b_best, b_best_offset, a_best, a_best_offset)) {
+        best_costs[lane] = b_best;
+        best_offsets[lane] = b_best_offset;
+        if (SeedBetter(a_best, a_best_offset, b_second, b_second_offset)) {
+          second_costs[lane] = a_best;
+          second_offsets[lane] = a_best_offset;
+        } else {
+          second_costs[lane] = b_second;
+          second_offsets[lane] = b_second_offset;
+        }
+      } else {
+        best_costs[lane] = a_best;
+        best_offsets[lane] = a_best_offset;
+        if (SeedBetter(b_best, b_best_offset, a_second, a_second_offset)) {
+          second_costs[lane] = b_best;
+          second_offsets[lane] = b_best_offset;
+        } else {
+          second_costs[lane] = a_second;
+          second_offsets[lane] = a_second_offset;
+        }
+      }
+    }
+    barrier();
+  }
+
+  if (lane == 0u) {
+    uint index = uint(p.y * pc.extent.x + p.x);
+    field[index] = vec4(vec2(best_offsets[0]) * pc.source_pixels_per_texel,
+                        best_costs[0] / 9.0, second_costs[0] / 9.0);
+    if (ZFG_MODE >= 1) {
+      // K = 3 distinct basins: serial non-maximum suppression over the 81 costs held in shared
+      // memory (about 250 comparisons against the 81 x 9 absolute differences already spent).
+      ivec2 picked[3];
+      float picked_cost[3];
+      int found = 0;
+      for (int j = 0; j < 3; ++j) {
+        bool have = false;
+        float candidate_cost = 0.0;
+        ivec2 candidate_offset = ivec2(0);
+        for (int n = 0; n < 81; ++n) {
+          ivec2 offset_n = OffsetForIndex(n);
+          bool blocked = false;
+          for (int i = 0; i < j; ++i) {
+            blocked = blocked || max(abs(offset_n.x - picked[i].x),
+                                     abs(offset_n.y - picked[i].y)) <= 1;
+          }
+          if (!blocked && (!have || SeedBetter(all_costs[n], offset_n, candidate_cost,
+                                               candidate_offset))) {
+            have = true;
+            candidate_cost = all_costs[n];
+            candidate_offset = offset_n;
+          }
+        }
+        if (!have) {
+          break;
+        }
+        picked[j] = candidate_offset;
+        picked_cost[j] = candidate_cost;
+        found = j + 1;
+      }
+      ZFG_COUNT(kCtrD1Cells);
+      if (found == 0 || any(notEqual(picked[0], best_offsets[0]))) {
+        ZFG_COUNT(kCtrD1Mismatch);
+      }
+      for (int j = 1; j < 3; ++j) {
+        float ridge_j = 0.0;
+        if (j < found) {
+          // The ridge to every earlier pick; the smallest decides (a valley to any of them makes
+          // this the same basin).
+          ridge_j = 1e9;
+          for (int i = 0; i < j; ++i) {
+            ivec2 mid = ivec2(roundEven(0.5 * (vec2(picked[i]) + vec2(picked[j]))));
+            int mid_index = (mid.y + 4) * 9 + (mid.x + 4);
+            float ridge_ij =
+                (all_costs[mid_index] - max(picked_cost[i], picked_cost[j])) / 9.0;
+            ridge_j = min(ridge_j, ridge_ij);
+          }
+          if (ridge_j < max(pc.ridge, 1e-4)) {
+            ridge_j = 0.0;
+          }
+        }
+        if (j < found) {
+          vec2 motion = vec2(picked[j]) * pc.source_pixels_per_texel;
+          coarse_alt[index * 2u + uint(j - 1)] =
+              vec4(motion, picked_cost[j] / 9.0, ridge_j);
+        } else {
+          coarse_alt[index * 2u + uint(j - 1)] = vec4(0.0);
+        }
+        if (ridge_j > 0.0) {
+          ZFG_COUNT(kCtrD1Alt1 + uint(j - 1));
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,285 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D3 Cell analysis.
+//   mode 0  the RC1 Finalize: every cell is a single surface; the cell confidence is its reliability
+//           times the support of its two best 4-neighbours.
+//           With `quality_high` > 0 (the fine stage ran) the quality term is calibrated on the
+//           full-resolution cost: 1 - smoothstep(quality_low, quality_high, cost), so a vector whose
+//           samples really disagree (a scene cut, content that moved out of the search) is trusted
+//           little however unique its minimum looks.
+//   mode 1  also the confidence of H1 (quality of its cost times how distinct it is: the ridge between
+//           H0 and H1) and its validity gate; `cell_alt` = (motion, confidence, valid).
+//   support   a cell that adopted a vector a confident cell vouches for (the D4 support record) has no
+//           measured uniqueness of its own. `support_trust` says how much of the supporter's margin counts
+//           as uniqueness here (0 = none: measured only): uniqueness = max(measured, trust * margin / 0.2).
+// Visibility per hypothesis, geometry, temporal arbitration, reconstruction classes and the tile lists
+// (spec section 6) replace this in later steps.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 31) const int ZFG_OBSW = 0;     // EXPERIMENT: the confidence of a cell is scaled by how observable its motion is (the D4 cost-surface sidecar)
+layout(constant_id = 27) const int ZFG_UNIQ = 0;     // 1 = the w channel of the cell field is the cell's UNIQUENESS (D5 scales the photometric rescue of an ambiguous cell by it)
+layout(constant_id = 28) const int ZFG_CFILL = 0;    // 1 = an untrusted cell whose own vector explains nothing takes the vector its trusted neighbours agree on (the conservative fill, see below)
+layout(constant_id = 30) const int ZFG_COVER = 0;    // 1 = the w channel of the cell field is the COVERAGE: the mean confidence of the 5 x 5 cells around (D5 shows the blend only where the neighbourhood is continuous)
+layout(constant_id = 29) const int ZFG_HISTORY = 0;  // 1 = the final field and support record are packed into the temporal history (the commit flag decides per Record)
+layout(constant_id = 32) const int ZFG_ATEX = 0;     // 1 = A's per-cell lattice (binding 9) gives the cell's texture: the relative match of the pair guard (and its study counters)
+layout(constant_id = 7) const int ZFG_SAMPLES = 10;  // the lattice's samples per axis (the same constant as D4's)
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 9) uniform sampler2D a_cells;
+
+const float kGuardTexture = 0.02;  // a cell is informative when A's lattice varies by at least this (mean absolute deviation, luma 0..1)
+const float kGuardRatio = 0.5;     // ... and matches when its fine cost is at most this share of that variation
+
+layout(std430, binding = 0) readonly buffer RawField {
+  vec4 raw_field[];
+};
+layout(std430, binding = 1) writeonly buffer CellField {
+  vec4 cell_field[];
+};
+layout(std430, binding = 2) readonly buffer RawAlt {
+  vec4 raw_alt[];  // H1 of the refine: motion, cost, ridge (0 = none)
+};
+layout(std430, binding = 3) writeonly buffer CellAlt {
+  vec4 cell_alt[];
+};
+layout(std430, binding = 4) buffer Counters {
+  uint counters[];
+};
+layout(std430, binding = 5) readonly buffer Support {
+  vec4 support[];  // the D4 support record of the last pass: margin, hops, root vector
+};
+
+layout(std430, binding = 7) readonly buffer Observ {
+  vec4 observ[];  // curvature x, curvature y, plateau, best cost (d4_fine.comp)
+};
+
+layout(std430, binding = 8) readonly buffer Photo {
+  vec4 photo;
+  vec4 stats;  // x: the correlation of A and B (d0p_photo.comp)
+};
+
+layout(std430, binding = 6) writeonly buffer History {
+  uint history[];  // three words per cell, see PackHistoryVector in rc3_common.glsl
+};
+
+layout(push_constant) uniform CellsPush {
+  ivec2 extent;
+  vec2 source_pixels_per_texel;
+  float ridge_full;  // the ridge at which H1 counts as fully distinct
+  float conf_min;    // H1 below this confidence is not offered to the resolve
+  float quality_low;   // fine-cost calibration (see above); 0 for quality_high = the RC1 quality
+  float quality_high;
+  float guard_cost;    // a cell with a cost under this counts as matched, for the pair guard of D5
+  float support_trust;  // share of a supporter's margin that counts as uniqueness (0 = measured only)
+  int commit;           // 1 = this Record's result becomes the previous pair of the next one
+  float obs_weight;     // how much of the observability factor applies (0 = none)
+  float obs_scale;      // the curvature (1/255 units over the samples) that counts as fully observable
+  float cfill_lo;       // cfill: a cell is fillable only under this confidence ...
+  float cfill_hi;       // ... a neighbour is a witness only over this one ...
+  float cfill_cost;     // ... the cell's own fine cost must be at least this (no viable hypothesis of its own) ...
+  float cfill_d;        // ... the witnesses agree within this many source pixels of their mean ...
+  float cfill_conf;     // ... the filled cell gets this share of its witnesses' mean confidence (the pixel's photometric test decides the rest) ...
+  float cfill_corr;     // ... and the pair is continuous: the A-B correlation at least this
+  int cfill_n;          // ... with at least this many witnesses
+  float guard_unique;   // pair guard: the margin of the best cost under the best distinct alternative a matched cell needs (0 = a low cost is enough)
+} pc;
+
+// The support margin that counts as fully vouched for (a measured cell reaches 1 at any margin on a zero cost).
+const float kSupportMargin = 0.2;
+
+// How unique the cell's best vector is (1 = the best distinct alternative is far worse, 0 = it ties: a periodic texture), the measured margin or the support's.
+float Uniqueness(vec4 value, float supported) {
+  float measured = clamp((value.w - value.z) / max(value.w, 1e-6), 0.0, 1.0);
+  float vouched = pc.support_trust * clamp(supported / kSupportMargin, 0.0, 1.0);
+  return pc.quality_high <= 0.0 ? clamp(measured, 0.0, 1.0) : max(measured, vouched);
+}
+
+float Confidence(vec4 value, float supported) {
+  if (pc.quality_high <= 0.0) {
+    return Reliability(value);
+  }
+  float quality = 1.0 - smoothstep(pc.quality_low, pc.quality_high, value.z);
+  float measured = clamp((value.w - value.z) / max(value.w, 1e-6), 0.0, 1.0);
+  float vouched = pc.support_trust * clamp(supported / kSupportMargin, 0.0, 1.0);
+  float uniqueness = max(measured, vouched);
+  return quality * uniqueness;
+}
+
+vec4 ReadField(ivec2 p) {
+  return raw_field[p.y * pc.extent.x + p.x];
+}
+
+// STUDY: the texture of A in a cell, the mean absolute deviation of its lattice samples (luma 0..1): what a match has to beat to mean anything.
+float CellTexture(ivec2 cell) {
+  float sum = 0.0;
+  for (int s = 0; s < ZFG_SAMPLES * ZFG_SAMPLES; ++s) {
+    sum += texelFetch(a_cells, cell * ZFG_SAMPLES + ivec2(s % ZFG_SAMPLES, s / ZFG_SAMPLES), 0).r;
+  }
+  const float mean = sum / float(ZFG_SAMPLES * ZFG_SAMPLES);
+  float deviation = 0.0;
+  for (int s = 0; s < ZFG_SAMPLES * ZFG_SAMPLES; ++s) {
+    deviation += abs(texelFetch(a_cells, cell * ZFG_SAMPLES + ivec2(s % ZFG_SAMPLES, s / ZFG_SAMPLES), 0).r - mean);
+  }
+  return deviation / float(ZFG_SAMPLES * ZFG_SAMPLES);
+}
+
+void main() {
+  ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(p, pc.extent))) {
+    return;
+  }
+  vec4 center = ReadField(p);
+  // A matched cell for the pair guard: a low cost that is also UNIQUE (the best is clearly better than
+  // the best distinct alternative, by guard_unique), so flat sky, which matches anything, does not count.
+  // Counted outside the diagnostic macro: the guard of D5 reads it in the timing (product) form too. The
+  // host sets guard_cost to 0 (no counting at all) when neither the guard nor the diagnostics need it.
+  if (pc.guard_cost > 0.0 && center.z < pc.guard_cost && center.w - center.z >= pc.guard_unique) {
+    atomicAdd(counters[kCtrD3Good], 1u);
+  }
+  // The RELATIVE match for the guard (the product form, counted with the same switch): in a dark or low-contrast picture every cost is small, so
+  // an absolute cost says nothing (two unrelated dark shots "match" in 80 % of their cells). A cell with texture (the mean absolute deviation of its
+  // A lattice at least kGuardTexture) matches when its fine cost is at most kGuardRatio of that texture: the match has to beat what the cell itself
+  // varies by. The guard asks the share of such INFORMATIVE cells that match, and only when enough cells are informative.
+  if (pc.guard_cost > 0.0 && ZFG_ATEX != 0) {
+    const float texture = CellTexture(p);
+    if (texture >= kGuardTexture) {
+      atomicAdd(counters[kCtrD3Info], 1u);
+      if (center.z <= kGuardRatio * texture) {
+        atomicAdd(counters[kCtrD3Rel50], 1u);
+      }
+      if (ZFG_COUNTERS != 0) {
+        if (center.z <= 0.35 * texture) ZFG_COUNT(kCtrD3Rel35);
+        if (center.z <= 0.75 * texture) ZFG_COUNT(kCtrD3Rel75);
+      }
+    }
+  }
+  if (ZFG_COUNTERS != 0) {
+    // STUDY (the guard's witnesses, logged): how distinct the minimum is, how coherent the field is. None of it touches the output.
+    if (center.z < 0.06 && (center.w - center.z) >= 0.3 * center.w) ZFG_COUNT(kCtrD3Uniq);
+  }
+  float supports[4];
+  int support_count = 0;
+  int coherent_neighbours = 0;
+  const ivec2 direction[4] = ivec2[4](
+      ivec2(-1, 0), ivec2(1, 0), ivec2(0, -1), ivec2(0, 1));
+  for (int i = 0; i < 4; ++i) {
+    ivec2 q = p + direction[i];
+    if (all(greaterThanEqual(q, ivec2(0))) && all(lessThan(q, pc.extent))) {
+      vec4 neighbor = ReadField(q);
+      coherent_neighbours += length(neighbor.xy - center.xy) <= 3.0 ? 1 : 0;
+      vec2 delta_grid =
+          (neighbor.xy - center.xy) / pc.source_pixels_per_texel;
+      float agreement = 1.0 / (1.0 + dot(delta_grid, delta_grid));
+      supports[support_count++] = Confidence(neighbor, support[q.y * pc.extent.x + q.x].x) * agreement;
+    }
+  }
+  for (int i = 0; i < support_count; ++i) {
+    for (int j = i + 1; j < support_count; ++j) {
+      if (supports[j] > supports[i]) {
+        float temporary = supports[i];
+        supports[i] = supports[j];
+        supports[j] = temporary;
+      }
+    }
+  }
+  float spatial_support = support_count == 0
+      ? 1.0
+      : (support_count == 1
+             ? supports[0]
+             : 0.5 * (supports[0] + supports[1]));
+  float confidence = clamp(Confidence(center, support[p.y * pc.extent.x + p.x].x) * spatial_support, 0.0, 1.0);
+  if (ZFG_COUNTERS != 0) {
+    if (center.z < 0.06 && coherent_neighbours >= 2) ZFG_COUNT(kCtrD3Coh);
+    if (confidence >= 0.5) ZFG_COUNT(kCtrD3Conf);
+  }
+  if (ZFG_OBSW != 0) {
+    vec4 shape = observ[p.y * pc.extent.x + p.x];
+    float curvature = (shape.x < 0.0 || shape.y < 0.0) ? 0.0 : min(shape.x, shape.y);
+    confidence *= mix(1.0, clamp(curvature / pc.obs_scale, 0.0, 1.0), pc.obs_weight);
+  }
+  // The coverage: how much of the neighbourhood this cell stands in is TRUSTED. A scene cut has none (the cells that still match are a static
+  // HUD, a black bar), a wipe or a thin object that failed is surrounded by trusted cells.
+  float coverage = ZFG_UNIQ != 0 ? Uniqueness(center, support[p.y * pc.extent.x + p.x].x) : confidence;
+  if (ZFG_COVER != 0) {
+    float sum = 0.0, count = 0.0;
+    for (int dy = -2; dy <= 2; ++dy) {
+      for (int dx = -2; dx <= 2; ++dx) {
+        ivec2 q = p + ivec2(dx, dy);
+        if (all(greaterThanEqual(q, ivec2(0))) && all(lessThan(q, pc.extent))) {
+          sum += Confidence(ReadField(q), support[q.y * pc.extent.x + q.x].x);
+          count += 1.0;
+        }
+      }
+    }
+    coverage = sum / count;
+  }
+  // The conservative fill (cfill). It is for the WORST case only and invents nothing: a cell fills only when the pair is continuous, the cell itself
+  // is untrusted AND its own best vector explains nothing (a high fine cost: there is no hypothesis of its own to override, so a thin object whose own
+  // vector is viable keeps it), and at least cfill_n of the 8 neighbours are trusted and AGREE (all within cfill_d of their mean: a strong boundary has
+  // witnesses that disagree, and then nothing fills). The cell takes the mean vector with a fraction of the witnesses' confidence, so the resolve still
+  // validates it pixel by pixel (the photometric agreement) and falls back to the blend where it is wrong. The history keeps the measured vector.
+  vec2 motion = center.xy;
+  float field_confidence = confidence;
+  if (ZFG_CFILL != 0 && confidence < pc.cfill_lo && center.z >= pc.cfill_cost && stats.x >= pc.cfill_corr) {
+    vec2 sum = vec2(0.0);
+    float conf_sum = 0.0;
+    vec2 witness[8];
+    int count = 0;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        ivec2 q = p + ivec2(dx, dy);
+        if ((dx == 0 && dy == 0) || any(lessThan(q, ivec2(0))) || any(greaterThanEqual(q, pc.extent))) {
+          continue;
+        }
+        vec4 neighbor = ReadField(q);
+        float c = Confidence(neighbor, support[q.y * pc.extent.x + q.x].x);
+        if (c >= pc.cfill_hi) {
+          witness[count++] = neighbor.xy;
+          sum += neighbor.xy;
+          conf_sum += c;
+        }
+      }
+    }
+    if (count >= pc.cfill_n) {
+      vec2 mean = sum / float(count);
+      bool agree = true;
+      for (int i = 0; i < count; ++i) {
+        agree = agree && length(witness[i] - mean) <= pc.cfill_d;
+      }
+      if (agree) {
+        motion = mean;
+        field_confidence = pc.cfill_conf * conf_sum / float(count);
+        ZFG_COUNT(kCtrD3Filled);
+      }
+    }
+  }
+  cell_field[p.y * pc.extent.x + p.x] =
+      vec4(motion, field_confidence, coverage);
+  if (ZFG_HISTORY != 0 && pc.commit != 0) {
+    uint at = uint(3 * (p.y * pc.extent.x + p.x));
+    vec4 record = support[p.y * pc.extent.x + p.x];
+    history[at] = PackHistoryVector(ivec2(roundEven(center.xy)));
+    history[at + 1u] = packHalf2x16(vec2(record.x, record.y));
+    history[at + 2u] = (uint(record.z) & 0xFFFFFu) | (uint(record.w) << 20);
+  }
+
+  if (ZFG_MODE >= 1) {
+    vec4 h1 = raw_alt[p.y * pc.extent.x + p.x];
+    float confidence1 = 0.0;
+    float valid = 0.0;
+    if (h1.w > 0.0) {
+      float quality = clamp(1.0 - h1.z, 0.0, 1.0);
+      confidence1 = quality * clamp(h1.w / pc.ridge_full, 0.0, 1.0);
+      valid = confidence1 >= pc.conf_min ? 1.0 : 0.0;
+    }
+    cell_alt[p.y * pc.extent.x + p.x] = vec4(h1.xy, confidence1, valid);
+    if (valid > 0.5) {
+      ZFG_COUNT(kCtrD3Valid);
+      if (confidence1 > 0.5) {
+        ZFG_COUNT(kCtrD3Strong);
+      }
+    }
+  }
+}
