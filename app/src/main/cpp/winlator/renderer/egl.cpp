@@ -284,7 +284,8 @@ EGLBoolean EGLRenderer::drawFrame() {
     float rootWidth = rootWindow->width;
     float rootHeight = rootWindow->height;
 
-    // The scene is the whole X screen, or only the game window when it is fitted to the screen.
+    // The scene is the whole X screen, or only the game window when it is fitted to the screen or frame generation
+    // runs on a game in a window.
     int sceneX = 0, sceneY = 0, sceneWidth = rootWindow->width, sceneHeight = rootWindow->height;
     bool postFXActive = contextVersion >= 3 && postFX.isActive();
     bool frameGenOn = contextVersion >= 3 && postFX.frameGeneration();
@@ -292,15 +293,19 @@ EGLBoolean EGLRenderer::drawFrame() {
         fgStatMultiplier = 0;
 
     bool fit = contextVersion >= 3 && postFX.fitGameWindow() && findGameWindow(sceneX, sceneY, sceneWidth, sceneHeight);
+    // Frame generation on a game in a window (not fitted): only the game window is processed, in its place, and the
+    // rest of the X screen is drawn as it is around it. Interpolating the still desktop would only cost GPU time.
+    bool windowed = !fit && frameGenOn && findGameWindow(sceneX, sceneY, sceneWidth, sceneHeight);
     bool postProcess = (postFXActive || fit || frameGenOn) && postFX.beginScene(sceneWidth, sceneHeight);
     fit = fit && postProcess;
+    windowed = windowed && postProcess;
 
     // Fitted area keeps the game's aspect ratio and is centered on the X screen.
     float scale = fit ? std::min(rootWidth / sceneWidth, rootHeight / sceneHeight) : 1.0f;
-    float dstWidth = fit ? sceneWidth * scale : rootWidth;
-    float dstHeight = fit ? sceneHeight * scale : rootHeight;
-    float dstX = (rootWidth - dstWidth) * 0.5f;
-    float dstY = (rootHeight - dstHeight) * 0.5f;
+    float dstWidth = fit || windowed ? sceneWidth * scale : rootWidth;
+    float dstHeight = fit || windowed ? sceneHeight * scale : rootHeight;
+    float dstX = windowed ? sceneX : (rootWidth - dstWidth) * 0.5f;
+    float dstY = windowed ? sceneY : (rootHeight - dstHeight) * 0.5f;
     setFitMapping(fit, scale, dstX - sceneX * scale, dstY - sceneY * scale);
 
     if (postProcess) {
@@ -315,6 +320,12 @@ EGLBoolean EGLRenderer::drawFrame() {
         // The scene (or a generated picture of it) on the surface, with the cursor over it.
         auto presentScene = [&](GLuint generated) {
             prepareSurfaceView(true);
+            if (windowed) {
+                drawableShader->use();
+                glUniform2f(drawableShader->getUniformLoc("viewSize"), rootWidth, rootHeight);
+                renderWindows();
+                drawableShader->disable();
+            }
             XForm::set(tmpXForm1, dstX, dstY, dstWidth, dstHeight);
             XForm::multiply(tmpXForm1, tmpXForm1, tmpXForm2);
             if (generated)
