@@ -76,7 +76,7 @@ constexpr float kQualityLow = 0.04f, kQualityHigh = 0.14f;
 constexpr float kGuard = 0.6f, kGuardCost = 0.06f, kGuardUnique = 0.0f, kGuardCorrelation = 0.3f, kGuardFlat = 0.1f;
 constexpr float kGuardRelative = 0.13f, kGuardInformative = 0.15f;
 constexpr float kFineGain = 0.015f, kFineShare = 0.10f;
-constexpr int32_t kRadius = 2, kPrior = 32, kDrift = 1;
+constexpr int32_t kRadius = 2, kPrior = 32, kDrift = 2;
 constexpr float kPriorConfidence = 0.04f, kPriorDecay = 0.85f, kPriorRoot = 0.04f;
 constexpr float kSupportTrust = 1.0f;
 constexpr float kFallbackLow = 0.2f, kFallbackHigh = 0.5f;
@@ -616,9 +616,11 @@ class Rc3Context final : public AlgorithmContext {
     d4[24] = 1;               // ZFG_PENFORM: branch-free over the nine neighbours
     d4[10] = kRadius;         // ZFG_RADIUS
     d4[12] = kPrior;          // ZFG_PRIOR
-    d4[17] = kDrift;          // ZFG_DRIFT
+    d4[17] = kDrift;          // ZFG_DRIFT (2: measured better consensus on large real-game motion than the lab's 1)
     d4[20] = 1;               // ZFG_MOVE
     d4[21] = 1;               // ZFG_WINPEN
+    d4[11] = 1;               // ZFG_H1: the second surface by mixture gain (occlusion/mixed-motion cells)
+    d4[16] = 1;               // ZFG_CONSENSUS: bonus for a candidate backed by two or more distinct roots
     std::vector<int32_t> d5 = Spec(1, 0);
     d5.resize(38, 0);
     d5[37] = int32_t(kGuardInformative * 1000.0f + 0.5f);  // ZFG_GINFO
