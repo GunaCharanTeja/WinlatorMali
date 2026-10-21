@@ -600,8 +600,17 @@ public class ControlElement {
         Rect box = getBoundingBox();
         float cx = box.centerX(), cy = box.centerY();
         float rim = Math.max(1.5f, inputControlsView.getSnappingSize() * 0.06f * scale);
-        if (glassTypeface == null)
-            glassTypeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
+        if (glassTypeface == null) {
+            // Inter SemiBold, the closest free match for Madeira's San Francisco semibold (SIL OFL, assets/fonts).
+            try {
+                glassTypeface = new Typeface.Builder(inputControlsView.getContext().getAssets(), "fonts/Inter.ttf")
+                    .setFontVariationSettings("'wght' 600").build();
+            } catch (Exception e) {
+                glassTypeface = null;
+            }
+            if (glassTypeface == null)
+                glassTypeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD);
+        }
         paint.clearShadowLayer();
         paint.setAntiAlias(true);
         paint.setStrokeCap(Paint.Cap.ROUND);
