@@ -961,7 +961,7 @@ public class ControlElement {
         int top = xbox ? (pressed ? 0xFF3A3D44 : 0xFF2F3137) : (pressed ? 0xFF33353B : 0xFF27292E);
         int bottom = xbox ? 0xFF141518 : 0xFF0F1013;
         p.setShader(new android.graphics.LinearGradient(0, rect.top, 0, rect.bottom,
-            ColorUtils.setAlphaComponent(top, (int) (255 * a * 0.9f)), ColorUtils.setAlphaComponent(bottom, (int) (255 * a * 0.9f)),
+            ColorUtils.setAlphaComponent(top, (int) (255 * Math.min(1f, a * 1.5f))), ColorUtils.setAlphaComponent(bottom, (int) (255 * Math.min(1f, a * 1.5f))),
             android.graphics.Shader.TileMode.CLAMP));
         c.drawRect(rect, p);
         // Gloss (Xbox's buttons are glossier than the DualSense's).
@@ -977,7 +977,7 @@ public class ControlElement {
             p.setColor(ColorUtils.setAlphaComponent(xbox ? XBOX_GLOW : PS_GLOW, (int) (255 * a * 0.95f)));
         } else {
             p.setStrokeWidth(selected ? rim * 1.8f : rim);
-            p.setColor(Color.argb((int) (255 * a * (selected ? 0.95f : 0.22f)), 255, 255, 255));
+            p.setColor(Color.argb((int) (255 * Math.min(1f, a * (selected ? 0.95f : 0.36f))), 255, 255, 255));
         }
         c.drawPath(shape, p);
     }
@@ -1001,10 +1001,10 @@ public class ControlElement {
             case 2 -> drawXboxViewIcon(c, cx, cy, min, p, white);
             case 3 -> drawPlayStationOptionsIcon(c, cx, cy, min * 1.2f, p, white);
             case 4 -> drawPlayStationShareIcon(c, cx, cy, min * 1.2f, p, white);
-            case 10 -> drawPlayStationCross(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[0], (int) (255 * a)));
-            case 11 -> drawPlayStationCircle(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[1], (int) (255 * a)));
-            case 12 -> drawPlayStationSquare(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[2], (int) (255 * a)));
-            case 13 -> drawPlayStationTriangle(c, cx, cy, min, p, ColorUtils.setAlphaComponent(PS_FACE[3], (int) (255 * a)));
+            case 10 -> drawPlayStationCross(c, cx, cy, min * 0.85f, p, ColorUtils.setAlphaComponent(PS_FACE[0], (int) (255 * a)));
+            case 11 -> drawPlayStationCircle(c, cx, cy, min * 0.85f, p, ColorUtils.setAlphaComponent(PS_FACE[1], (int) (255 * a)));
+            case 12 -> drawPlayStationSquare(c, cx, cy, min * 0.85f, p, ColorUtils.setAlphaComponent(PS_FACE[2], (int) (255 * a)));
+            case 13 -> drawPlayStationTriangle(c, cx, cy, min * 0.85f, p, ColorUtils.setAlphaComponent(PS_FACE[3], (int) (255 * a)));
             default -> {
                 if (text != null && !text.isEmpty()) {
                     p.setTypeface(controllerTypeface);
@@ -1032,15 +1032,15 @@ public class ControlElement {
         p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, d * 0.06f), android.graphics.BlurMaskFilter.Blur.NORMAL));
         c.drawCircle(cx, cy + d * 0.03f, r, p);
         p.setMaskFilter(null);
-        p.setShader(new android.graphics.RadialGradient(cx, cy, r, ColorUtils.setAlphaComponent(0xFF0B0C0E, (int) (255 * a * 0.85f)),
-            ColorUtils.setAlphaComponent(0xFF2B2D32, (int) (255 * a * 0.85f)), android.graphics.Shader.TileMode.CLAMP));
+        p.setShader(new android.graphics.RadialGradient(cx, cy, r, ColorUtils.setAlphaComponent(0xFF0B0C0E, (int) (255 * Math.min(1f, a * 1.4f))),
+            ColorUtils.setAlphaComponent(0xFF2B2D32, (int) (255 * Math.min(1f, a * 1.4f))), android.graphics.Shader.TileMode.CLAMP));
         c.drawCircle(cx, cy, r, p);
         p.setShader(null);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(Math.max(1.5f, d * 0.015f));
-        p.setColor(Color.argb((int) (255 * a * (selected ? 0.95f : 0.20f)), 255, 255, 255));
+        p.setColor(Color.argb((int) (255 * Math.min(1f, a * (selected ? 0.95f : 0.34f))), 255, 255, 255));
         c.drawCircle(cx, cy, r - p.getStrokeWidth() * 0.5f, p);
-        p.setColor(Color.argb((int) (255 * a * 0.06f), 255, 255, 255));
+        p.setColor(Color.argb((int) (255 * a * 0.10f), 255, 255, 255));
         c.drawCircle(cx, cy, r * 0.86f, p);
         return bitmap;
     }
@@ -1056,13 +1056,13 @@ public class ControlElement {
         p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, k * 0.08f), android.graphics.BlurMaskFilter.Blur.NORMAL));
         c.drawCircle(cx, cy + k * 0.05f, r, p);
         p.setMaskFilter(null);
-        p.setShader(new android.graphics.RadialGradient(cx - r * 0.3f, cy - r * 0.35f, r * 1.3f, ColorUtils.setAlphaComponent(0xFF44474E, (int) (255 * a)),
-            ColorUtils.setAlphaComponent(0xFF16171A, (int) (255 * a)), android.graphics.Shader.TileMode.CLAMP));
+        p.setShader(new android.graphics.RadialGradient(cx - r * 0.3f, cy - r * 0.35f, r * 1.3f, ColorUtils.setAlphaComponent(0xFF44474E, (int) (255 * Math.min(1f, a * 1.6f))),
+            ColorUtils.setAlphaComponent(0xFF16171A, (int) (255 * Math.min(1f, a * 1.6f))), android.graphics.Shader.TileMode.CLAMP));
         c.drawCircle(cx, cy, r, p);
         // The dish in the middle.
         float dish = r * (xbox ? 0.56f : 0.72f);
-        p.setShader(new android.graphics.RadialGradient(cx, cy + dish * 0.2f, dish, ColorUtils.setAlphaComponent(0xFF1B1C20, (int) (255 * a)),
-            ColorUtils.setAlphaComponent(0xFF2E3036, (int) (255 * a)), android.graphics.Shader.TileMode.CLAMP));
+        p.setShader(new android.graphics.RadialGradient(cx, cy + dish * 0.2f, dish, ColorUtils.setAlphaComponent(0xFF1B1C20, (int) (255 * Math.min(1f, a * 1.6f))),
+            ColorUtils.setAlphaComponent(0xFF2E3036, (int) (255 * Math.min(1f, a * 1.6f))), android.graphics.Shader.TileMode.CLAMP));
         c.drawCircle(cx, cy, dish, p);
         p.setShader(null);
         p.setStyle(Paint.Style.STROKE);
@@ -1090,8 +1090,8 @@ public class ControlElement {
         float cx = m + s * 0.5f, cy = cx, a = alpha / 255f;
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         // The dish.
-        p.setShader(new android.graphics.RadialGradient(cx, cy, s * 0.5f, ColorUtils.setAlphaComponent(0xFF0E0F12, (int) (255 * a * 0.8f)),
-            ColorUtils.setAlphaComponent(0xFF26282D, (int) (255 * a * 0.8f)), android.graphics.Shader.TileMode.CLAMP));
+        p.setShader(new android.graphics.RadialGradient(cx, cy, s * 0.5f, ColorUtils.setAlphaComponent(0xFF0E0F12, (int) (255 * Math.min(1f, a * 1.3f))),
+            ColorUtils.setAlphaComponent(0xFF26282D, (int) (255 * Math.min(1f, a * 1.3f))), android.graphics.Shader.TileMode.CLAMP));
         c.drawCircle(cx, cy, s * 0.5f, p);
         p.setShader(null);
         p.setStyle(Paint.Style.STROKE);
