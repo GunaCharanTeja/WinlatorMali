@@ -4,8 +4,6 @@ import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCC
 
 import android.util.SparseArray;
 
-import com.winlator.cmod.renderer.GPUImage;
-import com.winlator.cmod.renderer.Texture;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
 import com.winlator.cmod.xconnector.XStreamLock;
@@ -25,6 +23,7 @@ import com.winlator.cmod.xserver.errors.BadPixmap;
 import com.winlator.cmod.xserver.errors.BadWindow;
 import com.winlator.cmod.xserver.errors.XRequestError;
 import com.winlator.cmod.xserver.events.PresentCompleteNotify;
+import com.winlator.cmod.xserver.events.PresentConfigureNotify;
 import com.winlator.cmod.xserver.events.PresentIdleNotify;
 
 import java.io.IOException;
@@ -71,6 +70,20 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
         return 0;
     }
 
+    // Mesa's Vulkan WSI only learns about window changes through this event; without it a game that switches
+    // resolution live keeps its old swapchain and presents black frames.
+    private void sendConfigureNotify(Window window, int pixmapFlags) {
+        synchronized (events) {
+            for (int i = 0; i < events.size(); i++) {
+                Event event = events.valueAt(i);
+                if (event.window == window && event.mask.isSet(PresentConfigureNotify.getEventMask())) {
+                    event.client.sendEvent(new PresentConfigureNotify(event.id, window, pixmapFlags));
+                    flushClientOutput(event.client);
+                }
+            }
+        }
+    }
+
     private void sendIdleNotify(Window window, Pixmap pixmap, int serial, int idleFence) {
         if (idleFence != 0) syncExtension.setTriggered(idleFence);
 
@@ -113,7 +126,7 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
             outputStream.writeShort(client.getSequenceNumber());
             outputStream.writeInt(0);
             outputStream.writeInt(1);
-            outputStream.writeInt(0);
+            outputStream.writeInt(2);
             outputStream.writePad(16);
         }
     }
@@ -140,7 +153,8 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
         long mscIntervalUs = targetFps > 0 ? (1_000_000L / targetFps) : (1_000_000L / 60);
         long msc = ust / mscIntervalUs;
 
-        if (client.xServer.getDisplayXView() != null) {
+        if (pixmap.drawable.getOnDrawListener() != null) {
+            // DRI3 client buffer: shown zero-copy by the renderer.
             pixmap.drawable.updateDirect();
         } else {
             Drawable content = window.getContent();
@@ -161,15 +175,6 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
 
         Window window = client.xServer.windowManager.getWindow(windowId);
         if (window == null) throw new BadWindow(windowId);
-
-        if (GPUImage.isSupported() && !mask.isEmpty()) {
-            Drawable content = window.getContent();
-            final Texture oldTexture = content.getTexture();
-            if (client.xServer != null && client.xServer.getRenderer() != null && client.xServer.getRenderer().xServerView != null) {
-                client.xServer.getRenderer().xServerView.queueEvent(oldTexture::destroy);
-            }
-            content.setTexture(new GPUImage(content.width, content.height));
-        }
 
         synchronized (events) {
             Event event = events.get(eventId);
@@ -306,8 +311,14 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
     }
 
     @Override
+    public void onUpdateWindowGeometry(Window window, boolean resized) {
+        sendConfigureNotify(window, 0);
+    }
+
+    @Override
     public void onDestroyWindow(Window window) {
         if (window != null) {
+            sendConfigureNotify(window, PresentConfigureNotify.PIXMAP_FLAG_WINDOW_DESTROYED);
             windowTimings.remove(window.id);
             for (PendingIdle p : cpuQueue) {
                 if (p.window == window) {

@@ -10,7 +10,6 @@ import android.util.SparseLongArray;
 import androidx.annotation.Keep;
 
 import com.winlator.cmod.core.Callback;
-import com.winlator.cmod.renderer.Texture;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
 import com.winlator.cmod.xconnector.XStreamLock;
@@ -130,7 +129,6 @@ public class GLXExtension implements Extension {
                 throw new BadAlloc();
             }
             contexts.put(contextId, context);
-            updateHUD();
         }
     }
 
@@ -139,9 +137,6 @@ public class GLXExtension implements Extension {
     private void updateHUD() {
         if (!hudNotified && xServer != null) {
             com.winlator.cmod.widget.WinlatorHUD hud = xServer.getWinlatorHUD();
-            if (hud == null && xServer.getRenderer() != null) {
-                hud = xServer.getRenderer().getWinlatorHUD();
-            }
             if (hud != null) {
                 hudNotified = true;
                 hud.onRendererDetected("Gladio");
@@ -370,12 +365,7 @@ public class GLXExtension implements Extension {
 
     @Keep
     private void clearWindowContent(int id) {
-        Window window = xServer.windowManager.getWindow(id);
-        Drawable drawable = window != null ? window.getContent() : xServer.drawableManager.getDrawable(id);
-        if (drawable != null) {
-            drawable.setData(null);
-            drawable.getTexture().destroy();
-        }
+        // Frames are blitted straight into the drawable's hardware buffer, so there is no per-window GL state to drop.
     }
 
     @Keep
@@ -393,12 +383,13 @@ public class GLXExtension implements Extension {
                 return false;
             }
 
-            drawable.setData(null);
-            Texture texture = drawable.getTexture();
-            texture.setFlipY(flipY);
-            texture.copyFromReadBuffer(width, height);
+            if (!drawable.blitReadBuffer(width, height, flipY)) {
+                Log.w("GLXExtension", "updateWindowContent: failed to copy frame into drawable " + drawableId);
+            }
             Runnable onDrawListener = drawable.getOnDrawListener();
             if (onDrawListener != null) onDrawListener.run();
+            // Wine creates GLX contexts while probing even for Vulkan games; only a presented frame proves Gladio is rendering.
+            updateHUD();
             if (xServer != null && xServer.getWinlatorHUD() != null) {
                 xServer.getWinlatorHUD().onFrame();
             }

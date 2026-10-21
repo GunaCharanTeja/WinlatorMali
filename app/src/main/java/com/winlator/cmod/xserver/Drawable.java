@@ -5,7 +5,6 @@ import android.graphics.Bitmap;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.renderer.GPUImage;
-import com.winlator.cmod.renderer.Texture;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -17,7 +16,7 @@ public class Drawable extends XResource {
     public long backingAHB = 0;
     public short stride = 0;
     public int format = 5;
-    private Texture texture = new Texture();
+    private GPUImage gpuImage;
     private ByteBuffer data;
     private Runnable onDrawListener;
     private Callback<Drawable> onDestroyListener;
@@ -62,27 +61,16 @@ public class Drawable extends XResource {
         return drawable;
     }
 
-    public Texture getTexture() {
-        return texture;
-    }
-
-    public void setTexture(Texture texture) {
-        if (texture instanceof GPUImage) {
-            GPUImage gpuImage = (GPUImage) texture;
-            data = gpuImage.getVirtualData();
-            backingAHB = gpuImage.hardwareBufferPtr;
-            stride = gpuImage.getStride();
-            format = gpuImage.format;
-        }
-        this.texture = texture;
-    }
-
-    public void setGPUImage(GPUImage texture) {
-        setTexture(texture);
+    public void setGPUImage(GPUImage gpuImage) {
+        data = gpuImage.getVirtualData();
+        backingAHB = gpuImage.hardwareBufferPtr;
+        stride = gpuImage.getStride();
+        format = gpuImage.format;
+        this.gpuImage = gpuImage;
     }
 
     public GPUImage getGPUImage() {
-        return texture instanceof GPUImage ? (GPUImage) texture : null;
+        return gpuImage;
     }
 
     public ByteBuffer getData() {
@@ -94,7 +82,7 @@ public class Drawable extends XResource {
     }
 
     public short getStride() {
-        return texture instanceof GPUImage ? ((GPUImage)texture).getStride() : (stride != 0 ? stride : width);
+        return gpuImage != null ? gpuImage.getStride() : (stride != 0 ? stride : width);
     }
 
     public Runnable getOnDrawListener() {
@@ -133,7 +121,6 @@ public class Drawable extends XResource {
         data.rewind();
         this.data.rewind();
 
-        texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
 
@@ -170,7 +157,6 @@ public class Drawable extends XResource {
         drawable.data.rewind();
         this.data.rewind();
 
-        texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
 
@@ -187,7 +173,6 @@ public class Drawable extends XResource {
         fillRect((short)x, (short)y, (short)width, (short)height, color, this.getStride(), this.data);
         this.data.rewind();
 
-        texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
 
@@ -207,7 +192,6 @@ public class Drawable extends XResource {
 
         this.data.rewind();
 
-        texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
 
@@ -215,7 +199,6 @@ public class Drawable extends XResource {
         drawAlphaMaskedBitmap(foreRed, foreGreen, foreBlue, backRed, backGreen, backBlue, srcDrawable.data, srcDrawable.getStride(), maskDrawable.data, maskDrawable.getStride(), this.width, this.height, this.getStride(), this.data);
         this.data.rewind();
 
-        texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
 
@@ -238,4 +221,11 @@ public class Drawable extends XResource {
     public native ByteBuffer lockBuffer(long ahb);
 
     public native void unlockBuffer(long ahb);
+
+    /** GPU-copies the current GL read framebuffer into this drawable's hardware buffer (used by GLX/Gladio). */
+    public boolean blitReadBuffer(int width, int height, boolean flipY) {
+        return backingAHB != 0 && blitReadBuffer(backingAHB, width, height, flipY);
+    }
+
+    private static native boolean blitReadBuffer(long ahb, int width, int height, boolean flipY);
 }

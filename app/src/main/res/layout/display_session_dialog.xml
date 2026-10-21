@@ -14,32 +14,6 @@
         android:orientation="vertical"
         android:padding="8dp">
 
-        <!-- Screen Effects -->
-        <LinearLayout
-            android:id="@+id/BTScreenEffects"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="16dp">
-
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/icon_screen_effect"
-                app:tint="@color/colorAccent" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:text="@string/screen_effect"
-                android:textSize="16sp" />
-        </LinearLayout>
-
         <!-- Toggle Fullscreen -->
         <LinearLayout
             android:id="@+id/BTToggleFullscreen"

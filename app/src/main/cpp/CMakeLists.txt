@@ -4,7 +4,6 @@ project(Winlator)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wno-unused-function -Wimplicit-function-declaration")
 
-add_subdirectory(OpenXR-SDK)
 add_subdirectory(patchelf)
 add_subdirectory(adrenotools)
 
@@ -15,12 +14,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include_directories(winlator/include)
 
 add_library(winlator SHARED
-        xr/engine.c
-        xr/framebuffer.c
-        xr/input.c
-        xr/main.c
-        xr/math.c
-        xr/renderer.c
         winlator/drawable.c
         winlator/gpu_image.c
         winlator/gpu_helper.c
@@ -39,12 +32,10 @@ add_library(winlator SHARED
         winlator/renderer/cursor.cpp
         winlator/renderer/xform.cpp
         winlator/renderer/view_transformation.cpp
-        winlator/renderer/blit_converter.cpp
-        winlator/renderer/displayx.cpp
+        winlator/renderer/postfx.cpp
+        winlator/renderer/readback.cpp
+        winlator/renderer/frame_gen.cpp
         winlator/rambooster.cpp
-        apex/apex_pacing.cpp
-        apex/apex_pipeline.cpp
-        apex/apex_jni_bridge.cpp
 )
 
 target_compile_options(winlator PRIVATE -Wall -Wextra)
@@ -53,13 +44,19 @@ target_link_libraries(winlator
         log
         android
         jnigraphics
-        openxr_loader
         aaudio
         EGL
         GLESv2
         GLESv3
+        vulkan
         adrenotools
+        zerofg
 )
+
+# ZeroFG (Apache-2.0): the frame generation engine, with its shaders prebuilt.
+set(ZEROFG_PREBUILT_SHADERS ON CACHE STRING "" FORCE)
+set(ZEROFG_VULKAN_HEADERS_DIR "${CMAKE_SYSROOT}/usr/include" CACHE PATH "" FORCE)
+add_subdirectory(zerofg)
 
 # Add Fake Input library for controller emulation (loaded via LD_PRELOAD)
 add_library(fakeinput SHARED

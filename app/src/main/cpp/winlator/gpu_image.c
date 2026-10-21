@@ -17,58 +17,6 @@
 #define printf(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define HAL_PIXEL_FORMAT_BGRA_8888 5
 
-// Function to create an EGL image from a hardware buffer
-EGLImageKHR createImageKHR(AHardwareBuffer* hardwareBuffer, int textureId) {
-    if (!hardwareBuffer) {
-        printf("createImageKHR: Invalid AHardwareBuffer pointer\n");
-        return NULL;
-    }
-
-    const EGLint attribList[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    AHardwareBuffer_acquire(hardwareBuffer);
-
-    EGLClientBuffer clientBuffer = eglGetNativeClientBufferANDROID(hardwareBuffer);
-    if (!clientBuffer) {
-        printf("Failed to get native client buffer\n");
-        AHardwareBuffer_release(hardwareBuffer);
-        return NULL;
-    }
-
-    EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (eglDisplay == EGL_NO_DISPLAY) {
-        printf("Invalid EGLDisplay\n");
-        AHardwareBuffer_release(hardwareBuffer);
-        return NULL;
-    }
-
-    EGLImageKHR imageKHR = eglCreateImageKHR(eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, attribList);
-    if (!imageKHR) {
-        printf("Failed to create EGLImageKHR\n");
-        AHardwareBuffer_release(hardwareBuffer);
-        return NULL;
-    }
-
-    glBindTexture(GL_TEXTURE_2D, textureId);
-    if (glGetError() != GL_NO_ERROR) {
-        printf("Failed to bind texture\n");
-        eglDestroyImageKHR(eglDisplay, imageKHR);
-        AHardwareBuffer_release(hardwareBuffer);
-        return NULL;
-    }
-
-    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, imageKHR);
-    if (glGetError() != GL_NO_ERROR) {
-        printf("Failed to bind EGLImage to texture\n");
-        eglDestroyImageKHR(eglDisplay, imageKHR);
-        AHardwareBuffer_release(hardwareBuffer);
-        return NULL;
-    }
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    return imageKHR;
-}
-
 // Function to create a hardware buffer
 AHardwareBuffer* createHardwareBuffer(int width, int height) {
     AHardwareBuffer_Desc buffDesc = {};
@@ -116,17 +64,6 @@ Java_com_winlator_cmod_renderer_GPUImage_createHardwareBuffer(JNIEnv *env, jclas
         return 0;
     }
     return (jlong)buffer;
-}
-
-// JNI method to create an EGL image
-JNIEXPORT jlong JNICALL
-Java_com_winlator_cmod_renderer_GPUImage_createImageKHR(JNIEnv *env, jclass obj, jlong hardwareBufferPtr, jint textureId) {
-    AHardwareBuffer* hardwareBuffer = (AHardwareBuffer*)hardwareBufferPtr;
-    if (!hardwareBuffer) {
-        printf("Invalid AHardwareBuffer pointer\n");
-        return 0;
-    }
-    return (jlong)createImageKHR(hardwareBuffer, textureId);
 }
 
 // JNI method to destroy a hardware buffer
@@ -180,14 +117,4 @@ Java_com_winlator_cmod_renderer_GPUImage_lockHardwareBuffer(JNIEnv *env, jclass 
     }
 
     return buffer;
-}
-
-// JNI method to destroy an EGL image
-JNIEXPORT void JNICALL
-Java_com_winlator_cmod_renderer_GPUImage_destroyImageKHR(JNIEnv *env, jclass obj, jlong imageKHRPtr) {
-    EGLImageKHR imageKHR = (EGLImageKHR)imageKHRPtr;
-    if (imageKHR) {
-        EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-        eglDestroyImageKHR(eglDisplay, imageKHR);
-    }
 }

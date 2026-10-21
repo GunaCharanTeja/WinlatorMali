@@ -6,8 +6,10 @@
 
 #include <string>
 #include <algorithm>
+#include <atomic>
 #include <thread>
 #include <functional>
+#include <mutex>
 #include <queue>
 #include <cmath>
 #include <condition_variable>
@@ -17,6 +19,8 @@
 #include "window.hpp"
 #include "view_transformation.hpp"
 #include "xform.hpp"
+#include "postfx.hpp"
+#include "frame_gen.hpp"
 
 class EGLRenderer {
     private:
@@ -25,7 +29,7 @@ class EGLRenderer {
             int rootY;
             Window *window;
         };
-        
+
         enum class State {
             NONE,
             PAUSE,
@@ -34,66 +38,90 @@ class EGLRenderer {
             DESTROY_SURFACE,
             CHANGE_SURFACE
         };
-        
+
         struct RenderLock {
            std::condition_variable cv;
            std::mutex mutex;
-           
+
            std::unique_lock<std::mutex> lock() {
                return std::unique_lock<std::mutex>(mutex);
            }
-           
+
            template<typename Predicate>
            void wait(std::unique_lock<std::mutex>& lock, Predicate pred) {
                cv.wait(lock, pred);
            }
-           
+
            void notify() {
                cv.notify_all();
            }
         };
-        
-        EGLDisplay display;
+
+        EGLDisplay display = EGL_NO_DISPLAY;
         JNIEnv *env;
         EGLConfig config;
         EGLSurface surface = EGL_NO_SURFACE;
         EGLContext context = EGL_NO_CONTEXT;
-        DrawableShader *drawableShader;
-        ANativeWindow *window;
+        int contextVersion = 0;
+        DrawableShader *drawableShader = nullptr;
+        ANativeWindow *window = nullptr;
         std::vector<std::unique_ptr<struct RenderableWindow>> renderableWindows;
         std::thread renderingThread;
         ViewTransformation viewTransformation;
-        int surfaceWidth;
-        int surfaceHeight;
+        PostFX postFX;
+        int surfaceWidth = 0;
+        int surfaceHeight = 0;
         bool fullscreen = false;
-        bool viewportNeedsUpdate = true;
         float tmpXForm1[6] = {1, 0, 0, 1, 0, 0};
         float tmpXForm2[6] = {1, 0, 0, 1, 0, 0};
-        
+
+        // Game window fitted to the X screen: X screen point = point * fitScale + fitOffset.
+        std::mutex fitLock;
+        bool fitActive = false;
+        float fitScale = 1.0f;
+        float fitOffsetX = 0.0f;
+        float fitOffsetY = 0.0f;
+
         RenderLock renderLock;
         State state = State::NONE;
         std::queue<std::function<void()>> eventQueue;
-        
+
         std::atomic_bool stopped{false};
         std::atomic_bool requestUpdate{false};
-        
+
+        // Frame generation: a frame halfway between the last two real ones is shown before the newer one (one frame
+        // of latency), the newer one half a frame later. A real frame is new window content, not a cursor move.
+        FrameGen frameGen;
+        std::atomic_uint32_t contentSerial{0};
+        uint32_t frameGenSerial = 0;
+        int fgCurrentMultiplier = 0;
+        std::chrono::steady_clock::time_point realPresentAt{};  // the display time of the real frame after generated ones
+        double lastRealTime = 0;
+        double realIntervals[8] = {};
+        int realIntervalCount = 0;
+        double realInterval();
+
         void renderingThreadLoop();
         void renderDrawable(Drawable *drawable, int x, int y, bool isWindow);
         EGLBoolean drawFrame();
+        void prepareSurfaceView(bool scissor);
         void renderWindows();
         void destroyEGLSurface();
         void destroyEGLContext();
         void renderCursor();
-        void renderDrawable(Texture *texture, int length, float xform[], bool isFromWindow);
-        void updateTextureDrawable(Texture *texture, int width, int height, void *data);
-        std::unique_ptr<Texture> allocateTexture(int width, int height);
-        std::unique_ptr<Texture> allocateTextureDirect(AHardwareBuffer* hardwareBuffer);
-        void reallocateTexture(Texture *texture, int width, int height);
-        void reallocateTextureDirect(Texture *texture, AHardwareBuffer* hardwareBuffer);
+        void waitReadbackFence(AHardwareBuffer *ahb);
+        void renderDrawable(GLTexture *texture, int length, float xform[], bool isFromWindow, bool swapColors);
+        void updateTextureDrawable(GLTexture *texture, int width, int height, void *data);
+        std::unique_ptr<GLTexture> allocateTexture(int width, int height);
+        std::unique_ptr<GLTexture> allocateTextureDirect(AHardwareBuffer* hardwareBuffer);
+        void reallocateTexture(GLTexture *texture, int width, int height);
+        void reallocateTextureDirect(GLTexture *texture, AHardwareBuffer* hardwareBuffer);
         void init();
         void createEGLSurface(ANativeWindow *window);
         void collectRenderableWindows(Window *window, int x, int y);
-    
+        bool findGameWindow(int& x, int& y, int& width, int& height);
+        void setFitMapping(bool active, float scale, float offsetX, float offsetY);
+
     public:
         bool screenOffsetYRelativeToCursor = false;
         bool toggleFullscreen = false;
@@ -104,10 +132,10 @@ class EGLRenderer {
         CursorManager *cursorManager;
         JNICache *cache;
         JNIXServer *xServer;
-        
+
         EGLRenderer() {}
         EGLRenderer(WindowManager *manager, CursorManager *cm, JNICache *c) : windowManager(manager), cursorManager(cm), cache(c) {}
-        
+
         void updateScene();
         void start();
         void stop();
@@ -116,8 +144,18 @@ class EGLRenderer {
         void updateWindowPosition(Window *window);
         void queueEvent(std::function<void()> func);
         void requestRenderer();
-        void destroyTexture(Texture *texture);
+        void markContentUpdate() { contentSerial++; }
+
+        // Frame generation for the HUD: the multiplier in use, the game's frame rate, the frames shown (real and
+        // generated, counted by the HUD reader) and the time to generate one.
+        std::atomic_int fgStatMultiplier{0};
+        std::atomic<float> fgStatRealFps{0};
+        std::atomic<float> fgStatGenerateMs{0};
+        std::atomic_uint32_t fgShownFrames{0};
+        void destroyTexture(GLTexture *texture);
         void destroySurface();
         void createSurface(ANativeWindow *window);
         void changeSurface(int width, int height);
+        void setPostProcessing(const std::string& config);
+        bool getFitMapping(float *scale, float *offsetX, float *offsetY);
 };

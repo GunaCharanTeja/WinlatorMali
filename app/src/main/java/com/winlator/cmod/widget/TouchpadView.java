@@ -46,6 +46,9 @@ public class TouchpadView extends View {
     private final XServer xServer;
     private Runnable fourFingersTapCallback;
     private final float[] xform = XForm.getInstance();
+    private final float[] inputXform = XForm.getInstance();
+    private final float[] fitXform = XForm.getInstance();
+    private final float[] fitMapping = new float[3];
     private boolean simTouchScreen = false;
     private boolean continueClick = true;
     private int lastTouchedPosX;
@@ -110,12 +113,22 @@ public class TouchpadView extends View {
         viewTransformation.update(outerWidth, outerHeight, innerWidth, innerHeight);
 
         float invAspect = 1.0f / (viewTransformation.aspect != 0 ? viewTransformation.aspect : 1.0f);
-        boolean isFullscreen = (xServer != null && xServer.getRenderer() != null) ? xServer.getRenderer().isFullscreen() : (xServer != null && xServer.getDisplayXView() != null && xServer.getDisplayXView().isFullscreen());
+        boolean isFullscreen = xServer != null && xServer.getRenderer() != null && xServer.getRenderer().isFullscreen();
         if (!isFullscreen) {
             XForm.makeTranslation(xform, -viewTransformation.viewOffsetX, -viewTransformation.viewOffsetY);
             XForm.scale(xform, invAspect, invAspect);
         } else
             XForm.makeScale(xform, (float) innerWidth / outerWidth, (float) innerHeight / outerHeight);
+    }
+
+    // View to X screen transform; while the game window is fitted to the screen, touches map back into the game window.
+    private float[] getInputXform() {
+        XServerView renderer = xServer != null ? xServer.getRenderer() : null;
+        if (renderer == null || !renderer.getFitMapping(fitMapping) || fitMapping[0] <= 0) return xform;
+
+        float invScale = 1.0f / fitMapping[0];
+        XForm.set(fitXform, -fitMapping[1] * invScale, -fitMapping[2] * invScale, invScale, invScale);
+        return XForm.multiply(inputXform, xform, fitXform);
     }
 
     private class Finger {
@@ -128,7 +141,7 @@ public class TouchpadView extends View {
         private final long touchTime;
 
         public Finger(float x, float y) {
-            float[] transformedPoint = XForm.transformPoint(xform, x, y);
+            float[] transformedPoint = XForm.transformPoint(getInputXform(), x, y);
             this.x = this.startX = this.lastX = (int)transformedPoint[0];
             this.y = this.startY = this.lastY = (int)transformedPoint[1];
             touchTime = System.currentTimeMillis();
@@ -137,7 +150,7 @@ public class TouchpadView extends View {
         public void update(float x, float y) {
             lastX = this.x;
             lastY = this.y;
-            float[] transformedPoint = XForm.transformPoint(xform, x, y);
+            float[] transformedPoint = XForm.transformPoint(getInputXform(), x, y);
             this.x = (int)transformedPoint[0];
             this.y = (int)transformedPoint[1];
         }
@@ -209,7 +222,7 @@ public class TouchpadView extends View {
                 break;
             case MotionEvent.ACTION_HOVER_MOVE:
                 Log.d("StylusEvent", "Hover Move: (" + event.getX() + ", " + event.getY() + ")");
-                float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+                float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
                 xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
                 break;
             case MotionEvent.ACTION_HOVER_EXIT:
@@ -245,19 +258,19 @@ public class TouchpadView extends View {
     }
 
     private void handleStylusLeftClick(MotionEvent event) {
-        float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+        float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
         xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
         xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
     }
 
     private void handleStylusRightClick(MotionEvent event) {
-        float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+        float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
         xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
         xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
     }
 
     private void handleStylusMove(MotionEvent event) {
-        float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+        float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
         xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
     }
 
@@ -313,7 +326,7 @@ public class TouchpadView extends View {
                 break;
             case MotionEvent.ACTION_MOVE:
                 if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
-                    float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+                    float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
                     if (xServer.isRelativeMouseMovement())
                         xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
                     else
@@ -390,7 +403,7 @@ public class TouchpadView extends View {
     }
 
     private void handleTouchDown(MotionEvent event) {
-        float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+        float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
         if (xServer.isRelativeMouseMovement())
             xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
         else
@@ -406,7 +419,7 @@ public class TouchpadView extends View {
     }
 
     private void handleTouchMove(MotionEvent event) {
-        float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+        float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
         if (xServer.isRelativeMouseMovement())
             xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
         else
@@ -636,7 +649,7 @@ public class TouchpadView extends View {
                     break;
                 case MotionEvent.ACTION_MOVE:
                 case MotionEvent.ACTION_HOVER_MOVE:
-                    float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+                    float[] transformedPoint = XForm.transformPoint(getInputXform(), event.getX(), event.getY());
                     if (xServer.isRelativeMouseMovement())
                         xServer.getWinHandler().mouseEventMove((int)transformedPoint[0], (int)transformedPoint[1]);
                     else
@@ -671,11 +684,11 @@ public class TouchpadView extends View {
     public float[] computeDeltaPoint(float lastX, float lastY, float x, float y) {
         final float[] result = {0, 0};
 
-        XForm.transformPoint(xform, lastX, lastY, result);
+        XForm.transformPoint(getInputXform(), lastX, lastY, result);
         lastX = result[0];
         lastY = result[1];
 
-        XForm.transformPoint(xform, x, y, result);
+        XForm.transformPoint(getInputXform(), x, y, result);
         x = result[0];
         y = result[1];
 

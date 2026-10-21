@@ -100,14 +100,14 @@ public class WinlatorHUD extends View {
 
     private final RectF bgRect = new RectF();
 
-    private float wLabelGpu, wLabelCpu, wLabelRam, wLabelPwr, wLabelTmp, wLabelCTmp, wLabelFps, wLabelApex, wSep;
-    private float wVal100pct, wValFps, wValApex, wValWatt, wValTemp, wValBInfo;
+    private float wLabelGpu, wLabelCpu, wLabelRam, wLabelPwr, wLabelTmp, wLabelCTmp, wLabelFps, wSep;
+    private float wVal100pct, wValFps, wValWatt, wValTemp, wValBInfo;
 
     private boolean layoutDirty = true;
 
     private String strGpu = "N/A", strCpu = "N/A", strRam = "N/A";
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strFps = "0", strPct = "";
-    private String strRend = "OpenGL", strWrapper = "WineD3D", strRamBooster = "";
+    private String strRend = "EGL", strWrapper = "WineD3D", strRamBooster = "";
     private boolean snapCharging = false;
 
     private final SharedPreferences prefs;
@@ -118,13 +118,9 @@ public class WinlatorHUD extends View {
     private long lastFpsNs = 0;
     private long lastOnFrameNs = 0;
     private float snapFps = 0;
-    private float snapTotalFps = 0;
-    private float snapRealFps = 0;
-    private boolean apexActive = false;
-    private float apexMultiplier = 2.0f;
 
     private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
-    private String rendererLabel = "OpenGL";
+    private String rendererLabel = "EGL";
     private boolean isNative = false;
 
     private static final int GBUF = 40;
@@ -177,7 +173,9 @@ public class WinlatorHUD extends View {
         CORNER = 5f * d;
         initPaints();
         loadPrefs();
-        setLayerType(LAYER_TYPE_HARDWARE, null);
+        // No offscreen layer: a layer is rasterised at the unscaled size and stretched by the HUD scale (blurry, pixelated
+        // edges); drawn directly, the shapes and text are rasterised at the scale they are shown at.
+        setLayerType(LAYER_TYPE_NONE, null);
     }
 
     private void initPaints() {
@@ -219,12 +217,10 @@ public class WinlatorHUD extends View {
         wLabelTmp  = pTmp.measureText("TMP ");
         wLabelCTmp = pTmp.measureText("CTMP ");
         wLabelFps  = pFps.measureText("FPS ");
-        wLabelApex = pFps.measureText("Apex ");
         wSep       = pSep.measureText(" | ");
 
         wVal100pct = pVal.measureText("100%");
         wValFps    = pFps.measureText("0000");
-        wValApex   = pFps.measureText("000 (0.0x) [13/13 OK]");
         wValWatt   = pVal.measureText("00.0W");
         wValTemp   = pVal.measureText("00°C");
         wValBInfo  = pVal.measureText("00.0W (100%)");
@@ -259,11 +255,10 @@ public class WinlatorHUD extends View {
         if (raw == null || raw.trim().isEmpty()) return "OpenGL";
         String s = raw.trim();
         String lower = s.toLowerCase(Locale.US);
-        if (lower.equals("displayx")) return "DisplayX";
+        if (lower.equals("egl")) return "EGL";
         if (lower.equals("opengl")) return "OpenGL";
         if (lower.equals("gladio")) return "Gladio";
         if (lower.equals("vulkan")) return "Vulkan";
-        if (lower.equals("virgl")) return "VirGL";
         if (lower.equals("zink")) return "Zink";
         if (lower.startsWith("turnip")) {
             return s.replaceFirst("(?i)turnip", "Turnip");
@@ -297,15 +292,18 @@ public class WinlatorHUD extends View {
             snapFps = frames * 1_000_000_000.0f / dt;
             lastFpsNs = now;
 
-            if (!apexActive) {
-                snapTotalFps = snapFps;
-                strFps = String.valueOf(Math.round(snapFps));
-            }
+            strFps = String.valueOf(Math.round(snapFps));
+            // Frame generation: the frames shown, the game's own rate times the multiplier, and the cost of one generated frame.
+            try {
+                float[] fg = XServerView.nativeGetFrameGenStats();
+                if (fg != null && fg[0] >= 2) {
+                    strFps = Math.round(fg[2]) + " \u00b7 " + Math.round(fg[1]) + "\u00d7" + (int)fg[0] + " \u00b7 " + String.format(java.util.Locale.US, "%.1fms", fg[3]);
+                }
+            } catch (UnsatisfiedLinkError ignored) {}
 
-            float graphFps = apexActive ? snapTotalFps : snapFps;
-            graph[gHead % GBUF] = graphFps;
+            graph[gHead % GBUF] = snapFps;
             gHead++;
-            if (graphFps > gMax) gMax = Math.max(60f, graphFps * 1.1f);
+            if (snapFps > gMax) gMax = Math.max(60f, snapFps * 1.1f);
         }
 
         if (dataSource != null) {
@@ -351,9 +349,6 @@ public class WinlatorHUD extends View {
     }
 
     private String getFpsDisplayText() {
-        if (apexActive) {
-            return String.format(Locale.US, "Real: %d > Total: %d (%.1fx)", Math.round(snapRealFps), Math.round(snapTotalFps), apexMultiplier);
-        }
         return strFps;
     }
 
@@ -369,6 +364,8 @@ public class WinlatorHUD extends View {
                 else          drawTilesHorizontal(c);
             } else {
                 bgRect.set(0, 0, getWidth(), getHeight());
+                // Adaptive: the shadow and the border stay inside the view (drawn at its edge they were clipped into hard steps).
+                if (currentStyle == STYLE_ADAPTIVE) bgRect.inset(2.5f * density, 2.5f * density);
                 float corner = vertical ? (currentStyle == STYLE_ADAPTIVE ? (8f * density) : CORNER) : (bgRect.height() / 2f);
 
                 if (currentStyle == STYLE_ADAPTIVE) {
@@ -377,7 +374,7 @@ public class WinlatorHUD extends View {
                     int accentCol = ThemeManager.getAccentColor(ctx);
 
                     pBg.setColor(Color.argb(220, Color.red(surfaceCol), Color.green(surfaceCol), Color.blue(surfaceCol)));
-                    pBg.setShadowLayer(5f * density, 0, 1.5f * density, Color.argb(160, 0, 0, 0));
+                    pBg.setShadowLayer(2f * density, 0, 0.5f * density, Color.argb(140, 0, 0, 0));
                     c.drawRoundRect(bgRect, corner, corner, pBg);
                     pBg.clearShadowLayer();
 
@@ -409,7 +406,7 @@ public class WinlatorHUD extends View {
             int surface = ThemeManager.getSurfaceColor(ctx);
             int onSurface = ThemeManager.getOnSurfaceTextColor(ctx);
 
-            float fps = apexActive ? snapTotalFps : snapFps;
+            float fps = snapFps;
             int fpsColor = fps >= 55 ? 0xFF00E676 : (fps >= 25 ? accent : 0xFFFF5252);
             pFps.setColor(fpsColor);
             pGraph.setColor(accent);
@@ -430,7 +427,7 @@ public class WinlatorHUD extends View {
             return;
         }
 
-        float fps = apexActive ? snapTotalFps : snapFps;
+        float fps = snapFps;
         int fpsColor = mono ? C_WHITE : (fps >= 55 ? C_FPS : (fps >= 25 ? C_REND : C_TEMP));
         pFps.setColor(fpsColor);
         pGraph.setColor(fpsColor);
@@ -536,11 +533,11 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_FPS) != 0) {
             if (!first) x += drawSep(c, x, 0);
             float fb = getBaseline(pFps, 0, rowH);
-            String label = apexActive ? "Apex " : "FPS ";
-            float labelW = apexActive ? wLabelApex : wLabelFps;
+            String label = "FPS ";
+            float labelW = wLabelFps;
             if (!compact) { c.drawText(label, x, fb, pFps); x += labelW; }
             String fpsText = getFpsDisplayText();
-            float fw = Math.max(pFps.measureText(fpsText), apexActive ? wValApex : wValFps);
+            float fw = Math.max(pFps.measureText(fpsText), wValFps);
             c.drawText(fpsText, x, fb, pFps);
             x += fw;
             if ((showMask & SHOW_GRAPH) != 0) {
@@ -658,10 +655,10 @@ public class WinlatorHUD extends View {
             x += ctmptw + tileGap;
         }
         if ((showMask & SHOW_FPS) != 0) {
-            String label = apexActive ? "Apex " : "FPS ";
-            float labelW = compact ? 0 : (apexActive ? wLabelApex : wLabelFps);
+            String label = "FPS ";
+            float labelW = compact ? 0 : wLabelFps;
             String fpsText = getFpsDisplayText();
-            float fw = Math.max(pFps.measureText(fpsText), apexActive ? wValApex : wValFps);
+            float fw = Math.max(pFps.measureText(fpsText), wValFps);
             float graphW = ((showMask & SHOW_GRAPH) != 0) ? (GRAW + PAD) : 0;
             float fpstw = labelW + fw + graphW + tilePad * 2;
             c.drawRoundRect(new RectF(x, 0, x + fpstw, rowH), tileRadius, tileRadius, pTileBg);
@@ -738,8 +735,8 @@ public class WinlatorHUD extends View {
         }
         if ((showMask & SHOW_FPS) != 0) {
             float bl = getBaseline(pFps, y, lineH);
-            String label = apexActive ? "Apex " : "FPS ";
-            float labelW = apexActive ? wLabelApex : wLabelFps;
+            String label = "FPS ";
+            float labelW = wLabelFps;
             if (!compact) c.drawText(label, sidePad, bl, pFps);
             String fpsText = getFpsDisplayText();
             c.drawText(fpsText, sidePad + (compact ? 0 : labelW), bl, pFps);
@@ -828,8 +825,8 @@ public class WinlatorHUD extends View {
             c.drawRoundRect(new RectF(0, y, w, y + lineH), tileRadius, tileRadius, pTileBg);
             if (drawBorder) c.drawRoundRect(new RectF(0, y, w, y + lineH), tileRadius, tileRadius, pTileBorder);
             float bl = getBaseline(pFps, y, lineH);
-            String label = apexActive ? "Apex " : "FPS ";
-            float labelW = apexActive ? wLabelApex : wLabelFps;
+            String label = "FPS ";
+            float labelW = wLabelFps;
             if (!compact) c.drawText(label, sidePad, bl, pFps);
             String fpsText = getFpsDisplayText();
             c.drawText(fpsText, sidePad + (compact ? 0 : labelW), bl, pFps);
@@ -927,9 +924,9 @@ public class WinlatorHUD extends View {
         }
         if ((showMask & SHOW_FPS) != 0) {
             if (!first) w += (compact ? PAD / 2f : wSep);
-            float labelW = apexActive ? wLabelApex : wLabelFps;
+            float labelW = wLabelFps;
             String fpsText = getFpsDisplayText();
-            float minValW = apexActive ? wValApex : wValFps;
+            float minValW = wValFps;
             w += (compact ? 0 : labelW) + Math.max(pFps.measureText(fpsText), minValW);
             if ((showMask & SHOW_GRAPH) != 0) w += PAD + GRAW;
             first = false;
@@ -992,9 +989,9 @@ public class WinlatorHUD extends View {
             tileCount++;
         }
         if ((showMask & SHOW_FPS) != 0) {
-            float labelW = compact ? 0 : (apexActive ? wLabelApex : wLabelFps);
+            float labelW = compact ? 0 : wLabelFps;
             String fpsText = getFpsDisplayText();
-            float minValW = apexActive ? wValApex : wValFps;
+            float minValW = wValFps;
             float graphW = ((showMask & SHOW_GRAPH) != 0) ? (GRAW + PAD) : 0;
             w += labelW + Math.max(pFps.measureText(fpsText), minValW) + graphW + tilePad * 2;
             tileCount++;
@@ -1029,9 +1026,9 @@ public class WinlatorHUD extends View {
             w = Math.max(w, sidePad * 2 + (compact ? 0 : wLabelCTmp) + Math.max((compact ? pTmp : pVal).measureText(strCTmp.isEmpty() ? "00°C" : strCTmp), wValTemp));
         }
         if ((showMask & SHOW_FPS)      != 0) {
-            float labelW = apexActive ? wLabelApex : wLabelFps;
+            float labelW = wLabelFps;
             String fpsText = getFpsDisplayText();
-            float minValW = apexActive ? wValApex : wValFps;
+            float minValW = wValFps;
             w = Math.max(w, sidePad * 2 + (compact ? 0 : labelW) + Math.max(pFps.measureText(fpsText), minValW));
         }
         return w;
@@ -1234,22 +1231,12 @@ public class WinlatorHUD extends View {
         setVisibility(GONE);
     }
 
-    private boolean isDisplayX = false;
-
-    public void setDisplayDriver(String displayDriver) {
-        this.isDisplayX = displayDriver != null && displayDriver.equalsIgnoreCase("displayx");
-        this.rendererLabel = isDisplayX ? "DisplayX" : "OpenGL";
-        this.strRend = (isNative ? "+" : "") + rendererLabel;
-        this.layoutDirty = true;
-        postInvalidate();
-    }
-
     public void onRendererDetected(String name) {
         uiHandler.post(() -> {
             rendererActive = true;
             boolean changed = false;
             String formatted = formatRendererName(name);
-            if (!isDisplayX && formatted != null && !formatted.isEmpty() && !formatted.equals(rendererLabel)) {
+            if (formatted != null && !formatted.isEmpty() && !formatted.equals(rendererLabel)) {
                 rendererLabel = formatted;
                 strRend = (isNative ? "+" : "") + rendererLabel;
                 layoutDirty = true;
@@ -1275,29 +1262,8 @@ public class WinlatorHUD extends View {
         });
     }
 
-    public void setApexStats(float totalFps, float realFps, float multiplier, boolean active) {
-        boolean wasActive = this.apexActive;
-        float prevMult = this.apexMultiplier;
-        this.apexActive = active;
-        this.apexMultiplier = multiplier;
-        if (active) {
-            this.snapTotalFps = totalFps;
-            this.snapRealFps = realFps;
-            this.strFps = String.valueOf(Math.round(totalFps));
-            if (!wasActive || Math.abs(prevMult - multiplier) > 0.05f) {
-                layoutDirty = true;
-                post(this::requestLayout);
-            }
-            postInvalidate();
-        } else if (wasActive) {
-            layoutDirty = true;
-            post(this::requestLayout);
-            postInvalidate();
-        }
-    }
-
     public void setRenderer(String name, boolean isNative) {
-        this.rendererLabel = formatRendererName(name != null && !name.isEmpty() ? name : (isDisplayX ? "DisplayX" : "OpenGL"));
+        this.rendererLabel = formatRendererName(name != null && !name.isEmpty() ? name : "EGL");
         this.isNative = isNative;
         this.strRend = (isNative ? "+" : "") + this.rendererLabel;
         this.layoutDirty = true;
@@ -1395,7 +1361,7 @@ public class WinlatorHUD extends View {
     }
 
     public void reset() {
-        rendererLabel = isDisplayX ? "DisplayX" : "OpenGL";
+        rendererLabel = "EGL";
         frameAccum.set(0);
         snapFps = 0;
         gHead = 0;

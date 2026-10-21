@@ -18,14 +18,6 @@
         <item>1600x900 (16:9)</item>
         <item>1920x1080 (16:9)</item>
     </string-array>
-    <string-array name="display_driver_entries">
-        <item>OpenGL</item>
-        <item>DisplayX</item>
-    </string-array>
-    <string-array name="surface_format_entries">
-        <item>rgba8</item>
-        <item>bgra8</item>
-    </string-array>
     <string-array name="graphics_driver_entries">
         <item>Wrapper</item>
     </string-array>
@@ -239,10 +231,6 @@
         <item>zh_SG</item>
         <item>zh_TW</item>
     </string-array>
-    <string-array name="xr_controllers">
-    <item>@string/left_controller</item>
-    <item>@string/right_controller</item>
-    </string-array>
     <string-array name="button_options">
         <item>A</item>
         <item>B</item>
@@ -374,39 +362,6 @@
     </string-array>
     <string-array name="controller_emulation_entries">
         <item>Unified Control System</item>
-    </string-array>
-    <string-array name="lsfg_quality_entries">
-        <item>Fast (180p - Recommended)</item>
-        <item>Balance (216p)</item>
-        <item>Quality (270p)</item>
-    </string-array>
-    <string-array name="lsfg_multiplier_entries">
-        <item>2x</item>
-        <item>3x</item>
-        <item>4x</item>
-    </string-array>
-    <string-array name="apex_render_scale_entries">
-        <item>Native (100%)</item>
-        <item>Ultra Quality (85%)</item>
-        <item>Quality (75%)</item>
-        <item>Balanced (67%)</item>
-        <item>Performance (50%)</item>
-        <item>Ultra Performance (35%)</item>
-        <item>Extreme Performance (25%)</item>
-    </string-array>
-    <string-array name="lsfg_target_fps_entries">
-        <item>Unlimited</item>
-        <item>30 FPS</item>
-        <item>40 FPS</item>
-        <item>50 FPS</item>
-        <item>60 FPS</item>
-        <item>90 FPS</item>
-        <item>120 FPS</item>
-        <item>Custom...</item>
-    </string-array>
-    <string-array name="sharpening_mode_entries">
-        <item>AMD RCAS (Pure Sharpening)</item>
-        <item>AMD RCAS + Vibrance (Color Pop)</item>
     </string-array>
     <string-array name="fps_limit_entries">
         <item>Unlimited</item>

@@ -388,13 +388,6 @@
                             android:layout_marginVertical="3dp" />
 
                         <CheckBox
-                            android:id="@+id/CBUseXR"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/use_xr"
-                            android:layout_marginVertical="3dp" />
-
-                        <CheckBox
                             android:id="@+id/CBCursorLock"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

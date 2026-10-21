@@ -67,7 +67,6 @@ import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.contentdialog.DebugDialog;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
 import com.winlator.cmod.contentdialog.GraphicsEnhancementsDialog;
-import com.winlator.cmod.contentdialog.ScreenEffectDialog;
 import com.winlator.cmod.contentdialog.WineD3DConfigDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
@@ -104,12 +103,7 @@ import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.math.XForm;
 import com.winlator.cmod.midi.MidiHandler;
 import com.winlator.cmod.midi.MidiManager;
-import com.winlator.cmod.renderer.GLRenderer;
-import com.winlator.cmod.renderer.effects.CRTEffect;
-import com.winlator.cmod.renderer.effects.ColorEffect;
-import com.winlator.cmod.renderer.effects.FXAAEffect;
-import com.winlator.cmod.renderer.effects.NTSCCombinedEffect;
-import com.winlator.cmod.renderer.effects.ToonEffect;
+import com.winlator.cmod.renderer.PostProcessing;
 import com.winlator.cmod.widget.HudDataSource;
 import com.winlator.cmod.widget.WinlatorHUD;
 import com.winlator.cmod.widget.InputControlsView;
@@ -128,8 +122,6 @@ import com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent;
 import com.winlator.cmod.xenvironment.components.RamBoosterComponent;
 import com.winlator.cmod.xenvironment.components.PulseAudioComponent;
 import com.winlator.cmod.xenvironment.components.SysVSharedMemoryComponent;
-import com.winlator.cmod.contentdialog.DisplayXConfigDialog;
-import com.winlator.cmod.widget.DisplayXView;
 import com.winlator.cmod.xserver.Drawable;
 import com.winlator.cmod.xenvironment.components.XServerComponent;
 import com.winlator.cmod.xenvironment.components.NetworkInfoUpdateComponent;
@@ -139,6 +131,7 @@ import com.winlator.cmod.xserver.ScreenInfo;
 import com.winlator.cmod.xserver.Window;
 import com.winlator.cmod.xserver.WindowManager;
 import com.winlator.cmod.xserver.XServer;
+import com.winlator.cmod.xserver.extensions.RandrExtension;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -162,7 +155,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public static String NOTIFICATION_CHANNEL_ID = "Winlator";
     public static int NOTIFICATION_ID = -1;
     private XServerView xServerView;
-    private DisplayXView displayXView;
     private InputControlsView inputControlsView;
     private TouchpadView touchpadView;
     private XEnvironment environment;
@@ -176,10 +168,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private HudDataSource hudDataSource = null;
     private Runnable editInputControlsCallback;
     private Shortcut shortcut;
-    private String displayDriver = Container.DEFAULT_DISPLAY_DRIVER;
-    private KeyValueSet displayxConfig;
-    public boolean performanceMode = true;
-    public boolean presentRR = true;
     private String graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
     private HashMap<String, String> graphicsDriverConfig;
     private String audioDriver = Container.DEFAULT_AUDIO_DRIVER;
@@ -200,7 +188,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private short taskAffinityMask = 0;
     private short taskAffinityMaskWoW64 = 0;
     private int frameRatingWindowId = -1;
-    private long lastDirectContentTimeNs = 0;
     private boolean cursorLock; // Flag to track if pointer capture was requested
     private final float[] xform = XForm.getInstance();
     private ContentsManager contentsManager;
@@ -244,7 +231,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Runnable hideControlsRunnable;
 
     private boolean isDarkMode;
-    private String screenEffectProfile;
 
     private InGameControlsEditor inGameControlsEditor;
     private final ActivityResultLauncher<String> inGameIconPickerLauncher = registerForActivityResult(
@@ -569,9 +555,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
         }
         String graphicsDriverConfig = container.getGraphicsDriverConfig();
-        displayDriver = container.getDisplayDriver();
-        String displayxConfig = container.getDisplayxConfig();
-        audioDriver = Container.normalizeAudioDriver(container.getAudioDriver());
+        audioDriver =Container.normalizeAudioDriver(container.getAudioDriver());
         emulator = container.getEmulator();
         midiSoundFont = container.getMIDISoundFont();
         dxwrapper = container.getDXWrapper();
@@ -591,8 +575,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
             }
             graphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", container.getGraphicsDriverConfig());
-            displayDriver = shortcut.getExtra("displayDriver", container.getDisplayDriver());
-            displayxConfig = shortcut.getExtra("displayxConfig", container.getDisplayxConfig());
             audioDriver = Container.normalizeAudioDriver(shortcut.getExtra("audioDriver", container.getAudioDriver()));
             emulator = shortcut.getExtra("emulator", container.getEmulator());
             dxwrapper = shortcut.getExtra("dxwrapper", container.getDXWrapper());
@@ -616,9 +598,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
         }
 
-        this.displayxConfig = com.winlator.cmod.contentdialog.DisplayXConfigDialog.parseConfig(displayxConfig);
-        this.performanceMode = "1".equals(this.displayxConfig.get("performanceMode"));
-        this.presentRR = "1".equals(this.displayxConfig.get("presentRR"));
         this.graphicsDriverConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
         this.dxwrapperConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
 
@@ -633,8 +612,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         preloaderDialog.show(R.string.starting_up);
 
         inputControlsManager = new InputControlsManager(this);
-        xServer = new XServer(new ScreenInfo(screenSize), displayDriver, this.displayxConfig);
+        xServer = new XServer(new ScreenInfo(screenSize));
         xServer.setWinHandler(winHandler);
+        advertisePanelRefreshRates();
 
         boolean[] winStarted = {false};
 
@@ -643,29 +623,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onUpdateWindowContentDirect(Window window, Drawable drawable) {
                 if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
-                    if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
-                    else if (displayXView != null) displayXView.setCursorVisible(true);
+                    if (xServerView != null) xServerView.setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
-                }
-                if (xServerView == null) {
-                    updateFrameRating(window);
                 }
             }
 
             @Override
             public void onUpdateWindowContent(Window window) {
                 if (!winStarted[0] && window != null && (window.isApplicationWindow() || (window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10))) {
-                    if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
-                    else if (displayXView != null) displayXView.setCursorVisible(true);
+                    if (xServerView != null) xServerView.setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
-                }
-                if (xServerView == null && frameRating != null && window != null && window.isApplicationWindow()) {
-                    long now = System.nanoTime();
-                    if (now - lastDirectContentTimeNs > 1_000_000_000L) {
-                        frameRating.onFrame();
-                    }
                 }
             }
            
@@ -674,8 +643,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 // Log the class name of the mapped window
                 Log.d("XServerDisplayActivity", "onMapWindow: Mapping window: " + window.getClassName());
                 if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
-                    if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
-                    else if (displayXView != null) displayXView.setCursorVisible(true);
+                    if (xServerView != null) xServerView.setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
@@ -738,6 +706,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 setupWineSystemFiles();
                 extractGraphicsDriverFiles();
                 changeWineAudioDriver();
+                applyWineModeEmulation();
                 try {
                     setupXEnvironment();
                 } catch (PackageManager.NameNotFoundException e) {
@@ -872,7 +841,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public void onResume() {
         super.onResume();
         com.winlator.cmod.core.RefreshRateUtils.onActivityResumed(this);
-        if (displayXView != null) displayXView.onResume();
+        if (xServerView != null) xServerView.onResume();
 
         if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(1000 * 60 * 60 * 24);
 
@@ -888,7 +857,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onPause() {
         super.onPause();
-        if (displayXView != null) displayXView.onPause();
+        if (xServerView != null) xServerView.onPause();
 
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
 
@@ -969,7 +938,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     protected void onDestroy() {
         com.winlator.cmod.core.RefreshRateUtils.onActivityDestroyed(this);
         com.winlator.cmod.perf.PerformanceManager.onGameStop(this);
-        if (displayXView != null) displayXView.onDestroy();
+        if (xServerView != null) xServerView.onDestroy();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         if (hudDataSource != null) {
             hudDataSource.stop();
@@ -1010,22 +979,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return pickHighestRefreshRate();
     }
 
-    public void updateFrameRating(Window window) {
-        if (xServerView != null) return;
-        if (frameRating != null && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 200 && window.getHeight() > 200) {
-            lastDirectContentTimeNs = System.nanoTime();
-            frameRating.onFrame();
-        }
-    }
-
-    public DisplayXView getDisplayXView() {
-        return displayXView;
-    }
-
     @SuppressLint("SourceLockedOrientationActivity")
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-        final GLRenderer renderer = xServerView != null ? xServerView.getRenderer() : null;
         switch (item.getItemId()) {
             case R.id.main_menu_keyboard:
                 AppUtils.showKeyboard(this);
@@ -1052,11 +1008,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 drawerLayout.closeDrawers();
                 break;
             case R.id.main_menu_graphics_enhancements:
-                if (xServer.isDisplayX()) {
-                    AppUtils.showToast(this, "Screen Effects and Apex FrameGen are disabled in DisplayX mode");
-                } else {
-                    new GraphicsEnhancementsDialog(this).show();
-                }
+                new GraphicsEnhancementsDialog(this).show();
                 drawerLayout.closeDrawers();
                 break;
             case R.id.main_menu_performance:
@@ -1118,16 +1070,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             return;
         }
 
-        final GLRenderer renderer = xServerView != null ? xServerView.getRenderer() : null;
         if (frameRating == null) {
             FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
             hudDataSource = new HudDataSource(this);
             frameRating = new WinlatorHUD(this);
             frameRating.setDataSource(hudDataSource);
             frameRating.setWrapperName(graphicsDriver);
-            frameRating.setDisplayDriver(xServer.getDisplayDriver());
             xServer.setWinlatorHUD(frameRating);
-            if (renderer != null) renderer.setWinlatorHUD(frameRating);
             rootView.addView(frameRating);
 
             if (environment != null) {
@@ -1534,8 +1483,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Startup watchdog: guarantees preloader dialog dismisses once environment is running
         handler.postDelayed(() -> {
             if (!isFinishing() && !isDestroyed()) {
-                if (xServerView != null) xServerView.getRenderer().setCursorVisible(true);
-                else if (displayXView != null) displayXView.setCursorVisible(true);
+                if (xServerView != null) xServerView.setCursorVisible(true);
                 preloaderDialog.closeOnUiThread();
             }
         }, 8000);
@@ -1553,26 +1501,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void setupUI() {
         FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
-        if (xServer.isDisplayX()) {
-            displayXView = new DisplayXView(this, xServer);
-            displayXView.setCursorVisible(false);
-            if (shortcut != null) {
-                displayXView.setUnviewableWMClass("explorer.exe");
-            }
-            xServer.setDisplayXView(displayXView);
-            rootView.addView(displayXView);
-        } else {
-            xServerView = new XServerView(this, xServer);
-            final GLRenderer renderer = xServerView.getRenderer();
-            renderer.setCursorVisible(false);
-
-            if (shortcut != null) {
-                renderer.setUnviewableWMClasses("explorer.exe");
-            }
-
-            xServer.setRenderer(renderer);
-            rootView.addView(xServerView);
+        xServerView = new XServerView(this, xServer);
+        xServerView.setCursorVisible(false);
+        if (shortcut != null) {
+            xServerView.setUnviewableWMClass("explorer.exe");
         }
+        xServerView.setPostProcessing(getSavedPostProcessing());
+        // The FPS limit saved with the graphics enhancements.
+        int savedFpsLimit = new com.winlator.cmod.renderer.PostProcessing(getSavedPostProcessing()).fpsLimit;
+        if (savedFpsLimit > 0) {
+            xServer.setFpsLimit(savedFpsLimit);
+            com.winlator.cmod.core.RefreshRateUtils.applyPreferredRefreshRate(this, 0, savedFpsLimit);
+        }
+        xServer.setRenderer(xServerView);
+        rootView.addView(xServerView);
 
         globalCursorSpeed = preferences.getFloat("cursor_speed", 1.0f);
         touchpadView = new TouchpadView(this, xServer, timeoutHandler, hideControlsRunnable);
@@ -1616,10 +1558,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRating = new WinlatorHUD(this);
             frameRating.setDataSource(hudDataSource);
             frameRating.setWrapperName(graphicsDriver);
-            frameRating.setDisplayDriver(xServer.getDisplayDriver());
 
             xServer.setWinlatorHUD(frameRating);
-            if (xServerView != null) xServerView.getRenderer().setWinlatorHUD(frameRating);
             frameRating.enableByUser();
             rootView.addView(frameRating);
         }
@@ -1640,8 +1580,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (shouldStretch) {
             // Toggle fullscreen mode based on the final decision
-            if (displayXView != null) displayXView.toggleFullscreen();
-            else if (xServerView != null) xServerView.getRenderer().toggleFullscreen();
+            xServerView.toggleFullscreen();
             touchpadView.toggleFullscreen();
         }
 
@@ -1656,10 +1595,30 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             touchpadView.setSimTouchScreen(simTouchScreen.equals("1"));
         }
 
-        AppUtils.observeSoftKeyboardVisibility(drawerLayout, (cond) -> {
-            if (displayXView != null) displayXView.setScreenOffsetYRelativeToCursor(cond);
-            else if (xServerView != null) xServerView.getRenderer().setScreenOffsetYRelativeToCursor(cond);
-        });
+        AppUtils.observeSoftKeyboardVisibility(drawerLayout, (cond) -> xServerView.setScreenOffsetYRelativeToCursor(cond));
+    }
+
+    /** Graphics enhancements for this launch: the game's own settings, else the container default. */
+    public String getSavedPostProcessing() {
+        String config = shortcut != null ? shortcut.getExtra(PostProcessing.EXTRA_KEY) : "";
+        if (config.isEmpty() && container != null) config = container.getExtra(PostProcessing.EXTRA_KEY);
+        return config;
+    }
+
+    public boolean hasShortcut() {
+        return shortcut != null;
+    }
+
+    /** Persists graphics enhancements for the current game (shortcut) or as the container default. */
+    public void savePostProcessing(String config, boolean forGame) {
+        if (forGame && shortcut != null) {
+            shortcut.putExtra(PostProcessing.EXTRA_KEY, config);
+            shortcut.saveData();
+        }
+        else if (container != null) {
+            container.putExtra(PostProcessing.EXTRA_KEY, config);
+            container.saveData();
+        }
     }
 
 
@@ -1710,31 +1669,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.setTitle(R.string.display_and_session);
         dialog.setIcon(R.drawable.ic_display_session);
 
-        dialog.findViewById(R.id.BTScreenEffects).setOnClickListener(v -> {
-            dialog.dismiss();
-            if (xServer.isDisplayX()) {
-                AppUtils.showToast(this, "Screen Effects are not supported in DisplayX mode");
-                return;
-            }
-            ScreenEffectDialog screenEffectDialog = new ScreenEffectDialog(this);
-            screenEffectDialog.setOnConfirmCallback(() -> {
-                if (xServerView != null) {
-                    GLRenderer currentRenderer = xServerView.getRenderer();
-                    ColorEffect colorEffect = (ColorEffect) currentRenderer.getEffectComposer().getEffect(ColorEffect.class);
-                    FXAAEffect fxaaEffect = (FXAAEffect) currentRenderer.getEffectComposer().getEffect(FXAAEffect.class);
-                    CRTEffect crtEffect = (CRTEffect) currentRenderer.getEffectComposer().getEffect(CRTEffect.class);
-                    ToonEffect toonEffect = (ToonEffect) currentRenderer.getEffectComposer().getEffect(ToonEffect.class);
-                    NTSCCombinedEffect ntscEffect = (NTSCCombinedEffect) currentRenderer.getEffectComposer().getEffect(NTSCCombinedEffect.class);
-                    screenEffectDialog.applyEffects(colorEffect, currentRenderer, fxaaEffect, crtEffect, toonEffect, ntscEffect);
-                    xServerView.requestRender();
-                }
-            });
-            screenEffectDialog.show();
-        });
-
         dialog.findViewById(R.id.BTToggleFullscreen).setOnClickListener(v -> {
-            if (displayXView != null) displayXView.toggleFullscreen();
-            else if (xServerView != null) xServerView.getRenderer().toggleFullscreen();
+            xServerView.toggleFullscreen();
             touchpadView.toggleFullscreen();
             dialog.dismiss();
         });
@@ -1756,19 +1692,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         });
 
         dialog.findViewById(R.id.BTMagnifier).setOnClickListener(v -> {
-            if (xServer.isDisplayX()) {
-                AppUtils.showToast(this, "Magnifier is not available in DisplayX mode");
-                dialog.dismiss();
-                return;
-            }
             if (magnifierView == null && xServerView != null) {
                 FrameLayout container = findViewById(R.id.FLXServerDisplay);
                 magnifierView = new MagnifierView(this);
                 magnifierView.setZoomButtonCallback(value -> {
-                    xServerView.getRenderer().setMagnifierZoom(Mathf.clamp(xServerView.getRenderer().getMagnifierZoom() + value, 1.0f, 3.0f));
-                    magnifierView.setZoomValue(xServerView.getRenderer().getMagnifierZoom());
+                    xServerView.setMagnifierZoom(Mathf.clamp(xServerView.getMagnifierZoom() + value, 1.0f, 3.0f));
+                    magnifierView.setZoomValue(xServerView.getMagnifierZoom());
                 });
-                magnifierView.setZoomValue(xServerView.getRenderer().getMagnifierZoom());
+                magnifierView.setZoomValue(xServerView.getMagnifierZoom());
                 magnifierView.setHideButtonCallback(() -> {
                     container.removeView(magnifierView);
                     magnifierView = null;
@@ -2699,6 +2630,95 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
+    /**
+     * With the RandR extension present, Wine's emulated mode list and mode set let games switch resolution
+     * in-game (no real mode change happens; Wine resizes the fullscreen window). Only for Wine builds with XRandR.
+     */
+    private void applyWineModeEmulation() {
+        final String x11DriverKey = "Software\\Wine\\X11 Driver";
+        final boolean xrandrCapable = isSelectedWineXrandrCapable();
+        File userRegFile = new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/user.reg");
+
+        try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
+            if (xrandrCapable) {
+                registryEditor.setStringValue(x11DriverKey, "EmulateModelist", "Y");
+                registryEditor.setStringValue(x11DriverKey, "EmulateModeset", "Y");
+            } else {
+                registryEditor.removeValue(x11DriverKey, "EmulateModelist");
+                registryEditor.removeValue(x11DriverKey, "EmulateModeset");
+            }
+        }
+        Log.d("XServerDisplayActivity", "Wine mode emulation " + (xrandrCapable ? "enabled" : "skipped (Wine has no XRandR)"));
+    }
+
+    private boolean isSelectedWineXrandrCapable() {
+        if (wineInfo == null || wineInfo.path == null || wineInfo.path.isEmpty()) return false;
+
+        File winex11 = new File(wineInfo.path, "lib/wine/aarch64-unix/winex11.so");
+        if (!winex11.isFile()) winex11 = new File(wineInfo.path, "lib/wine/x86_64-unix/winex11.so");
+
+        return winex11.isFile()
+                && fileContainsAny(winex11, "libXrandr.so", "RRQueryVersion")
+                && !fileContainsAny(winex11, "XRandR support not compiled in.");
+    }
+
+    private static boolean fileContainsAny(File file, String... markers) {
+        byte[][] needles = new byte[markers.length][];
+        int maxNeedle = 0;
+        for (int i = 0; i < markers.length; i++) {
+            needles[i] = markers[i].getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            maxNeedle = Math.max(maxNeedle, needles[i].length);
+        }
+
+        final int chunkSize = 64 * 1024;
+        byte[] buffer = new byte[chunkSize + maxNeedle];
+        int carry = 0;
+        try (java.io.FileInputStream input = new java.io.FileInputStream(file)) {
+            int read;
+            while ((read = input.read(buffer, carry, chunkSize)) > 0) {
+                int length = carry + read;
+                for (byte[] needle : needles) {
+                    if (indexOf(buffer, length, needle) >= 0) return true;
+                }
+                // Keep the tail so a marker split across chunks is still found.
+                carry = Math.min(maxNeedle - 1, length);
+                System.arraycopy(buffer, length - carry, buffer, 0, carry);
+            }
+        } catch (IOException e) {
+            return false;
+        }
+        return false;
+    }
+
+    private static int indexOf(byte[] data, int length, byte[] needle) {
+        outer:
+        for (int i = 0; i <= length - needle.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (data[i + j] != needle[j]) continue outer;
+            }
+            return i;
+        }
+        return -1;
+    }
+
+    /** Lets RandR report the panel's real refresh rates instead of a fixed 60 Hz. */
+    private void advertisePanelRefreshRates() {
+        RandrExtension randr = xServer.getExtension(RandrExtension.MAJOR_OPCODE);
+        if (randr == null) return;
+
+        android.view.Display display = getWindowManager().getDefaultDisplay();
+        java.util.TreeSet<Short> distinct = new java.util.TreeSet<>(java.util.Collections.reverseOrder());
+        for (android.view.Display.Mode mode : display.getSupportedModes()) {
+            distinct.add((short)Math.round(mode.getRefreshRate()));
+        }
+        if (distinct.isEmpty()) return;
+
+        short[] rates = new short[distinct.size()];
+        int index = 0;
+        for (short hz : distinct) rates[index++] = hz;
+        randr.setRefreshRates(rates, (short)Math.round(display.getRefreshRate()));
+    }
+
     private void applyGeneralPatches(Container container) {
         File rootDir = imageFs.getRootDir();
         TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "container_pattern_common.tzst", rootDir);
@@ -2743,14 +2763,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRatingWindowId = -1;
             runOnUiThread(() -> frameRating.onRendererGone());
         }
-    }
-
-    public String getScreenEffectProfile() {
-        return screenEffectProfile;
-    }
-
-    public void setScreenEffectProfile(String screenEffectProfile) {
-        this.screenEffectProfile = screenEffectProfile;
     }
 
     private void registerGyroscope() {
@@ -2944,28 +2956,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private static ArrayAdapter<String> createThemedSpinnerAdapter(android.content.Context context, String[] items, boolean isDarkMode) {
         return createThemedSpinnerAdapter(context, java.util.Arrays.asList(items), isDarkMode);
-    }
-
-    private boolean fgResetPulseInProgress = false;
-    public void pulseFgReset() {
-        if (fgResetPulseInProgress || isPaused || environment == null) return;
-        fgResetPulseInProgress = true;
-        
-        Log.d("WinFG", "Triggering 500ms Pulse Reset for clean framegen start");
-
-        // --- Pause Stage ---
-        if (xServerView != null) xServerView.onPause();
-        ProcessHelper.pauseAllWineProcesses();
-
-        // --- Resume Stage (0.5s later) ---
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!isPaused) {
-                if (xServerView != null) xServerView.onResume();
-                ProcessHelper.resumeAllWineProcesses();
-            }
-            fgResetPulseInProgress = false;
-            Log.d("WinFG", "Pulse Reset complete");
-        }, 500);
     }
 }
 

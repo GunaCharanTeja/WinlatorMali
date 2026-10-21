@@ -70,7 +70,6 @@ import com.winlator.cmod.widget.EnvVarsView;
 import com.winlator.cmod.widget.ImagePickerView;
 import com.winlator.cmod.winhandler.WinHandler;
 import com.winlator.cmod.xenvironment.ImageFs;
-import com.winlator.cmod.xserver.XKeycode;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -135,9 +134,6 @@ public class ContainerDetailFragment extends Fragment {
 
         Spinner sWineVersion = view.findViewById(R.id.SWineVersion);
         sWineVersion.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-
-        Spinner sDisplayDriver = view.findViewById(R.id.SDisplayDriver);
-        if (sDisplayDriver != null) sDisplayDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
         Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
         sGraphicsDriver.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
@@ -329,40 +325,6 @@ public class ContainerDetailFragment extends Fragment {
 
         loadScreenSizeSpinner(view, isEditMode() ? container.getScreenSize() : Container.DEFAULT_SCREEN_SIZE);
 
-        final Spinner sDisplayDriver = view.findViewById(R.id.SDisplayDriver);
-        updateDisplayDriverSpinner(context, sDisplayDriver);
-        String currentDisplayDriver = isEditMode() ? container.getDisplayDriver() : Container.DEFAULT_DISPLAY_DRIVER;
-        AppUtils.setSpinnerSelectionFromIdentifier(sDisplayDriver, currentDisplayDriver);
-
-        final View vDisplayDriverConfig = view.findViewById(R.id.BTDisplayDriverConfig);
-        if (StringUtils.parseIdentifier(currentDisplayDriver).equals("displayx")) {
-            vDisplayDriverConfig.setVisibility(View.VISIBLE);
-            vDisplayDriverConfig.setOnClickListener((v) -> (new com.winlator.cmod.contentdialog.DisplayXConfigDialog(vDisplayDriverConfig)).show());
-            vDisplayDriverConfig.setTag(isEditMode() ? container.getDisplayxConfig() : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG);
-        }
-        else {
-            vDisplayDriverConfig.setVisibility(View.GONE);
-        }
-
-        sDisplayDriver.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
-                String selectedItem = parent.getItemAtPosition(position).toString();
-                String identifier = StringUtils.parseIdentifier(selectedItem);
-                if (identifier.equals("displayx")) {
-                    vDisplayDriverConfig.setVisibility(View.VISIBLE);
-                    vDisplayDriverConfig.setOnClickListener((v1) -> (new com.winlator.cmod.contentdialog.DisplayXConfigDialog(vDisplayDriverConfig)).show());
-                    vDisplayDriverConfig.setTag(isEditMode() ? container.getDisplayxConfig() : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG);
-                }
-                else {
-                    vDisplayDriverConfig.setVisibility(View.GONE);
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
         final Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
         
         final Spinner sDXWrapper = view.findViewById(R.id.SDXWrapper);
@@ -548,25 +510,12 @@ public class ContainerDetailFragment extends Fragment {
         cpuListView.setCheckedCPUList(isEditMode() ? container.getCPUList(true) : Container.getFallbackCPUList());
         cpuListViewWoW64.setCheckedCPUList(isEditMode() ? container.getCPUListWoW64(true) : Container.getFallbackCPUListWoW64());
 
-        final Spinner sPrimaryController = view.findViewById(R.id.SPrimaryController);
-        sPrimaryController.setSelection(isEditMode() ? container.getPrimaryController() : 1);
-        setControllerMapping(view.findViewById(R.id.SButtonA), Container.XrControllerMapping.BUTTON_A, XKeycode.KEY_A.ordinal());
-        setControllerMapping(view.findViewById(R.id.SButtonB), Container.XrControllerMapping.BUTTON_B, XKeycode.KEY_B.ordinal());
-        setControllerMapping(view.findViewById(R.id.SButtonX), Container.XrControllerMapping.BUTTON_X, XKeycode.KEY_X.ordinal());
-        setControllerMapping(view.findViewById(R.id.SButtonY), Container.XrControllerMapping.BUTTON_Y, XKeycode.KEY_Y.ordinal());
-        setControllerMapping(view.findViewById(R.id.SButtonGrip), Container.XrControllerMapping.BUTTON_GRIP, XKeycode.KEY_SPACE.ordinal());
-        setControllerMapping(view.findViewById(R.id.SButtonTrigger), Container.XrControllerMapping.BUTTON_TRIGGER, XKeycode.KEY_ENTER.ordinal());
-        setControllerMapping(view.findViewById(R.id.SThumbstickUp), Container.XrControllerMapping.THUMBSTICK_UP, XKeycode.KEY_UP.ordinal());
-        setControllerMapping(view.findViewById(R.id.SThumbstickDown), Container.XrControllerMapping.THUMBSTICK_DOWN, XKeycode.KEY_DOWN.ordinal());
-        setControllerMapping(view.findViewById(R.id.SThumbstickLeft), Container.XrControllerMapping.THUMBSTICK_LEFT, XKeycode.KEY_LEFT.ordinal());
-        setControllerMapping(view.findViewById(R.id.SThumbstickRight), Container.XrControllerMapping.THUMBSTICK_RIGHT, XKeycode.KEY_RIGHT.ordinal());
-
         createWineConfigurationTab(view);
         final EnvVarsView envVarsView = createEnvVarsTab(view);
         createWinComponentsTab(view, isEditMode() ? container.getWinComponents() : Container.DEFAULT_WINCOMPONENTS);
         createDrivesTab(view);
 
-        AppUtils.setupTabLayout(view, R.id.TabLayout, R.id.LLTabGeneral, R.id.LLTabWineConfiguration, R.id.LLTabWinComponents, R.id.LLTabEnvVars, R.id.LLTabDrives, R.id.LLTabAdvanced, R.id.LLTabXR);
+        AppUtils.setupTabLayout(view, R.id.TabLayout, R.id.LLTabGeneral, R.id.LLTabWineConfiguration, R.id.LLTabWinComponents, R.id.LLTabEnvVars, R.id.LLTabDrives, R.id.LLTabAdvanced);
 
         TabLayout tabLayout = view.findViewById(R.id.TabLayout);
 
@@ -585,8 +534,6 @@ public class ContainerDetailFragment extends Fragment {
                 String envVars = envVarsView.getEnvVars();
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
-                String displayDriver = StringUtils.parseIdentifier(sDisplayDriver.getSelectedItem());
-                String displayxConfig = vDisplayDriverConfig.getTag() != null ? vDisplayDriverConfig.getTag().toString() : com.winlator.cmod.contentdialog.DisplayXConfigDialog.DEFAULT_CONFIG;
                 HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
                 if (config.get("version").isEmpty()) {
                     config.put("version", GPUInformation.isDriverSupported(DefaultVersion.WRAPPER_ADRENO, context) ? DefaultVersion.WRAPPER_ADRENO : DefaultVersion.WRAPPER);
@@ -611,8 +558,6 @@ public class ContainerDetailFragment extends Fragment {
                 // Capture missing properties
                 String midiSoundFont = sMIDISoundFont.getSelectedItemPosition() == 0 ? "" : sMIDISoundFont.getSelectedItem().toString();
                 String lc_all = etLC_ALL.getText().toString();
-                int primaryController = sPrimaryController.getSelectedItemPosition();
-                String controllerMapping = getControllerMapping(view);
                 boolean ramBoosterEnabled = cbRamBooster.isChecked();
                 boolean ramBoosterToastEnabled = cbRamBoosterToast.isChecked();
                 String ramBoosterProfile = ramBoosterProfileValues[sRamBoosterProfile.getSelectedItemPosition()];
@@ -628,8 +573,6 @@ public class ContainerDetailFragment extends Fragment {
                     container.setEnvVars(envVars);
                     container.setCPUList(cpuList);
                     container.setCPUListWoW64(cpuListWoW64);
-                    container.setDisplayDriver(displayDriver);
-                    container.setDisplayxConfig(displayxConfig);
                     container.setGraphicsDriver(graphicsDriver);
                     container.setGraphicsDriverConfig(graphicsDriverConfig);
                     container.setDXWrapper(dxwrapper);
@@ -654,8 +597,6 @@ public class ContainerDetailFragment extends Fragment {
                     container.setDesktopTheme(desktopTheme);
                     container.setMidiSoundFont(midiSoundFont);
                     container.setLC_ALL(lc_all);
-                    container.setPrimaryController(primaryController);
-                    container.setControllerMapping(controllerMapping);
                     container.saveData();
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -667,8 +608,6 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("envVars", envVars);
                     data.put("cpuList", cpuList);
                     data.put("cpuListWoW64", cpuListWoW64);
-                    data.put("displayDriver", displayDriver);
-                    data.put("displayxConfig", displayxConfig);
                     data.put("graphicsDriver", graphicsDriver);
                     data.put("graphicsDriverConfig", graphicsDriverConfig);
                     data.put("dxwrapper", dxwrapper);
@@ -703,8 +642,6 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("wineVersion", selectedWine);
                     data.put("midiSoundFont", midiSoundFont);
                     data.put("lc_all", lc_all);
-                    data.put("primaryController", primaryController);
-                    data.put("controllerMapping", controllerMapping);
 
                     preloaderDialog.show(R.string.creating_container);
 
@@ -1146,47 +1083,6 @@ public class ContainerDetailFragment extends Fragment {
         if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, container.getWineVersion());
     }
 
-    public String getControllerMapping(View view) {
-        //The order has to be the same like Container.XrControllerMapping
-        int[] ids = {
-                R.id.SButtonA, R.id.SButtonB, R.id.SButtonX, R.id.SButtonY, R.id.SButtonGrip, R.id.SButtonTrigger,
-                R.id.SThumbstickUp, R.id.SThumbstickDown, R.id.SThumbstickLeft, R.id.SThumbstickRight
-        };
-        byte[] controllerMapping = new byte[ids.length];
-        for (int i = 0; i < ids.length; i++) {
-            int index =  ((Spinner)view.findViewById(ids[i])).getSelectedItemPosition();
-            byte value = XKeycode.values()[index].id;
-            controllerMapping[i] = value;
-        }
-        return new String(controllerMapping);
-    }
-
-    public void setControllerMapping(Spinner spinner, Container.XrControllerMapping mapping, int defaultValue) {
-        XKeycode[] values = XKeycode.values();
-        ArrayList<String> array = new ArrayList<>();
-        for (XKeycode value : values) {
-            array.add(value.name());
-        }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(spinner.getContext(), android.R.layout.simple_spinner_dropdown_item, array);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-
-        byte keycode = isEditMode() ? container.getControllerMapping(mapping) : (byte) defaultValue;
-        int index = 0;
-        for (int i = 0; i < values.length; i++) {
-            if (values[i].id == keycode) {
-                index = i;
-                break;
-            }
-        }
-        spinner.setSelection(isEditMode() && (index != 0) ? index : defaultValue);
-    }
-
-    public static void updateDisplayDriverSpinner(Context context, Spinner spinner) {
-        String[] originalItems = context.getResources().getStringArray(R.array.display_driver_entries);
-        List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
-    }
 
     public static void updateGraphicsDriverSpinner(Context context, Spinner spinner) {
         String[] originalItems = context.getResources().getStringArray(R.array.graphics_driver_entries);

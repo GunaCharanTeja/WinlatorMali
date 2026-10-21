@@ -98,12 +98,6 @@
     <string name="duplicate">Duplicate</string>
     <string name="about">About</string>
     <string name="graphics_enhancements">Graphics Enhancements</string>
-    <string name="enable_lsfg">Enable Apex DIS Frame Generation</string>
-    <string name="lsfg_description">Dense Inverse Search (DIS) optical flow frame generation with variational refinement and zero-motion HUD protection.</string>
-    <string name="lsfg_quality">Apex DIS Quality</string>
-    <string name="lsfg_multiplier">Apex DIS Multiplier</string>
-    <string name="lsfg_target_fps">Apex DIS Target Refresh Rate</string>
-    <string name="show_lsfg_stats">Show Apex DIS Stats</string>
     <string name="motion_blur">Motion Blur</string>
     <string name="credits_and_third_party_apps">Credits and Third-party apps</string>
     <string name="external_controllers">External Controllers</string>
@@ -500,21 +494,6 @@
     <string name="reconfigure">Reconfigure</string>
     <string name="do_you_want_to_reconfigure_wine">Do you want to reconfigure this container on the next startup? This will remove the timestamp to trigger Wine Configuration.</string>
 
-    <!-- OpenXR specific text -->
-    <string name="xr" translatable="false">XR</string>
-    <string name="primary_controller">Primary controller</string>
-    <string name="left_controller">Left controller</string>
-    <string name="right_controller">Right controller</string>
-    <string name="button_a">Button A</string>
-    <string name="button_b">Button B</string>
-    <string name="button_x">Button X</string>
-    <string name="button_y">Button Y</string>
-    <string name="button_grip">Grip button</string>
-    <string name="button_trigger">Trigger button</string>
-    <string name="thumbstick_left">Thumbstick left</string>
-    <string name="thumbstick_right">Thumbstick right</string>
-    <string name="thumbstick_up">Thumbstick up</string>
-    <string name="thumbstick_down">Thumbstick down</string>
     <string name="secondary_executable">Path:</string>
     <string name="enter_secondary_exec_path"> ex: "D:/Games/My Game/My Game.exe"</string>
     <string name="exec_delay">Delayed Execution (seconds):</string>
@@ -547,8 +526,6 @@
 
     <string name="reset">Reset</string>
 
-    <string name="screen_effect">Screen Effects</string>
-
     <string name="enable_toon_shader">Enable Toon Shader</string>
     <string name="enable_ntsc_effect">Enable NTSC Effect</string>
     <string name="enter_profile_name">Enter Profile Name</string>
@@ -566,7 +543,6 @@
     <string name="invert_x_axis_right">Invert X Axis (Right Stick)</string>
     <string name="invert_y_axis_right">Invert Y Axis (Right Stick)</string>
     <string name="save">Save</string>
-    <string name="use_xr">Use OpenXR integration</string>
 
 
 

@@ -241,13 +241,13 @@ public final class ThemeManager {
                 boolean isCardArt = parent != null && (parent.getId() == R.id.LLInnerArea || parent instanceof androidx.cardview.widget.CardView);
                 boolean isIconOrButton = (id == R.id.BTRun || id == R.id.BTMenu || id == R.id.IVIcon || id == R.id.BTRefresh ||
                         id == R.id.BTAdd || id == R.id.BTAddDrive || id == R.id.BTAddEnvVar || id == R.id.BTAddProfile ||
-                        id == R.id.BTAddWheel || id == R.id.BTBCNConfig || id == R.id.BTDisplayDriverConfig ||
+                        id == R.id.BTAddWheel || id == R.id.BTBCNConfig ||
                         id == R.id.BTGraphicsDriverConfig || id == R.id.BTDXWrapperConfig || id == R.id.BTDuplicateProfile ||
                         id == R.id.BTEditProfile || id == R.id.BTExportProfile || id == R.id.BTImportProfile ||
                         id == R.id.BTRemoveProfile || id == R.id.BTHide || id == R.id.BTInfo || id == R.id.BTMagnifier ||
                         id == R.id.BTMove || id == R.id.BTNewFolder || id == R.id.BTOpacity || id == R.id.BTPause ||
                         id == R.id.BTRadialWheel || id == R.id.BTRemove || id == R.id.BTReset || id == R.id.BTRestoreSaves ||
-                        id == R.id.BTScreenEffects || id == R.id.BTSearch || id == R.id.BTSettings ||
+                        id == R.id.BTSearch || id == R.id.BTSettings ||
                         id == R.id.BTToggleFullscreen || id == R.id.BTToggleSelectAll || id == R.id.BTUpDir ||
                         id == R.id.BTZoomMinus || id == R.id.BTZoomPlus || id == R.id.IVDriveIcon || id == R.id.IVDeviceIcon ||
                         id == R.id.BTFileMenu || id == R.id.BTCloseSearch || id == R.id.ImageView);
@@ -337,7 +337,7 @@ public final class ThemeManager {
                id == R.id.TVShortcutSettings || id == R.id.TVCustomApiKey || id == R.id.TVXServer ||
                id == R.id.TVGeneralDisplay || id == R.id.TVGraphicsRendering || id == R.id.TVSystemAudio ||
                id == R.id.TVInputControls || id == R.id.TVLaunchArgs ||
-               id == R.id.TVProcessorAffinity || id == R.id.TVXRController;
+               id == R.id.TVProcessorAffinity;
     }
 
     public static void styleButton(android.widget.Button btn, boolean isDarkMode, int onSurface, int onSurfaceVariant, int accent, int surface, int divider) {

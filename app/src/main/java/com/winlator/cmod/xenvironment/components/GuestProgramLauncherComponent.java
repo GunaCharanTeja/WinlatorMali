@@ -483,25 +483,6 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             this.envVars.remove("MANGOHUD_CONFIG");
         }
 
-        String displayDriver = container.getDisplayDriver();
-        String displayxConfigStr = container.getDisplayxConfig();
-        if (shortcut != null) {
-            displayDriver = shortcut.getExtra("displayDriver", container.getDisplayDriver());
-            displayxConfigStr = shortcut.getExtra("displayxConfig", container.getDisplayxConfig());
-        }
-
-        if (displayDriver != null && displayDriver.equalsIgnoreCase("displayx")) {
-            com.winlator.cmod.core.KeyValueSet displayxConfig = com.winlator.cmod.contentdialog.DisplayXConfigDialog.parseConfig(displayxConfigStr);
-            String surfaceFormat = displayxConfig.get("surfaceFormat");
-            if ("rgba8".equals(surfaceFormat)) {
-                execEnvVars.put("WRAPPER_SURFACE_FORMAT", "rgba8");
-                execEnvVars.put("DISPLAYX_SURFACE_FORMAT", "rgba8");
-            } else {
-                execEnvVars.put("WRAPPER_SURFACE_FORMAT", "bgra8");
-                execEnvVars.put("DISPLAYX_SURFACE_FORMAT", "bgra8");
-            }
-        }
-
         // Merge any additional environment variables from external sources
         if (this.envVars != null) {
             execEnvVars.putAll(this.envVars);

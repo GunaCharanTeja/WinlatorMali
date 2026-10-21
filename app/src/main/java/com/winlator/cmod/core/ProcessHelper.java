@@ -277,7 +277,7 @@ public abstract class ProcessHelper {
 
     public static ArrayList<String> listRunningWineProcesses(){
         File proc = new File("/proc");
-        String[] filters = {"wine", "exe", "box86", "box64", "fex", "pulseaudio", "virgl", "wineserver", "Xvfb", "Xwayland"};
+        String[] filters = {"wine", "exe", "box86", "box64", "fex", "pulseaudio", "wineserver", "Xvfb", "Xwayland"};
         String[] allPids;
         ArrayList<String> filteredPids = new ArrayList<String>();
         List<String> filterList = Arrays.asList(filters);

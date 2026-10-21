@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView
     android:layout_width="340dp"
-    android:layout_height="240dp"
+    android:layout_height="300dp"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:fillViewport="true"
@@ -14,7 +14,311 @@
         android:padding="8dp">
 
         <!-- ============================================================ -->
-        <!-- Universal FPS Limiter Section                                -->
+        <!-- Color Preset                                                 -->
+        <!-- ============================================================ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Color Preset"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:layout_marginBottom="6dp" />
+
+            <Spinner
+                android:id="@+id/SColorPreset"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:spinnerMode="dropdown" />
+
+            <LinearLayout
+                android:id="@+id/LLPresetStrength"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="Strength" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBPresetStrength"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="100"
+                    app:sbMinValue="0"
+                    app:sbStep="5" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============================================================ -->
+        <!-- Upscaler                                                     -->
+        <!-- ============================================================ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Upscaler"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Scales the container resolution to your screen. SGSR and FSR give the sharpest result."
+                android:layout_marginBottom="8dp" />
+
+            <Spinner
+                android:id="@+id/SUpscaler"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:spinnerMode="dropdown" />
+
+            <LinearLayout
+                android:id="@+id/LLUpscalerSharpness"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="Upscaler Sharpness" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBUpscalerSharpness"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="100"
+                    app:sbMinValue="0"
+                    app:sbStep="5" />
+            </LinearLayout>
+
+            <CheckBox
+                android:id="@+id/CBFitGameWindow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Fit game window to screen" />
+
+            <TextView
+                android:textSize="11sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Upscales a game running smaller than the container (e.g. 800x600 on 1280x720) straight to your screen with the selected upscaler, keeping its aspect ratio." />
+        </LinearLayout>
+
+        <!-- ============================================================ -->
+        <!-- Sharpening                                                   -->
+        <!-- ============================================================ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sharpening"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:layout_marginBottom="6dp" />
+
+            <Spinner
+                android:id="@+id/SSharpenMode"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:spinnerMode="dropdown" />
+
+            <LinearLayout
+                android:id="@+id/LLSharpenSettings"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="Sharpening Level" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBSharpenLevel"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="5.0"
+                    app:sbMinValue="1.0"
+                    app:sbStep="1.0" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============================================================ -->
+        <!-- Advanced (collapsed): color adjustment + effects             -->
+        <!-- ============================================================ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bordered_panel_dark"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:layout_marginBottom="10dp">
+
+            <LinearLayout
+                android:id="@+id/LLAdvancedHeader"
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:background="?selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="Advanced (Color &amp; Effects)"
+                    android:textStyle="bold"
+                    android:textSize="13sp" />
+
+                <ImageView
+                    android:id="@+id/IVAdvancedArrow"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/icon_list_item_folded"
+                    android:contentDescription="Expand"
+                    app:tint="?android:attr/textColorSecondary" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/LLAdvanced"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textSize="12sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="@string/brightness" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBBrightness"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="100"
+                    app:sbMinValue="-100"
+                    app:sbStep="1" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="@string/contrast" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBContrast"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="100"
+                    app:sbMinValue="-100"
+                    app:sbStep="1" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:text="@string/gamma" />
+
+                <com.winlator.cmod.widget.SeekBar
+                    android:id="@+id/SBGamma"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    app:sbMaxValue="3.0"
+                    app:sbMinValue="0.5"
+                    app:sbStep="0.05" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableHDR"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Fake HDR (bloom + contrast)" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableFXAA"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="FXAA (anti-aliasing)" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableToon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Toon Outlines" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableCRT"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="CRT Scanlines" />
+
+                <CheckBox
+                    android:id="@+id/CBEnableNTSC"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="NTSC Signal" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============================================================ -->
+        <!-- Universal FPS Limiter                                        -->
         <!-- ============================================================ -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -29,13 +333,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
+                android:layout_marginBottom="6dp">
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="Universal FPS Limiter"
+                    android:text="FPS Limiter"
                     android:textStyle="bold"
                     android:textSize="13sp" />
 
@@ -49,14 +353,6 @@
                     android:contentDescription="Info"
                     app:tint="?android:attr/textColorSecondary" />
             </LinearLayout>
-
-            <TextView
-                android:textSize="11sp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="High-precision throttling for consistent frame pacing."
-                android:layout_marginBottom="8dp" />
 
             <Spinner
                 android:id="@+id/SFPSLimit"
@@ -78,7 +374,7 @@
         </LinearLayout>
 
         <!-- ============================================================ -->
-        <!-- Apex LSFG Section                                           -->
+        <!-- Frame Generation                                             -->
         <!-- ============================================================ -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -93,19 +389,18 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="4dp">
+                android:layout_marginBottom="6dp">
 
-                <CheckBox
-                    android:id="@+id/CBEnableLSFG"
+                <TextView
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="@string/enable_lsfg"
+                    android:text="Frame Generation (ZeroFG)"
                     android:textStyle="bold"
                     android:textSize="13sp" />
 
                 <ImageView
-                    android:id="@+id/IVLSFGInfo"
+                    android:id="@+id/IVFrameGenInfo"
                     android:layout_width="30dp"
                     android:layout_height="30dp"
                     android:padding="4dp"
@@ -115,217 +410,55 @@
                     app:tint="?android:attr/textColorSecondary" />
             </LinearLayout>
 
+            <CheckBox
+                android:id="@+id/CBFrameGen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enable frame generation" />
+
             <TextView
                 android:textSize="11sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/lsfg_description"
-                android:layout_marginBottom="4dp" />
+                android:layout_marginTop="6dp"
+                android:text="Mode" />
 
-            <LinearLayout
-                android:orientation="vertical"
-                android:id="@+id/LLLSFGSettings"
-                android:visibility="gone"
+            <Spinner
+                android:id="@+id/SFrameGenTarget"
+                style="@style/ComboBox"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:layout_marginBottom="4dp"
-                    android:text="@string/lsfg_quality" />
-
-                <Spinner
-                    android:id="@+id/SLSFGQuality"
-                    style="@style/ComboBox"
-                    android:entries="@array/lsfg_quality_entries"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:spinnerMode="dropdown"
-                    android:layout_marginBottom="10dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:text="Apex Render Scale" />
-
-                <Spinner
-                    android:id="@+id/SLSFGRenderScale"
-                    style="@style/ComboBox"
-                    android:entries="@array/apex_render_scale_entries"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:spinnerMode="dropdown"
-                    android:layout_marginBottom="10dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:text="Target FPS" />
-
-                <Spinner
-                    android:id="@+id/SLSFGTargetFPS"
-                    style="@style/ComboBox"
-                    android:entries="@array/lsfg_target_fps_entries"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:spinnerMode="dropdown"
-                    android:layout_marginBottom="6dp" />
-
-                <EditText
-                    android:id="@+id/ETCustomTargetFPS"
-                    style="@style/EditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:layout_marginBottom="10dp"
-                    android:inputType="number"
-                    android:hint="Custom Target FPS (e.g. 75, 144)"
-                    android:visibility="gone" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="4dp"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:text="Liquid Feel Control" />
-
-                <com.winlator.cmod.widget.SeekBar
-                    android:id="@+id/SBLSFGLiquidFeel"
-                    android:layout_width="match_parent"
-                    android:layout_height="60dp"
-                    app:sbMaxValue="1.0"
-                    app:sbMinValue="0.0"
-                    app:sbStep="0.01" />
-
-                <CheckBox
-                    android:id="@+id/CBEnableApexLogging"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:text="Apex Debug / GPU Pass Logging"
-                    android:textSize="12sp"
-                    android:textColor="?android:attr/textColorSecondary" />
-            </LinearLayout>
+                android:layout_height="42dp"
+                android:layout_marginTop="2dp"
+                android:spinnerMode="dropdown" />
         </LinearLayout>
 
         <!-- ============================================================ -->
-        <!-- HDR Section                                                  -->
+        <!-- Save                                                         -->
         <!-- ============================================================ -->
-        <LinearLayout
+        <Button
+            android:id="@+id/BTSaveForGame"
+            style="@style/ButtonNeutral"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bordered_panel_dark"
-            android:orientation="vertical"
-            android:padding="12dp"
-            android:layout_marginBottom="10dp">
+            android:text="Save for This Game" />
 
-            <CheckBox
-                android:id="@+id/CBEnableHDR"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Enable Fake HDR"
-                android:textStyle="bold"
-                android:textSize="13sp"
-                android:layout_marginBottom="4dp" />
-
-            <TextView
-                android:textSize="11sp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Applies a dual-radius bloom blur and contrast boost." />
-        </LinearLayout>
-
-        <!-- ============================================================ -->
-        <!-- Sharpening (CAS) Section                                    -->
-        <!-- ============================================================ -->
-        <LinearLayout
+        <Button
+            android:id="@+id/BTSaveAsDefault"
+            style="@style/ButtonNeutral"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bordered_panel_dark"
-            android:orientation="vertical"
-            android:padding="12dp"
-            android:layout_marginBottom="8dp">
+            android:layout_marginTop="6dp"
+            android:text="Save as Container Default" />
 
-            <CheckBox
-                android:id="@+id/CBEnableSharpen"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Enable Sharpening (CAS)"
-                android:textStyle="bold"
-                android:textSize="13sp"
-                android:layout_marginBottom="4dp" />
+        <Button
+            android:id="@+id/BTResetEnhancements"
+            style="@style/ButtonNeutral"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/reset" />
 
-            <TextView
-                android:textSize="11sp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Contrast Adaptive Sharpening (CAS) resolves blurriness."
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:orientation="vertical"
-                android:id="@+id/LLSharpenSettings"
-                android:visibility="gone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="4dp"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:text="Sharpening Mode" />
-
-                <Spinner
-                    android:id="@+id/SSharpenMode"
-                    style="@style/ComboBox"
-                    android:entries="@array/sharpening_mode_entries"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:spinnerMode="dropdown"
-                    android:layout_marginBottom="10dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="4dp"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="?android:attr/textColorSecondary"
-                    android:text="Sharpening Level" />
-
-                <com.winlator.cmod.widget.SeekBar
-                    android:id="@+id/SBSharpenLevel"
-                    android:layout_width="match_parent"
-                    android:layout_height="60dp"
-                    app:sbMaxValue="5.0"
-                    app:sbMinValue="1.0"
-                    app:sbStep="1.0" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Spacer at bottom -->
         <View
             android:layout_width="match_parent"
             android:layout_height="16dp" />

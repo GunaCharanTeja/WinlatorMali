@@ -1,28 +1,29 @@
 #pragma once
 
 #include <string>
-#include <fstream>
 #include <unordered_map>
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 
 class Shader {
     protected:
         std::unordered_map<std::string, int> uniformLocations;
         std::unordered_map<std::string, int> attributeLocations;
-        int programId;
-        GLuint bufferId;
+        int programId = 0;
+        GLuint bufferId = 0;
+        bool valid = false;
         float quads[8] = {
             0.0f, 0.0f,
             0.0f, 1.0f,
             1.0f, 0.0f,
             1.0f, 1.0f
         };
-        
+
     public:
         Shader(const char *vertexShader, const char *fragmentShader);
         virtual ~Shader();
         void use();
         void disable();
+        bool isValid() const { return valid; }
         int getUniformLoc(const std::string& name);
         int getAttributeLoc(const std::string& name);
 };
@@ -53,19 +54,18 @@ class DrawableShader : public Shader {
             uniform sampler2D texture;
             varying vec2 vUV;
             uniform int is_cursor;
+            uniform int swap_colors;
 
             void main() {
-                vec4 color = vec4(0, 0, 0, 0);
-                    
+                vec4 color = texture2D(texture, vUV);
+                if (swap_colors == 1)
+                    color = color.bgra;
                 if (is_cursor == 0)
-                    color = vec4(texture2D(texture, vUV).rgb, 1.0);            
-                else
-                    color = texture2D(texture, vUV);
-                
-                gl_FragColor = color;    
+                    color.a = 1.0;
+                gl_FragColor = color;
             }
         )GLSL";
-        
+
     public:
         DrawableShader();
 };

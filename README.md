@@ -33,7 +33,10 @@ Winlator is an Android application that lets you to run Windows (x86_64) applica
 - Wine ([winehq.org](https://www.winehq.org/))
 - Box86/Box64 by [ptitseb](https://github.com/ptitSeb)
 - PRoot ([proot-me.github.io](https://proot-me.github.io))
-- Mesa (Turnip/Zink/VirGL) ([mesa3d.org](https://www.mesa3d.org))
+- Mesa (Turnip/Zink) ([mesa3d.org](https://www.mesa3d.org))
+- Native EGL renderer by [Pipetto-crypto](https://github.com/Pipetto-crypto/winlator) (winlator_bionic)
+- Color presets, Color Boost and Lanczos2/SGSR/FSR upscalers ported from [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi)
+- Frame generation engine [ZeroFG](https://github.com/hy300leosquizz-ctrl/ZeroFG) (Apache-2.0, see `app/src/main/cpp/zerofg/LICENSE`), with Mali-tuned shaders (subgroup motion search, split resolve) added in this fork
 - DXVK ([github.com/doitsujin/dxvk](https://github.com/doitsujin/dxvk))
 - VKD3D ([gitlab.winehq.org/wine/vkd3d](https://gitlab.winehq.org/wine/vkd3d))
 - D8VK ([github.com/AlpyneDreams/d8vk](https://github.com/AlpyneDreams/d8vk))
