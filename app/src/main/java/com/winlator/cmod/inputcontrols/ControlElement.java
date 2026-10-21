@@ -446,7 +446,7 @@ public class ControlElement {
 
 
     public String getDisplayText() {
-        ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
+        ControlStylePreset stylePreset = ControlStylePreset.GLASS;
         if (inputControlsView != null && inputControlsView.getProfile() != null) {
             stylePreset = inputControlsView.getProfile().getStylePreset();
         }
@@ -636,7 +636,8 @@ public class ControlElement {
                 h = bh;
                 radius = h * 0.30f;
             }
-            String text = iconId > 0 ? null : getDisplayText();
+            // Madeira labels every button with text (START / SELECT, LB, A ...); the profile's own icons are not drawn.
+            String text = getDisplayText();
             String key = w + "," + h + "," + (int) radius + "," + tint + "," + (int) alpha + "," + selected + "," + text + "," + pill;
             if (!key.equals(glassCacheKey)) {
                 recycleGlassCache();
@@ -646,12 +647,6 @@ public class ControlElement {
             if (glassCache[state] == null)
                 glassCache[state] = makeGlass(w, h, radius, tint, pressed, alpha, text, pill);
             drawGlassBitmap(canvas, glassCache[state], cx, cy);
-            if (iconId > 0) {
-                canvas.save();
-                if (pressed) canvas.scale(0.92f, 0.92f, cx, cy);
-                drawIcon(canvas, cx, cy, box.width(), box.height(), iconId, false);
-                canvas.restore();
-            }
             return true;
         }
 
@@ -832,7 +827,7 @@ public class ControlElement {
 
         float alpha = overlayOpacity * 255.0f;
 
-        ControlStylePreset stylePreset = ControlStylePreset.WINLATOR_MALI;
+        ControlStylePreset stylePreset = ControlStylePreset.GLASS;
         if (inputControlsView != null && inputControlsView.getProfile() != null) {
             stylePreset = inputControlsView.getProfile().getStylePreset();
         }
@@ -948,7 +943,6 @@ public class ControlElement {
                 customShadow = 0x00000000;
                 break;
             }
-            case WINLATOR_MALI:
             default: {
                 customBg = 0xFF000000;
                 customStroke = selected ? inputControlsView.getSecondaryColor() : 0xFFE6E6E6;

@@ -48,15 +48,15 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     }
 
     public ControlStylePreset getStylePreset() {
-        return stylePreset != null ? stylePreset : ControlStylePreset.WINLATOR_MALI;
+        return stylePreset != null ? stylePreset : ControlStylePreset.GLASS;
     }
 
     public void setStylePreset(ControlStylePreset stylePreset) {
-        this.stylePreset = (stylePreset != null) ? stylePreset : ControlStylePreset.WINLATOR_MALI;
+        this.stylePreset = (stylePreset != null) ? stylePreset : ControlStylePreset.GLASS;
     }
 
     public void applyStylePreset(ControlStylePreset preset, InputControlsView inputControlsView) {
-        this.stylePreset = (preset != null) ? preset : ControlStylePreset.WINLATOR_MALI;
+        this.stylePreset = (preset != null) ? preset : ControlStylePreset.GLASS;
         if (!elementsLoaded && inputControlsView != null) loadElements(inputControlsView);
         for (ControlElement el : elements) {
             ControlElement.Type t = el.getType();
@@ -86,7 +86,6 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                         break;
                     case XBOX:
                     case PLAYSTATION:
-                    case WINLATOR_MALI:
                     default:
                         if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.CAPSULE);
                         else el.setShape(ControlElement.Shape.CIRCLE);
