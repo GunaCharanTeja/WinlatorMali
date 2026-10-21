@@ -108,7 +108,7 @@ public class DXVKConfigDialog extends ContentDialog {
         sVKD3DFeatureLevel.setAdapter(adapter);
 
         setDXVKSpinner(sDXVKVersion, config, contentsManager, isARM64EC);
-        AppUtils.setSpinnerSelectionFromIdentifier(sVKD3DVersion, config.get("vkd3dVersion"));
+        selectVersion(sVKD3DVersion, config.get("vkd3dVersion"));
         AppUtils.setSpinnerSelectionFromIdentifier(sVKD3DFeatureLevel, config.get("vkd3dLevel"));
         AppUtils.setSpinnerSelectionFromIdentifier(sDDRAWrapper, config.get("ddrawrapper"));
 
@@ -155,52 +155,6 @@ public class DXVKConfigDialog extends ContentDialog {
             }
         });
 
-        sVKD3DVersion.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                Object selectedObj = sVKD3DVersion.getSelectedItem();
-                String selectedVersion = selectedObj != null ? selectedObj.toString() : "None";
-                String currentDXVKVersion = sDXVKVersion.getSelectedItem() != null ? sDXVKVersion.getSelectedItem().toString() : config.get("version");
-
-                loadDxvkVersionSpinner(contentsManager, sDXVKVersion, isARM64EC);
-
-                if (!selectedVersion.equals("None") && !selectedVersion.equalsIgnoreCase("none")) {
-                    List<String> filteredList = new ArrayList<>();
-                    for (String ver : dxvkVersions) {
-                        Integer major = tryGetMajor(ver);
-                        if (major == null || major >= 2) {
-                            filteredList.add(ver);
-                        }
-                    }
-
-                    if (!filteredList.isEmpty()) {
-                        dxvkVersions = filteredList;
-                        ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, dxvkVersions);
-                        sDXVKVersion.setAdapter(adapter);
-
-                        Integer curMajor = tryGetMajor(currentDXVKVersion);
-                        if (curMajor != null && curMajor >= 2 && dxvkVersions.contains(currentDXVKVersion)) {
-                            AppUtils.setSpinnerSelectionFromIdentifier(sDXVKVersion, currentDXVKVersion);
-                        } else {
-                            // Select first available 2.x version or DefaultVersion.DXVK if present
-                            if (dxvkVersions.contains(DefaultVersion.DXVK)) {
-                                AppUtils.setSpinnerSelectionFromIdentifier(sDXVKVersion, DefaultVersion.DXVK);
-                            } else {
-                                sDXVKVersion.setSelection(0, false);
-                            }
-                        }
-                    }
-                } else {
-                    AppUtils.setSpinnerSelectionFromIdentifier(sDXVKVersion, currentDXVKVersion);
-                }
-                updateConfigVisibility(getDXVKType(sDXVKVersion.getSelectedItemPosition()));
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
-
         setOnConfirmCallback(() -> {
             if (sDXVKVersion.getSelectedItem() != null) config.put("version", sDXVKVersion.getSelectedItem().toString());
             config.put("async", ((swAsync.isChecked())&&(llAsync.getVisibility()==View.VISIBLE))?"1":"0");
@@ -243,36 +197,25 @@ public class DXVKConfigDialog extends ContentDialog {
         return dxvkType;
     }
 
+    // DXVK (D3D8-11) and VKD3D (D3D12) are independent: any DXVK goes with any VKD3D, as in Bannerlator.
     private void setDXVKSpinner(Spinner sDXVKVersion, KeyValueSet config, ContentsManager contentsManager, boolean isARM64EC) {
-        String selectedVersion = config.get("vkd3dVersion");
-        String currentDXVKVersion = config.get("version");
-        if (selectedVersion != null && !selectedVersion.equals("None") && !selectedVersion.equalsIgnoreCase("none")) {
-            List<String> filteredList = new ArrayList<>();
-            for (String ver : dxvkVersions) {
-                Integer major = tryGetMajor(ver);
-                if (major == null || major >= 2) {
-                    filteredList.add(ver);
-                }
-            }
-            if (!filteredList.isEmpty()) {
-                dxvkVersions = filteredList;
-                ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, dxvkVersions);
-                sDXVKVersion.setAdapter(adapter);
+        selectVersion(sDXVKVersion, config.get("version"));
+    }
 
-                Integer curMajor = tryGetMajor(currentDXVKVersion);
-                if (curMajor != null && curMajor >= 2 && dxvkVersions.contains(currentDXVKVersion)) {
-                    AppUtils.setSpinnerSelectionFromIdentifier(sDXVKVersion, currentDXVKVersion);
-                } else {
-                    if (dxvkVersions.contains(DefaultVersion.DXVK)) {
-                        AppUtils.setSpinnerSelectionFromIdentifier(sDXVKVersion, DefaultVersion.DXVK);
-                    } else {
-                        sDXVKVersion.setSelection(0, false);
-                    }
+    // Selects a saved version by its exact name (downloaded ones keep their capitals, e.g. "VKD3D-Proton-2.15-1"),
+    // falling back to the identifier matching used elsewhere.
+    private static void selectVersion(Spinner spinner, String version) {
+        if (version != null) {
+            for (int i = 0; i < spinner.getCount(); i++) {
+                Object item = spinner.getItemAtPosition(i);
+                String name = item instanceof VKD3DVersionItem ? ((VKD3DVersionItem) item).getIdentifier() : item.toString();
+                if (name.equalsIgnoreCase(version)) {
+                    spinner.setSelection(i, false);
+                    return;
                 }
             }
-        } else {
-            AppUtils.setSpinnerSelectionFromIdentifier(sDXVKVersion, currentDXVKVersion);
         }
+        AppUtils.setSpinnerSelectionFromIdentifier(spinner, version);
     }
 
     public static KeyValueSet parseConfig(Object config) {
