@@ -336,8 +336,9 @@ EGLBoolean EGLRenderer::drawFrame() {
         if (frameGenOn && serial != frameGenSerial) {
             frameGenSerial = serial;
             double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            double gap = lastRealTime > 0 ? now - lastRealTime : 0;
             if (lastRealTime > 0) {
-                realIntervals[realIntervalCount % 8] = now - lastRealTime;
+                realIntervals[realIntervalCount % 8] = gap;
                 realIntervalCount++;
             }
             lastRealTime = now;
@@ -364,8 +365,15 @@ EGLBoolean EGLRenderer::drawFrame() {
                 frameGen.reset();
             fgStatMultiplier = multiplier;
             fgStatRealFps = interval > 0 ? float(1.0 / interval) : 0.0f;
+            // A hitch (a shader compile, a streaming stall): this frame came far later than the game's pace. In-betweens across
+            // it would be one smeared jump, then a wait anyway, so the real frame is shown as it is. It still becomes the start
+            // of the next pair, so generation goes on with the next frame. Only a clear outlier counts: both well over the pace
+            // (x1.75, a limiter wandering 29-31 or a game slowing down gradually never gets there) and by more than 15 ms (at
+            // high frame rates a few ms of jitter is a big ratio but nothing to see). A lasting drop in frame rate enters the
+            // pace within a few frames and stops counting as one; the multiplier and the engine's history are left as they are.
+            bool hitch = interval > 0 && gap > interval * 1.75 && gap > interval + 0.015;
             frameGen.setQuality(postFX.frameGenerationQuality());
-            if (frameGen.pushReal(display, postFX.sceneTexture(), postFX.sceneWidth(), postFX.sceneHeight()) && multiplier >= 2) {
+            if (frameGen.pushReal(display, postFX.sceneTexture(), postFX.sceneWidth(), postFX.sceneHeight()) && multiplier >= 2 && !hitch) {
                 // The generated frames 1/M, 2/M ... of the way from the previous real frame to this one, each 1/M of a real
                 // frame after the last (the swap returns once the buffer is queued), then this frame.
                 // Even steps of interval / M from the moment the first generated frame is shown (generating it takes a few ms
