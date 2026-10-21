@@ -744,7 +744,7 @@ public class ControlElement {
             p.setColor(ColorUtils.setAlphaComponent(tint, (int) (255 * a * (pressed ? 0.75f : 0.60f))));
             c.drawRect(rect, p);
         } else {
-            p.setColor(Color.argb((int) (255 * a * 0.28f), 20, 22, 28));
+            p.setColor(Color.argb((int) (255 * a * 0.36f), 20, 22, 28));
             c.drawRect(rect, p);
         }
         float lens = pressed ? 1.45f : 1.0f;
@@ -1186,10 +1186,13 @@ public class ControlElement {
         Binding b0 = getBindingAt(0);
         String label = getDisplayText().toUpperCase();
 
-        if (stylePreset == ControlStylePreset.GLASS && drawGlass(canvas, paint, pressed, alpha, b0, label))
+        // The three styles never fade below "clearly there": the opacity setting fades them down to 55 %, no further
+        // (clear glass and dark plastic all but vanished over the game below that, while coloured parts still showed).
+        float styledAlpha = Math.max(alpha, 255f * 0.55f);
+        if (stylePreset == ControlStylePreset.GLASS && drawGlass(canvas, paint, pressed, styledAlpha, b0, label))
             return;
         if ((stylePreset == ControlStylePreset.XBOX || stylePreset == ControlStylePreset.PLAYSTATION) &&
-            drawController(canvas, paint, pressed, alpha, b0, label, stylePreset == ControlStylePreset.XBOX))
+            drawController(canvas, paint, pressed, styledAlpha, b0, label, stylePreset == ControlStylePreset.XBOX))
             return;
 
         switch (stylePreset) {
