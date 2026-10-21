@@ -476,6 +476,16 @@ public class ControlElement {
             } else if (stylePreset == ControlStylePreset.CYBERPUNK) {
                 if (text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("VIEW") || text.equalsIgnoreCase("SHARE")) return "SYS";
                 if (text.equalsIgnoreCase("START") || text.equalsIgnoreCase("MENU") || text.equalsIgnoreCase("OPTIONS")) return "RUN";
+            } else if (stylePreset == ControlStylePreset.GLASS) {
+                // Madeira's labels: Xbox shoulder names, stick clicks L3/R3, START/SELECT.
+                if (text.equalsIgnoreCase("L1")) return "LB";
+                if (text.equalsIgnoreCase("R1")) return "RB";
+                if (text.equalsIgnoreCase("L2")) return "LT";
+                if (text.equalsIgnoreCase("R2")) return "RT";
+                if (text.equalsIgnoreCase("LS")) return "L3";
+                if (text.equalsIgnoreCase("RS")) return "R3";
+                if (text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("VIEW") || text.equalsIgnoreCase("SHARE")) return "SELECT";
+                if (text.equalsIgnoreCase("MENU") || text.equalsIgnoreCase("OPTIONS")) return "START";
             }
             return text;
         }
@@ -512,6 +522,17 @@ public class ControlElement {
                 switch (binding) {
                     case GAMEPAD_BUTTON_SELECT: return "SYS";
                     case GAMEPAD_BUTTON_START: return "RUN";
+                }
+            } else if (stylePreset == ControlStylePreset.GLASS) {
+                switch (binding) {
+                    case GAMEPAD_BUTTON_L1: return "LB";
+                    case GAMEPAD_BUTTON_R1: return "RB";
+                    case GAMEPAD_BUTTON_L2: return "LT";
+                    case GAMEPAD_BUTTON_R2: return "RT";
+                    case GAMEPAD_BUTTON_L3: return "L3";
+                    case GAMEPAD_BUTTON_R3: return "R3";
+                    case GAMEPAD_BUTTON_SELECT: return "SELECT";
+                    case GAMEPAD_BUTTON_START: return "START";
                 }
             }
             String text = binding.toString().replace("NUMPAD ", "NP").replace("BUTTON ", "");
@@ -592,18 +613,30 @@ public class ControlElement {
             else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X")) tint = GLASS_FACE_TINTS[2];
             else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y")) tint = GLASS_FACE_TINTS[3];
 
+            // Madeira's shapes by what the button is: shoulders wide (1.6 x 0.74), Start/Select small pills (1.2 x 0.5),
+            // stick clicks small circles (0.8), the rest round; each fitted inside the control's own box. A button
+            // that is none of these and drawn wide in the profile (a Space key) keeps its box with rounded corners.
+            String upper = label;
+            boolean wide = upper.matches("LB|RB|LT|RT|L1|R1|L2|R2");
+            boolean pill = upper.matches("START|SELECT|MENU|VIEW|BACK|OPTIONS|SHARE") || b0 == Binding.GAMEPAD_BUTTON_START || b0 == Binding.GAMEPAD_BUTTON_SELECT;
+            boolean small = upper.matches("L3|R3|LS|RS") || b0 == Binding.GAMEPAD_BUTTON_L3 || b0 == Binding.GAMEPAD_BUTTON_R3;
+            int bw = box.width(), bh = box.height();
             int w, h;
             float radius;
-            if (shape == Shape.CIRCLE || shape == Shape.OVAL && box.width() == box.height()) {
-                w = h = Math.min(box.width(), box.height());
+            if (wide || pill) {
+                float aspect = wide ? 1.6f / 0.74f : 1.2f / 0.5f;
+                w = Math.round(Math.min(bw, bh * aspect));
+                h = Math.round(w / aspect);
+                radius = wide ? h * 0.30f : h * 0.5f;
+            } else if (small || Math.abs(bw - bh) <= Math.max(bw, bh) * 0.15f) {
+                w = h = Math.round(Math.min(bw, bh) * (small ? 0.8f : 1f));
                 radius = w * 0.5f;
             } else {
-                w = box.width();
-                h = box.height();
-                radius = shape == Shape.CAPSULE || shape == Shape.OVAL ? h * 0.5f : h * 0.30f;
+                w = bw;
+                h = bh;
+                radius = h * 0.30f;
             }
             String text = iconId > 0 ? null : getDisplayText();
-            boolean pill = shape == Shape.CAPSULE;
             String key = w + "," + h + "," + (int) radius + "," + tint + "," + (int) alpha + "," + selected + "," + text + "," + pill;
             if (!key.equals(glassCacheKey)) {
                 recycleGlassCache();
@@ -634,7 +667,7 @@ public class ControlElement {
             drawGlassBitmap(canvas, glassCache[0], cx, cy);
             boolean held = getCurrentPointerId() != -1;
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(glassWhite(alpha * (held ? 0.55f : 0.25f)));
+            paint.setColor(glassWhite(alpha * (held ? 0.65f : 0.38f)));
             canvas.drawCircle(getCurrentPosition().x, getCurrentPosition().y, d * 0.21f, paint);
             return true;
         }
@@ -655,15 +688,21 @@ public class ControlElement {
             if (glassCache[state] == null)
                 glassCache[state] = makeGlass(d, d, d * 0.5f, 0, down, alpha, null, false);
             drawGlassBitmap(canvas, glassCache[state], px, py);
+            // Madeira's filled triangle (arrowtriangle.*.fill), about 40 % of the button.
             canvas.save();
             if (down) canvas.scale(0.92f, 0.92f, px, py);
             canvas.rotate(90 * i, px, py);
-            float a = r * 0.34f;
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Math.max(2f, r * 0.15f));
-            paint.setColor(glassWhite(alpha * (down ? 1.0f : 0.9f)));
-            canvas.drawLine(px - a, py + a * 0.5f, px, py - a * 0.5f, paint);
-            canvas.drawLine(px, py - a * 0.5f, px + a, py + a * 0.5f, paint);
+            float a = r * 0.40f;
+            Path arrow = inputControlsView.getPath();
+            arrow.reset();
+            arrow.moveTo(px, py - a * 0.62f);
+            arrow.lineTo(px + a * 0.62f, py + a * 0.45f);
+            arrow.lineTo(px - a * 0.62f, py + a * 0.45f);
+            arrow.close();
+            paint.setStyle(Paint.Style.FILL);
+            paint.setPathEffect(null);
+            paint.setColor(glassWhite(alpha * (down ? 1.0f : 0.92f)));
+            canvas.drawPath(arrow, paint);
             canvas.restore();
         }
         return true;
@@ -712,17 +751,18 @@ public class ControlElement {
         // The glass: its tint, then lighter toward the rim (a lens), a little more when pressed.
         c.save();
         c.clipPath(shapePath);
+        // A dark base keeps the glass readable over bright scenes, the lens light over dark ones.
         if (tint != 0) {
-            p.setColor(ColorUtils.setAlphaComponent(tint, (int) (255 * a * (pressed ? 0.66f : 0.50f))));
+            p.setColor(ColorUtils.setAlphaComponent(tint, (int) (255 * a * (pressed ? 0.75f : 0.60f))));
             c.drawRect(rect, p);
         } else {
-            p.setColor(Color.argb((int) (255 * a * 0.18f), 20, 22, 28));
+            p.setColor(Color.argb((int) (255 * a * 0.28f), 20, 22, 28));
             c.drawRect(rect, p);
         }
-        float lens = pressed ? 1.5f : 1.0f;
+        float lens = pressed ? 1.45f : 1.0f;
         p.setShader(new android.graphics.RadialGradient(cx, cy, Math.max(w, h) * 0.62f,
-            new int[]{Color.argb((int) (255 * a * 0.04f * lens), 255, 255, 255), Color.argb((int) (255 * a * 0.09f * lens), 255, 255, 255),
-                      Color.argb((int) (255 * a * 0.24f * lens), 255, 255, 255)},
+            new int[]{Color.argb((int) (255 * a * 0.07f * lens), 255, 255, 255), Color.argb((int) (255 * a * 0.13f * lens), 255, 255, 255),
+                      Color.argb((int) (255 * a * 0.32f * lens), 255, 255, 255)},
             new float[]{0f, 0.72f, 1f}, android.graphics.Shader.TileMode.CLAMP));
         c.drawRect(rect, p);
         // The highlight near the top, toward the left.
@@ -741,7 +781,7 @@ public class ControlElement {
         c.restore();
 
         // The rim, catching the light: bright at the upper left, softer at the lower right, dim at the sides.
-        float[] rimAlpha = {0.16f, 0.48f, 0.20f, 0.30f, 0.92f, 0.55f, 0.16f};  // right, lower right, bottom, left, upper left, top, right
+        float[] rimAlpha = {0.26f, 0.60f, 0.30f, 0.40f, 1.0f, 0.70f, 0.26f};  // right, lower right, bottom, left, upper left, top, right
         float[] rimStops = {0f, 0.125f, 0.25f, 0.5f, 0.625f, 0.75f, 1f};
         int[] rimColors = new int[rimAlpha.length];
         for (int i = 0; i < rimAlpha.length; i++)
@@ -763,7 +803,9 @@ public class ControlElement {
         paint.setTypeface(glassTypeface);
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(glassWhite(alpha * (pressed ? 1.0f : 0.9f)));
+        paint.setColor(glassWhite(alpha));
+        // A faint shadow keeps white labels readable over bright scenes (drawn once, into the cached bitmap).
+        paint.setShadowLayer(Math.max(1f, rect.height() * 0.03f), 0, rect.height() * 0.01f, Color.argb((int) (alpha * 0.45f), 0, 0, 0));
         if (pill) paint.setLetterSpacing(0.06f);
         float size = rect.height() * (pill || text.length() <= 2 ? 0.40f : 0.26f);
         paint.setTextSize(size);
@@ -771,6 +813,7 @@ public class ControlElement {
         if (width > maxWidth) paint.setTextSize(size * maxWidth / width);
         canvas.drawText(text, rect.centerX(), rect.centerY() - (paint.descent() + paint.ascent()) * 0.5f, paint);
         paint.setLetterSpacing(0);
+        paint.clearShadowLayer();
         paint.setTypeface(Typeface.DEFAULT);
     }
 

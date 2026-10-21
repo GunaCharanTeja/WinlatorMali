@@ -300,6 +300,8 @@ public class WinlatorHUD extends View {
                     // A target makes the multiplier fractional (24 x 2.5 = 60); whole ones show without decimals.
                     String multiplier = Math.abs(fg[0] - Math.round(fg[0])) < 0.05f ? String.valueOf(Math.round(fg[0])) : String.format(java.util.Locale.US, "%.1f", fg[0]);
                     strFps = Math.round(fg[2]) + " \u00b7 " + Math.round(fg[1]) + "\u00d7" + multiplier + " \u00b7 " + String.format(java.util.Locale.US, "%.1fms", fg[3]);
+                    // The colour and the graph follow the frames shown, as the number does.
+                    snapFps = fg[2];
                 }
             } catch (UnsatisfiedLinkError ignored) {}
 
