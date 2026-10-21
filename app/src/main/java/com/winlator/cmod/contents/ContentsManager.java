@@ -483,6 +483,8 @@ public class ContentsManager {
                 if (src.exists()) {
                     File parent = dst.getParentFile();
                     if (parent != null && !parent.exists()) parent.mkdirs();
+                    // Replaced, not written into: the old file may be a link to Wine's own copy of the DLL.
+                    dst.delete();
                     FileUtils.copy(src, dst);
                 }
             }
@@ -702,11 +704,25 @@ public class ContentsManager {
 
         if (preferredType != null) {
             List<ContentProfile> list = profilesMap.get(preferredType);
+            String normalizedQuery = queryVersion.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
             if (list != null) {
                 for (ContentProfile p : list) {
-                    if (getEntryName(p).equalsIgnoreCase(entryName) || p.verName.equalsIgnoreCase(queryVersion) || getEntryName(p).equalsIgnoreCase(preferredType.toString() + "-" + queryVersion)) return p;
+                    if (p == null || p.verName == null) continue;
+                    // The settings store a downloaded VKD3D as "verName-verCode" even when the code is 0, which
+                    // getEntryName leaves out, so the name with its code is compared as well.
+                    if (getEntryName(p).equalsIgnoreCase(entryName) || p.verName.equalsIgnoreCase(queryVersion) || getEntryName(p).equalsIgnoreCase(preferredType.toString() + "-" + queryVersion)
+                        || (p.verName + "-" + p.verCode).equalsIgnoreCase(queryVersion)) return p;
+                }
+                // Names with or without their type prefix ("dxvk-2.5" saved as "2.5"), within this type only.
+                for (ContentProfile p : list) {
+                    if (p == null || p.verName == null) continue;
+                    String normalizedVer = p.verName.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+                    if (!normalizedQuery.isEmpty() && (normalizedVer.equalsIgnoreCase(normalizedQuery) || (normalizedVer + "-" + p.verCode).equalsIgnoreCase(normalizedQuery))) return p;
                 }
             }
+            // A graphics wrapper of another type would install the wrong DLLs; the built-in archives are the fallback.
+            if (preferredType == ContentProfile.ContentType.CONTENT_TYPE_DXVK || preferredType == ContentProfile.ContentType.CONTENT_TYPE_VKD3D)
+                return null;
         }
 
         String normalizedQuery = entryName.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();

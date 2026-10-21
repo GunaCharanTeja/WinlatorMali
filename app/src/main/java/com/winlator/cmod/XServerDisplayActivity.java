@@ -1298,7 +1298,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String dxvkWrapper = "dxvk-" + dxwrapperConfig.get("version");
             String vkd3dWrapper = "vkd3d-" + dxwrapperConfig.get("vkd3dVersion");
             String ddrawrapper = dxwrapperConfig.get("ddrawrapper");
-            dxwrapper = dxvkWrapper + ";" + vkd3dWrapper + ";" + ddrawrapper;
+            // The trailing field marks how it was applied: containers that saved a downloaded VKD3D/DXVK before
+            // installed ones were found (it was silently skipped) apply it again once.
+            dxwrapper = dxvkWrapper + ";" + vkd3dWrapper + ";" + ddrawrapper + ";2";
         }
 
         if (!dxwrapper.equals(container.getExtra("dxwrapper"))) {
@@ -2395,7 +2397,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 contentsManager.applyContent(dxvkProfile);
             } else {
                 Log.d(TAG, "Extracting fallback DXVK .tzst archive: " + dxvkWrapper);
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/" + dxvkWrapper + ".tzst", windowsDir, onExtractFileListener);
+                if (!TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/" + dxvkWrapper + ".tzst", windowsDir, onExtractFileListener))
+                    Log.e(TAG, "DXVK not found, neither installed nor built in: " + dxvkWrapper);
 
                 if (compareVersion(dxvkWrapper, "2.4") < 0) {
                     Log.d(TAG, "Extracting d8vk as part of DXVK version " + dxvkWrapper);
@@ -2414,7 +2417,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     contentsManager.applyContent(vkd3dProfile);
                 } else {
                     Log.d(TAG, "Extracting fallback VKD3D .tzst archive: " + vkd3dWrapper);
-                    TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/" + vkd3dWrapper + ".tzst", windowsDir, onExtractFileListener);
+                    if (!TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/" + vkd3dWrapper + ".tzst", windowsDir, onExtractFileListener))
+                        Log.e(TAG, "VKD3D not found, neither installed nor built in: " + vkd3dWrapper);
                 }
             }
 
