@@ -618,25 +618,38 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         boolean[] winStarted = {false};
         boolean[] startupTimeoutPosted = {false};
+        android.os.Handler startupHandler = new android.os.Handler(getMainLooper());
 
         // Add the OnWindowModificationListener for dynamic workarounds
         xServer.windowManager.addOnWindowModificationListener(new WindowManager.OnWindowModificationListener() {
             @Override
             public void onUpdateWindowContentDirect(Window window, Drawable drawable) {
-                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
-                    if (xServerView != null) xServerView.setCursorVisible(true);
-                    preloaderDialog.closeOnUiThread();
-                    winStarted[0] = true;
-                }
+                // A game drawing through the GPU (its window may be a child, not an application window).
+                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10)
+                    onStartupContent();
             }
 
             @Override
             public void onUpdateWindowContent(Window window) {
-                if (!winStarted[0] && window != null && (window.isApplicationWindow() || (window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10))) {
+                if (!winStarted[0] && window != null && window.isApplicationWindow())
+                    onStartupContent();
+            }
+
+            // The Wine desktop paints in steps (background, wallpaper, icons), so the startup screen waits until its
+            // drawing has been still for a moment, at most a few seconds after the first content.
+            private long firstContentAt = 0;
+
+            private void onStartupContent() {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (firstContentAt == 0) firstContentAt = now;
+                long closeAt = Math.min(now + 600, firstContentAt + 5000);
+                startupHandler.removeCallbacksAndMessages(null);
+                startupHandler.postAtTime(() -> {
+                    if (winStarted[0]) return;
+                    winStarted[0] = true;
                     if (xServerView != null) xServerView.setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
-                    winStarted[0] = true;
-                }
+                }, closeAt);
             }
            
             @Override
