@@ -36,6 +36,7 @@ public final class ContentDownloads {
         public volatile int percent = -1;
         public volatile float speedMBs;
         public volatile String message;
+        volatile boolean cancelled;
 
         Task(String url, String name) {
             this.url = url;
@@ -70,6 +71,12 @@ public final class ContentDownloads {
         return active;
     }
 
+    // Stops a download; an install already under way is left to finish (a half-extracted package is worse).
+    public static void cancel(String url) {
+        Task task = get(url);
+        if (task != null && task.state == State.DOWNLOADING) task.cancelled = true;
+    }
+
     public static void addListener(Listener listener) {
         listeners.add(listener);
     }
@@ -102,12 +109,24 @@ public final class ContentDownloads {
         File stagingDir = new File(workDir, "staging");
         workDir.mkdirs();
         try {
-            boolean downloaded = Downloader.downloadFile(task.url, archive, (currentBytes, totalBytes, percent, speedMBs) -> {
-                task.currentBytes = currentBytes;
-                task.totalBytes = totalBytes;
-                task.percent = percent;
-                task.speedMBs = speedMBs;
+            boolean downloaded = Downloader.downloadFile(task.url, archive, new Downloader.DownloadProgressListener() {
+                @Override
+                public void onProgress(long currentBytes, long totalBytes, int percent, float speedMBs) {
+                    task.currentBytes = currentBytes;
+                    task.totalBytes = totalBytes;
+                    task.percent = percent;
+                    task.speedMBs = speedMBs;
+                }
+
+                @Override
+                public boolean isCancelled() {
+                    return task.cancelled;
+                }
             });
+            if (task.cancelled) {
+                finish(task, State.FAILED, "Cancelled " + task.name);
+                return;
+            }
             if (!downloaded) {
                 finish(task, State.FAILED, "Download failed. Please check network connection.");
                 return;

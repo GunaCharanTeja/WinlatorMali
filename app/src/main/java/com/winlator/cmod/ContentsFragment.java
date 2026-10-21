@@ -707,6 +707,12 @@ public class ContentsFragment extends Fragment {
                 ContentDownloads.start(getContext(), profile);
                 bindDownloadState(holder);
             });
+
+            holder.llDownloadProgress.setOnClickListener(v -> {
+                ContentDownloads.Task task = ContentDownloads.get(profile.remoteUrl);
+                if (getContext() == null || task == null || task.state != ContentDownloads.State.DOWNLOADING) return;
+                ContentDialog.confirm(getContext(), "Cancel downloading " + task.name + "?", () -> ContentDownloads.cancel(profile.remoteUrl));
+            });
         }
 
         private void bindDownloadState(ViewHolder holder) {

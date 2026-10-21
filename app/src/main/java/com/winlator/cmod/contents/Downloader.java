@@ -13,6 +13,11 @@ public class Downloader {
 
     public interface DownloadProgressListener {
         void onProgress(long currentBytes, long totalBytes, int percent, float speedMBs);
+
+        // Checked between chunks: true stops the download (it then counts as failed).
+        default boolean isCancelled() {
+            return false;
+        }
     }
 
     public static boolean downloadFile(String address, File file) {
@@ -46,6 +51,7 @@ public class Downloader {
             long lastUpdateTime = 0;
 
             while ((count = input.read(data)) != -1) {
+                if (listener != null && listener.isCancelled()) return false;
                 output.write(data, 0, count);
                 currentBytes += count;
 
