@@ -13,6 +13,7 @@
 #include <queue>
 #include <cmath>
 #include <condition_variable>
+#include <unordered_map>
 
 #include "shader.hpp"
 #include "renderer_jni.hpp"
@@ -94,8 +95,17 @@ class EGLRenderer {
         FrameGen frameGen;
         std::atomic_uint32_t contentSerial{0};
         uint32_t frameGenSerial = 0;
-        int fgCurrentMultiplier = 0;
+        double fgRatio = 0;  // frames shown per real one, 0 when frame generation is not running
+        double fgPhase = 0;  // where the next frame shown falls between the next pair of real frames (0 to 1)
+        std::chrono::steady_clock::time_point fgNextPresent{};  // the display time of the next frame shown
         std::chrono::steady_clock::time_point realPresentAt{};  // the display time of the real frame after generated ones
+        // Real frames are the content updates of the window updating the most (the game), chosen again every second.
+        // Counted per window and per path (window content or direct buffers): a frame reported by both counts once.
+        std::mutex contentLock;
+        std::unordered_map<int64_t, int> contentCounts;
+        std::atomic<int64_t> contentSource{0};
+        std::chrono::steady_clock::time_point contentCountsSince{};
+        void chooseContentWindow();
         double lastRealTime = 0;
         double realIntervals[8] = {};
         int realIntervalCount = 0;
@@ -144,11 +154,11 @@ class EGLRenderer {
         void updateWindowPosition(Window *window);
         void queueEvent(std::function<void()> func);
         void requestRenderer();
-        void markContentUpdate() { contentSerial++; }
+        void markContentUpdate(int windowId, bool direct);
 
         // Frame generation for the HUD: the multiplier in use, the game's frame rate, the frames shown (real and
         // generated, counted by the HUD reader) and the time to generate one.
-        std::atomic_int fgStatMultiplier{0};
+        std::atomic<float> fgStatMultiplier{0};
         std::atomic<float> fgStatRealFps{0};
         std::atomic<float> fgStatGenerateMs{0};
         std::atomic_uint32_t fgShownFrames{0};

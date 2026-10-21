@@ -477,7 +477,7 @@ Java_com_winlator_cmod_widget_XServerView_nativeUpdateWindowContent(JNIEnv *env,
         return;
 
     window->hasContent = true;
-    renderer.markContentUpdate();
+    renderer.markContentUpdate(id, false);
     if (window->drawable && window->drawable->ahb == nullptr && window->drawable->glTexture != nullptr)
         window->drawable->glTexture->isDirty = true;
 
@@ -668,7 +668,7 @@ Java_com_winlator_cmod_widget_XServerView_nativeUpdateDirectContent(JNIEnv *env,
 
         window->externalContent = it->second.get();
     });
-    renderer.markContentUpdate();
+    renderer.markContentUpdate(windowId, true);
     renderer.requestRenderer();
 }
 

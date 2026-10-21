@@ -236,6 +236,7 @@ public final class RefreshRateUtils {
   }
 
   public static void onActivityDestroyed(Activity activity) {
+    frameCadence = 0;
     detachWindowFocusListener(activity);
   }
 
@@ -270,8 +271,17 @@ public final class RefreshRateUtils {
     observer.removeOnWindowFocusChangeListener(listener);
   }
 
+  // The frame rate the game screen shows (the FPS limit, or what frame generation outputs): kept so that a refresh after
+  // a focus change or a resume still picks a rate it divides evenly into.
+  private static int frameCadence = 0;
+
+  public static void setFrameCadence(Activity activity, int fps) {
+    frameCadence = Math.max(fps, 0);
+    applyPreferredRefreshRate(activity, 0, frameCadence);
+  }
+
   public static void applyPreferredRefreshRate(Activity activity) {
-    applyPreferredRefreshRate(activity, getSavedGlobalRefreshRateOverride(activity));
+    applyPreferredRefreshRate(activity, getSavedGlobalRefreshRateOverride(activity), frameCadence);
   }
 
   public static void applyPreferredRefreshRate(Activity activity, int requestedHz) {

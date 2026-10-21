@@ -216,6 +216,46 @@ void EGLRenderer::renderingThreadLoop() {
     }
 }
 
+// A new frame of a window. Only the game's count as real frames for frame generation: a taskbar clock, a launcher or
+// a second window presenting at the same time would make the game look faster than it is and the pacing uneven.
+void EGLRenderer::markContentUpdate(int windowId, bool direct) {
+    int64_t source = int64_t(windowId) * 2 + (direct ? 1 : 0);
+    {
+        std::lock_guard<std::mutex> lock(contentLock);
+        contentCounts[source]++;
+    }
+    int64_t chosen = contentSource.load();
+    if (chosen == 0 || chosen == source)
+        contentSerial++;
+}
+
+// Once a second: the game is the window (and path) that updated the most in that second.
+void EGLRenderer::chooseContentWindow() {
+    auto now = std::chrono::steady_clock::now();
+    if (now - contentCountsSince < std::chrono::seconds(1))
+        return;
+    contentCountsSince = now;
+
+    int64_t best = 0;
+    int bestCount = 0, all = 0;
+    {
+        std::lock_guard<std::mutex> lock(contentLock);
+        for (auto& [source, count] : contentCounts) {
+            all += count;
+            if (count > bestCount) {
+                best = source;
+                bestCount = count;
+            }
+        }
+        contentCounts.clear();
+    }
+    if (best == 0 || best == contentSource.load())
+        return;
+    contentSource = best;
+    __android_log_print(ANDROID_LOG_INFO, "FrameGen", "game frames from window %d (%s, %d/s; other updates %d/s)", int(best / 2),
+                        best % 2 ? "direct" : "window content", bestCount, all - bestCount);
+}
+
 // The game's frame interval: the mean of the last eight without the longest and the shortest (0 until there are eight).
 double EGLRenderer::realInterval() {
     if (realIntervalCount < 8)
@@ -291,6 +331,8 @@ EGLBoolean EGLRenderer::drawFrame() {
     bool frameGenOn = contextVersion >= 3 && postFX.frameGeneration();
     if (!frameGenOn)
         fgStatMultiplier = 0;
+    else
+        chooseContentWindow();
 
     bool fit = contextVersion >= 3 && postFX.fitGameWindow() && findGameWindow(sceneX, sceneY, sceneWidth, sceneHeight);
     // Frame generation on a game in a window (not fitted): only the game window is processed, in its place, and the
@@ -353,28 +395,28 @@ EGLBoolean EGLRenderer::drawFrame() {
                 realIntervalCount++;
             }
             lastRealTime = now;
-            // The multiplier: 2x, or with a target the most frames per real one that stay at or under it (a game capped at 30
-            // with a target of 60 runs 2x, at 20 runs 3x; at 45 none). Generated only between frames of a running game: over
-            // 10 fps (a stall, a menu or a loading screen is not motion to interpolate).
+            // Frames shown per real one: 2 without a target; with one, target / game rate, fractional (a game at 24 with a
+            // target of 60 shows 2.5 per real frame, so 60 exactly), at most 4. Generated only between frames of a running
+            // game: over 10 fps (a stall, a menu or a loading screen is not motion to interpolate).
             double interval = realInterval();
             int target = postFX.frameGenerationTarget();
-            int multiplier = 1;
+            double ratio = 0;
             if (interval > 0 && interval <= 0.100) {
                 if (target > 0) {
-                    // A game held at 30 by a limiter wanders 29-31: the multiplier in use is kept while it stays within about
-                    // 10 % of the target (2x of 31 is 62, not a reason to stop), and changes only past that.
-                    double ratio = target * interval;
-                    multiplier = fgCurrentMultiplier >= 2 && ratio >= fgCurrentMultiplier * 0.9 && ratio < fgCurrentMultiplier + 1.0
-                        ? fgCurrentMultiplier
-                        : std::clamp(int(ratio + 0.1), 1, 4);
-                } else {
-                    multiplier = interval < 0.020 ? 1 : 2;
+                    ratio = std::min(target * interval, 4.0);
+                    // On from 1.2x, off under 1.1x: a game wandering around the target does not switch it on and off.
+                    if (ratio < (fgRatio > 0 ? 1.1 : 1.2))
+                        ratio = 0;
+                } else if (interval >= 0.020) {
+                    ratio = 2;
                 }
             }
-            fgCurrentMultiplier = multiplier;
-            if (multiplier < 2)
+            if (ratio == 0) {
                 frameGen.reset();
-            fgStatMultiplier = multiplier;
+                fgPhase = 0;
+            }
+            fgRatio = ratio;
+            fgStatMultiplier = float(ratio);
             fgStatRealFps = interval > 0 ? float(1.0 / interval) : 0.0f;
             // A hitch (a shader compile, a streaming stall): this frame came far later than the game's pace. In-betweens across
             // it would be one smeared jump, then a wait anyway, so the real frame is shown as it is. It still becomes the start
@@ -384,50 +426,67 @@ EGLBoolean EGLRenderer::drawFrame() {
             // pace within a few frames and stops counting as one; the multiplier and the engine's history are left as they are.
             bool hitch = interval > 0 && gap > interval * 1.75 && gap > interval + 0.015;
             frameGen.setQuality(postFX.frameGenerationQuality());
-            if (frameGen.pushReal(display, postFX.sceneTexture(), postFX.sceneWidth(), postFX.sceneHeight()) && multiplier >= 2 && !hitch) {
-                // The generated frames 1/M, 2/M ... of the way from the previous real frame to this one, each 1/M of a real
-                // frame after the last (the swap returns once the buffer is queued), then this frame.
-                // Even steps of interval / M from the moment the first generated frame is shown (generating it takes a few ms
-                // after the real frame arrived; timing from the arrival would show the next frame early and leave a long gap).
-                const auto step = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<double>(interval / multiplier));
+            if (frameGen.pushReal(display, postFX.sceneTexture(), postFX.sceneWidth(), postFX.sceneHeight()) && ratio > 0 && !hitch) {
+                // Frames go out at an even rate, ratio of them per real frame. Each shows the point between the previous real
+                // frame (phase 0) and this one (1) that its time stands for, carried on from one real frame to the next, so a
+                // fractional ratio is as even as a whole one. A frame falling on this real frame (within 5 %) is the real frame
+                // itself: at 2x every second one.
+                using clock = std::chrono::steady_clock;
+                const double r = 1.0 / ratio;
+                const double snap = 0.05;
+                const auto step = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(interval * r));
                 const auto margin = std::chrono::microseconds(1000);  // the present itself
-                std::chrono::steady_clock::time_point first;
-                float gpuMs = 0;
-                int shown = 0;
-                // Each frame also carries the time it is meant for (EGL_ANDROID_presentation_time): the compositor shows it at
-                // the first refresh at or after it, so the steps stay even whatever the scheduler does to the sleeps. The first
-                // generated frame is meant for when its GPU work should be done (the last generation's GPU time ahead).
+                // Each frame carries the time it is meant for (EGL_ANDROID_presentation_time): the compositor shows it at the
+                // first refresh at or after it, so the steps stay even whatever the scheduler does to the sleeps.
                 static auto presentationTime = (PFNEGLPRESENTATIONTIMEANDROIDPROC)eglGetProcAddress("eglPresentationTimeANDROID");
-                auto presentAt = [&](std::chrono::steady_clock::time_point when) {
+                auto presentAt = [&](clock::time_point when) {
                     if (presentationTime)
                         presentationTime(display, surface, (EGLnsecsANDROID)std::chrono::duration_cast<std::chrono::nanoseconds>(when.time_since_epoch()).count());
                 };
-                std::chrono::steady_clock::time_point base;
-                for (int k = 1; k < multiplier; k++) {
-                    if (!frameGen.generate(float(k) / float(multiplier)))
+                // The next frame's time, ready at the earliest once its GPU work is done. Behind (a late real frame) or far
+                // ahead (the game sped up), the cadence starts again from now.
+                auto schedule = [&](float gpuMs) {
+                    auto ready = clock::now() + std::chrono::microseconds(int64_t((gpuMs + 2.0f) * 1000.0f));
+                    if (fgNextPresent < ready || fgNextPresent > ready + step * 2)
+                        fgNextPresent = ready;
+                    std::this_thread::sleep_until(fgNextPresent - (ready - clock::now()) - margin);
+                };
+
+                double p = fgPhase > 0 ? fgPhase : r;
+                float gpuMs = 0;
+                int generated = 0;
+                bool failed = false;
+                for (; p < 1.0 - snap; p += r) {
+                    if (!frameGen.generate(float(p))) {
+                        failed = true;
                         break;
+                    }
                     gpuMs += frameGen.generateMs();
-                    if (shown > 0)
-                        std::this_thread::sleep_until(first + step * shown - margin);
-                    if (shown == 0)
-                        base = std::chrono::steady_clock::now() + std::chrono::microseconds(int64_t((frameGen.generateMs() + 2.0f) * 1000.0f));
+                    generated++;
+                    schedule(frameGen.generateMs());
                     presentScene(frameGen.generatedTexture());
                     if (cursorVisible)
                         renderCursor();
                     drawableShader->disable();
                     glDisable(GL_SCISSOR_TEST);
-                    presentAt(base + step * shown);
+                    presentAt(fgNextPresent);
                     eglSwapBuffers(display, surface);
-                    if (shown == 0)
-                        first = std::chrono::steady_clock::now();
-                    shown++;
+                    fgNextPresent += step;
                     fgShownFrames++;
                 }
-                if (shown > 0) {
-                    std::this_thread::sleep_until(first + step * shown - margin);
-                    fgStatGenerateMs = gpuMs / float(shown);
-                    realPresentAt = base + step * shown;
+                if (generated > 0)
+                    fgStatGenerateMs = gpuMs / float(generated);
+
+                if (failed || p <= 1.0 + snap) {
+                    // This real frame's turn.
+                    schedule(0);
+                    realPresentAt = fgNextPresent;
+                    fgNextPresent += step;
+                    fgPhase = failed ? r : p + r - 1.0;
+                } else {
+                    // Its time fell between two generated frames: it is not shown, the cadence goes on with the next pair.
+                    fgPhase = p - 1.0;
+                    return EGL_TRUE;
                 }
             }
         }

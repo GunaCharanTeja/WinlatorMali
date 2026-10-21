@@ -103,6 +103,16 @@ public class PostProcessing {
         return toString().equals(new PostProcessing().toString());
     }
 
+    /** The frame rate the screen shows, for a refresh rate it divides evenly into: what frame generation outputs (its
+     *  target, or twice the FPS limit), else the FPS limit; 0 for no preference. */
+    public int displayCadence() {
+        if (frameGen) {
+            if (frameGenTarget > 0) return frameGenTarget;
+            if (fpsLimit > 0) return fpsLimit * 2;
+        }
+        return fpsLimit;
+    }
+
     /** Color adjustment or any of the effects is in use. */
     public boolean hasAdvancedOptions() {
         return brightness != 0 || contrast != 0 || gamma != 1.0f || hdr || fxaa || toon || crt || ntsc;

@@ -157,6 +157,9 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
         setOnCancelCallback(() -> {
             if (xServerView != null) xServerView.setPostProcessing(initialConfig);
             if (xServer != null) xServer.setFpsLimit(initialFpsLimit);
+            PostProcessing initial = new PostProcessing(initialConfig);
+            initial.fpsLimit = initialFpsLimit;
+            com.winlator.cmod.core.RefreshRateUtils.setFrameCadence(activity, initial.displayCadence());
         });
     }
 
@@ -282,6 +285,8 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
     private void applySettings() {
         XServerView xServerView = activity.getXServerView();
         if (xServerView != null) xServerView.setPostProcessing(settings.toString());
+        // Frame generation changes the rate the screen shows, and with it the refresh rate that suits it.
+        com.winlator.cmod.core.RefreshRateUtils.setFrameCadence(activity, settings.displayCadence());
     }
 
     private void loadFpsLimit(int fpsLimit) {
@@ -304,7 +309,7 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
 
         XServer xServer = activity.getXServer();
         if (xServer != null && xServer.getFpsLimit() != fpsLimit) xServer.setFpsLimit(fpsLimit);
-        com.winlator.cmod.core.RefreshRateUtils.applyPreferredRefreshRate(activity, 0, fpsLimit);
+        com.winlator.cmod.core.RefreshRateUtils.setFrameCadence(activity, settings.displayCadence());
     }
 
     private static int parseIntSafe(String text) {
@@ -324,8 +329,9 @@ public class GraphicsEnhancementsDialog extends ContentDialog {
                 "Builds new frames between the game's own frames from the motion between them, so the game looks smoother than it renders.<br/><br/>" +
                 "<b>Modes:</b><br/>" +
                 "- <b>2x (fixed)</b>: one generated frame per game frame (30 becomes 60). Works while the game runs at 10-50 fps.<br/>" +
-                "- <b>Auto - target N fps</b>: as many generated frames per game frame (up to 3) as fit under the target, never above it. " +
-                "A game at 30 with a target of 60 runs 2x; at 20 it runs 3x; at 45 it is left alone.<br/><br/>" +
+                "- <b>Auto - target N fps</b>: frames are shown at the target rate exactly, never above it, with as many generated frames as that takes (up to 4x the game). " +
+                "The multiplier can be fractional: a game at 30 with a target of 60 runs 2x, at 24 it runs 2.5x, at 20 it runs 3x. Under 1.2x (a game at 50+ with a target of 60) it is left alone.<br/>" +
+                "- The screen's refresh rate is set to suit the frames shown (60 or 120 Hz for a target of 60), so they are evenly spaced.<br/><br/>" +
                 "<b>Best results:</b><br/>" +
                 "- Cap the game with the FPS Limiter above (e.g. 30 with a target of 60): a steady game rate gives even motion.<br/>" +
                 "- The HUD shows <i>shown fps \u00b7 game fps \u00d7 multiplier \u00b7 ms per generated frame</i>.<br/><br/>" +

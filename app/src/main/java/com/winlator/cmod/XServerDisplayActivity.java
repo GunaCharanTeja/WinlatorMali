@@ -1527,11 +1527,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         xServerView.setPostProcessing(getSavedPostProcessing());
         // The FPS limit saved with the graphics enhancements.
-        int savedFpsLimit = new com.winlator.cmod.renderer.PostProcessing(getSavedPostProcessing()).fpsLimit;
-        if (savedFpsLimit > 0) {
-            xServer.setFpsLimit(savedFpsLimit);
-            com.winlator.cmod.core.RefreshRateUtils.applyPreferredRefreshRate(this, 0, savedFpsLimit);
-        }
+        com.winlator.cmod.renderer.PostProcessing savedSettings = new com.winlator.cmod.renderer.PostProcessing(getSavedPostProcessing());
+        if (savedSettings.fpsLimit > 0)
+            xServer.setFpsLimit(savedSettings.fpsLimit);
+        com.winlator.cmod.core.RefreshRateUtils.setFrameCadence(this, savedSettings.displayCadence());
         xServer.setRenderer(xServerView);
         rootView.addView(xServerView);
 

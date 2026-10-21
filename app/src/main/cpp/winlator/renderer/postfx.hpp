@@ -48,7 +48,7 @@ class PostFX {
             bool fitWindow = false;
             bool frameGen = false;
             bool frameGenQuality = false;  // Quality (ZeroFG Zero, 4 refinement passes) instead of Balanced (ReallyZero, 2)
-            int frameGenTarget = 0;  // the output frame rate the multiplier stays under (0: always 2x)
+            int frameGenTarget = 0;  // the output frame rate frames are shown at, up to 4x the game's (0: always 2x)
 
             static Settings parse(const std::string& config);
             bool hasColorAdjust() const;

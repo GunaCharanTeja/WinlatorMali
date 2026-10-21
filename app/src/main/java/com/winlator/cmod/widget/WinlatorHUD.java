@@ -296,8 +296,10 @@ public class WinlatorHUD extends View {
             // Frame generation: the frames shown, the game's own rate times the multiplier, and the cost of one generated frame.
             try {
                 float[] fg = XServerView.nativeGetFrameGenStats();
-                if (fg != null && fg[0] >= 2) {
-                    strFps = Math.round(fg[2]) + " \u00b7 " + Math.round(fg[1]) + "\u00d7" + (int)fg[0] + " \u00b7 " + String.format(java.util.Locale.US, "%.1fms", fg[3]);
+                if (fg != null && fg[0] > 1) {
+                    // A target makes the multiplier fractional (24 x 2.5 = 60); whole ones show without decimals.
+                    String multiplier = Math.abs(fg[0] - Math.round(fg[0])) < 0.05f ? String.valueOf(Math.round(fg[0])) : String.format(java.util.Locale.US, "%.1f", fg[0]);
+                    strFps = Math.round(fg[2]) + " \u00b7 " + Math.round(fg[1]) + "\u00d7" + multiplier + " \u00b7 " + String.format(java.util.Locale.US, "%.1fms", fg[3]);
                 }
             } catch (UnsatisfiedLinkError ignored) {}
 
