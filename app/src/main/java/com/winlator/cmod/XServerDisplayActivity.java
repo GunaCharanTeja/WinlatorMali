@@ -617,6 +617,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         advertisePanelRefreshRates();
 
         boolean[] winStarted = {false};
+        boolean[] startupTimeoutPosted = {false};
 
         // Add the OnWindowModificationListener for dynamic workarounds
         xServer.windowManager.addOnWindowModificationListener(new WindowManager.OnWindowModificationListener() {
@@ -642,10 +643,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             public void onMapWindow(Window window) {
                 // Log the class name of the mapped window
                 Log.d("XServerDisplayActivity", "onMapWindow: Mapping window: " + window.getClassName());
-                if (!winStarted[0] && window != null && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
-                    if (xServerView != null) xServerView.setCursorVisible(true);
-                    preloaderDialog.closeOnUiThread();
-                    winStarted[0] = true;
+                // A mapped window has nothing drawn yet (the Wine desktop takes seconds to paint), so the startup screen
+                // stays until a window gets content; the timeout only covers a window that never draws.
+                if (!winStarted[0] && !startupTimeoutPosted[0] && window.id != xServer.windowManager.rootWindow.id && window.getWidth() > 10 && window.getHeight() > 10) {
+                    startupTimeoutPosted[0] = true;
+                    new android.os.Handler(getMainLooper()).postDelayed(() -> {
+                        if (winStarted[0]) return;
+                        if (xServerView != null) xServerView.setCursorVisible(true);
+                        preloaderDialog.closeOnUiThread();
+                        winStarted[0] = true;
+                    }, 20000);
                 }
                 assignTaskAffinity(window);
             }
