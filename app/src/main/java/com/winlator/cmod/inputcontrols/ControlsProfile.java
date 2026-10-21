@@ -66,18 +66,6 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 boolean isStartSelect = text.equalsIgnoreCase("START") || text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("MENU") || text.equalsIgnoreCase("BACK");
 
                 switch (this.stylePreset) {
-                    case CYBERPUNK:
-                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.OCTAGON);
-                        else el.setShape(ControlElement.Shape.HEXAGON);
-                        break;
-                    case RETRO_ARCADE:
-                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.RECT);
-                        else el.setShape(ControlElement.Shape.SQUARE);
-                        break;
-                    case STEALTH:
-                        if (isTrigger || isStartSelect) el.setShape(ControlElement.Shape.CAPSULE);
-                        else el.setShape(ControlElement.Shape.OVAL);
-                        break;
                     case GLASS:
                         // Madeira's shapes: wide rounded shoulders, pill Start/Back, round everything else.
                         if (isTrigger) el.setShape(ControlElement.Shape.ROUND_RECT);

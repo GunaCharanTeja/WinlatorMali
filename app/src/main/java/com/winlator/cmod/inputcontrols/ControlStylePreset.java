@@ -1,14 +1,11 @@
 package com.winlator.cmod.inputcontrols;
 
 public enum ControlStylePreset {
-    // The default: glass after Madeira's touch controls. Profiles saved with the former default ("WINLATOR_MALI")
-    // load as this one (see parse).
+    // The default: glass after Madeira's touch controls. Profiles saved with a removed style (the former default
+    // "WINLATOR_MALI", Cyberpunk, Retro Arcade, Stealth) load as this one (see parse).
     GLASS("WinMali Default", 0),
     XBOX("Xbox Edition", 1),
-    PLAYSTATION("PlayStation Edition", 2),
-    CYBERPUNK("Cyberpunk Neon", 3),
-    RETRO_ARCADE("Retro Arcade (90s)", 4),
-    STEALTH("Stealth Minimal", 5);
+    PLAYSTATION("PlayStation Edition", 2);
 
     public final String title;
     public final int id;

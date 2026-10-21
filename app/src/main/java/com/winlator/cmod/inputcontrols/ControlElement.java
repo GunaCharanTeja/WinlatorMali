@@ -470,12 +470,6 @@ public class ControlElement {
                 if (text.equalsIgnoreCase("RS")) return "R3";
                 if (text.equalsIgnoreCase("VIEW")) return "SHARE";
                 if (text.equalsIgnoreCase("MENU")) return "OPTIONS";
-            } else if (stylePreset == ControlStylePreset.RETRO_ARCADE) {
-                if (text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("VIEW") || text.equalsIgnoreCase("SHARE")) return "COIN";
-                if (text.equalsIgnoreCase("START") || text.equalsIgnoreCase("MENU") || text.equalsIgnoreCase("OPTIONS")) return "1P";
-            } else if (stylePreset == ControlStylePreset.CYBERPUNK) {
-                if (text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("VIEW") || text.equalsIgnoreCase("SHARE")) return "SYS";
-                if (text.equalsIgnoreCase("START") || text.equalsIgnoreCase("MENU") || text.equalsIgnoreCase("OPTIONS")) return "RUN";
             } else if (stylePreset == ControlStylePreset.GLASS) {
                 // Madeira's labels: Xbox shoulder names, stick clicks L3/R3, START/SELECT.
                 if (text.equalsIgnoreCase("L1")) return "LB";
@@ -512,16 +506,6 @@ public class ControlElement {
                     case GAMEPAD_BUTTON_R3: return "R3";
                     case GAMEPAD_BUTTON_SELECT: return "SHARE";
                     case GAMEPAD_BUTTON_START: return "OPTIONS";
-                }
-            } else if (stylePreset == ControlStylePreset.RETRO_ARCADE) {
-                switch (binding) {
-                    case GAMEPAD_BUTTON_SELECT: return "COIN";
-                    case GAMEPAD_BUTTON_START: return "1P";
-                }
-            } else if (stylePreset == ControlStylePreset.CYBERPUNK) {
-                switch (binding) {
-                    case GAMEPAD_BUTTON_SELECT: return "SYS";
-                    case GAMEPAD_BUTTON_START: return "RUN";
                 }
             } else if (stylePreset == ControlStylePreset.GLASS) {
                 switch (binding) {
@@ -907,51 +891,6 @@ public class ControlElement {
                 customShadow = customStroke;
                 break;
             }
-            case CYBERPUNK: {
-                if (label.matches("(?i)L[12]|R[12]|LT|RT|LB|RB") || b0 == Binding.GAMEPAD_BUTTON_Y || b0 == Binding.GAMEPAD_BUTTON_B) {
-                    customStroke = 0xFFFF007F; // Neon Magenta
-                    customBg = 0xFF2A0015;
-                    customContent = 0xFFFF007F;
-                } else {
-                    customStroke = 0xFF00E5FF; // Electric Cyan
-                    customBg = 0xFF001F24;
-                    customContent = 0xFF00E5FF;
-                }
-                customShadow = customStroke;
-                break;
-            }
-            case RETRO_ARCADE: {
-                if (b0 == Binding.GAMEPAD_BUTTON_A || label.equals("A") || label.equals("1")) {
-                    customStroke = 0xFFE53935; // Arcade Red
-                    customBg = 0xFFB71C1C;
-                    customContent = Color.WHITE;
-                } else if (b0 == Binding.GAMEPAD_BUTTON_B || label.equals("B") || label.equals("2")) {
-                    customStroke = 0xFF1E88E5; // Arcade Blue
-                    customBg = 0xFF0D47A1;
-                    customContent = Color.WHITE;
-                } else if (b0 == Binding.GAMEPAD_BUTTON_X || label.equals("X") || label.equals("3")) {
-                    customStroke = 0xFFFDD835; // Arcade Yellow
-                    customBg = 0xFFF57F17;
-                    customContent = 0xFF212121;
-                } else if (b0 == Binding.GAMEPAD_BUTTON_Y || label.equals("Y") || label.equals("4")) {
-                    customStroke = 0xFF43A047; // Arcade Green
-                    customBg = 0xFF1B5E20;
-                    customContent = Color.WHITE;
-                } else {
-                    customStroke = 0xFFEEEEEE;
-                    customBg = 0xFF37474F;
-                    customContent = Color.WHITE;
-                }
-                customShadow = customStroke;
-                break;
-            }
-            case STEALTH: {
-                customBg = 0x00000000;
-                customStroke = 0xFFFFFFFF;
-                customContent = 0xFFFFFFFF;
-                customShadow = 0x00000000;
-                break;
-            }
             default: {
                 customBg = 0xFF000000;
                 customStroke = selected ? inputControlsView.getSecondaryColor() : 0xFFE6E6E6;
@@ -961,12 +900,7 @@ public class ControlElement {
             }
         }
 
-        int backgroundColor;
-        if (stylePreset == ControlStylePreset.STEALTH) {
-            backgroundColor = pressed ? ColorUtils.setAlphaComponent(0xFFFFFFFF, (int)(alpha * 0.25f)) : 0x00000000;
-        } else {
-            backgroundColor = ColorUtils.setAlphaComponent(customBg, (int)(alpha * (pressed ? 0.85f : 0.45f)));
-        }
+        int backgroundColor = ColorUtils.setAlphaComponent(customBg, (int)(alpha * (pressed ? 0.85f : 0.45f)));
 
         int primaryColor = selected ? 0xFF00E5FF : customStroke;
         int strokeColor = ColorUtils.setAlphaComponent(primaryColor, (int)(alpha * (pressed ? 1.0f : (selected ? 1.0f : 0.8f))));
@@ -1066,22 +1000,6 @@ public class ControlElement {
                                 iconDrawnCustom = true;
                             } else if (b0 == Binding.GAMEPAD_BUTTON_SELECT || text.equalsIgnoreCase("SELECT") || text.equalsIgnoreCase("SHARE") || text.equalsIgnoreCase("BACK") || text.equalsIgnoreCase("CREATE")) {
                                 drawPlayStationShareIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
-                                iconDrawnCustom = true;
-                            }
-                        } else if (stylePreset == ControlStylePreset.RETRO_ARCADE) {
-                            if (text.equalsIgnoreCase("COIN") || b0 == Binding.GAMEPAD_BUTTON_SELECT) {
-                                drawArcadeCoinIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
-                                iconDrawnCustom = true;
-                            } else if (text.equalsIgnoreCase("1P") || text.equalsIgnoreCase("START") || b0 == Binding.GAMEPAD_BUTTON_START) {
-                                drawArcadePlayerIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
-                                iconDrawnCustom = true;
-                            }
-                        } else if (stylePreset == ControlStylePreset.CYBERPUNK) {
-                            if (text.equalsIgnoreCase("RUN") || text.equalsIgnoreCase("START") || b0 == Binding.GAMEPAD_BUTTON_START) {
-                                drawCyberpunkPowerIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
-                                iconDrawnCustom = true;
-                            } else if (text.equalsIgnoreCase("SYS") || text.equalsIgnoreCase("SELECT") || b0 == Binding.GAMEPAD_BUTTON_SELECT) {
-                                drawCyberpunkHexGridIcon(canvas, cx, cy, boundingBox.width(), paint, contentColor);
                                 iconDrawnCustom = true;
                             }
                         }
@@ -1839,67 +1757,6 @@ public class ControlElement {
         float half = size * 0.24f;
         canvas.drawLine(cx - half, cy - half, cx + half, cy + half, paint);
         canvas.drawLine(cx + half, cy - half, cx - half, cy + half, paint);
-    }
-
-    private void drawArcadeCoinIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(color);
-        paint.setStrokeJoin(Paint.Join.ROUND);
-        float sw = Math.max(3f, size * 0.07f);
-        paint.setStrokeWidth(sw);
-        float r = size * 0.28f;
-        canvas.drawCircle(cx, cy, r, paint);
-        // Vertical coin slot
-        paint.setStyle(Paint.Style.FILL);
-        float slotW = Math.max(3f, size * 0.06f);
-        float slotH = size * 0.26f;
-        canvas.drawRoundRect(new RectF(cx - slotW * 0.5f, cy - slotH * 0.5f, cx + slotW * 0.5f, cy + slotH * 0.5f), slotW * 0.5f, slotW * 0.5f, paint);
-    }
-
-    private void drawArcadePlayerIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(color);
-        // Player 1 head
-        float headR = size * 0.09f;
-        canvas.drawCircle(cx, cy - size * 0.10f, headR, paint);
-        // Player 1 shoulders / torso
-        RectF body = new RectF(cx - size * 0.18f, cy - size * 0.00f, cx + size * 0.18f, cy + size * 0.22f);
-        canvas.drawRoundRect(body, size * 0.08f, size * 0.08f, paint);
-    }
-
-    private void drawCyberpunkPowerIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(color);
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        float sw = Math.max(3.5f, size * 0.08f);
-        paint.setStrokeWidth(sw);
-        float r = size * 0.24f;
-        RectF arcRect = new RectF(cx - r, cy - r, cx + r, cy + r);
-        canvas.drawArc(arcRect, 135, 270, false, paint);
-        // Vertical power line
-        canvas.drawLine(cx, cy - r * 1.2f, cx, cy, paint);
-    }
-
-    private void drawCyberpunkHexGridIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(color);
-        paint.setStrokeJoin(Paint.Join.ROUND);
-        float sw = Math.max(3f, size * 0.07f);
-        paint.setStrokeWidth(sw);
-        float r = size * 0.24f;
-        Path p = new Path();
-        for (int i = 0; i < 6; i++) {
-            double angle = Math.toRadians(60 * i - 30);
-            float px = cx + (float)(r * Math.cos(angle));
-            float py = cy + (float)(r * Math.sin(angle));
-            if (i == 0) p.moveTo(px, py);
-            else p.lineTo(px, py);
-        }
-        p.close();
-        canvas.drawPath(p, paint);
-        // Inner dot
-        paint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(cx, cy, sw * 1.2f, paint);
     }
 
     private void drawPlayStationOptionsIcon(Canvas canvas, float cx, float cy, float size, Paint paint, int color) {
