@@ -65,6 +65,12 @@ constexpr float kRidge = 0.015f, kDeltaCost = 0.06f, kRidgeFull = 0.05f, kConfMi
 constexpr float kMargin = 0.08f, kErrorCap = 0.2f;
 // Candidates: the parents and the zero vector (WinlatorMali: a see-through HUD text over a moving scene keeps its place).
 constexpr int32_t kCandidates = 5, kTrustMode = 3;
+// The soft ramp (WinlatorMali): the resolve's candidate boundaries blend over a band instead of switching in one
+// pixel (a liquid feel: no per-pixel popping at a motion edge, frame to frame or within a frame), exact outside the
+// band. In thousandths of the photometric error scale D5 compares `margin` against (0..1); 100 is a +-0.1 ramp
+// around the margin (kMargin itself is 0.08) -- measured on real game footage: consistently a small, free quality
+// gain (PSNR) past this point the gain is flat, so this is the plateau, not a guess.
+constexpr int32_t kSoftRamp = 100;
 constexpr float kFlatLow = 0.01f, kFlatHigh = 0.04f, kAmbiguityFloor = 0.02f;
 constexpr float kQualityLow = 0.04f, kQualityHigh = 0.14f;
 constexpr float kGuard = 0.6f, kGuardCost = 0.06f, kGuardUnique = 0.0f, kGuardCorrelation = 0.3f, kGuardFlat = 0.1f;
@@ -622,6 +628,7 @@ class Rc3Context final : public AlgorithmContext {
     d5[26] = sharp_;                                       // ZFG_SHARP
     d5[27] = 1;                                            // ZFG_SGUARD
     d5[29] = 4;                                            // ZFG_FB: the blend where the PAIR is continuous
+    d5[35] = kSoftRamp;                                     // ZFG_SOFT
     const uint32_t* d4_code = use_subgroup_ ? zerofg_rc3_d4sg_spv : zerofg_rc3_d4_spv;
     size_t d4_bytes = use_subgroup_ ? sizeof(zerofg_rc3_d4sg_spv) : sizeof(zerofg_rc3_d4_spv);
     const uint32_t* d5_code = half_resolve_ ? zerofg_rc3_d5ah_spv : zerofg_rc3_d5a_spv;
