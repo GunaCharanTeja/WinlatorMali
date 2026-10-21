@@ -27,6 +27,14 @@ void EGLRenderer::queueEvent(std::function<void()> func) {
 
 void EGLRenderer::requestRenderer() {
     auto lock = renderLock.lock();
+    sceneDirty = true;
+    requestUpdate = true;
+    renderLock.notify();
+}
+
+// Only the cursor moved: the scene is drawn again from the last processed picture (see drawFrame).
+void EGLRenderer::requestCursorRender() {
+    auto lock = renderLock.lock();
     requestUpdate = true;
     renderLock.notify();
 }
@@ -202,6 +210,8 @@ void EGLRenderer::renderingThreadLoop() {
             continue;
 
         if (sizeChanged || requestRender) {
+            if (sizeChanged)
+                sceneDirty = true;
             EGLBoolean ret = drawFrame();
             if (ret == EGL_FALSE) {
                 printf("Failed to draw frame");
@@ -344,11 +354,30 @@ EGLBoolean EGLRenderer::drawFrame() {
     else
         chooseContentWindow();
 
+    // A redraw for a cursor move only (touch controls, touchpad): nothing in the scene changed.
+    bool cursorOnly = !sceneDirty.exchange(false);
+    if (cursorOnly && frameGenOn && fgRatio > 0) {
+        // Frame generation is showing frames at its own even pace and draws the cursor on each: a frame in between
+        // would only break that pace.
+        double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        std::lock_guard<std::mutex> lock(realLock);
+        if (now - lastRealTime < 0.1)
+            return EGL_TRUE;
+    }
+
     bool fit = contextVersion >= 3 && postFX.fitGameWindow() && findGameWindow(sceneX, sceneY, sceneWidth, sceneHeight);
     // Frame generation on a game in a window (not fitted): only the game window is processed, in its place, and the
     // rest of the X screen is drawn as it is around it. Interpolating the still desktop would only cost GPU time.
     bool windowed = !fit && frameGenOn && findGameWindow(sceneX, sceneY, sceneWidth, sceneHeight);
-    bool postProcess = (postFXActive || fit || frameGenOn) && postFX.beginScene(sceneWidth, sceneHeight);
+    bool wantPostProcess = postFXActive || fit || frameGenOn;
+    // For a cursor move the processed picture of the last frame is presented again, without compositing the windows
+    // and running the effects once more (a full-screen pass each, at the touch rate).
+    bool reuseScene = cursorOnly && wantPostProcess && lastSceneValid && sceneX == lastSceneX && sceneY == lastSceneY &&
+                      sceneWidth == postFX.sceneWidth() && sceneHeight == postFX.sceneHeight();
+    bool postProcess = wantPostProcess && (reuseScene || postFX.beginScene(sceneWidth, sceneHeight));
+    lastSceneValid = postProcess;
+    lastSceneX = sceneX;
+    lastSceneY = sceneY;
     fit = fit && postProcess;
     windowed = windowed && postProcess;
 
@@ -361,13 +390,15 @@ EGLBoolean EGLRenderer::drawFrame() {
     setFitMapping(fit, scale, dstX - sceneX * scale, dstY - sceneY * scale);
 
     if (postProcess) {
-        XForm::set(tmpXForm2, -sceneX, -sceneY, 1, 1);
-        drawableShader->use();
-        glUniform2f(drawableShader->getUniformLoc("viewSize"), sceneWidth, sceneHeight);
-        renderWindows();
-        drawableShader->disable();
+        if (!reuseScene) {
+            XForm::set(tmpXForm2, -sceneX, -sceneY, 1, 1);
+            drawableShader->use();
+            glUniform2f(drawableShader->getUniformLoc("viewSize"), sceneWidth, sceneHeight);
+            renderWindows();
+            drawableShader->disable();
 
-        postFX.applyEffects();
+            postFX.applyEffects();
+        }
 
         // The scene (or a generated picture of it) on the surface, with the cursor over it.
         auto presentScene = [&](GLuint generated) {

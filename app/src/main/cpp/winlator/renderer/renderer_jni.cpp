@@ -373,7 +373,7 @@ Java_com_winlator_cmod_widget_XServerView_nativePointerMove(JNIEnv *env, jobject
     cursorManager.pointer.posX = posX;
     cursorManager.pointer.posY = posY;
 
-    renderer.requestRenderer();
+    renderer.requestCursorRender();
 }
 
 extern "C" JNIEXPORT void JNICALL

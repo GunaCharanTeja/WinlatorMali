@@ -89,6 +89,11 @@ class EGLRenderer {
 
         std::atomic_bool stopped{false};
         std::atomic_bool requestUpdate{false};
+        // Something in the scene changed since the last frame (anything but a cursor move); the processed picture of the
+        // last frame and where it came from, to present again for a cursor move.
+        std::atomic_bool sceneDirty{true};
+        bool lastSceneValid = false;
+        int lastSceneX = 0, lastSceneY = 0;
 
         // Frame generation: a frame halfway between the last two real ones is shown before the newer one (one frame
         // of latency), the newer one half a frame later. A real frame is new window content, not a cursor move.
@@ -158,6 +163,7 @@ class EGLRenderer {
         void updateWindowPosition(Window *window);
         void queueEvent(std::function<void()> func);
         void requestRenderer();
+        void requestCursorRender();
         void markContentUpdate(int windowId, bool direct);
 
         // Frame generation for the HUD: the multiplier in use, the game's frame rate, the frames shown (real and

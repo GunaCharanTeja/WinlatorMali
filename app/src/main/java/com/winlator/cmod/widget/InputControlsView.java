@@ -143,10 +143,8 @@ public class InputControlsView extends View {
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         if (touchSlop <= 0) touchSlop = (int) UnitUtils.dpToPx(8);
-        // Cache the entire drawn overlay as a GPU texture. When no invalidate() is called
-        // (e.g. while a static button is held down), Android simply re-composites the
-        // cached texture in <0.1ms instead of re-drawing all vector elements.
-        setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        // No hardware layer: a full-screen layer is redrawn whole on every change (each stick movement), an extra
+        // screen-sized pass on the GPU the game shares; without one, a still overlay costs nothing anyway.
         // Cache vibrator service once to avoid per-tap Binder IPC overhead
         initCachedVibrator(context);
     }
@@ -728,7 +726,7 @@ public class InputControlsView extends View {
                         touchpadView.onTouchEvent(event);
                     }
                     if (needsRedraw) {
-                        invalidate();
+                        invalidateThrottled();
                     }
                 }
                 case MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
@@ -771,6 +769,28 @@ public class InputControlsView extends View {
             }
         }
         return true;
+    }
+
+    // A moving stick knob or D-pad redraws the overlay at most 60 times a second: touch events come at up to the
+    // screen's 120 Hz, and every redraw is GPU work the game shares. Presses and releases still redraw at once.
+    private static final long MOVE_REDRAW_INTERVAL_MS = 16;
+    private long lastMoveRedraw = 0;
+    private boolean moveRedrawPending = false;
+    private final Runnable moveRedraw = () -> {
+        moveRedrawPending = false;
+        lastMoveRedraw = android.os.SystemClock.uptimeMillis();
+        invalidate();
+    };
+
+    private void invalidateThrottled() {
+        if (moveRedrawPending) return;
+        long wait = lastMoveRedraw + MOVE_REDRAW_INTERVAL_MS - android.os.SystemClock.uptimeMillis();
+        if (wait <= 0) {
+            moveRedraw.run();
+        } else {
+            moveRedrawPending = true;
+            postDelayed(moveRedraw, wait);
+        }
     }
 
     private void resetTouchscreenTimeout() {
