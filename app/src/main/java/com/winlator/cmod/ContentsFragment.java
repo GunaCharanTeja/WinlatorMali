@@ -607,21 +607,22 @@ public class ContentsFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             final ContentProfile profile = data.get(position);
 
-            // Each kind of component has its own icon.
+            // Each kind of component has its own icon: the project's own logo where it has one (Wine, Box64, FEX; shown in
+            // its colours), else a drawn one in the accent colour (DXVK, VKD3D and Proton publish no icon).
             int iconId = switch (profile.type) {
                 case CONTENT_TYPE_PROTON -> R.drawable.icon_content_proton;
                 case CONTENT_TYPE_DXVK -> R.drawable.icon_content_dxvk;
                 case CONTENT_TYPE_VKD3D -> R.drawable.icon_content_vkd3d;
-                case CONTENT_TYPE_BOX64 -> R.drawable.icon_content_box64;
-                case CONTENT_TYPE_WOWBOX64 -> R.drawable.icon_content_wowbox64;
-                case CONTENT_TYPE_FEXCORE -> R.drawable.icon_content_fexcore;
-                default -> R.drawable.icon_wine;
+                case CONTENT_TYPE_BOX64, CONTENT_TYPE_WOWBOX64 -> R.drawable.content_logo_box64;
+                case CONTENT_TYPE_FEXCORE -> R.drawable.content_logo_fex;
+                default -> R.drawable.content_logo_wine;
             };
+            boolean logo = iconId == R.drawable.content_logo_box64 || iconId == R.drawable.content_logo_fex || iconId == R.drawable.content_logo_wine;
             if (getContext() != null) {
                 holder.ivIcon.setBackground(null);
                 holder.ivIcon.setImageResource(iconId);
                 int accent = ThemeManager.getAccentColor(getContext());
-                holder.ivIcon.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+                androidx.core.widget.ImageViewCompat.setImageTintList(holder.ivIcon, logo ? null : android.content.res.ColorStateList.valueOf(accent));
                 holder.ibMenu.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
                 holder.ibDownload.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
                 holder.horizontalProgressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
