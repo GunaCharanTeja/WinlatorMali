@@ -63,8 +63,12 @@ constexpr uint32_t kCtrD2aCells = 4, kCtrD2aH1 = 5, kCtrD2bCells = 6, kCtrD2bH1 
 // The frozen parameters (the defaults of the lab profile at the freeze).
 constexpr float kRidge = 0.015f, kDeltaCost = 0.06f, kRidgeFull = 0.05f, kConfMin = 0.05f;
 constexpr float kMargin = 0.08f, kErrorCap = 0.2f;
-// Candidates: the parents and the zero vector (WinlatorMali: a see-through HUD text over a moving scene keeps its place).
-constexpr int32_t kCandidates = 5, kTrustMode = 3;
+// Candidates: the parents only (WinlatorMali). The zero vector (bit 4, meant to keep a static overlay like HUD text
+// in place over a moving scene) was measured on real game footage to leave the HUD unchanged (the edge/one-sided-
+// warp fix already covers that) while hurting real scene motion on most stretches tested -- it would win the
+// photometric-agreement test by coincidence in textureless or dark regions and freeze a patch that should have
+// tracked the pan, part of what looked like mosaic/speckle there.
+constexpr int32_t kCandidates = 1, kTrustMode = 3;
 // The soft ramp (WinlatorMali): the resolve's candidate boundaries blend over a band instead of switching in one
 // pixel (a liquid feel: no per-pixel popping at a motion edge, frame to frame or within a frame), exact outside the
 // band. In thousandths of the photometric error scale D5 compares `margin` against (0..1); 100 is a +-0.1 ramp
