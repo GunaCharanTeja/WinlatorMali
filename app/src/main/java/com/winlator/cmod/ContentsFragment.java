@@ -607,14 +607,21 @@ public class ContentsFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             final ContentProfile profile = data.get(position);
 
+            // Each kind of component has its own icon.
             int iconId = switch (profile.type) {
-                case CONTENT_TYPE_WINE, CONTENT_TYPE_PROTON -> R.drawable.icon_wine;
-                default -> R.drawable.icon_settings;
+                case CONTENT_TYPE_PROTON -> R.drawable.icon_content_proton;
+                case CONTENT_TYPE_DXVK -> R.drawable.icon_content_dxvk;
+                case CONTENT_TYPE_VKD3D -> R.drawable.icon_content_vkd3d;
+                case CONTENT_TYPE_BOX64 -> R.drawable.icon_content_box64;
+                case CONTENT_TYPE_WOWBOX64 -> R.drawable.icon_content_wowbox64;
+                case CONTENT_TYPE_FEXCORE -> R.drawable.icon_content_fexcore;
+                default -> R.drawable.icon_wine;
             };
             if (getContext() != null) {
-                holder.ivIcon.setBackground(getContext().getDrawable(iconId));
+                holder.ivIcon.setBackground(null);
+                holder.ivIcon.setImageResource(iconId);
                 int accent = ThemeManager.getAccentColor(getContext());
-                holder.ivIcon.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
+                holder.ivIcon.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
                 holder.ibMenu.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
                 holder.ibDownload.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
                 holder.horizontalProgressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
