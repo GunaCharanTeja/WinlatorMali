@@ -56,8 +56,11 @@ constexpr uint32_t kPyramidSide = 64;      // the long side of the cell field
 constexpr uint32_t kCameraSamples = 256;   // kCamSamples of shaders/rc3/rc3_common.glsl
 constexpr uint32_t kCounterCount = 56;     // kCtrCount of shaders/rc3/rc3_common.glsl
 constexpr int32_t kSamples = 4;            // D4 sample points per axis in a cell
-constexpr int32_t kFineIterations = 8;     // D4 propagation passes (the descriptor sets; RC3 Lite runs the first half)
-constexpr int32_t kLiteFineIterations = 4;  // Mode::kReallyZero: four fine passes
+constexpr int32_t kFineIterations = 4;     // D4 propagation passes (the descriptor sets; RC3 Lite runs the first two)
+constexpr int32_t kLiteFineIterations = 2;  // Mode::kReallyZero: two fine passes
+// 2026-10-22: doubling these (8/4) measured as a real, free quality gain on the PC benchmark, but on the actual Mali
+// device it roughly HALVED the game's own raw fps (30 -> 15-16 fps reported) -- the PC's much larger GPU had hidden
+// the real per-dispatch cost of D4's propagation pass. Reverted to the original counts pending on-device profiling.
 constexpr uint32_t kCtrD2aCells = 4, kCtrD2aH1 = 5, kCtrD2bCells = 6, kCtrD2bH1 = 7;
 
 // The frozen parameters (the defaults of the lab profile at the freeze).
@@ -74,7 +77,11 @@ constexpr int32_t kCandidates = 1, kTrustMode = 3;
 // band. In thousandths of the photometric error scale D5 compares `margin` against (0..1); 100 is a +-0.1 ramp
 // around the margin (kMargin itself is 0.08) -- measured on real game footage: consistently a small, free quality
 // gain (PSNR) past this point the gain is flat, so this is the plateau, not a guess.
-constexpr int32_t kSoftRamp = 100;
+constexpr int32_t kSoftRamp = 0;
+// 2026-10-22: 100 measured as a real quality gain on the PC benchmark, but it widens the pixel count that takes the
+// expensive full D5b kernel on Mali's split resolve (more pixels fall inside margin-soft_band of the boundary).
+// Reverted to 0 (exact, no soft band) with the other D4 changes pending on-device profiling of each one in
+// isolation -- see the fps regression note by kFineIterations above.
 constexpr float kFlatLow = 0.01f, kFlatHigh = 0.04f, kAmbiguityFloor = 0.02f;
 constexpr float kQualityLow = 0.04f, kQualityHigh = 0.14f;
 constexpr float kGuard = 0.6f, kGuardCost = 0.06f, kGuardUnique = 0.0f, kGuardCorrelation = 0.3f, kGuardFlat = 0.1f;
@@ -623,8 +630,8 @@ class Rc3Context final : public AlgorithmContext {
     d4[17] = kDrift;          // ZFG_DRIFT (2: measured better consensus on large real-game motion than the lab's 1)
     d4[20] = 1;               // ZFG_MOVE
     d4[21] = 1;               // ZFG_WINPEN
-    d4[11] = 1;               // ZFG_H1: the second surface by mixture gain (occlusion/mixed-motion cells)
-    d4[16] = 1;               // ZFG_CONSENSUS: bonus for a candidate backed by two or more distinct roots
+    d4[11] = 0;               // ZFG_H1: measured a real Mali cost (part of the fps regression below); reverted
+    d4[16] = 0;               // ZFG_CONSENSUS: same -- reverted with ZFG_H1 pending on-device profiling
     std::vector<int32_t> d5 = Spec(1, 0);
     d5.resize(38, 0);
     d5[37] = int32_t(kGuardInformative * 1000.0f + 0.5f);  // ZFG_GINFO
