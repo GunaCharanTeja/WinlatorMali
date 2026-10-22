@@ -40,64 +40,74 @@
                 android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginBottom="4dp" />
 
+            <Spinner
+                style="@style/ComboBox"
+                android:id="@+id/SProfile"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:spinnerMode="dropdown"/>
+
+            <!-- New / Rename / Duplicate / Delete, evenly spread under the full-width profile picker. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center_vertical"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="12dp">
-
-                <Spinner
-                    style="@style/ComboBox"
-                    android:id="@+id/SProfile"
-                    android:layout_width="0dp"
-                    android:layout_height="42dp"
-                    android:layout_weight="1"
-                    android:spinnerMode="dropdown"/>
 
                 <ImageButton
                     style="@style/ListMenuButton"
                     android:id="@+id/BTAddProfile"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
-                    android:layout_marginStart="4dp"
-                    android:padding="6dp"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
                     app:tint="?attr/colorAccent"
                     android:src="@drawable/icon_add"
-                    android:contentDescription="Add" />
+                    android:contentDescription="New profile" />
 
                 <ImageButton
                     style="@style/ListMenuButton"
                     android:id="@+id/BTEditProfile"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
                     android:layout_marginStart="4dp"
-                    android:padding="6dp"
+                    android:layout_marginEnd="4dp"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
                     app:tint="?attr/colorAccent"
                     android:src="@drawable/icon_edit"
-                    android:contentDescription="Edit" />
+                    android:contentDescription="Rename profile" />
 
                 <ImageButton
                     style="@style/ListMenuButton"
                     android:id="@+id/BTDuplicateProfile"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
                     android:layout_marginStart="4dp"
-                    android:padding="6dp"
+                    android:layout_marginEnd="4dp"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
                     app:tint="?attr/colorAccent"
                     android:src="@drawable/icon_duplicate"
-                    android:contentDescription="Duplicate" />
+                    android:contentDescription="Duplicate profile" />
 
                 <ImageButton
                     style="@style/ListMenuButton"
                     android:id="@+id/BTRemoveProfile"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
                     android:layout_marginStart="4dp"
-                    android:padding="6dp"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
                     app:tint="?attr/colorAccent"
                     android:src="@drawable/icon_remove"
-                    android:contentDescription="Remove" />
+                    android:contentDescription="Delete profile" />
             </LinearLayout>
 
             <!-- Overlay Opacity -->
@@ -140,55 +150,62 @@
                 android:background="?android:attr/listDivider"
                 android:layout_marginBottom="12dp" />
 
-            <!-- Import / Export Profile Buttons -->
-            <LinearLayout
+            <!-- Fixed-height buttons clipped their second word with a large system font ("Controls Editor"
+                 showed as "Controls"), so text stays on one line and shrinks to fit instead. -->
+            <Button
+                style="@style/ButtonPositive"
+                android:id="@+id/BTControlsEditor"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="8dp">
+                android:layout_height="44dp"
+                android:layout_marginBottom="8dp"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="10sp"
+                android:autoSizeMaxTextSize="16sp"
+                android:text="Edit On-Screen Controls" />
 
-                <Button
-                    style="@style/ButtonNeutral"
-                    android:id="@+id/BTImportProfile"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="4dp"
-                    android:text="@string/import_profile" />
+            <Button
+                style="@style/ButtonNeutral"
+                android:id="@+id/BTRadialWheelSettings"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginBottom="8dp"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="10sp"
+                android:autoSizeMaxTextSize="16sp"
+                android:text="Radial Wheels" />
 
-                <Button
-                    style="@style/ButtonNeutral"
-                    android:id="@+id/BTExportProfile"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:layout_marginStart="4dp"
-                    android:text="@string/export_profile" />
-            </LinearLayout>
-
-            <!-- Controls Editor & Radial Wheels Buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
                 <Button
-                    style="@style/ButtonPositive"
-                    android:id="@+id/BTControlsEditor"
+                    style="@style/ButtonNeutral"
+                    android:id="@+id/BTImportProfile"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="4dp"
-                    android:text="@string/controls_editor" />
+                    android:maxLines="1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="10sp"
+                    android:autoSizeMaxTextSize="16sp"
+                    android:text="@string/import_profile" />
 
                 <Button
                     style="@style/ButtonNeutral"
-                    android:id="@+id/BTRadialWheelSettings"
+                    android:id="@+id/BTExportProfile"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:layout_marginStart="4dp"
-                    android:text="Radial Wheels" />
+                    android:maxLines="1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="10sp"
+                    android:autoSizeMaxTextSize="16sp"
+                    android:text="@string/export_profile" />
             </LinearLayout>
         </LinearLayout>
 
@@ -223,7 +240,7 @@
                 android:layout_height="wrap_content"
                 android:paddingVertical="16dp"
                 android:gravity="center"
-                android:text="@string/no_items_to_display"
+                android:text="No controller connected.\nPlug in or pair a controller to set up its buttons."
                 android:textSize="13sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:visibility="gone" />
@@ -232,8 +249,12 @@
                 style="@style/ButtonNeutral"
                 android:id="@+id/BTTestVibration"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
+                android:layout_height="44dp"
                 android:layout_marginTop="8dp"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="10sp"
+                android:autoSizeMaxTextSize="16sp"
                 android:drawableStart="@drawable/icon_vibration"
                 android:drawablePadding="8dp"
                 android:gravity="center"

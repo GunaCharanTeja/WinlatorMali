@@ -151,6 +151,14 @@ public class InputControlsFragment extends Fragment {
 
         updateLayout = () -> {
             loadExternalControllers(view);
+            // Profile-specific actions are greyed out until a profile is picked, instead of only toasting.
+            boolean hasProfile = currentProfile != null;
+            for (int id : new int[]{R.id.BTEditProfile, R.id.BTDuplicateProfile, R.id.BTRemoveProfile,
+                    R.id.BTExportProfile, R.id.BTControlsEditor, R.id.BTRadialWheelSettings}) {
+                View button = view.findViewById(id);
+                button.setEnabled(hasProfile);
+                button.setAlpha(hasProfile ? 1f : 0.4f);
+            }
         };
 
         updateLayout.run();
