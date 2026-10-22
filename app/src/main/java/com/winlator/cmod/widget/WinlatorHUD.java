@@ -67,7 +67,9 @@ public class WinlatorHUD extends View {
     public static final int SHOW_CPU_TEMP = 1<<12;
     public static final int SHOW_LOCKED   = 1<<13;
     public static final int SHOW_LOWS     = 1<<14;
-    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_CPU | SHOW_RAM | SHOW_BORDER | SHOW_LOCKED;
+    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_LOWS | SHOW_GRAPH | SHOW_BORDER | SHOW_LOCKED;
+    // One-time switch of existing installs to the Glass style when it became the default.
+    private static final String KEY_GLASS_DEFAULT_APPLIED = "hud_glass_default_applied";
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -396,11 +398,13 @@ public class WinlatorHUD extends View {
                 strPct = (pct >= 0) ? pct + "%" : "";
             }
             int mw = dataSource.batteryMw.get();
-            if (mw != snapMw) {
+            boolean charging = dataSource.batteryCharging.get();
+            if (mw != snapMw || charging != snapCharging) {
                 snapMw = mw;
-                snapCharging = (mw == -2);
-                if (snapCharging)   strPwr = "CHG";
-                else if (mw > 0)    strPwr = String.format(Locale.US, "%.1fW", mw / 1000f);
+                snapCharging = charging;
+                // Charging shows the power going in (+), on battery the power the phone draws.
+                if (mw > 0)         strPwr = String.format(Locale.US, charging ? "+%.1fW" : "%.1fW", mw / 1000f);
+                else if (charging)  strPwr = "CHG";
                 else                strPwr = "N/A";
             }
         }
@@ -1315,6 +1319,12 @@ public class WinlatorHUD extends View {
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
         currentStyle = prefs.getInt(KEY_STYLE, (showMask & SHOW_MONO) != 0 ? STYLE_MONO : STYLE_GLASS);
+        if (!prefs.getBoolean(KEY_GLASS_DEFAULT_APPLIED, false)) {
+            currentStyle = STYLE_GLASS;
+            showMask &= ~SHOW_MONO;
+            prefs.edit().putInt(KEY_STYLE, currentStyle).putInt(KEY_SHOW, showMask)
+                 .putBoolean(KEY_GLASS_DEFAULT_APPLIED, true).apply();
+        }
         hudAlpha = prefs.getInt(KEY_ALPHA, 55) / 100f;
         setAlpha(hudAlpha);
         vertical = prefs.getBoolean(KEY_VERT, false);

@@ -21,6 +21,7 @@ public class HudDataSource {
     private final int[] maliSample = new int[2];
     public final AtomicInteger cpuLoad       = new AtomicInteger(-1);
     public final AtomicInteger batteryMw     = new AtomicInteger(-1);
+    public final java.util.concurrent.atomic.AtomicBoolean batteryCharging = new java.util.concurrent.atomic.AtomicBoolean(false);
     public final AtomicInteger batteryTempC  = new AtomicInteger(-1);
     public final AtomicInteger cpuTempC      = new AtomicInteger(-1);
     public final AtomicInteger batteryPct    = new AtomicInteger(-1);
@@ -247,7 +248,70 @@ public class HudDataSource {
         } catch (Exception e) { return -1; }
     }
 
+    // Game CPU usage from our own processes (WinMali, Wine, the emulator, the game): /proc/stat is blocked for apps
+    // on many phones, but our own /proc/<pid>/stat stays readable. Their CPU time over the interval, divided by the
+    // time all cores had, is the share of the CPU the game is using.
+    private final long clockTicks = android.system.Os.sysconf(android.system.OsConstants._SC_CLK_TCK);
+    private final long cpuCores = android.system.Os.sysconf(android.system.OsConstants._SC_NPROCESSORS_CONF);
+    private java.util.HashMap<Integer, Long> prevProcTicks = new java.util.HashMap<>();
+    private java.util.List<Integer> ownPids = null;
+    private long lastPidScanNs = 0, prevCpuSampleNs = 0;
+
+    private static long readProcTicks(int pid) {
+        try (BufferedReader r = new BufferedReader(new FileReader("/proc/" + pid + "/stat"))) {
+            String line = r.readLine();
+            if (line == null) return -1;
+            // The process name can contain spaces; fields after it start at the last ')'.
+            String[] f = line.substring(line.lastIndexOf(')') + 2).split(" ");
+            return Long.parseLong(f[11]) + Long.parseLong(f[12]);  // utime + stime
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private boolean pollGameCpu() {
+        if (clockTicks <= 0 || cpuCores <= 0) return false;
+        long now = android.os.SystemClock.elapsedRealtimeNanos();
+        // Other apps' processes can't be read; rescan for new game processes every few seconds only.
+        if (ownPids == null || now - lastPidScanNs > 5_000_000_000L) {
+            java.util.List<Integer> pids = new java.util.ArrayList<>();
+            String[] names = new File("/proc").list();
+            if (names != null) {
+                for (String name : names) {
+                    if (name.isEmpty() || !Character.isDigit(name.charAt(0))) continue;
+                    try {
+                        int pid = Integer.parseInt(name);
+                        if (readProcTicks(pid) >= 0) pids.add(pid);
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+            ownPids = pids;
+            lastPidScanNs = now;
+        }
+
+        java.util.HashMap<Integer, Long> ticks = new java.util.HashMap<>();
+        for (int pid : ownPids) {
+            long t = readProcTicks(pid);
+            if (t >= 0) ticks.put(pid, t);
+        }
+        if (ticks.isEmpty()) return false;
+
+        if (prevCpuSampleNs > 0) {
+            long used = 0;
+            for (java.util.Map.Entry<Integer, Long> e : ticks.entrySet()) {
+                Long before = prevProcTicks.get(e.getKey());
+                if (before != null && e.getValue() >= before) used += e.getValue() - before;
+            }
+            double seconds = (now - prevCpuSampleNs) / 1e9;
+            if (seconds > 0) cpuLoad.set((int) Math.min(100, Math.round(used * 100.0 / (seconds * clockTicks * cpuCores))));
+        }
+        prevProcTicks = ticks;
+        prevCpuSampleNs = now;
+        return true;
+    }
+
     private void pollCpu() {
+        if (pollGameCpu()) return;
         try {
             short[] clocks = CPUStatus.getCurrentClockSpeeds();
             long cur = 0, max = 0;
@@ -309,28 +373,27 @@ public class HudDataSource {
             int status = batt.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
             boolean charging = status == BatteryManager.BATTERY_STATUS_CHARGING
                             || status == BatteryManager.BATTERY_STATUS_FULL;
-            if (charging) {
-                batteryMw.set(-2);
-            } else {
-                int mv = batt.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
-                if (mv <= 0) {
-                    long uv = firstNonZero(VOLTAGE_PATHS);
-                    if (uv > 0) mv = (int) (uv / 1000L);
-                }
+            batteryCharging.set(charging);
 
-                long uA = 0;
-                if (batteryManager != null)
-                    uA = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
-                if (uA == Long.MIN_VALUE) uA = 0;
-                if (uA == 0) uA = firstNonZero(CURRENT_PATHS);
-
-                if (mv > 0 && uA != 0) {
-                    long mw = Math.abs(uA) * mv / 1_000_000L;
-                    batteryMw.set(mv > 5000 ? (int) (mw * 2) : (int) mw);
-                } else {
-                    batteryMw.set(-1);
-                }
+            int mv = batt.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
+            if (mv <= 0) {
+                long uv = firstNonZero(VOLTAGE_PATHS);
+                if (uv > 0) mv = (int) (uv / 1000L);
             }
+            // Some firmware (e.g. this ColorOS phone) reports whole volts ("3") instead of millivolts. Whole volts
+            // are too coarse for watts, so use a typical Li-ion cell's nominal voltage instead.
+            if (mv > 0 && mv < 100) mv = 3870;
+
+            long current = 0;
+            if (batteryManager != null)
+                current = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+            if (current == Long.MIN_VALUE) current = 0;
+            if (current == 0) current = firstNonZero(CURRENT_PATHS);
+            // Android specifies microamps, but some devices report milliamps: no phone runs a game on under 20 mA.
+            long uA = Math.abs(current);
+            if (uA > 0 && uA < 20_000) uA *= 1000;
+
+            batteryMw.set(mv > 0 && uA > 0 ? (int) (uA * mv / 1_000_000L) : -1);
         } catch (Exception ignored) {}
     }
 
