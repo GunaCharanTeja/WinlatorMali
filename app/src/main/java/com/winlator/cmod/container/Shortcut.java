@@ -173,6 +173,14 @@ public class Shortcut {
     };
 
     private Bitmap generateFallbackCoverArt(int width, int height) {
+        return generateFallbackArt(this.name, this.icon, width, height);
+    }
+
+    /**
+     * Same painter as above, usable without a Shortcut instance (e.g. the default fullscreen loading screen for a
+     * direct container launch, which has a container name/no icon but no Shortcut at all).
+     */
+    public static Bitmap generateFallbackArt(String name, Bitmap icon, int width, int height) {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
@@ -194,7 +202,7 @@ public class Shortcut {
                 dominantColor = Color.HSVToColor(hsv);
             } catch (Exception ignored) {}
         } else {
-            int paletteIdx = Math.abs(this.name.hashCode()) % AAA_PALETTES.length;
+            int paletteIdx = Math.abs(name.hashCode()) % AAA_PALETTES.length;
             vibrantColor = AAA_PALETTES[paletteIdx][1];
             dominantColor = AAA_PALETTES[paletteIdx][0];
             float[] hsv = new float[3];
@@ -279,7 +287,7 @@ public class Shortcut {
             ringPaint.setColor(vibrantColor);
             canvas.drawCircle(centerX, centerY, badgeRadius, ringPaint);
 
-            String initials = extractInitials(this.name);
+            String initials = extractInitials(name);
             Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             textPaint.setColor(Color.WHITE);
             textPaint.setTextSize(badgeRadius * 0.85f);
@@ -291,7 +299,7 @@ public class Shortcut {
             canvas.drawText(initials, centerX, textY, textPaint);
         }
 
-        Random random = new Random(this.name != null ? this.name.hashCode() : 42);
+        Random random = new Random(name != null ? name.hashCode() : 42);
         Paint starPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         starPaint.setColor(Color.WHITE);
         for (int i = 0; i < 5000; i++) {
@@ -315,7 +323,7 @@ public class Shortcut {
         return bitmap;
     }
 
-    private String extractInitials(String title) {
+    private static String extractInitials(String title) {
         if (title == null || title.trim().isEmpty()) return "G";
         String clean = title.replaceAll("(?i)\\b(the|a|an|of|in|and|for)\\b", " ")
                             .replaceAll("[^a-zA-Z0-9\\s]", " ")

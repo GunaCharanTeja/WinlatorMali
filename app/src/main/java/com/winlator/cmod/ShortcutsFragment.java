@@ -1444,9 +1444,9 @@ public class ShortcutsFragment extends Fragment {
     }
 
     // Shared by both art types: forHero only switches which SteamGridDB list is fetched (fetchCoverArtOptions /
-    // fetchHeroArtOptions) and which save path the picked item downloads into (downloadSelectedCoverArt /
-    // downloadSelectedHeroArt). The grid itself (cover_art_selection_dialog/item) is reused as-is: centerCrop
-    // already fills whatever box each item has, so the same layout works for the wider hero thumbnails too.
+    // fetchHeroArtOptions), which save path the picked item downloads into (downloadSelectedCoverArt /
+    // downloadSelectedHeroArt), and which item layout the grid uses -- hero_art_selection_item is a wide (280x90)
+    // box so the picker previews the actual banner shape instead of cropping it into a portrait square.
     private void performArtSearch(Shortcut shortcut, String query, boolean forHero) {
         Context context = getContext();
         if (context == null) return;
@@ -1514,7 +1514,8 @@ public class ShortcutsFragment extends Fragment {
                 @NonNull
                 @Override
                 public RecyclerView.ViewHolder onCreateViewHolder(@NonNull android.view.ViewGroup parent, int viewType) {
-                    View view = LayoutInflater.from(context).inflate(R.layout.cover_art_selection_item, parent, false);
+                    int itemLayout = forHero ? R.layout.hero_art_selection_item : R.layout.cover_art_selection_item;
+                    View view = LayoutInflater.from(context).inflate(itemLayout, parent, false);
                     return new RecyclerView.ViewHolder(view) {};
                 }
 

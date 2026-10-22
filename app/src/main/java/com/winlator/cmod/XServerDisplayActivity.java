@@ -618,7 +618,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 if (preloaderDialog.isShowing()) preloaderDialog.updateHero(shortcut.getHeroArt(), shortcut.icon);
             }, 200);
         } else {
-            preloaderDialog.show(R.string.starting_up);
+            // A direct container launch has no shortcut (so no icon/hero art of its own) -- still show the
+            // fullscreen screen, generating the same kind of art from just the container's name.
+            android.graphics.Bitmap containerArt = com.winlator.cmod.container.Shortcut.generateFallbackArt(container.getName(), null, 1920, 1080);
+            preloaderDialog.showFullscreen(container.getName(), null, containerArt, getString(R.string.starting_up));
         }
 
         inputControlsManager = new InputControlsManager(this);
@@ -672,7 +675,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d("XServerDisplayActivity", "onMapWindow: Mapping window: " + window.getClassName());
                 // A mapped window has nothing drawn yet (the Wine desktop takes seconds to paint): the startup screen
                 // stays until a window gets content (or the startup watchdog gives up).
-                if (!winStarted[0]) preloaderDialog.setStatus(getString(R.string.waiting_for_render));
+                if (!winStarted[0]) preloaderDialog.setStatus(getString(shortcut != null ? R.string.waiting_for_render : R.string.waiting_for_container_render));
                 assignTaskAffinity(window);
             }
 

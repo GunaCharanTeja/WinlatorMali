@@ -21,6 +21,7 @@
     <string name="updating_system_files">Updating System Files…</string>
     <string name="starting_up">Starting up…</string>
     <string name="waiting_for_render">Waiting for the game to render…</string>
+    <string name="waiting_for_container_render">Waiting for the desktop to render…</string>
     <string name="unable_to_install_system_files">Unable to install system files</string>
     <string name="keyboard">Keyboard</string>
     <string name="toggle_fullscreen">Toggle Fullscreen</string>
