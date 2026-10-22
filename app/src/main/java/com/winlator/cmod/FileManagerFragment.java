@@ -203,10 +203,13 @@ public class FileManagerFragment extends Fragment {
         });
         fabPaste.setVisibility(!clipboardFiles.isEmpty() && !pickFolderMode ? View.VISIBLE : View.GONE);
 
-        com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton btSelectFolder = view.findViewById(R.id.BTSelectFolder);
+        android.widget.Button btSelectFolder = view.findViewById(R.id.BTSelectFolder);
         if (pickFolderMode) {
             if (getContext() != null) {
-                btSelectFolder.setBackgroundTintList(android.content.res.ColorStateList.valueOf(ThemeManager.getAccentColor(getContext())));
+                android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+                pill.setColor(ThemeManager.getAccentColor(getContext()));
+                pill.setCornerRadius(com.winlator.cmod.core.UnitUtils.dpToPx(24));
+                btSelectFolder.setBackground(pill);
             }
             btSelectFolder.setVisibility(View.VISIBLE);
             btSelectFolder.setOnClickListener(v -> finishPick(currentDir));

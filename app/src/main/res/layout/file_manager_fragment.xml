@@ -167,15 +167,21 @@
         android:layout_margin="16.0dip"
         android:src="@drawable/icon_save"
         android:contentDescription="Paste" />
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+    <Button
         android:id="@+id/BTSelectFolder"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_margin="16.0dip"
+        android:drawableStart="@drawable/ic_folder"
+        android:drawableTint="#FFFFFF"
+        android:drawablePadding="8dp"
+        android:elevation="6dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="22dp"
         android:text="Use this folder"
+        android:textAllCaps="false"
         android:textColor="#FFFFFF"
-        android:visibility="gone"
-        app:icon="@drawable/ic_folder"
-        app:iconTint="#FFFFFF" />
+        android:textStyle="bold"
+        android:visibility="gone" />
 </FrameLayout>
