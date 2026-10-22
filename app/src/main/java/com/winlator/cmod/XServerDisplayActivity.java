@@ -551,7 +551,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         graphicsDriver = container.getGraphicsDriver();
-        if (graphicsDriver == null || graphicsDriver.startsWith("wrapper-") || graphicsDriver.equals("turnip") || graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("llvmpipe")) {
+        if (!Container.isSupportedGraphicsDriver(graphicsDriver)) {
             graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
         }
         String graphicsDriverConfig = container.getGraphicsDriverConfig();
@@ -571,7 +571,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (shortcut != null) {
             graphicsDriver = shortcut.getExtra("graphicsDriver", container.getGraphicsDriver());
-            if (graphicsDriver == null || graphicsDriver.startsWith("wrapper-") || graphicsDriver.equals("turnip") || graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("llvmpipe")) {
+            if (!Container.isSupportedGraphicsDriver(graphicsDriver)) {
                 graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
             }
             graphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", container.getGraphicsDriverConfig());
@@ -2236,18 +2236,27 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("GLADIO_NO_ERROR", "1");
 
         Log.d("XServerDisplayActivity", "Extracting graphics driver files");
-        String driverFile = "graphics_driver/wrapper.tzst";
+        // The selected wrapper build; all of them install as the same ICD, so the chosen one is written each launch.
+        String driverFile = "graphics_driver/" + (Container.isSupportedGraphicsDriver(graphicsDriver) ? graphicsDriver : Container.DEFAULT_GRAPHICS_DRIVER) + ".tzst";
+        // Two of the 1.1-era archives were packed on macOS and carry ._* / .DS_Store metadata; keep it out of imagefs.
+        com.winlator.cmod.core.OnExtractFileListener skipMacMetadata = (file, size) ->
+            file.getName().startsWith("._") || file.getName().equals(".DS_Store") ? null : file;
 
         File internalDriverFile = new File(getFilesDir(), driverFile);
         if (internalDriverFile.exists()) {
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalDriverFile, rootDir);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalDriverFile, rootDir, skipMacMetadata);
         } else {
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, driverFile, rootDir);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, driverFile, rootDir, skipMacMetadata);
         }
 
         File libDir = new File(rootDir, "usr/lib");
         File gladioLib = new File(libDir, "libGL.so.1.7.0");
-        if (firstTimeBoot || !gladioLib.exists()) {
+        // A Gladio updated from Manage Graphics Drivers is applied on every launch (it was only ever read from the
+        // built-in asset, and only on a container's first boot, so updating it there never took effect).
+        File internalGladio = new File(getFilesDir(), "graphics_driver/gladio-" + DefaultVersion.GLADIO + ".tzst");
+        if (internalGladio.exists()) {
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalGladio, rootDir);
+        } else if (firstTimeBoot || !gladioLib.exists()) {
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/gladio-" + DefaultVersion.GLADIO + ".tzst", rootDir);
         }
         FileUtils.symlink("libGL.so.1.7.0", new File(libDir, "libGL.so.1").getAbsolutePath());
@@ -2272,10 +2281,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean bcnLegacy = "legacy".equals(graphicsDriverConfig.getOrDefault("bcnVersion", "current"));
         com.winlator.cmod.core.OnExtractFileListener skipBcnVersionFile = (file, size) ->
             file.getName().equals("version.txt") && rootDir.equals(file.getParentFile()) ? null : file;
-        File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
-        if (bcnLegacy) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn_legacy.tzst", rootDir, skipBcnVersionFile);
-        else if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir, skipBcnVersionFile);
-        else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir, skipBcnVersionFile);
+        // A copy updated from Manage Graphics Drivers (files/graphics_driver/<name>) replaces the built-in one.
+        String bcnFile = bcnLegacy ? "graphics_driver/leegao_bcn_legacy.tzst" : "graphics_driver/leegao_bcn.tzst";
+        File internalLeegaoBcn = new File(getFilesDir(), bcnFile);
+        if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir, skipBcnVersionFile);
+        else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, bcnFile, rootDir, skipBcnVersionFile);
 
         if (adrenoToolsDriverId != "System") {
             AdrenotoolsManager adrenotoolsManager = new AdrenotoolsManager(this);

@@ -26,6 +26,13 @@ public class Container {
     public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1 GLADIO_NO_ERROR=1";
     public static final String DEFAULT_SCREEN_SIZE = "1280x720";
     public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
+    // Vulkan wrapper builds, each in assets/graphics_driver/<id>.tzst: the current unified build plus the ones the
+    // 1.1 release offered. All install as the same ICD (libvulkan_wrapper.so), so one is chosen per container/shortcut.
+    public static final String[] WRAPPER_DRIVERS = {"wrapper", "wrapper-1.1", "wrapper-v2", "wrapper-leegao", "wrapper-gamenative"};
+
+    public static boolean isSupportedGraphicsDriver(String graphicsDriver) {
+        return graphicsDriver != null && java.util.Arrays.asList(WRAPPER_DRIVERS).contains(graphicsDriver);
+    }
     public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio-gn";
     public static final String DEFAULT_EMULATOR = "FEXCore";
     public static final String DEFAULT_DXWRAPPER = "dxvk+vkd3d";
@@ -640,9 +647,8 @@ public class Container {
 
             if (data.has("graphicsDriver")) {
                 String graphicsDriver = data.getString("graphicsDriver");
-                if (graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("turnip") ||
-                    graphicsDriver.startsWith("wrapper-") || graphicsDriver.equals("llvmpipe")) {
-                    data.put("graphicsDriver", "wrapper");
+                if (!isSupportedGraphicsDriver(graphicsDriver)) {
+                    data.put("graphicsDriver", DEFAULT_GRAPHICS_DRIVER);
                 }
             }
 

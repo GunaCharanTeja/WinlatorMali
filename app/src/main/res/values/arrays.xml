@@ -18,8 +18,14 @@
         <item>1600x900 (16:9)</item>
         <item>1920x1080 (16:9)</item>
     </string-array>
+    <!-- Labels become ids by lowercasing (StringUtils.parseIdentifier drops a trailing "(...)", so no brackets):
+         they must match Container.WRAPPER_DRIVERS and the assets/graphics_driver/<id>.tzst names. -->
     <string-array name="graphics_driver_entries">
         <item>Wrapper</item>
+        <item>Wrapper-1.1</item>
+        <item>Wrapper-v2</item>
+        <item>Wrapper-leegao</item>
+        <item>Wrapper-gamenative</item>
     </string-array>
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>

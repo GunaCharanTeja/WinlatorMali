@@ -117,8 +117,10 @@ public class ManageGraphicsDriversFragment extends Fragment {
 
         new Thread(() -> {
             driverList.clear();
-            driverList.add(new DriverInfo("wrapper.tzst"));
+            for (String wrapper : com.winlator.cmod.container.Container.WRAPPER_DRIVERS)
+                driverList.add(new DriverInfo(wrapper + ".tzst"));
             driverList.add(new DriverInfo("leegao_bcn.tzst"));
+            driverList.add(new DriverInfo("leegao_bcn_legacy.tzst"));
             driverList.add(new DriverInfo("gladio-1.1.tzst"));
             driverList.add(new DriverInfo("extra_libs.tzst"));
 
@@ -169,6 +171,26 @@ public class ManageGraphicsDriversFragment extends Fragment {
                 }
             }
             info.notes = notesBuilder.toString().trim();
+        } else {
+            // The Vulkan wrappers restored from the 1.1 release carry no version.txt.
+            switch (info.fileName) {
+                case "wrapper-1.1.tzst":
+                    info.version = "1.1 release";
+                    info.notes = "The main Vulkan wrapper shipped with Winlator Mali 1.1.";
+                    break;
+                case "wrapper-v2.tzst":
+                    info.version = "v2 (1.1 release)";
+                    info.notes = "The v2 build of the Vulkan wrapper from Winlator Mali 1.1.";
+                    break;
+                case "wrapper-leegao.tzst":
+                    info.version = "leegao (1.1 release)";
+                    info.notes = "leegao's Vulkan wrapper, as shipped with Winlator Mali 1.1.";
+                    break;
+                case "wrapper-gamenative.tzst":
+                    info.version = "GameNative (1.1 release)";
+                    info.notes = "GameNative's lightweight Vulkan wrapper, as shipped with Winlator Mali 1.1.";
+                    break;
+            }
         }
     }
 
