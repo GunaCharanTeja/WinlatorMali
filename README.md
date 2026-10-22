@@ -30,7 +30,18 @@ Standard Winlator distributions have traditionally centered on Qualcomm Snapdrag
 ## Release History & Evolution
 
 ### 🚀 Winlator Mali Bionic 1.2 *(Current Release — Branch `bionic-mali-1.2`)*
-The 1.2 Bionic release represents a comprehensive overhaul of the graphics pipeline, frame generation engine, user interface, input controls, hardware telemetry, and cloud ecosystem compared to v1.1:
+The 1.2 Bionic release represents a comprehensive architectural overhaul over v1.1, transitioning the core rendering system to a native EGL architecture, replacing legacy APEX with ZeroFG Vulkan compute frame interpolation, overhauling the UI and touch controls with Madeira Liquid Glass, integrating persistent BCn disk caching, and adding comprehensive hardware performance tools:
+
+#### 🖥️ Native EGL Rendering Engine & Gladio Integration (Replaces 1.1 Renderer)
+* **High-Performance Native EGL Architecture**: Migrated from the legacy 1.1 rendering stack (`GLRenderer`, `DisplayX`, `VirGL`, `blit_converter`, and Java `EffectComposer`) to Pipetto-crypto's native C++ EGL renderer (`app/src/main/cpp/winlator/renderer/egl.cpp`).
+* **Elimination of Legacy Overhead**: Completely removed the legacy `DisplayX` layer (`displayx.cpp`, `DisplayXView`), `VirGL` (`VirGLRendererComponent`), and `blit_converter.cpp`—eliminating over 3,500 lines of redundant CPU blit and synchronization bottlenecks.
+* **Gladio Native OpenGL Engine**: Directly integrated the native Bionic `libGL.so.1.7.0` Gladio engine with cached blit targets and native synchronization fences, eliminating heavy Mesa Zink bloat.
+* **Cross-API Zero-Copy Hardware Buffer Sharing**: Shares rendered OpenGL/EGL frames directly with a high-priority Vulkan compute device via Android Hardware Buffers (`AHardwareBuffer`), backed by native Linux sync files for zero-copy frame interpolation.
+* **Modern X Server Infrastructure**: Added full support for **RandR** (`RandrExtension`), **Present 1.2** (`PresentConfigureNotify`), and **ReparentNotify** with enhanced DRI3 event routing.
+* **Unified Graphics Enhancements UI**: Replaced the separate screen effects and display dialogs with a unified `GraphicsEnhancementsDialog` housing PostFX, Frame Generation, and FPS Limiter settings.
+* **Native C++ PostFX Pipeline**: Replaced Java-based compositing with an optimized C++ shader pipeline:
+  * Upscalers: AMD FidelityFX Super Resolution (FSR 1.0), Qualcomm Snapdragon Game Super Resolution (SGSR), and Lanczos2.
+  * Shaders & Filters: Fake HDR, FXAA, CRT, NTSC, Toon, Sharpening, and Ludashi Color Boost presets.
 
 #### 🎨 Complete UI Revamp & Modernization
 * **All-New Theme System**: Integrated custom theme engine (`ThemeManager`) with Material styling, custom dark and light themes, and user-configurable accent palettes (`CustomThemeDialog`).
