@@ -20,6 +20,7 @@
     <string name="installing_system_files">Installing System Files…</string>
     <string name="updating_system_files">Updating System Files…</string>
     <string name="starting_up">Starting up…</string>
+    <string name="waiting_for_render">Waiting for the game to render…</string>
     <string name="unable_to_install_system_files">Unable to install system files</string>
     <string name="keyboard">Keyboard</string>
     <string name="toggle_fullscreen">Toggle Fullscreen</string>
@@ -687,6 +688,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="disable_mouse">Toggle Mouse</string>
     <string name="enable_mouse">Enable Mouse</string>
     <string name="manage_cover_art">Manage Cover Art</string>
+    <string name="manage_hero_art">Manage Loading Screen Art</string>
     <string name="manage_graphics_drivers">Manage Graphics Drivers</string>
     <string name="manage_graphics_drivers_description">Manage and update internal graphics driver components. Updated files are stored in internal storage and prioritized over bundled versions.</string>
     <string name="reset_all">Reset All</string>
@@ -706,6 +708,9 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="search_cover_art">Search cover art</string>
     <string name="change_cover_art">Change cover art</string>
     <string name="reset_cover_art">Reset cover art</string>
+    <string name="search_hero_art">Search loading screen art</string>
+    <string name="change_hero_art">Change loading screen art</string>
+    <string name="reset_hero_art">Reset loading screen art</string>
     <string name="search">Search</string>
     <string name="refresh">Refresh</string>
 </resources>

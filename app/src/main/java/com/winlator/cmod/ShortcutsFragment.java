@@ -63,6 +63,7 @@ public class ShortcutsFragment extends Fragment {
     private Shortcut currentShortcut;
     private ShortcutsAdapter adapter;
     private static final int REQUEST_CODE_CUSTOM_COVER_ART = 1;
+    private static final int REQUEST_CODE_CUSTOM_HERO_ART = 6;
     private static final int REQUEST_CODE_IMPORT_SHORTCUT = 1002;
 
     @Override
@@ -265,6 +266,16 @@ public class ShortcutsFragment extends Fragment {
                 Toast.makeText(getContext(), "Cover art updated.", Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
                 Toast.makeText(getContext(), "Failed to update cover art.", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == REQUEST_CODE_CUSTOM_HERO_ART && resultCode == Activity.RESULT_OK && data != null && currentShortcut != null) {
+            Uri selectedImage = data.getData();
+            try {
+                android.graphics.Bitmap bitmap = android.provider.MediaStore.Images.Media.getBitmap(requireContext().getContentResolver(), selectedImage);
+                currentShortcut.saveCustomHeroArt(bitmap);
+                loadShortcutsList();
+                Toast.makeText(getContext(), "Loading screen art updated.", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(getContext(), "Failed to update loading screen art.", Toast.LENGTH_SHORT).show();
             }
         } else if (requestCode == REQUEST_CODE_IMPORT_SHORTCUT && resultCode == Activity.RESULT_OK && data != null) {
             Uri uri = data.getData();
@@ -669,7 +680,7 @@ public class ShortcutsFragment extends Fragment {
                     String[] options = {getString(R.string.search_cover_art), getString(R.string.change_cover_art), getString(R.string.reset_cover_art)};
                     ContentDialog.showSingleChoiceList(context, R.string.manage_cover_art, options, (index) -> {
                         if (index == 0) {
-                            showCoverArtSelectionDialog(shortcut);
+                            showArtSelectionDialog(shortcut, false);
                         }
                         else if (index == 1) {
                             currentShortcut = shortcut;
@@ -680,6 +691,24 @@ public class ShortcutsFragment extends Fragment {
                             shortcut.removeCustomCoverArt();
                             loadShortcutsList();
                             Toast.makeText(context, "Cover art reset.", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+                else if (itemId == R.id.shortcut_manage_hero_art) {
+                    String[] options = {getString(R.string.search_hero_art), getString(R.string.change_hero_art), getString(R.string.reset_hero_art)};
+                    ContentDialog.showSingleChoiceList(context, R.string.manage_hero_art, options, (index) -> {
+                        if (index == 0) {
+                            showArtSelectionDialog(shortcut, true);
+                        }
+                        else if (index == 1) {
+                            currentShortcut = shortcut;
+                            Intent intent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                            startActivityForResult(intent, REQUEST_CODE_CUSTOM_HERO_ART);
+                        }
+                        else if (index == 2) {
+                            shortcut.removeCustomHeroArt();
+                            loadShortcutsList();
+                            Toast.makeText(context, "Loading screen art reset.", Toast.LENGTH_SHORT).show();
                         }
                     });
                 }
@@ -1243,7 +1272,9 @@ public class ShortcutsFragment extends Fragment {
                 .build();
     }
 
-    private void showCoverArtSelectionDialog(Shortcut shortcut) {
+    // The same PCGamingWiki -> Steam -> SteamGridDB name-matching chain finds the right search term for either art
+    // type; forHero only decides which SteamGridDB endpoint the final search hits (see performArtSearch).
+    private void showArtSelectionDialog(Shortcut shortcut, boolean forHero) {
         Context context = getContext();
         if (context == null) return;
 
@@ -1260,17 +1291,17 @@ public class ShortcutsFragment extends Fragment {
 
             com.winlator.cmod.core.pcgw.PCGamingWikiAPI pcgwApi = com.winlator.cmod.core.CoverArtManager.getPCGWRetrofit().create(com.winlator.cmod.core.pcgw.PCGamingWikiAPI.class);
             String where = "Executable.File LIKE \"%" + exeName + "%\" OR Executable.File LIKE \"%" + exeName.toLowerCase() + "%\"";
-            
+
             pcgwApi.searchByExecutable("cargoquery", "Executable", "Executable._pageName=GameTitle", where, "json").enqueue(new retrofit2.Callback<com.winlator.cmod.core.pcgw.PCGWResponse>() {
                 @Override
                 public void onResponse(retrofit2.Call<com.winlator.cmod.core.pcgw.PCGWResponse> call, retrofit2.Response<com.winlator.cmod.core.pcgw.PCGWResponse> response) {
                     if (!isAdded() || getActivity() == null || getActivity().isFinishing()) return;
                     if (response.isSuccessful() && response.body() != null && response.body().cargoquery != null && !response.body().cargoquery.isEmpty()) {
                         if (loadingDialog.isShowing()) loadingDialog.dismiss();
-                        
+
                         String bestName = response.body().cargoquery.get(0).title.gameTitle;
                         int bestScore = Integer.MAX_VALUE;
-                        
+
                         for (com.winlator.cmod.core.pcgw.PCGWResponse.CargoItem item : response.body().cargoquery) {
                             int score = calculateMatchScore(defaultName, item.title.gameTitle);
                             if (score < bestScore) {
@@ -1278,27 +1309,27 @@ public class ShortcutsFragment extends Fragment {
                                 bestName = item.title.gameTitle;
                             }
                         }
-                        
+
                         String suggestedName = cleanGameName(defaultName, bestName);
                         Toast.makeText(context, "Matched via PCGamingWiki: " + suggestedName, Toast.LENGTH_SHORT).show();
-                        showSearchPrompt(shortcut, suggestedName);
+                        showSearchPrompt(shortcut, suggestedName, forHero);
                     } else {
-                        trySteamSearch(shortcut, defaultName, folderName, loadingDialog);
+                        trySteamSearch(shortcut, defaultName, folderName, loadingDialog, forHero);
                     }
                 }
 
                 @Override
                 public void onFailure(retrofit2.Call<com.winlator.cmod.core.pcgw.PCGWResponse> call, Throwable t) {
                     if (!isAdded() || getActivity() == null || getActivity().isFinishing()) return;
-                    trySteamSearch(shortcut, defaultName, folderName, loadingDialog);
+                    trySteamSearch(shortcut, defaultName, folderName, loadingDialog, forHero);
                 }
             });
         } else {
-            showSearchPrompt(shortcut, defaultName);
+            showSearchPrompt(shortcut, defaultName, forHero);
         }
     }
 
-    private void trySteamSearch(Shortcut shortcut, String defaultName, String folderName, android.app.Dialog loadingDialog) {
+    private void trySteamSearch(Shortcut shortcut, String defaultName, String folderName, android.app.Dialog loadingDialog, boolean forHero) {
         Context context = getContext();
         if (context == null) return;
         
@@ -1332,7 +1363,7 @@ public class ShortcutsFragment extends Fragment {
                 } else if (cleanedExe.length() > 3) {
                     suggestedName = cleanedExe;
                 }
-                showSearchPrompt(shortcut, suggestedName);
+                showSearchPrompt(shortcut, suggestedName, forHero);
             }
 
             @Override
@@ -1340,7 +1371,7 @@ public class ShortcutsFragment extends Fragment {
                 if (!isAdded() || getActivity() == null || getActivity().isFinishing()) return;
                 if (loadingDialog.isShowing()) loadingDialog.dismiss();
                 String suggestedName = !folderName.isEmpty() && folderName.length() > 2 ? folderName : defaultName;
-                showSearchPrompt(shortcut, suggestedName);
+                showSearchPrompt(shortcut, suggestedName, forHero);
             }
         });
     }
@@ -1406,13 +1437,17 @@ public class ShortcutsFragment extends Fragment {
         return cleanGameName(query, bestMatch.name);
     }
 
-    private void showSearchPrompt(Shortcut shortcut, String initialValue) {
-        ContentDialog.prompt(getContext(), R.string.search_cover_art, initialValue, (query) -> {
-            performCoverArtSearch(shortcut, query);
+    private void showSearchPrompt(Shortcut shortcut, String initialValue, boolean forHero) {
+        ContentDialog.prompt(getContext(), forHero ? R.string.search_hero_art : R.string.search_cover_art, initialValue, (query) -> {
+            performArtSearch(shortcut, query, forHero);
         });
     }
 
-    private void performCoverArtSearch(Shortcut shortcut, String query) {
+    // Shared by both art types: forHero only switches which SteamGridDB list is fetched (fetchCoverArtOptions /
+    // fetchHeroArtOptions) and which save path the picked item downloads into (downloadSelectedCoverArt /
+    // downloadSelectedHeroArt). The grid itself (cover_art_selection_dialog/item) is reused as-is: centerCrop
+    // already fills whatever box each item has, so the same layout works for the wider hero thumbnails too.
+    private void performArtSearch(Shortcut shortcut, String query, boolean forHero) {
         Context context = getContext();
         if (context == null) return;
 
@@ -1422,110 +1457,145 @@ public class ShortcutsFragment extends Fragment {
         loadingDialog.setCancelable(false);
         loadingDialog.show();
 
-        com.winlator.cmod.core.CoverArtManager.fetchCoverArtOptions(context, shortcut, query, new com.winlator.cmod.core.CoverArtManager.GridOptionsCallback() {
+        int titleRes = forHero ? R.string.search_hero_art : R.string.search_cover_art;
+
+        com.winlator.cmod.core.CoverArtManager.GridOptionsCallback gridCallback = new com.winlator.cmod.core.CoverArtManager.GridOptionsCallback() {
             @Override
             public void onOptionsAvailable(java.util.List<com.winlator.cmod.core.steamgrid.SteamGridGridsResponse.GridData> options) {
-                Activity activity = getActivity();
-                if (activity != null && !activity.isFinishing() && isAdded()) {
-                    activity.runOnUiThread(() -> {
-                        if (loadingDialog.isShowing()) loadingDialog.dismiss();
-                        ContentDialog dialog = new ContentDialog(context, R.layout.cover_art_selection_dialog);
-                        dialog.setTitle(R.string.search_cover_art);
-                        dialog.findViewById(R.id.BTConfirm).setVisibility(View.GONE);
-
-                        RecyclerView recyclerView = dialog.findViewById(R.id.RecyclerView);
-                        recyclerView.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(context, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false));
-                        recyclerView.setVisibility(View.VISIBLE);
-                        dialog.findViewById(R.id.ProgressBar).setVisibility(View.GONE);
-
-                        recyclerView.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
-                            @NonNull
-                            @Override
-                            public RecyclerView.ViewHolder onCreateViewHolder(@NonNull android.view.ViewGroup parent, int viewType) {
-                                View view = LayoutInflater.from(context).inflate(R.layout.cover_art_selection_item, parent, false);
-                                return new RecyclerView.ViewHolder(view) {};
-                            }
-
-                            @Override
-                            public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-                                com.winlator.cmod.core.steamgrid.SteamGridGridsResponse.GridData data = options.get(position);
-                                ImageView imageView = holder.itemView.findViewById(R.id.ImageView);
-                                Glide.with(context)
-                                        .load(data.thumb != null ? data.thumb : data.url)
-                                        .placeholder(R.drawable.cover_art_placeholder)
-                                        .thumbnail(0.1f)
-                                        .centerCrop()
-                                        .into(imageView);
-
-                                holder.itemView.setOnClickListener(v -> {
-                                    dialog.dismiss();
-                                    Toast.makeText(context, "Applying cover art...", Toast.LENGTH_SHORT).show();
-                                    com.winlator.cmod.core.CoverArtManager.downloadSelectedCoverArt(data.url, shortcut, new com.winlator.cmod.core.CoverArtManager.DownloadCallback() {
-                                        @Override
-                                        public void onCompleted(android.graphics.Bitmap bitmap) {
-                                            Activity a = getActivity();
-                                            if (a != null && !a.isFinishing() && isAdded()) a.runOnUiThread(() -> {
-                                                loadShortcutsList();
-                                                Toast.makeText(context, "Cover art updated.", Toast.LENGTH_SHORT).show();
-                                            });
-                                        }
-
-                                        @Override
-                                        public void onFailed(com.winlator.cmod.core.CoverArtManager.ErrorReason reason) {
-                                            Activity a = getActivity();
-                                            if (a != null && !a.isFinishing() && isAdded()) a.runOnUiThread(() -> Toast.makeText(context, "Failed to download cover art.", Toast.LENGTH_SHORT).show());
-                                        }
-                                    });
-                                });
-                            }
-
-                            @Override
-                            public int getItemCount() {
-                                return options.size();
-                            }
-                        });
-                        if (!activity.isFinishing()) dialog.show();
-                    });
-                }
+                java.util.List<ArtOption> wrapped = new java.util.ArrayList<>();
+                for (com.winlator.cmod.core.steamgrid.SteamGridGridsResponse.GridData d : options)
+                    wrapped.add(new ArtOption() { public String thumb() { return d.thumb; } public String url() { return d.url; } });
+                showArtOptions(context, loadingDialog, titleRes, wrapped, shortcut, forHero, query);
             }
 
             @Override
             public void onFailed(com.winlator.cmod.core.CoverArtManager.ErrorReason reason) {
-                Activity activity = getActivity();
-                if (activity != null && !activity.isFinishing() && isAdded()) {
-                    activity.runOnUiThread(() -> {
-                        if (loadingDialog.isShowing()) loadingDialog.dismiss();
-                        String message;
-                        if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NETWORK_UNAVAILABLE) {
-                            message = "Connection Error\n\nPlease check your internet and try again. Searching requires an active connection to SteamGridDB.";
-                        } else if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NOT_FOUND) {
-                            message = "Game Not Found\n\nCould not find \"" + query + "\".\n\n" +
-                                      "Try these tips:\n" +
-                                      "• Check for typos\n" +
-                                      "• Use the full title (e.g., 'Grand Theft Auto V')\n" +
-                                      "• Try adding the year: 'God of War (2018)'\n" +
-                                      "• Click 'RETRY' to try a different name.";
-                        } else if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.UNAUTHORIZED) {
-                            message = "Invalid API Key\n\nThe custom SteamGridDB API key in Settings is invalid.";
-                        } else if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.RATE_LIMITED) {
-                            message = "Too Many Requests\n\nPlease wait a few seconds before trying again.";
-                        } else {
-                            message = "Service Unavailable\n\nSteamGridDB is currently busy. Please try again later.";
-                        }
-                        
-                        ContentDialog errorDialog = new ContentDialog(context);
-                        errorDialog.setTitle(R.string.search_cover_art);
-                        errorDialog.setMessage(message);
-                        if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NOT_FOUND || reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NETWORK_UNAVAILABLE) {
-                            errorDialog.setOnConfirmCallback(() -> showCoverArtSelectionDialog(shortcut));
-                            ((TextView)errorDialog.findViewById(R.id.BTConfirm)).setText("RETRY");
-                        } else {
-                            errorDialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
-                        }
-                        errorDialog.show();
+                showArtSearchError(context, loadingDialog, reason, query, shortcut, forHero);
+            }
+        };
+
+        com.winlator.cmod.core.CoverArtManager.HeroOptionsCallback heroCallback = new com.winlator.cmod.core.CoverArtManager.HeroOptionsCallback() {
+            @Override
+            public void onOptionsAvailable(java.util.List<com.winlator.cmod.core.steamgrid.SteamGridHeroesResponse.HeroData> options) {
+                java.util.List<ArtOption> wrapped = new java.util.ArrayList<>();
+                for (com.winlator.cmod.core.steamgrid.SteamGridHeroesResponse.HeroData d : options)
+                    wrapped.add(new ArtOption() { public String thumb() { return d.thumb; } public String url() { return d.url; } });
+                showArtOptions(context, loadingDialog, titleRes, wrapped, shortcut, forHero, query);
+            }
+
+            @Override
+            public void onFailed(com.winlator.cmod.core.CoverArtManager.ErrorReason reason) {
+                showArtSearchError(context, loadingDialog, reason, query, shortcut, forHero);
+            }
+        };
+
+        if (forHero) com.winlator.cmod.core.CoverArtManager.fetchHeroArtOptions(context, shortcut, query, heroCallback);
+        else com.winlator.cmod.core.CoverArtManager.fetchCoverArtOptions(context, shortcut, query, gridCallback);
+    }
+
+    private interface ArtOption { String thumb(); String url(); }
+
+    private void showArtOptions(Context context, android.app.Dialog loadingDialog, int titleRes,
+                                java.util.List<ArtOption> options, Shortcut shortcut, boolean forHero, String query) {
+        Activity activity = getActivity();
+        if (activity == null || activity.isFinishing() || !isAdded()) return;
+        activity.runOnUiThread(() -> {
+            if (loadingDialog.isShowing()) loadingDialog.dismiss();
+            ContentDialog dialog = new ContentDialog(context, R.layout.cover_art_selection_dialog);
+            dialog.setTitle(titleRes);
+            dialog.findViewById(R.id.BTConfirm).setVisibility(View.GONE);
+
+            RecyclerView recyclerView = dialog.findViewById(R.id.RecyclerView);
+            recyclerView.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(context, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false));
+            recyclerView.setVisibility(View.VISIBLE);
+            dialog.findViewById(R.id.ProgressBar).setVisibility(View.GONE);
+
+            recyclerView.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                @NonNull
+                @Override
+                public RecyclerView.ViewHolder onCreateViewHolder(@NonNull android.view.ViewGroup parent, int viewType) {
+                    View view = LayoutInflater.from(context).inflate(R.layout.cover_art_selection_item, parent, false);
+                    return new RecyclerView.ViewHolder(view) {};
+                }
+
+                @Override
+                public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+                    ArtOption data = options.get(position);
+                    ImageView imageView = holder.itemView.findViewById(R.id.ImageView);
+                    Glide.with(context)
+                            .load(data.thumb() != null ? data.thumb() : data.url())
+                            .placeholder(R.drawable.cover_art_placeholder)
+                            .thumbnail(0.1f)
+                            .centerCrop()
+                            .into(imageView);
+
+                    holder.itemView.setOnClickListener(v -> {
+                        dialog.dismiss();
+                        Toast.makeText(context, forHero ? "Applying loading screen art..." : "Applying cover art...", Toast.LENGTH_SHORT).show();
+                        com.winlator.cmod.core.CoverArtManager.DownloadCallback cb = new com.winlator.cmod.core.CoverArtManager.DownloadCallback() {
+                            @Override
+                            public void onCompleted(android.graphics.Bitmap bitmap) {
+                                Activity a = getActivity();
+                                if (a != null && !a.isFinishing() && isAdded()) a.runOnUiThread(() -> {
+                                    loadShortcutsList();
+                                    Toast.makeText(context, forHero ? "Loading screen art updated." : "Cover art updated.", Toast.LENGTH_SHORT).show();
+                                });
+                            }
+
+                            @Override
+                            public void onFailed(com.winlator.cmod.core.CoverArtManager.ErrorReason reason) {
+                                Activity a = getActivity();
+                                if (a != null && !a.isFinishing() && isAdded()) a.runOnUiThread(() -> Toast.makeText(context, forHero ? "Failed to download loading screen art." : "Failed to download cover art.", Toast.LENGTH_SHORT).show());
+                            }
+                        };
+                        if (forHero) com.winlator.cmod.core.CoverArtManager.downloadSelectedHeroArt(data.url(), shortcut, cb);
+                        else com.winlator.cmod.core.CoverArtManager.downloadSelectedCoverArt(data.url(), shortcut, cb);
                     });
                 }
+
+                @Override
+                public int getItemCount() {
+                    return options.size();
+                }
+            });
+            if (!activity.isFinishing()) dialog.show();
+        });
+    }
+
+    private void showArtSearchError(Context context, android.app.Dialog loadingDialog, com.winlator.cmod.core.CoverArtManager.ErrorReason reason,
+                                    String query, Shortcut shortcut, boolean forHero) {
+        Activity activity = getActivity();
+        if (activity == null || activity.isFinishing() || !isAdded()) return;
+        activity.runOnUiThread(() -> {
+            if (loadingDialog.isShowing()) loadingDialog.dismiss();
+            String message;
+            if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NETWORK_UNAVAILABLE) {
+                message = "Connection Error\n\nPlease check your internet and try again. Searching requires an active connection to SteamGridDB.";
+            } else if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NOT_FOUND) {
+                message = "Game Not Found\n\nCould not find \"" + query + "\".\n\n" +
+                          "Try these tips:\n" +
+                          "• Check for typos\n" +
+                          "• Use the full title (e.g., 'Grand Theft Auto V')\n" +
+                          "• Try adding the year: 'God of War (2018)'\n" +
+                          "• Click 'RETRY' to try a different name.";
+            } else if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.UNAUTHORIZED) {
+                message = "Invalid API Key\n\nThe custom SteamGridDB API key in Settings is invalid.";
+            } else if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.RATE_LIMITED) {
+                message = "Too Many Requests\n\nPlease wait a few seconds before trying again.";
+            } else {
+                message = "Service Unavailable\n\nSteamGridDB is currently busy. Please try again later.";
             }
+
+            ContentDialog errorDialog = new ContentDialog(context);
+            errorDialog.setTitle(forHero ? R.string.search_hero_art : R.string.search_cover_art);
+            errorDialog.setMessage(message);
+            if (reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NOT_FOUND || reason == com.winlator.cmod.core.CoverArtManager.ErrorReason.NETWORK_UNAVAILABLE) {
+                errorDialog.setOnConfirmCallback(() -> showArtSelectionDialog(shortcut, forHero));
+                ((TextView)errorDialog.findViewById(R.id.BTConfirm)).setText("RETRY");
+            } else {
+                errorDialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+            }
+            errorDialog.show();
         });
     }
 }

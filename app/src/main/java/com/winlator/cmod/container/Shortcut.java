@@ -49,9 +49,16 @@ public class Shortcut {
     private Bitmap coverArt;
     private Bitmap fallbackCoverArt;
     private String customCoverArtPath;
+    // The wide (16:9-ish) hero art the fullscreen loading screen uses behind its UI -- a separate image from the
+    // portrait coverArt above (that one's for the shortcut grid/list, too narrow to look right stretched fullscreen).
+    private Bitmap heroArt;
+    private Bitmap fallbackHeroArt;
+    private String customHeroArtPath;
 
     private static final String COVER_ART_DIR = "app_data/cover_arts/";
     private static final String FALLBACK_COVER_ART_DIR = "app_data/fallback_cover_arts/";
+    private static final String HERO_ART_DIR = "app_data/hero_arts/";
+    private static final String FALLBACK_HERO_ART_DIR = "app_data/fallback_hero_arts/";
 
     private static final ExecutorService backgroundExecutor = Executors.newFixedThreadPool(4);
 
@@ -132,6 +139,7 @@ public class Shortcut {
         this.wmClass = wmClass;
 
         this.customCoverArtPath = getExtra("customCoverArtPath");
+        this.customHeroArtPath = getExtra("customHeroArtPath");
 
         runBackgroundInitialization();
 
@@ -146,6 +154,11 @@ public class Shortcut {
     public Bitmap getCoverArt(int width, int height) {
         if (coverArt != null) return coverArt;
         return fallbackCoverArt;
+    }
+
+    public Bitmap getHeroArt() {
+        if (heroArt != null) return heroArt;
+        return fallbackHeroArt;
     }
 
     private static final int[][] AAA_PALETTES = {
@@ -328,6 +341,15 @@ public class Shortcut {
         } catch (Exception e) {}
     }
 
+    private void saveFallbackHeroArt(Bitmap bitmap) {
+        try {
+            File dir = new File(container.getRootDir(), FALLBACK_HERO_ART_DIR);
+            if (!dir.exists() && !dir.mkdirs()) return;
+            File file = new File(dir, this.name + ".png");
+            ImageUtils.save(bitmap, file, Bitmap.CompressFormat.PNG, 100);
+        } catch (Exception e) {}
+    }
+
     private void runBackgroundInitialization() {
         backgroundExecutor.submit(() -> {
             boolean changed = false;
@@ -389,6 +411,38 @@ public class Shortcut {
                     changed = true;
                 } else if (this.fallbackCoverArt == null) {
                     this.fallbackCoverArt = BitmapFactory.decodeFile(fallbackFile.getPath());
+                    changed = true;
+                }
+            }
+
+            String heroPath = null;
+            if (customHeroArtPath != null && !customHeroArtPath.isEmpty()) {
+                File heroFile = new File(customHeroArtPath);
+                if (heroFile.isFile()) heroPath = heroFile.getPath();
+            }
+
+            if (heroPath == null) {
+                File heroFile = new File(new File(container.getRootDir(), HERO_ART_DIR), this.name + ".png");
+                if (heroFile.isFile()) heroPath = heroFile.getPath();
+            }
+
+            if (heroPath != null) {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(heroPath, options);
+                options.inSampleSize = ImageUtils.calculateInSampleSize(options, 1920, 1080);
+                options.inJustDecodeBounds = false;
+                this.heroArt = BitmapFactory.decodeFile(heroPath, options);
+                changed = true;
+            } else {
+                File fallbackHeroFile = new File(new File(container.getRootDir(), FALLBACK_HERO_ART_DIR), this.name + ".png");
+                if (!fallbackHeroFile.exists()) {
+                    this.fallbackHeroArt = generateFallbackCoverArt(1920, 1080);
+                    saveFallbackHeroArt(this.fallbackHeroArt);
+                    changed = true;
+                } else if (this.fallbackHeroArt == null) {
+                    this.fallbackHeroArt = BitmapFactory.decodeFile(fallbackHeroFile.getPath());
                     changed = true;
                 }
             }
@@ -482,6 +536,21 @@ public class Shortcut {
         Log.d("Shortcut", "Set and saved custom cover art path: " + path);
     }
 
+    public void setHeroArt(Bitmap heroArt) {
+        this.heroArt = heroArt;
+    }
+
+    public String getCustomHeroArtPath() {
+        return customHeroArtPath;
+    }
+
+    public void setCustomHeroArtPath(String path) {
+        this.customHeroArtPath = path;
+        putExtra("customHeroArtPath", path);
+        saveData();
+        Log.d("Shortcut", "Set and saved custom hero art path: " + path);
+    }
+
     public JSONObject getExtraData() {
         return extraData;
     }
@@ -523,6 +592,14 @@ public class Shortcut {
 
         String steamId = getSteamId();
         if (!steamId.isEmpty()) return "https://cdn.akamai.steamstatic.com/steam/apps/" + steamId + "/library_600x900.jpg";
+
+        return null;
+    }
+
+    public String getHeroArtUrl() {
+        String steamId = getSteamId();
+        // Steam's own CDN hosts a wide library hero (1920x620) at this fixed path for every app with one.
+        if (!steamId.isEmpty()) return "https://cdn.akamai.steamstatic.com/steam/apps/" + steamId + "/library_hero.jpg";
 
         return null;
     }
@@ -598,6 +675,47 @@ public class Shortcut {
         putExtra("customCoverArtPath", null);
         putExtra("steam_id", null);
         putExtra("community_image", null);
+        saveData();
+
+        runBackgroundInitialization();
+    }
+
+    public void saveCustomHeroArt(Bitmap heroArt) {
+        try {
+            File dir = new File(container.getRootDir(), HERO_ART_DIR);
+            if (!dir.exists() && !dir.mkdirs()) {
+                Log.e("Shortcut", "Failed to create hero art directory: " + dir.getAbsolutePath());
+            }
+
+            File file = new File(dir, this.name + ".png");
+            if (FileUtils.saveBitmapToFile(heroArt, file)) {
+                this.heroArt = heroArt;
+                setCustomHeroArtPath(file.getPath());
+                Log.d("Shortcut", "Custom hero art saved at: " + file.getPath());
+            } else {
+                Log.e("Shortcut", "Failed to save custom hero art.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void removeCustomHeroArt() {
+        if (customHeroArtPath != null && !customHeroArtPath.isEmpty()) {
+            File file = new File(customHeroArtPath);
+            if (file.exists()) file.delete();
+        }
+
+        File heroArtFile = new File(new File(container.getRootDir(), HERO_ART_DIR), this.name + ".png");
+        if (heroArtFile.exists()) heroArtFile.delete();
+
+        File fallbackFile = new File(new File(container.getRootDir(), FALLBACK_HERO_ART_DIR), this.name + ".png");
+        if (fallbackFile.exists()) fallbackFile.delete();
+
+        this.customHeroArtPath = null;
+        this.heroArt = null;
+        this.fallbackHeroArt = null;
+        putExtra("customHeroArtPath", null);
         saveData();
 
         runBackgroundInitialization();

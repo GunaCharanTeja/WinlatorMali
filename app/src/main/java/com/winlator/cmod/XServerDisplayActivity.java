@@ -609,7 +609,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             };
         }
 
-        preloaderDialog.show(R.string.starting_up);
+        if (shortcut != null) {
+            // The fullscreen launch screen: the shortcut's hero art (always at least the generated fallback) behind
+            // the title. Art loads on a background thread and is often not ready yet at this exact point, so show
+            // with whatever's there now and refresh once (a beat later) if it wasn't.
+            preloaderDialog.showFullscreen(shortcut.name, shortcut.icon, shortcut.getHeroArt(), getString(R.string.starting_up));
+            new android.os.Handler(getMainLooper()).postDelayed(() -> {
+                if (preloaderDialog.isShowing()) preloaderDialog.updateHero(shortcut.getHeroArt(), shortcut.icon);
+            }, 200);
+        } else {
+            preloaderDialog.show(R.string.starting_up);
+        }
 
         inputControlsManager = new InputControlsManager(this);
         xServer = new XServer(new ScreenInfo(screenSize));
@@ -662,6 +672,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d("XServerDisplayActivity", "onMapWindow: Mapping window: " + window.getClassName());
                 // A mapped window has nothing drawn yet (the Wine desktop takes seconds to paint): the startup screen
                 // stays until a window gets content (or the startup watchdog gives up).
+                if (!winStarted[0]) preloaderDialog.setStatus(getString(R.string.waiting_for_render));
                 assignTaskAffinity(window);
             }
 

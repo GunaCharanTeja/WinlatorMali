@@ -1,6 +1,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/shortcut_settings" android:title="@string/settings" android:icon="@drawable/icon_popup_menu_settings" android:iconTint="?attr/colorAccent" />
     <item android:id="@+id/shortcut_manage_cover_art" android:title="@string/manage_cover_art" android:icon="@drawable/icon_image_picker" android:iconTint="?attr/colorAccent" />
+    <item android:id="@+id/shortcut_manage_hero_art" android:title="@string/manage_hero_art" android:icon="@drawable/icon_image_picker" android:iconTint="?attr/colorAccent" />
     <item android:id="@+id/shortcut_add_to_home_screen" android:title="@string/add_to_home_screen" android:icon="@drawable/icon_shortcut" android:iconTint="?attr/colorAccent" />
     <item android:id="@+id/shortcut_remove" android:title="@string/remove" android:icon="@drawable/icon_popup_menu_remove" android:iconTint="?attr/colorAccent" />
     <item android:id="@+id/shortcut_export" android:title="Export" android:icon="@drawable/icon_export" android:iconTint="?attr/colorAccent" />

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Darkens the hero art toward the bottom (where the title/status sit) and the very top (status-bar area),
+     leaving the middle of the image clear: the standard big-picture-loading-screen treatment. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#B3000000"
+                android:centerColor="#00000000"
+                android:endColor="#F2000000"
+                android:centerY="0.42" />
+        </shape>
+    </item>
+</layer-list>
