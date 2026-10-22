@@ -1158,13 +1158,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbWrapper = dialog.findViewById(R.id.CBHudWrapper);
         CheckBox cbLocked = dialog.findViewById(R.id.CBHudLocked);
         CheckBox cbCpuTemp = dialog.findViewById(R.id.CBHudCPUTemp);
+        CheckBox cbLows = dialog.findViewById(R.id.CBHudLows);
         SeekBar sbAlpha = dialog.findViewById(R.id.SBHudAlpha);
         SeekBar sbScale = dialog.findViewById(R.id.SBHudScale);
         TextView tvAlpha = dialog.findViewById(R.id.TVHudAlpha);
         TextView tvScale = dialog.findViewById(R.id.TVHudScale);
         Spinner spPreset = dialog.findViewById(R.id.SPHudPreset);
 
-        frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
+        frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp, cbLows);
         cbEnable.setChecked(frameRating.isUserEnabled());
         cbVert.setChecked(frameRating.isVertical());
 
@@ -1185,10 +1186,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         Spinner spStyle = dialog.findViewById(R.id.SPHudStyle);
         if (spStyle != null) {
-            String[] styles = {"Classic (Multi-Color)", "Classic Monochrome", "Modular Glass Tiles", "Adaptive (Theme Dynamic)"};
+            String[] styles = {"Classic (Multi-Color)", "Classic Monochrome", "Modular Glass Tiles", "Adaptive (Theme Dynamic)", "Glass (WinMali Default)"};
             spStyle.setPopupBackgroundResource(popupBgRes);
             spStyle.setAdapter(createThemedSpinnerAdapter(this, styles, isDarkMode));
-            spStyle.setSelection(Math.min(3, frameRating.getHudStyle()));
+            spStyle.setSelection(Math.min(WinlatorHUD.STYLE_GLASS, frameRating.getHudStyle()));
             spStyle.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
@@ -1220,6 +1221,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbWrapper.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(12, isChecked));
         cbLocked.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(13, isChecked));
         cbCpuTemp.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(14, isChecked));
+        cbLows.setOnCheckedChangeListener((v, isChecked) -> frameRating.toggleElement(15, isChecked));
         cbVert.setOnCheckedChangeListener((v, isChecked) -> frameRating.setVertical(isChecked));
 
         sbAlpha.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -1257,10 +1259,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             
             // Re-sync UI after a short delay to ensure forceReset's posted runnable has executed
             v.postDelayed(() -> {
-                frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
+                frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp, cbLows);
                 cbEnable.setChecked(true);
                 cbVert.setChecked(false);
-                if (spStyle != null) spStyle.setSelection(WinlatorHUD.STYLE_ADAPTIVE);
+                if (spStyle != null) spStyle.setSelection(WinlatorHUD.STYLE_GLASS);
                 
                 int alphaVal = (int)(frameRating.getHudAlpha() * 100);
                 sbAlpha.setProgress(alphaVal);

@@ -39,7 +39,13 @@
                         android:id="@+id/CBHudGraph"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Show FPS Graph" />
+                        android:text="Show Frame-Time Graph" />
+
+                    <CheckBox
+                        android:id="@+id/CBHudLows"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Show 1% / 0.1% Lows" />
 
                     <CheckBox
                         android:id="@+id/CBHudRenderer"

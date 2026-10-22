@@ -720,70 +720,10 @@ public class ControlElement {
         float cx = m + w * 0.5f, cy = m + h * 0.5f;
         if (pressed) c.scale(0.92f, 0.92f, cx, cy);
         RectF rect = new RectF(m, m, m + w, m + h);
-        float min = Math.min(w, h);
-        float rim = Math.max(1.5f, min * 0.022f);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        float a = alpha / 255f;
-        Path shapePath = new Path();
-        shapePath.addRoundRect(rect, radius, radius, Path.Direction.CW);
-
-        // Soft shadow under the glass.
-        p.setColor(Color.argb((int) (255 * a * 0.28f), 0, 0, 0));
-        p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, min * 0.07f), android.graphics.BlurMaskFilter.Blur.NORMAL));
-        c.save();
-        c.translate(0, min * 0.035f);
-        c.drawRoundRect(rect, radius, radius, p);
-        c.restore();
-        p.setMaskFilter(null);
-
-        // The glass: its tint, then lighter toward the rim (a lens), a little more when pressed.
-        c.save();
-        c.clipPath(shapePath);
-        // A dark base keeps the glass readable over bright scenes, the lens light over dark ones.
-        if (tint != 0) {
-            p.setColor(ColorUtils.setAlphaComponent(tint, (int) (255 * a * (pressed ? 0.75f : 0.60f))));
-            c.drawRect(rect, p);
-        } else {
-            p.setColor(Color.argb((int) (255 * a * 0.36f), 20, 22, 28));
-            c.drawRect(rect, p);
-        }
-        float lens = pressed ? 1.45f : 1.0f;
-        p.setShader(new android.graphics.RadialGradient(cx, cy, Math.max(w, h) * 0.62f,
-            new int[]{Color.argb((int) (255 * a * 0.07f * lens), 255, 255, 255), Color.argb((int) (255 * a * 0.13f * lens), 255, 255, 255),
-                      Color.argb((int) (255 * a * 0.32f * lens), 255, 255, 255)},
-            new float[]{0f, 0.72f, 1f}, android.graphics.Shader.TileMode.CLAMP));
-        c.drawRect(rect, p);
-        // The highlight near the top, toward the left.
-        p.setShader(new android.graphics.RadialGradient(cx - w * 0.14f, rect.top + h * 0.16f, min * 0.55f,
-            new int[]{Color.argb((int) (255 * a * 0.26f), 255, 255, 255), Color.argb(0, 255, 255, 255)},
-            null, android.graphics.Shader.TileMode.CLAMP));
-        c.drawRect(rect, p);
-        p.setShader(null);
-        // A faint glow just inside the rim.
-        p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(rim * 3f);
-        p.setColor(Color.argb((int) (255 * a * 0.16f), 255, 255, 255));
-        p.setMaskFilter(new android.graphics.BlurMaskFilter(rim * 2f, android.graphics.BlurMaskFilter.Blur.NORMAL));
-        c.drawRoundRect(rect, radius, radius, p);
-        p.setMaskFilter(null);
-        c.restore();
-
-        // The rim, catching the light: bright at the upper left, softer at the lower right, dim at the sides.
-        float[] rimAlpha = {0.26f, 0.60f, 0.30f, 0.40f, 1.0f, 0.70f, 0.26f};  // right, lower right, bottom, left, upper left, top, right
-        float[] rimStops = {0f, 0.125f, 0.25f, 0.5f, 0.625f, 0.75f, 1f};
-        int[] rimColors = new int[rimAlpha.length];
-        for (int i = 0; i < rimAlpha.length; i++)
-            rimColors[i] = Color.argb((int) (255 * a * Math.min(1f, rimAlpha[i] * (selected ? 1.6f : (pressed ? 1.2f : 1f)))), 255, 255, 255);
-        p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(selected ? rim * 1.8f : rim);
-        p.setShader(new android.graphics.SweepGradient(cx, cy, rimColors, rimStops));
-        RectF rimRect = new RectF(rect.left + rim * 0.5f, rect.top + rim * 0.5f, rect.right - rim * 0.5f, rect.bottom - rim * 0.5f);
-        float rimRadius = Math.max(0, radius - rim * 0.5f);
-        c.drawRoundRect(rimRect, rimRadius, rimRadius, p);
-        p.setShader(null);
+        com.winlator.cmod.widget.GlassPainter.paint(c, rect, radius, tint, alpha, pressed, selected);
 
         if (text != null && !text.isEmpty())
-            drawGlassLabel(c, p, text, rect, pressed, alpha, pill);
+            drawGlassLabel(c, new Paint(Paint.ANTI_ALIAS_FLAG), text, rect, pressed, alpha, pill);
         return bitmap;
     }
 

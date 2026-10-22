@@ -2,6 +2,7 @@ package com.winlator.cmod.widget;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -36,6 +37,7 @@ public class WinlatorHUD extends View {
     public static final int STYLE_MONO     = 1;
     public static final int STYLE_TILES    = 2;
     public static final int STYLE_ADAPTIVE = 3;
+    public static final int STYLE_GLASS    = 4;  // Madeira glass, matching the WinMali Default controls
     private int currentStyle = STYLE_ADAPTIVE;
 
     public static final int PRESET_CUSTOM        = -1;
@@ -64,6 +66,7 @@ public class WinlatorHUD extends View {
     public static final int SHOW_WRAPPER  = 1<<11;
     public static final int SHOW_CPU_TEMP = 1<<12;
     public static final int SHOW_LOCKED   = 1<<13;
+    public static final int SHOW_LOWS     = 1<<14;
     private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_CPU | SHOW_RAM | SHOW_BORDER | SHOW_LOCKED;
 
     private static final int C_WHITE = Color.WHITE;
@@ -128,6 +131,22 @@ public class WinlatorHUD extends View {
     private int gHead = 0;
     private float gMax = 60f;
 
+    // Intervals (ms) between the game's own frames: the source for the 1% / 0.1% lows and the frame-time graph.
+    // A once-a-second FPS average hides the hitches these show.
+    private static final int FT_CAP = 1200;
+    private static final int FT_GRAPH = 120;
+    private final float[] frameTimes = new float[FT_CAP];
+    private final float[] frameTimesSorted = new float[FT_CAP];
+    private final float[] graphFrames = new float[FT_GRAPH];
+    private final Object ftLock = new Object();
+    private int ftHead = 0, ftCount = 0;
+    private long lastFrameNs = 0;
+    private String strLows = "";
+
+    private Bitmap glassPanel;
+    private int glassPanelW, glassPanelH;
+    private boolean glassPanelVertical;
+
     private int showMask = SHOW_DEFAULT;
     private float hudAlpha = 1f;
     private boolean userEnabled = false;
@@ -173,6 +192,7 @@ public class WinlatorHUD extends View {
         CORNER = 5f * d;
         initPaints();
         loadPrefs();
+        applyStyleTypeface();
         // No offscreen layer: a layer is rasterised at the unscaled size and stretched by the HUD scale (blurry, pixelated
         // edges); drawn directly, the shapes and text are rasterised at the scale they are shown at.
         setLayerType(LAYER_TYPE_NONE, null);
@@ -275,6 +295,37 @@ public class WinlatorHUD extends View {
         if (now - lastOnFrameNs < 200_000L) return; // Deduplicate calls within 0.2ms
         lastOnFrameNs = now;
         frameAccum.incrementAndGet();
+        synchronized (ftLock) {
+            if (lastFrameNs != 0) {
+                float ms = (now - lastFrameNs) / 1_000_000f;
+                // Gaps over 2 s are pauses (app in background, loading screens), not frames.
+                if (ms < 2000f) {
+                    frameTimes[ftHead] = ms;
+                    ftHead = (ftHead + 1) % FT_CAP;
+                    if (ftCount < FT_CAP) ftCount++;
+                }
+            }
+            lastFrameNs = now;
+        }
+    }
+
+    /** 1% and 0.1% lows (FPS at the 99th / 99.9th percentile frame time), as MSI Afterburner reports them. */
+    private void updateLows() {
+        int n;
+        synchronized (ftLock) {
+            n = ftCount;
+            for (int i = 0; i < n; i++) frameTimesSorted[i] = frameTimes[(ftHead - n + i + FT_CAP) % FT_CAP];
+        }
+        if (n < 100) { strLows = ""; return; }
+        java.util.Arrays.sort(frameTimesSorted, 0, n);
+        float p99 = frameTimesSorted[Math.min(n - 1, (int) Math.ceil(n * 0.99) - 1)];
+        String lows = "1% " + Math.round(1000f / Math.max(0.1f, p99));
+        // 0.1% needs enough frames to mean more than "the single worst frame".
+        if (n >= 500) {
+            float p999 = frameTimesSorted[Math.min(n - 1, (int) Math.ceil(n * 0.999) - 1)];
+            lows += " · 0.1% " + Math.round(1000f / Math.max(0.1f, p999));
+        }
+        strLows = lows;
     }
 
     public void setDataSource(HudDataSource dataSource) {
@@ -308,6 +359,7 @@ public class WinlatorHUD extends View {
             graph[gHead % GBUF] = snapFps;
             gHead++;
             if (snapFps > gMax) gMax = Math.max(60f, snapFps * 1.1f);
+            if ((showMask & SHOW_LOWS) != 0) updateLows();
         }
 
         if (dataSource != null) {
@@ -355,6 +407,7 @@ public class WinlatorHUD extends View {
     }
 
     private String getFpsDisplayText() {
+        if ((showMask & SHOW_LOWS) != 0 && !strLows.isEmpty()) return strFps + "  " + strLows;
         return strFps;
     }
 
@@ -368,6 +421,10 @@ public class WinlatorHUD extends View {
             if (currentStyle == STYLE_TILES) {
                 if (vertical) drawTilesVertical(c);
                 else          drawTilesHorizontal(c);
+            } else if (currentStyle == STYLE_GLASS) {
+                c.drawBitmap(getGlassPanel(), 0, 0, null);
+                if (vertical) drawClassicVertical(c);
+                else          drawClassicHorizontal(c);
             } else {
                 bgRect.set(0, 0, getWidth(), getHeight());
                 // Adaptive: the shadow and the border stay inside the view (drawn at its edge they were clipped into hard steps).
@@ -405,7 +462,65 @@ public class WinlatorHUD extends View {
         }
     }
 
+    // The glass panel, drawn once per size (the HUD redraws five times a second; the gradients and blurs do not).
+    // Inset so its shadow stays inside the view instead of being clipped at the edge.
+    private Bitmap getGlassPanel() {
+        int w = Math.max(1, getWidth()), h = Math.max(1, getHeight());
+        if (glassPanel == null || glassPanelW != w || glassPanelH != h || glassPanelVertical != vertical) {
+            if (glassPanel != null) glassPanel.recycle();
+            glassPanel = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            float inset = 2.5f * density;
+            RectF rect = new RectF(inset, inset, w - inset, h - inset);
+            float radius = vertical ? 12f * density : rect.height() / 2f;
+            GlassPainter.paint(new Canvas(glassPanel), rect, radius, 0, 255, false, false);
+            glassPanelW = w;
+            glassPanelH = h;
+            glassPanelVertical = vertical;
+        }
+        return glassPanel;
+    }
+
+    private void applyStyleTypeface() {
+        Typeface tf = currentStyle == STYLE_GLASS ? GlassPainter.typeface(getContext().getAssets())
+                                                  : Typeface.create(Typeface.MONOSPACE, Typeface.BOLD);
+        float shadow = currentStyle == STYLE_GLASS ? 2f * density : 0f;
+        for (Paint p : new Paint[]{pVal, pGpu, pCpu, pBat, pTmp, pFps, pRend, pRam, pSep, pChg}) {
+            p.setTypeface(tf);
+            // White text over a bright game scene needs a soft shadow on glass.
+            if (shadow > 0) p.setShadowLayer(shadow, 0, 0.5f * density, Color.argb(150, 0, 0, 0));
+            else p.clearShadowLayer();
+        }
+        wLabelGpu  = pGpu.measureText("GPU ");
+        wLabelCpu  = pCpu.measureText("CPU ");
+        wLabelRam  = pRam.measureText("RAM ");
+        wLabelPwr  = pBat.measureText("PWR ");
+        wLabelTmp  = pTmp.measureText("TMP ");
+        wLabelCTmp = pTmp.measureText("CTMP ");
+        wLabelFps  = pFps.measureText("FPS ");
+        wSep       = pSep.measureText(" | ");
+        wVal100pct = pVal.measureText("100%");
+        wValFps    = pFps.measureText("0000");
+        wValWatt   = pVal.measureText("00.0W");
+        wValTemp   = pVal.measureText("00°C");
+        wValBInfo  = pVal.measureText("00.0W (100%)");
+        layoutDirty = true;
+    }
+
     private void updatePaintColors(boolean mono) {
+        if (currentStyle == STYLE_GLASS) {
+            // Madeira's look: soft white labels, bright white values, colour only where it means something.
+            float fps = snapFps;
+            int label = Color.argb(165, 255, 255, 255);
+            int fpsColor = fps >= 55 ? 0xFF7EE787 : (fps >= 25 ? 0xFFFFFFFF : 0xFFFF7B72);
+            pFps.setColor(fpsColor);
+            pGraph.setColor(Color.argb(230, Color.red(fpsColor), Color.green(fpsColor), Color.blue(fpsColor)));
+            pGraphBg.setColor(Color.argb(28, 255, 255, 255));
+            for (Paint p : new Paint[]{pGpu, pCpu, pBat, pTmp, pRend, pRam}) p.setColor(label);
+            pVal.setColor(0xFFFFFFFF);
+            pSep.setColor(Color.argb(60, 255, 255, 255));
+            pChg.setColor(0xFF7EE787);
+            return;
+        }
         if (currentStyle == STYLE_ADAPTIVE) {
             Context ctx = getContext();
             int accent = ThemeManager.getAccentColor(ctx);
@@ -849,23 +964,29 @@ public class WinlatorHUD extends View {
         return wSep;
     }
 
+    // Frame times of the last FT_GRAPH frames, newest at the right: a hitch shows as a spike even when the
+    // once-a-second FPS looks smooth. The scale is at least 33 ms, so a steady 60 fps sits low and flat.
     private void drawInlineGraph(Canvas c, float x, float y, float w, float h) {
-        c.drawRect(x, y, x + w, y + h, pGraphBg);
-        int count = Math.min(gHead, GBUF);
+        if (currentStyle == STYLE_GLASS) c.drawRoundRect(x, y, x + w, y + h, 3f * density, 3f * density, pGraphBg);
+        else c.drawRect(x, y, x + w, y + h, pGraphBg);
+        int count;
+        synchronized (ftLock) {
+            count = Math.min(ftCount, FT_GRAPH);
+            for (int i = 0; i < count; i++) graphFrames[i] = frameTimes[(ftHead - count + i + FT_CAP) % FT_CAP];
+        }
         if (count < 2) return;
+        float max = 33.3f;
+        for (int i = 0; i < count; i++) max = Math.max(max, graphFrames[i]);
+        max *= 1.1f;
         if (cachedPath == null) cachedPath = new Path();
-        if (lastGHead != gHead) {
-            cachedPath.reset();
-            float bw = w / (GBUF - 1);
-            boolean first = true;
-            for (int i = 0; i < count; i++) {
-                float v  = graph[(gHead - count + i) % GBUF];
-                float px = x + i * bw;
-                float py = y + h - (v / gMax) * h;
-                if (first) { cachedPath.moveTo(px, py); first = false; }
-                else        { cachedPath.lineTo(px, py); }
-            }
-            lastGHead = gHead;
+        cachedPath.reset();
+        float bw = w / (FT_GRAPH - 1);
+        float x0 = x + (FT_GRAPH - count) * bw;
+        for (int i = 0; i < count; i++) {
+            float px = x0 + i * bw;
+            float py = y + h - Math.min(1f, graphFrames[i] / max) * h;
+            if (i == 0) cachedPath.moveTo(px, py);
+            else cachedPath.lineTo(px, py);
         }
         c.drawPath(cachedPath, pGraph);
     }
@@ -1193,7 +1314,7 @@ public class WinlatorHUD extends View {
 
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
-        currentStyle = prefs.getInt(KEY_STYLE, (showMask & SHOW_MONO) != 0 ? STYLE_MONO : STYLE_ADAPTIVE);
+        currentStyle = prefs.getInt(KEY_STYLE, (showMask & SHOW_MONO) != 0 ? STYLE_MONO : STYLE_GLASS);
         hudAlpha = prefs.getInt(KEY_ALPHA, 55) / 100f;
         setAlpha(hudAlpha);
         vertical = prefs.getBoolean(KEY_VERT, false);
@@ -1308,10 +1429,11 @@ public class WinlatorHUD extends View {
     public int getHudStyle() { return currentStyle; }
 
     public void setHudStyle(int style) {
-        this.currentStyle = Math.max(0, Math.min(3, style));
+        this.currentStyle = Math.max(0, Math.min(STYLE_GLASS, style));
         if (this.currentStyle == STYLE_MONO) showMask |= SHOW_MONO;
         else showMask &= ~SHOW_MONO;
         prefs.edit().putInt(KEY_STYLE, this.currentStyle).putInt(KEY_SHOW, showMask).apply();
+        applyStyleTypeface();
         layoutDirty = true;
         try { requestLayout(); invalidate(); } catch (Exception ignored) {}
         if (activePositionPreset >= 0) post(() -> applyPositionPreset(activePositionPreset));
@@ -1324,7 +1446,9 @@ public class WinlatorHUD extends View {
         if (idx == 9) {
             currentStyle = on ? STYLE_MONO : STYLE_CLASSIC;
             prefs.edit().putInt(KEY_STYLE, currentStyle).apply();
+            applyStyleTypeface();
         }
+        if (idx == 15 && on) updateLows();
         prefs.edit().putInt(KEY_SHOW, showMask).apply();
         layoutDirty = true;
         try { requestLayout(); invalidate(); } catch (Exception ignored) {}
@@ -1337,7 +1461,8 @@ public class WinlatorHUD extends View {
             android.widget.CheckBox cbRam, android.widget.CheckBox cbBattPct,
             android.widget.CheckBox cbBorder, android.widget.CheckBox cbCompact,
             android.widget.CheckBox cbWrapper, android.widget.CheckBox cbLocked,
-            android.widget.CheckBox cbCpuTemp) {
+            android.widget.CheckBox cbCpuTemp, android.widget.CheckBox cbLows) {
+        if (cbLows     != null) cbLows.setChecked((showMask & SHOW_LOWS)     != 0);
         if (cbFps      != null) cbFps.setChecked((showMask & SHOW_FPS)       != 0);
         if (cbGpu      != null) cbGpu.setChecked((showMask & SHOW_GPU)       != 0);
         if (cbCpu      != null) cbCpu.setChecked((showMask & SHOW_CPU)       != 0);
@@ -1369,6 +1494,12 @@ public class WinlatorHUD extends View {
     public void reset() {
         rendererLabel = "EGL";
         frameAccum.set(0);
+        synchronized (ftLock) {
+            ftCount = 0;
+            ftHead = 0;
+            lastFrameNs = 0;
+        }
+        strLows = "";
         snapFps = 0;
         gHead = 0;
         lastFpsNs = 0;
@@ -1386,9 +1517,9 @@ public class WinlatorHUD extends View {
             userEnabled = true;
             
             showMask = SHOW_DEFAULT;
-            currentStyle = STYLE_ADAPTIVE;
+            currentStyle = STYLE_GLASS;
             vertical = false;
-            layoutDirty = true;
+            applyStyleTypeface();
             
             setScaleX(1.0f); setScaleY(1.0f);
             hudAlpha = 0.55f;
@@ -1433,6 +1564,7 @@ public class WinlatorHUD extends View {
             case 12: return SHOW_WRAPPER;
             case 13: return SHOW_LOCKED;
             case 14: return SHOW_CPU_TEMP;
+            case 15: return SHOW_LOWS;
             default: return 0;
         }
     }
