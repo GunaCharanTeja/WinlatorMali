@@ -619,9 +619,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }, 200);
         } else {
             // A direct container launch has no shortcut (so no icon/hero art of its own) -- still show the
-            // fullscreen screen, generating the same kind of art from just the container's name.
-            android.graphics.Bitmap containerArt = com.winlator.cmod.container.Shortcut.generateFallbackArt(container.getName(), null, 1920, 1080);
-            preloaderDialog.showFullscreen(container.getName(), null, containerArt, getString(R.string.starting_up));
+            // fullscreen screen, falling back to a flat field with the app's own logo (PreloaderDialog's
+            // createFullscreen handles the null-heroArt case), the same treatment Bannerlator's preloader
+            // uses when it has neither cover art nor an icon to show.
+            preloaderDialog.showFullscreen(container.getName(), null, null, getString(R.string.starting_up));
         }
 
         inputControlsManager = new InputControlsManager(this);

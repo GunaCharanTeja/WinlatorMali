@@ -14,6 +14,18 @@
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
 
+    <!-- Shown instead of IVHeroBackground when there's no hero/cover art at all (a direct container launch has
+         no shortcut, so nothing to show): the app's own logo centered on a flat dark field, same treatment
+         Bannerlator's preloader uses for its own no-art case. -->
+    <ImageView
+        android:id="@+id/IVCenterLogo"
+        android:layout_width="140dp"
+        android:layout_height="140dp"
+        android:layout_gravity="center"
+        android:src="@drawable/logo"
+        android:visibility="gone"
+        android:contentDescription="@null" />
+
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"

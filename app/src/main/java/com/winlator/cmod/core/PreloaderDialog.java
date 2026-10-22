@@ -85,10 +85,19 @@ public class PreloaderDialog {
         fullscreen = true;
 
         ImageView ivBg = dialog.findViewById(R.id.IVHeroBackground);
+        ImageView ivLogo = dialog.findViewById(R.id.IVCenterLogo);
         if (ivBg != null) {
-            if (heroArt != null) ivBg.setImageBitmap(heroArt);
-            else ivBg.setBackgroundColor(ThemeManager.getSurfaceColor(activity));
+            if (heroArt != null) {
+                ivBg.setImageBitmap(heroArt);
+                ivBg.setBackgroundColor(0);
+            } else {
+                // No art at all (a direct container launch has no shortcut to generate it from) -- a flat dark
+                // field with the app's own logo centered, instead of stretching nothing across the screen.
+                ivBg.setImageDrawable(null);
+                ivBg.setBackgroundColor(0xFF0A0B0D);
+            }
         }
+        if (ivLogo != null) ivLogo.setVisibility(heroArt == null ? View.VISIBLE : View.GONE);
 
         ImageView ivIcon = dialog.findViewById(R.id.IVHeroIcon);
         if (ivIcon != null) {
@@ -159,7 +168,12 @@ public class PreloaderDialog {
         if (dialog == null || !fullscreen) return;
         if (heroArt != null) {
             ImageView ivBg = dialog.findViewById(R.id.IVHeroBackground);
-            if (ivBg != null) ivBg.setImageBitmap(heroArt);
+            if (ivBg != null) {
+                ivBg.setImageBitmap(heroArt);
+                ivBg.setBackgroundColor(0);
+            }
+            ImageView ivLogo = dialog.findViewById(R.id.IVCenterLogo);
+            if (ivLogo != null) ivLogo.setVisibility(View.GONE);
         }
         if (icon != null) {
             ImageView ivIcon = dialog.findViewById(R.id.IVHeroIcon);
