@@ -41,7 +41,6 @@
                 android:contentDescription="Info" />
         </LinearLayout>
 
-        <!-- Options Card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -50,31 +49,111 @@
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:paddingTop="8dp"
-            android:paddingBottom="8dp"
+            android:paddingBottom="10dp"
             android:layout_marginBottom="8dp">
 
             <CheckBox
                 android:id="@+id/CBBCnEnabled"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="wrap_content"
+                android:minHeight="36dp"
                 android:text="@string/graphics_driver_bcn_enabled"
                 android:textSize="13sp" />
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#20FFFFFF"
-                android:layout_marginTop="4dp"
-                android:layout_marginBottom="4dp" />
-
-            <CheckBox
-                android:id="@+id/CBBCnKeepRaw"
+            <LinearLayout
+                android:id="@+id/LLBCnOptions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="36dp"
-                android:text="@string/graphics_driver_bcn_keep_raw"
-                android:textSize="13sp" />
+                android:orientation="vertical">
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#20FFFFFF"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Layer version"
+                    android:textSize="12.5sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:layout_marginBottom="4dp" />
+
+                <Spinner
+                    style="@style/ComboBox"
+                    android:id="@+id/SBCnVersion"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:spinnerMode="dropdown" />
+
+                <!-- Current build -->
+                <LinearLayout
+                    android:id="@+id/LLBCnCurrent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="6dp">
+
+                    <CheckBox
+                        android:id="@+id/CBBCnNativeDirect"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="36dp"
+                        android:text="Direct texture upload (faster)"
+                        android:textSize="13sp" />
+
+                    <CheckBox
+                        android:id="@+id/CBBCnKeepRaw"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="36dp"
+                        android:text="@string/graphics_driver_bcn_keep_raw"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Legacy (September) build -->
+                <LinearLayout
+                    android:id="@+id/LLBCnLegacy"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Transcode to"
+                        android:textSize="12.5sp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:id="@+id/SBCnTranscode"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:spinnerMode="dropdown" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quality"
+                        android:textSize="12.5sp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="4dp" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:id="@+id/SBCnQuality"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:spinnerMode="dropdown" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
 
     </LinearLayout>

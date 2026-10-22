@@ -2262,13 +2262,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             File internalExtraLibs = new File(getFilesDir(), "graphics_driver/extra_libs.tzst");
             if (internalExtraLibs.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalExtraLibs, rootDir);
             else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
-
-            // The leegao BCn layer (libbcn_layer.so): always extracted, same as extra_libs above -- whether it
-            // actually loads is purely the ENABLE_BCN_COMPUTE / DISABLE_BCN_COMPUTE env vars below, set every boot.
-            File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
-            if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir);
-            else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
         }
+
+        // The leegao BCn layer, extracted on every launch: both builds install as the same layer (same .so and
+        // manifest), so the one this container/shortcut selects is written each time, and an app update's new build
+        // reaches existing containers (extracting only on a container's first boot never updated them). Whether it
+        // loads is the ENABLE_BCN_COMPUTE / DISABLE_BCN_COMPUTE env vars set below. Its version.txt is skipped so
+        // it doesn't overwrite the graphics driver's.
+        boolean bcnLegacy = "legacy".equals(graphicsDriverConfig.getOrDefault("bcnVersion", "current"));
+        com.winlator.cmod.core.OnExtractFileListener skipBcnVersionFile = (file, size) ->
+            file.getName().equals("version.txt") && rootDir.equals(file.getParentFile()) ? null : file;
+        File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
+        if (bcnLegacy) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn_legacy.tzst", rootDir, skipBcnVersionFile);
+        else if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir, skipBcnVersionFile);
+        else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir, skipBcnVersionFile);
 
         if (adrenoToolsDriverId != "System") {
             AdrenotoolsManager adrenotoolsManager = new AdrenotoolsManager(this);
@@ -2311,16 +2318,26 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String disablePresentWait = graphicsDriverConfig.get("disablePresentWait");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
-        // The leegao BCn layer's real env vars (bcn_layer_env.txt): ENABLE_BCN_COMPUTE loads it, DISABLE_BCN_COMPUTE
-        // force-stops it loading. BCN_NATIVE (transcode to ETC2/EAC/ASTC) and BCN_NATIVE_DIRECT (the fast write path)
-        // are left at their defaults (both 1): off is debug-only and either breaks BC textures on stock Mali or is
-        // just slower, with no user-facing upside. Qualcomm devices already handle BC natively (Adreno/Turnip), so
-        // the layer is skipped there even when enabled.
+        // ENABLE_BCN_COMPUTE loads the layer, DISABLE_BCN_COMPUTE force-stops it (both builds). Qualcomm devices
+        // already handle BC natively (Adreno/Turnip), so the layer is skipped there even when enabled.
         boolean bcnEnabled = !"0".equals(graphicsDriverConfig.getOrDefault("bcnEnabled", "1"))
                 && GPUInformation.getVendorID(null, null) != 0x5143;
         envVars.put(bcnEnabled ? "ENABLE_BCN_COMPUTE" : "DISABLE_BCN_COMPUTE", "1");
-        if (bcnEnabled && "1".equals(graphicsDriverConfig.getOrDefault("bcnKeepRaw", "0"))) {
-            envVars.put("BCN_KEEP_RAW", "1");
+        if (!bcnEnabled) return;
+        if (bcnLegacy) {
+            // The September build: BC textures are transcoded to one chosen format at a quality preset. Same env
+            // vars the old BCn settings set (auto compute mode, preset only when not auto).
+            envVars.put("BCN_COMPUTE_AUTO", "1");
+            String transcode = graphicsDriverConfig.getOrDefault("bcnTranscode", "astc");
+            envVars.put(transcode.equals("etc2") ? "BCN_TRANSCODE_TO_ETC2" : transcode.equals("etc1") ? "BCN_TRANSCODE_TO_ETC1" : "BCN_TRANSCODE_TO_ASTC", "1");
+            String quality = graphicsDriverConfig.getOrDefault("bcnQuality", "auto");
+            if (!quality.equals("auto")) envVars.put("BCN_QUALITY_PRESET", quality);
+        } else {
+            // The current build (bcn_layer_env.txt): BCN_NATIVE stays at its default (on; off is debug-only and
+            // breaks BC textures on stock Mali). BCN_NATIVE_DIRECT=0 is the slower staging-buffer upload, a
+            // compatibility fallback for drivers that mishandle the direct one.
+            if ("1".equals(graphicsDriverConfig.getOrDefault("bcnKeepRaw", "0"))) envVars.put("BCN_KEEP_RAW", "1");
+            if ("0".equals(graphicsDriverConfig.getOrDefault("bcnNativeDirect", "1"))) envVars.put("BCN_NATIVE_DIRECT", "0");
         }
     }
 

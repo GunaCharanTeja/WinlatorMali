@@ -1,59 +1,87 @@
 package com.winlator.cmod.contentdialog;
 
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import com.winlator.cmod.R;
 
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
-// The leegao BCn layer's own options (see bcn_layer_env.txt): BCN_NATIVE (transcode to ETC2/EAC/ASTC) is always on --
-// off is debug-only and breaks BC textures on stock Mali -- and BCN_NATIVE_DIRECT (the fast write path) is always on
-// too, with no user-facing reason to prefer the slower staging-buffer path. That leaves two real choices: whether the
-// layer runs at all, and whether to keep a second, raw copy of every BC texture (BCN_KEEP_RAW) for the few games that
-// read their own compressed textures back.
+// Two builds of the leegao BCn layer, both installing as the same Vulkan layer, so one is chosen per container or
+// shortcut and extracted on launch:
+//  - Current: BC textures go to whichever native format fits (ETC2/EAC/ASTC). Options: keep a raw copy of every
+//    texture (BCN_KEEP_RAW) and the direct upload path (BCN_NATIVE_DIRECT; off = slower staging-buffer fallback).
+//  - Legacy (September build): every BC texture is transcoded to one chosen format (ASTC / ETC2 / ETC1) at a
+//    quality preset, for games that render wrong with the current build.
 public class BCNConfigDialog extends ContentDialog {
-    private final CheckBox cbBCnEnabled;
-    private final CheckBox cbBCnKeepRaw;
-    private String isBCnEnabled;
-    private String isBCnKeepRaw;
+    private static final List<String> VERSION_KEYS = Arrays.asList("current", "legacy");
+    private static final String[] VERSION_LABELS = {"Current (native, faster)", "Legacy (ASTC / ETC2)"};
+    private static final List<String> TRANSCODE_KEYS = Arrays.asList("astc", "etc2", "etc1");
+    private static final String[] TRANSCODE_LABELS = {"ASTC", "ETC2", "ETC1"};
+    private static final List<String> QUALITY_KEYS = Arrays.asList("auto", "fast", "balanced", "high");
+    private static final String[] QUALITY_LABELS = {"Auto", "Fast", "Balanced", "High"};
 
     public BCNConfigDialog(View anchor) {
         super(anchor.getContext(), R.layout.bcn_config_dialog);
         setIcon(R.drawable.ic_driver_info);
         setTitle(R.string.bcn_layer_configuration);
 
-        cbBCnEnabled = findViewById(R.id.CBBCnEnabled);
-        cbBCnKeepRaw = findViewById(R.id.CBBCnKeepRaw);
+        CheckBox cbEnabled = findViewById(R.id.CBBCnEnabled);
+        CheckBox cbKeepRaw = findViewById(R.id.CBBCnKeepRaw);
+        CheckBox cbNativeDirect = findViewById(R.id.CBBCnNativeDirect);
+        Spinner sVersion = findViewById(R.id.SBCnVersion);
+        Spinner sTranscode = findViewById(R.id.SBCnTranscode);
+        Spinner sQuality = findViewById(R.id.SBCnQuality);
+        View options = findViewById(R.id.LLBCnOptions);
+        View currentOptions = findViewById(R.id.LLBCnCurrent);
+        View legacyOptions = findViewById(R.id.LLBCnLegacy);
 
-        String graphicsDriverConfig = anchor.getTag().toString();
-        HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
+        HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(anchor.getTag().toString());
 
-        isBCnEnabled = config.getOrDefault("bcnEnabled", "1");
-        isBCnKeepRaw = config.getOrDefault("bcnKeepRaw", "0");
+        cbEnabled.setChecked(!"0".equals(config.getOrDefault("bcnEnabled", "1")));
+        cbKeepRaw.setChecked("1".equals(config.getOrDefault("bcnKeepRaw", "0")));
+        cbNativeDirect.setChecked(!"0".equals(config.getOrDefault("bcnNativeDirect", "1")));
+        setUpSpinner(sVersion, VERSION_LABELS, VERSION_KEYS, config.getOrDefault("bcnVersion", "current"));
+        setUpSpinner(sTranscode, TRANSCODE_LABELS, TRANSCODE_KEYS, config.getOrDefault("bcnTranscode", "astc"));
+        setUpSpinner(sQuality, QUALITY_LABELS, QUALITY_KEYS, config.getOrDefault("bcnQuality", "auto"));
 
-        cbBCnEnabled.setChecked("1".equals(isBCnEnabled));
-        cbBCnKeepRaw.setChecked("1".equals(isBCnKeepRaw));
-        cbBCnKeepRaw.setEnabled(cbBCnEnabled.isChecked());
-        cbBCnKeepRaw.setAlpha(cbBCnEnabled.isChecked() ? 1.0f : 0.5f);
-
-        cbBCnEnabled.setOnClickListener(v -> {
-            isBCnEnabled = cbBCnEnabled.isChecked() ? "1" : "0";
-            cbBCnKeepRaw.setEnabled(cbBCnEnabled.isChecked());
-            cbBCnKeepRaw.setAlpha(cbBCnEnabled.isChecked() ? 1.0f : 0.5f);
+        Runnable refresh = () -> {
+            options.setVisibility(cbEnabled.isChecked() ? View.VISIBLE : View.GONE);
+            boolean legacy = sVersion.getSelectedItemPosition() == 1;
+            currentOptions.setVisibility(legacy ? View.GONE : View.VISIBLE);
+            legacyOptions.setVisibility(legacy ? View.VISIBLE : View.GONE);
+        };
+        refresh.run();
+        cbEnabled.setOnClickListener(v -> refresh.run());
+        sVersion.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { refresh.run(); }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
-
-        cbBCnKeepRaw.setOnClickListener(v -> isBCnKeepRaw = cbBCnKeepRaw.isChecked() ? "1" : "0");
 
         findViewById(R.id.IVTranscodeInfo).setOnClickListener(v -> showInfo());
 
         setOnConfirmCallback(() -> {
-            config.put("bcnEnabled", isBCnEnabled);
-            config.put("bcnKeepRaw", isBCnKeepRaw);
+            config.put("bcnEnabled", cbEnabled.isChecked() ? "1" : "0");
+            config.put("bcnKeepRaw", cbKeepRaw.isChecked() ? "1" : "0");
+            config.put("bcnNativeDirect", cbNativeDirect.isChecked() ? "1" : "0");
+            config.put("bcnVersion", VERSION_KEYS.get(sVersion.getSelectedItemPosition()));
+            config.put("bcnTranscode", TRANSCODE_KEYS.get(sTranscode.getSelectedItemPosition()));
+            config.put("bcnQuality", QUALITY_KEYS.get(sQuality.getSelectedItemPosition()));
             anchor.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
         });
+    }
+
+    private void setUpSpinner(Spinner spinner, String[] labels, List<String> keys, String selected) {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setSelection(Math.max(0, keys.indexOf(selected)));
     }
 
     private void showInfo() {
@@ -63,17 +91,23 @@ public class BCNConfigDialog extends ContentDialog {
 
         TextView tvMessage = dialog.findViewById(R.id.TVInfoMessage);
         String message = "<b>BCn Layer</b><br/><br/>" +
-                "A custom <b>leegao BCn layer</b> that lets games using BC1-BC7 compressed textures (most DirectX " +
-                "games) run on Mali, which has no native support for them: it transcodes them to a format Mali does " +
-                "support (ETC2, EAC or ASTC, whichever fits the texture) as they're created.<br/><br/>" +
-                "<b>BCn Emulation Enabled:</b><br/>" +
-                "Off disables the layer entirely. BC textures then go to the driver untouched and will not work on " +
-                "stock Mali -- leave this on unless you're specifically testing that.<br/><br/>" +
-                "<b>Keep raw texture data:</b><br/>" +
-                "A few games read their own compressed textures back (screenshot tools, some post-processing). " +
-                "Off, the layer only keeps the original BC data for textures that may be read back; on, it keeps " +
-                "it for every texture so readbacks always return exact data, at roughly 2x the BCn texture memory. " +
-                "Leave this off unless a game specifically needs it.";
+                "The <b>leegao BCn layer</b> lets games using BC1-BC7 compressed textures (most DirectX games) run " +
+                "on Mali, which has no native support for them, by converting the textures as they're created.<br/><br/>" +
+                "<b>BCn Emulation Enabled:</b> off disables the layer; BC textures then won't work on stock Mali.<br/><br/>" +
+                "<b>Layer version:</b><br/>" +
+                "&#8226; <b>Current</b>: converts each texture to whichever native format fits it (ETC2, EAC or " +
+                "ASTC). Faster, and uses the same memory as native BCn. Use this by default.<br/>" +
+                "&#8226; <b>Legacy</b>: the September build. Converts every texture to the one format you pick, at a " +
+                "quality preset. Try it for a game whose textures look wrong with Current.<br/><br/>" +
+                "<b>Direct texture upload</b> (Current): the fast upload path. Turn it off only if textures come " +
+                "out corrupted or the game crashes on load; off uses a slower staging-buffer path.<br/><br/>" +
+                "<b>Keep raw texture data</b> (Current): keeps the original BC data of every texture so games that " +
+                "read their textures back get exact data, at roughly 2x the BCn texture memory. Off keeps it only " +
+                "for textures that may be read back.<br/><br/>" +
+                "<b>Transcode to</b> (Legacy): ASTC gives the best quality; ETC2 is faster to convert; ETC1 is the " +
+                "oldest and lowest quality.<br/><br/>" +
+                "<b>Quality</b> (Legacy): Auto picks for your GPU; Fast converts quickest, High looks best.<br/><br/>" +
+                "Changes apply the next time the game or container starts.";
         tvMessage.setText(android.text.Html.fromHtml(message, android.text.Html.FROM_HTML_MODE_LEGACY));
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
         dialog.show();
