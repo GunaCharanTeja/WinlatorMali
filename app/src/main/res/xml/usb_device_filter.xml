@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors DirectGamepHidRumbleEngine.isSupportedGamepad()'s vendor-id whitelist (values here are
+     decimal, as Android's usb-device-filter format requires; hex equivalents noted per entry).
+     Declaring this lets the system auto-grant (and remember, across unplug/replug) USB permission
+     for these controllers instead of showing the runtime "allow access?" dialog every time. -->
+<resources>
+    <usb-device vendor-id="1118" />  <!-- 0x045e Microsoft (Xbox) -->
+    <usb-device vendor-id="1356" />  <!-- 0x054c Sony (DualShock/DualSense) -->
+    <usb-device vendor-id="1406" />  <!-- 0x057e Nintendo -->
+    <usb-device vendor-id="9571" />  <!-- 0x2563 -->
+    <usb-device vendor-id="4607" />  <!-- 0x11ff -->
+    <usb-device vendor-id="8406" />  <!-- 0x20d6 -->
+    <usb-device vendor-id="4779" />  <!-- 0x12ab -->
+    <usb-device vendor-id="3727" />  <!-- 0x0e8f GreenAsia -->
+    <usb-device vendor-id="121" />   <!-- 0x0079 DragonRise -->
+    <usb-device vendor-id="2064" />  <!-- 0x0810 -->
+    <usb-device vendor-id="4933" />  <!-- 0x1345 -->
+    <usb-device vendor-id="11720" /> <!-- 0x2dc8 8BitDo -->
+    <usb-device vendor-id="5426" />  <!-- 0x1532 Razer -->
+    <usb-device vendor-id="1133" />  <!-- 0x046d Logitech -->
+    <usb-device vendor-id="7085" />  <!-- 0x1bad Mad Catz -->
+    <usb-device vendor-id="3853" />  <!-- 0x0f0d Hori -->
+    <usb-device vendor-id="12068" /> <!-- 0x2f24 GameSir -->
+    <usb-device vendor-id="12933" /> <!-- 0x3285 Flydigi -->
+</resources>

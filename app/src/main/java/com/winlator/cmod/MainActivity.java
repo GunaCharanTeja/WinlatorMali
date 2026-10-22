@@ -70,6 +70,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // The system cold-launched us because a whitelisted USB controller was just plugged in
+        // (see the USB_DEVICE_ATTACHED intent-filter in the manifest) -- permission for it is
+        // already auto-granted at this point, so just hand it to the rumble engine and get out of
+        // the way without building the real UI. This is what lets vibration keep working on
+        // reconnect without the user re-approving a permission dialog every single time.
+        if (android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(getIntent().getAction())) {
+            android.hardware.usb.UsbDevice device = getIntent().getParcelableExtra(android.hardware.usb.UsbManager.EXTRA_DEVICE);
+            if (device != null) {
+                com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(getApplicationContext())
+                        .requestPermissionOrOpen(device);
+            }
+            finish();
+            return;
+        }
+
         // Get shared preferences
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 

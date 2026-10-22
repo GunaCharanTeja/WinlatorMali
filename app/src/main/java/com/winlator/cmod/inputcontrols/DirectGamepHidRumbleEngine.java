@@ -504,10 +504,16 @@ public class DirectGamepHidRumbleEngine {
 
                 switch (session.protocol) {
                     case XINPUT_XBOX360: {
-                        if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, xinput8, xinput8.length, 30);
+                        // One transfer, not two: sending the identical report over both the bulk OUT
+                        // endpoint and a control transfer every single call doubles the time this
+                        // thread blocks on the USB connection the input-reader thread is also polling,
+                        // which is what causes stick input to stutter right when rumble fires. Only
+                        // fall back to the control transfer if the bulk write wasn't possible/failed.
+                        boolean sent = session.outEndpoint != null &&
+                                session.connection.bulkTransfer(session.outEndpoint, xinput8, xinput8.length, 30) >= 0;
+                        if (!sent) {
+                            session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, xinput8, xinput8.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0200, ifaceIndex, xinput8, xinput8.length, 30);
                         dispatched = true;
                         break;
                     }
@@ -530,10 +536,11 @@ public class DirectGamepHidRumbleEngine {
                         report[1] = (byte) 0xFF;
                         report[4] = (byte) (w8 & 0xFF);
                         report[5] = (byte) (s8 & 0xFF);
-                        if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, report, report.length, 30);
+                        boolean sent = session.outEndpoint != null &&
+                                session.connection.bulkTransfer(session.outEndpoint, report, report.length, 30) >= 0;
+                        if (!sent) {
+                            session.connection.controlTransfer(0x21, 0x09, 0x0205, ifaceIndex, report, report.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0205, ifaceIndex, report, report.length, 30);
                         dispatched = true;
                         break;
                     }
@@ -544,10 +551,11 @@ public class DirectGamepHidRumbleEngine {
                         report[2] = 0x03;
                         report[3] = (byte) (w8 & 0xFF);
                         report[4] = (byte) (s8 & 0xFF);
-                        if (session.outEndpoint != null) {
-                            session.connection.bulkTransfer(session.outEndpoint, report, report.length, 30);
+                        boolean sent = session.outEndpoint != null &&
+                                session.connection.bulkTransfer(session.outEndpoint, report, report.length, 30) >= 0;
+                        if (!sent) {
+                            session.connection.controlTransfer(0x21, 0x09, 0x0202, ifaceIndex, report, report.length, 30);
                         }
-                        session.connection.controlTransfer(0x21, 0x09, 0x0202, ifaceIndex, report, report.length, 30);
                         dispatched = true;
                         break;
                     }

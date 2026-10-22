@@ -52,6 +52,15 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Lets Android auto-grant (and remember across unplug/replug) USB permission for a
+                 whitelisted gamepad, instead of showing the runtime "allow access?" dialog on every
+                 reconnect. See MainActivity.onCreate for the attach-launch handling. -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/usb_device_filter" />
         </activity>
 
 
