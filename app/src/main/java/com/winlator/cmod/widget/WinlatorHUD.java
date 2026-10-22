@@ -38,7 +38,7 @@ public class WinlatorHUD extends View {
     public static final int STYLE_TILES    = 2;
     public static final int STYLE_ADAPTIVE = 3;
     public static final int STYLE_GLASS    = 4;  // Madeira glass, matching the WinMali Default controls
-    private int currentStyle = STYLE_ADAPTIVE;
+    private int currentStyle = STYLE_GLASS;
 
     public static final int PRESET_CUSTOM        = -1;
     public static final int PRESET_TOP_LEFT      = 0;
@@ -50,7 +50,7 @@ public class WinlatorHUD extends View {
     public static final int PRESET_BOTTOM_LEFT   = 6;
     public static final int PRESET_BOTTOM_CENTER = 7;
     public static final int PRESET_BOTTOM_RIGHT  = 8;
-    private int activePositionPreset = PRESET_TOP_LEFT;
+    private int activePositionPreset = PRESET_TOP_RIGHT;
 
     public static final int SHOW_FPS      = 1;
     public static final int SHOW_GPU      = 1<<1;
@@ -67,9 +67,10 @@ public class WinlatorHUD extends View {
     public static final int SHOW_CPU_TEMP = 1<<12;
     public static final int SHOW_LOCKED   = 1<<13;
     public static final int SHOW_LOWS     = 1<<14;
-    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_LOWS | SHOW_GRAPH | SHOW_BORDER | SHOW_LOCKED;
+    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_RENDERER | SHOW_BORDER | SHOW_LOCKED;
     // One-time switch of existing installs to the Glass style when it became the default.
     private static final String KEY_GLASS_DEFAULT_APPLIED = "hud_glass_default_applied";
+    private static final String KEY_TOP_RIGHT_DEFAULT_APPLIED = "hud_top_right_default_applied";
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -1325,7 +1326,19 @@ public class WinlatorHUD extends View {
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
         currentStyle = prefs.getInt(KEY_STYLE, (showMask & SHOW_MONO) != 0 ? STYLE_MONO : STYLE_GLASS);
-        if (!prefs.getBoolean(KEY_GLASS_DEFAULT_APPLIED, false)) {
+        if (!prefs.getBoolean(KEY_TOP_RIGHT_DEFAULT_APPLIED, false)) {
+            currentStyle = STYLE_GLASS;
+            showMask = SHOW_DEFAULT;
+            hudAlpha = 0.55f;
+            activePositionPreset = PRESET_TOP_RIGHT;
+            prefs.edit().putInt(KEY_STYLE, currentStyle)
+                 .putInt(KEY_SHOW, showMask)
+                 .putInt(KEY_ALPHA, 55)
+                 .putInt(KEY_POS_PRESET, PRESET_TOP_RIGHT)
+                 .remove(KEY_X).remove(KEY_Y)
+                 .putBoolean(KEY_TOP_RIGHT_DEFAULT_APPLIED, true)
+                 .putBoolean(KEY_GLASS_DEFAULT_APPLIED, true).apply();
+        } else if (!prefs.getBoolean(KEY_GLASS_DEFAULT_APPLIED, false)) {
             currentStyle = STYLE_GLASS;
             showMask &= ~SHOW_MONO;
             prefs.edit().putInt(KEY_STYLE, currentStyle).putInt(KEY_SHOW, showMask)
@@ -1337,12 +1350,12 @@ public class WinlatorHUD extends View {
         float scale = prefs.getFloat(KEY_SCALE, 1f);
         setScaleX(scale); setScaleY(scale);
 
-        activePositionPreset = prefs.getInt(KEY_POS_PRESET, prefs.contains(KEY_X) ? PRESET_CUSTOM : PRESET_TOP_LEFT);
+        activePositionPreset = prefs.getInt(KEY_POS_PRESET, prefs.contains(KEY_X) ? PRESET_CUSTOM : PRESET_TOP_RIGHT);
         if (activePositionPreset == PRESET_CUSTOM && prefs.contains(KEY_X)) {
             setX(prefs.getFloat(KEY_X, 16f));
             setY(prefs.getFloat(KEY_Y, 16f));
         } else {
-            post(() -> applyPositionPreset(activePositionPreset >= 0 ? activePositionPreset : PRESET_TOP_LEFT));
+            post(() -> applyPositionPreset(activePositionPreset >= 0 ? activePositionPreset : PRESET_TOP_RIGHT));
         }
 
         userEnabled = prefs.getBoolean(KEY_VIS, false);
@@ -1541,7 +1554,7 @@ public class WinlatorHUD extends View {
             hudAlpha = 0.55f;
             setAlpha(hudAlpha);
 
-            activePositionPreset = PRESET_TOP_LEFT;
+            activePositionPreset = PRESET_TOP_RIGHT;
 
             SharedPreferences.Editor ed = prefs.edit();
             ed.putBoolean(KEY_VIS, true);
@@ -1550,12 +1563,12 @@ public class WinlatorHUD extends View {
             ed.putBoolean(KEY_VERT, vertical);
             ed.putFloat(KEY_SCALE, 1.0f);
             ed.putInt(KEY_ALPHA, 55);
-            ed.putInt(KEY_POS_PRESET, PRESET_TOP_LEFT);
+            ed.putInt(KEY_POS_PRESET, PRESET_TOP_RIGHT);
             ed.remove(KEY_X);
             ed.remove(KEY_Y);
             ed.apply();
 
-            post(() -> applyPositionPreset(PRESET_TOP_LEFT));
+            post(() -> applyPositionPreset(PRESET_TOP_RIGHT));
 
             if (dataSource != null) dataSource.start();
             setVisibility(VISIBLE);

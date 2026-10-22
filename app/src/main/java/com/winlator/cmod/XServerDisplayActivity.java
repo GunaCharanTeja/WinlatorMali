@@ -1272,7 +1272,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 sbScale.setProgress((int)((scaleValue - 0.5f) / 1.5f * 100));
                 tvScale.setText(String.format(Locale.US, "%.1fx", scaleValue));
                 
-                spPreset.setSelection(1);
+                spPreset.setSelection(WinlatorHUD.PRESET_TOP_RIGHT + 1);
             }, 50);
         });
 

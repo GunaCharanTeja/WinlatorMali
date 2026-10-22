@@ -23,7 +23,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="12dp"
             android:alpha="0.8">
             <TextView
                 android:id="@+id/TVDetailHardware"
@@ -38,6 +38,36 @@
                 android:layout_height="wrap_content"
                 android:textSize="11sp"
                 android:textColor="?android:attr/textColorSecondary"/>
+        </LinearLayout>
+
+        <!-- Community Rating Section -->
+        <LinearLayout
+            android:id="@+id/LLVotingBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="14dp">
+
+            <Button
+                android:id="@+id/BTDetailLike"
+                style="@style/ButtonNeutral"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:textSize="12sp"
+                android:text="👍 Helpful (0)" />
+
+            <Button
+                android:id="@+id/BTDetailDislike"
+                style="@style/ButtonNeutral"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:textSize="12sp"
+                android:text="👎 Didn't Work (0)" />
+
         </LinearLayout>
 
         <View

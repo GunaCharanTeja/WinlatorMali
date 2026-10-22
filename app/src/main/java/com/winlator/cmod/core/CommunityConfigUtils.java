@@ -5,6 +5,7 @@ import android.os.Build;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.contents.WineDownloader;
 import com.winlator.cmod.box64.Box64PresetManager;
 import com.winlator.cmod.fexcore.FEXCorePresetManager;
 import com.winlator.cmod.R;
@@ -22,8 +23,8 @@ public class CommunityConfigUtils {
     public static JSONObject exportConfig(Context context, Shortcut shortcut, String overrideName, String overrideSteamId, String overrideImage, String notes, String configTitle) {
         try {
             String wineVersion = shortcut.container.getWineVersion();
-            // Only allow standard versions for sharing
-            if (!wineVersion.equals("proton-9.0-x86_64") && !wineVersion.equals("proton-9.0-arm64ec") && !wineVersion.equals("proton-10-arm64ec")) {
+            // Allow any installed Wine runtime in Winlator Mali 1.2
+            if (wineVersion == null || wineVersion.trim().isEmpty() || wineVersion.contains("(No Wine")) {
                 return null;
             }
 
@@ -115,6 +116,23 @@ public class CommunityConfigUtils {
             containerJson.put("fullscreenStretched", c.isFullscreenStretched());
             containerJson.put("startupSelection", c.getStartupSelection());
 
+            // 1.2 additions: RAM Booster, Input & Locale
+            containerJson.put("ramBoosterEnabled", c.isRamBoosterEnabled());
+            if (c.isRamBoosterEnabled()) {
+                containerJson.put("ramBoosterProfile", c.getRamBoosterProfile());
+                containerJson.put("ramBoosterCrisisThreshold", c.getRamBoosterCrisisThreshold());
+                containerJson.put("ramBoosterPreCrisisThreshold", c.getRamBoosterPreCrisisThreshold());
+                containerJson.put("ramBoosterCrisisIntensity", c.getRamBoosterCrisisIntensity());
+                containerJson.put("ramBoosterPreCrisisIntensity", c.getRamBoosterPreCrisisIntensity());
+            }
+            containerJson.put("exclusiveXInput", c.isExclusiveXInput());
+            if (c.getEmulationMode() != null) {
+                containerJson.put("emulationMode", c.getEmulationMode().name());
+            }
+            if (c.getLC_ALL() != null && !c.getLC_ALL().isEmpty()) {
+                containerJson.put("lc_all", c.getLC_ALL());
+            }
+
             // Only export envVars if different from default
             String envVarsStr = c.getEnvVars();
             if (!envVarsStr.equals(com.winlator.cmod.container.Container.DEFAULT_ENV_VARS)) {
@@ -171,18 +189,30 @@ public class CommunityConfigUtils {
 
             ContentsManager contentsManager = new ContentsManager(context);
             
-            // Ensure wineVersion is present and installed
-            String wineVersion = containerJson.optString("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
-            boolean isOfficial = false;
-            for (String v : context.getResources().getStringArray(R.array.wine_entries)) {
-                if (v.equals(wineVersion)) {
-                    isOfficial = true;
-                    break;
-                }
+            // Ensure wineVersion is present and installed in Winlator Mali 1.2
+            String wineVersion = containerJson.optString("wineVersion", "");
+            java.util.List<String> installedWine = WineDownloader.getInstalledWineVersions(context);
+            if (installedWine.isEmpty()) {
+                AppUtils.showToast(context, "No Wine runtimes installed. Please download one from Contents.");
+                callback.call(false);
+                return;
             }
 
-            if (!isOfficial && contentsManager.getProfileByEntryName(wineVersion) == null) {
-                wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
+            if (!installedWine.contains(wineVersion)) {
+                String fallbackWine = installedWine.get(0);
+                boolean isArm64EC = wineVersion.toLowerCase(Locale.ENGLISH).contains("arm64ec");
+                for (String w : installedWine) {
+                    if (isArm64EC && w.toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+                        fallbackWine = w;
+                        break;
+                    } else if (!isArm64EC && !w.toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+                        fallbackWine = w;
+                        break;
+                    }
+                }
+                String missingName = wineVersion.isEmpty() ? "Default" : wineVersion;
+                AppUtils.showToast(context, "Runtime '" + missingName + "' not installed. Using " + fallbackWine);
+                wineVersion = fallbackWine;
             }
             containerJson.put("wineVersion", wineVersion);
 
@@ -221,6 +251,19 @@ public class CommunityConfigUtils {
             String importedEnvVars = containerJson.optString("envVars", "");
             EnvVars containerEnvVars = new EnvVars(!importedEnvVars.isEmpty() ? importedEnvVars : com.winlator.cmod.container.Container.DEFAULT_ENV_VARS);
             containerJson.put("envVars", containerEnvVars.toString());
+
+            // Merge missing 1.2 default graphicsDriverConfig keys (BCn emulation, etc.) for older 1.1 configs
+            String importedGdc = containerJson.optString("graphicsDriverConfig", "");
+            if (!importedGdc.isEmpty()) {
+                java.util.HashMap<String, String> defaultGdc = com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog.parseGraphicsDriverConfig(com.winlator.cmod.container.Container.DEFAULT_GRAPHICSDRIVERCONFIG);
+                java.util.HashMap<String, String> currentGdc = com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog.parseGraphicsDriverConfig(importedGdc);
+                for (java.util.Map.Entry<String, String> entry : defaultGdc.entrySet()) {
+                    if (!currentGdc.containsKey(entry.getKey())) {
+                        currentGdc.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                containerJson.put("graphicsDriverConfig", com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog.toGraphicsDriverConfig(currentGdc));
+            }
 
             if (shortcutExtra != null) {
                 // Ensure steam_id and community_image are carried over from meta if not in shortcutExtra

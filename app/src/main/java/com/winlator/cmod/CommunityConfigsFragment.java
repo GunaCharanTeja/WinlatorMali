@@ -18,6 +18,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.CommunityConfigManager;
 import com.winlator.cmod.core.CommunityConfigUtils;
+import com.winlator.cmod.contents.WineDownloader;
+import android.text.Html;
+import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -37,6 +40,8 @@ public class CommunityConfigsFragment extends Fragment {
     private View progressBar;
     private JSONArray fullGameList;
     private GameAdapter adapter;
+    private JSONObject votesMap = new JSONObject();
+    private ConfigAdapter configSelectionAdapter;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -133,10 +138,15 @@ public class CommunityConfigsFragment extends Fragment {
                     adapter = new GameAdapter(games);
                     recyclerView.setAdapter(adapter);
                     llEmptyState.setVisibility(View.GONE);
+                } else if (games != null && games.length() == 0) {
+                    fullGameList = games;
+                    recyclerView.setAdapter(null);
+                    tvEmptyText.setText("No community configurations shared yet.\nBe the first to share your config from the Shortcuts menu!");
+                    llEmptyState.setVisibility(View.VISIBLE);
                 } else {
                     fullGameList = null;
                     recyclerView.setAdapter(null);
-                    tvEmptyText.setText("Failed to retrieve games list.");
+                    tvEmptyText.setText("Failed to retrieve games list.\nPlease check your connection or server status.");
                     llEmptyState.setVisibility(View.VISIBLE);
                 }
             });
@@ -204,8 +214,17 @@ public class CommunityConfigsFragment extends Fragment {
         listView.getLayoutParams().width = com.winlator.cmod.core.AppUtils.getPreferredDialogWidth(getContext());
         listView.setVisibility(View.VISIBLE);
 
-        ConfigAdapter adapter = new ConfigAdapter(getContext(), configs);
-        listView.setAdapter(adapter);
+        configSelectionAdapter = new ConfigAdapter(getContext(), configs);
+        listView.setAdapter(configSelectionAdapter);
+
+        CommunityConfigManager.fetchVotes(votes -> {
+            if (votes != null && getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    votesMap = votes;
+                    adapter.notifyDataSetChanged();
+                });
+            }
+        });
 
         listView.setOnItemClickListener((parent, view, position, id) -> {
             try {
@@ -252,6 +271,112 @@ public class CommunityConfigsFragment extends Fragment {
             }
 
             tvNotes.setText(notes);
+
+            android.widget.Button btLike = dialog.findViewById(R.id.BTDetailLike);
+            android.widget.Button btDislike = dialog.findViewById(R.id.BTDetailDislike);
+
+            String filename = configRef.optString("filename", "");
+            String configKey = gameName + "/" + filename;
+
+            JSONObject vObj = votesMap.optJSONObject(configKey);
+            final int[] counts = new int[]{
+                vObj != null ? vObj.optInt("likes", 0) : 0,
+                vObj != null ? vObj.optInt("dislikes", 0) : 0
+            };
+
+            android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(getContext());
+            String prefKey = "cfg_vote_" + configKey;
+            final int[] userVote = new int[]{ prefs.getInt(prefKey, 0) };
+
+            int defaultTextColor = tvNotes.getCurrentTextColor();
+            int colorLike = android.graphics.Color.parseColor("#4CAF50");
+            int colorDislike = android.graphics.Color.parseColor("#F44336");
+
+            Runnable updateVoteUi = () -> {
+                if (userVote[0] == 1) {
+                    btLike.setText("👍 Helpful (" + counts[0] + ") ✓");
+                    btLike.setTextColor(colorLike);
+                    btDislike.setText("👎 Didn't Work (" + counts[1] + ")");
+                    btDislike.setTextColor(defaultTextColor);
+                } else if (userVote[0] == -1) {
+                    btLike.setText("👍 Helpful (" + counts[0] + ")");
+                    btLike.setTextColor(defaultTextColor);
+                    btDislike.setText("👎 Didn't Work (" + counts[1] + ") ✓");
+                    btDislike.setTextColor(colorDislike);
+                } else {
+                    btLike.setText("👍 Helpful (" + counts[0] + ")");
+                    btLike.setTextColor(defaultTextColor);
+                    btDislike.setText("👎 Didn't Work (" + counts[1] + ")");
+                    btDislike.setTextColor(defaultTextColor);
+                }
+            };
+            updateVoteUi.run();
+
+            final boolean[] isVoting = new boolean[]{false};
+
+            btLike.setOnClickListener(v -> {
+                if (isVoting[0]) return;
+                isVoting[0] = true;
+                btLike.postDelayed(() -> isVoting[0] = false, 600);
+
+                int target = (userVote[0] == 1) ? 0 : 1;
+                if (userVote[0] == 1) counts[0] = Math.max(0, counts[0] - 1);
+                if (userVote[0] == -1) counts[1] = Math.max(0, counts[1] - 1);
+                if (target == 1) counts[0]++;
+                userVote[0] = target;
+                prefs.edit().putInt(prefKey, target).apply();
+                updateVoteUi.run();
+
+                CommunityConfigManager.submitVote(getContext(), configKey, target, res -> {
+                    if (res != null && getActivity() != null) {
+                        counts[0] = res.optInt("likes", counts[0]);
+                        counts[1] = res.optInt("dislikes", counts[1]);
+                        userVote[0] = res.optInt("user_vote", userVote[0]);
+                        getActivity().runOnUiThread(() -> {
+                            updateVoteUi.run();
+                            try {
+                                JSONObject updated = new JSONObject();
+                                updated.put("likes", counts[0]);
+                                updated.put("dislikes", counts[1]);
+                                votesMap.put(configKey, updated);
+                                if (configSelectionAdapter != null) configSelectionAdapter.notifyDataSetChanged();
+                            } catch (Exception ignored) {}
+                        });
+                    }
+                });
+            });
+
+            btDislike.setOnClickListener(v -> {
+                if (isVoting[0]) return;
+                isVoting[0] = true;
+                btDislike.postDelayed(() -> isVoting[0] = false, 600);
+
+                int target = (userVote[0] == -1) ? 0 : -1;
+                if (userVote[0] == 1) counts[0] = Math.max(0, counts[0] - 1);
+                if (userVote[0] == -1) counts[1] = Math.max(0, counts[1] - 1);
+                if (target == -1) counts[1]++;
+                userVote[0] = target;
+                prefs.edit().putInt(prefKey, target).apply();
+                updateVoteUi.run();
+
+                CommunityConfigManager.submitVote(getContext(), configKey, target, res -> {
+                    if (res != null && getActivity() != null) {
+                        counts[0] = res.optInt("likes", counts[0]);
+                        counts[1] = res.optInt("dislikes", counts[1]);
+                        userVote[0] = res.optInt("user_vote", userVote[0]);
+                        getActivity().runOnUiThread(() -> {
+                            updateVoteUi.run();
+                            try {
+                                JSONObject updated = new JSONObject();
+                                updated.put("likes", counts[0]);
+                                updated.put("dislikes", counts[1]);
+                                votesMap.put(configKey, updated);
+                                if (configSelectionAdapter != null) configSelectionAdapter.notifyDataSetChanged();
+                            } catch (Exception ignored) {}
+                        });
+                    }
+                });
+            });
 
             dialog.setOnConfirmCallback(() -> {
                 try {
@@ -318,6 +443,28 @@ public class CommunityConfigsFragment extends Fragment {
                     tvTime.setVisibility(View.VISIBLE);
                 } else tvTime.setVisibility(View.GONE);
 
+                String filename = item.optString("filename", "");
+                String game = item.optString("game", "");
+                String configKey = (game.isEmpty() ? "" : game + "/") + filename;
+                JSONObject voteObj = votesMap.optJSONObject(configKey);
+                View llRating = convertView.findViewById(R.id.LLRatingBadge);
+                TextView tvLike = convertView.findViewById(R.id.TVLikeBadge);
+                TextView tvDislike = convertView.findViewById(R.id.TVDislikeBadge);
+
+                if (voteObj != null && llRating != null && tvLike != null && tvDislike != null) {
+                    int likes = voteObj.optInt("likes", 0);
+                    int dislikes = voteObj.optInt("dislikes", 0);
+                    if (likes > 0 || dislikes > 0) {
+                        tvLike.setText("👍 " + likes);
+                        tvDislike.setText("👎 " + dislikes);
+                        llRating.setVisibility(View.VISIBLE);
+                    } else {
+                        llRating.setVisibility(View.GONE);
+                    }
+                } else if (llRating != null) {
+                    llRating.setVisibility(View.GONE);
+                }
+
                 ivIcon.setImageResource(android.R.drawable.ic_menu_info_details);
                 boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getBoolean("dark_mode", true);
                 ivIcon.setColorFilter(isDarkMode ? android.graphics.Color.WHITE : android.graphics.Color.BLACK);
@@ -347,45 +494,152 @@ public class CommunityConfigsFragment extends Fragment {
                 if (maintenance != null) {
                     ContentDialog.alert(getContext(), maintenance, null);
                 } else if (root != null) {
-                    String confirmMsg = "Import this configuration?";
-                    if (notes != null && !notes.isEmpty()) {
-                        confirmMsg += "\n\n" + notes;
-                    }
+                    checkWineAndConfirmImport(activity, root, notes);
+                } else {
+                    ContentDialog.alert(getContext(), "Failed to download configuration. Please check your internet connection.", null);
+                }
+            });
+        });
+    }
 
-                    ContentDialog.confirm(getContext(), confirmMsg, () -> {
-                        activity.preloaderDialog.show("Importing Configuration...");
-                        CommunityConfigUtils.importConfig(getContext(), root, activity.getContainerManager(), success -> {
-                            activity.runOnUiThread(() -> {
-                                activity.preloaderDialog.close();
-                                if (success) {
-                                    try {
-                                        JSONObject container = root.getJSONObject("container");
-                                        String wine = container.optString("wineVersion", "Default");
-                                        String driver = container.optString("graphicsDriver", "Default");
-                                        String dx = container.optString("dxwrapper", "Default");
+    private void checkWineAndConfirmImport(MainActivity activity, JSONObject root, String notes) {
+        try {
+            JSONObject container = root.getJSONObject("container");
+            String gameName = root.getJSONObject("meta").getString("game_name");
+            String requiredWine = container.optString("wineVersion", "Default");
 
-                                        String message = "<b>Imported successfully!</b><br><br>" +
-                                                "A new container has been created with community settings.<br><br>" +
-                                                "<b>Imported Setup:</b><br>" +
-                                                "• Wine: " + wine + "<br>" +
-                                                "• GPU Driver: " + driver + "<br>" +
-                                                "• DX Wrapper: " + dx + "<br><br>" +
-                                                "<b>How to use:</b><br>" +
-                                                "1. Go to <b>Containers</b>.<br>" +
-                                                "2. Run <b>[Community] " + root.getJSONObject("meta").getString("game_name") + "</b>.<br>" +
-                                                "3. Find your game EXE in Drive D: and play!";
-                                        ContentDialog.alert(getContext(), message, null);
-                                    } catch (Exception e) {
-                                        Toast.makeText(getContext(), "Imported with minor errors.", Toast.LENGTH_SHORT).show();
-                                    }
-                                } else {
-                                    Toast.makeText(getContext(), "Import failed.", Toast.LENGTH_LONG).show();
-                                }
-                            });
+            List<String> installed = WineDownloader.getInstalledWineVersions(activity);
+            boolean isInstalled = false;
+            for (String w : installed) {
+                if (w.equalsIgnoreCase(requiredWine)) {
+                    isInstalled = true;
+                    break;
+                }
+            }
+
+            if (!isInstalled) {
+                // The recommended runtime is not installed!
+                ContentDialog dialog = new ContentDialog(activity);
+                dialog.setTitle("Wine Runtime Notice");
+
+                dialog.getContentView().setMinimumWidth((int) com.winlator.cmod.core.UnitUtils.dpToPx(330));
+                dialog.setCanceledOnTouchOutside(true);
+
+                if (installed.isEmpty()) {
+                    String msg = "This configuration recommends:<br><br>" +
+                            "<b><font color='#4CAF50'>" + requiredWine + "</font></b><br><br>" +
+                            "No Wine or Proton runtimes are installed on your device yet.<br><br>" +
+                            "Please download <b>" + requiredWine + "</b> from Contents to use this setup.";
+                    dialog.setMessage(msg);
+                    TextView btConfirm = dialog.findViewById(R.id.BTConfirm);
+                    btConfirm.setText("DOWNLOAD");
+                    dialog.setOnConfirmCallback(() -> {
+                        WineDownloader.showDownloadDialog(activity, () -> {
+                            checkWineAndConfirmImport(activity, root, notes);
                         });
                     });
                 } else {
-                    ContentDialog.alert(getContext(), "Failed to download configuration. Please check your internet connection.", null);
+                    String fallbackWine = installed.get(0);
+                    boolean isArm64EC = requiredWine.toLowerCase(Locale.ENGLISH).contains("arm64ec");
+                    for (String w : installed) {
+                        if (isArm64EC && w.toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+                            fallbackWine = w;
+                            break;
+                        } else if (!isArm64EC && !w.toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+                            fallbackWine = w;
+                            break;
+                        }
+                    }
+                    final String chosenFallback = fallbackWine;
+                    String msg = "This configuration recommends:<br><br>" +
+                            "<b><font color='#4CAF50'>" + requiredWine + "</font></b><br><br>" +
+                            "It is not currently installed on your device.<br><br>" +
+                            (installed.size() > 1
+                                    ? "Would you like to download <b>" + requiredWine + "</b> now, or select one of your installed runtimes?"
+                                    : "Would you like to download <b>" + requiredWine + "</b> now, or continue using your installed runtime (<b>" + chosenFallback + "</b>)?");
+                    dialog.setMessage(msg);
+
+                    int padH = (int) com.winlator.cmod.core.UnitUtils.dpToPx(12);
+                    TextView btConfirm = dialog.findViewById(R.id.BTConfirm);
+                    btConfirm.setText("DOWNLOAD");
+                    btConfirm.setPadding(padH, 0, padH, 0);
+
+                    TextView btCancel = dialog.findViewById(R.id.BTCancel);
+                    btCancel.setText("USE INSTALLED");
+                    btCancel.setPadding(padH, 0, padH, 0);
+
+                    dialog.setOnConfirmCallback(() -> {
+                        WineDownloader.showDownloadDialog(activity, () -> {
+                            checkWineAndConfirmImport(activity, root, notes);
+                        });
+                    });
+                    dialog.setOnCancelCallback(() -> {
+                        if (installed.size() > 1) {
+                            ContentDialog.showSingleChoiceList(activity, "Select Wine Runtime", installed.toArray(new String[0]), position -> {
+                                try {
+                                    String selectedWine = installed.get(position);
+                                    root.getJSONObject("container").put("wineVersion", selectedWine);
+                                } catch (Exception ignored) {}
+                                executeImport(activity, root);
+                            });
+                        } else if (!installed.isEmpty()) {
+                            try {
+                                root.getJSONObject("container").put("wineVersion", installed.get(0));
+                            } catch (Exception ignored) {}
+                            executeImport(activity, root);
+                        } else {
+                            executeImport(activity, root);
+                        }
+                    });
+                }
+                dialog.show();
+            } else {
+                // Wine is installed! Show standard confirmation
+                String confirmMsg = "Import configuration for <b>" + gameName + "</b>?<br><br>" +
+                        "Wine runtime: <b>" + requiredWine + "</b>";
+                if (notes != null && !notes.isEmpty()) {
+                    confirmMsg += "<br><br><b>Notes:</b><br>" + notes.replace("\n", "<br>");
+                }
+
+                ContentDialog dialog = new ContentDialog(activity);
+                dialog.setTitle("Import Configuration");
+                dialog.setMessage(confirmMsg);
+                dialog.setOnConfirmCallback(() -> executeImport(activity, root));
+                dialog.show();
+            }
+        } catch (Exception e) {
+            executeImport(activity, root);
+        }
+    }
+
+    private void executeImport(MainActivity activity, JSONObject root) {
+        activity.preloaderDialog.show("Importing Configuration...");
+        CommunityConfigUtils.importConfig(getContext(), root, activity.getContainerManager(), success -> {
+            activity.runOnUiThread(() -> {
+                activity.preloaderDialog.close();
+                if (success) {
+                    try {
+                        JSONObject container = root.getJSONObject("container");
+                        String wine = container.optString("wineVersion", "Default");
+                        String driver = container.optString("graphicsDriver", "Default");
+                        String dx = container.optString("dxwrapper", "Default");
+
+                        String message = "<b>Imported successfully!</b><br><br>" +
+                                "A new container has been created with community settings.<br><br>" +
+                                "<b>Imported Setup:</b><br>" +
+                                "• Wine: " + wine + "<br>" +
+                                "• GPU Driver: " + driver + "<br>" +
+                                "• DX Wrapper: " + dx + "<br><br>" +
+                                "<b>How to use:</b><br>" +
+                                "1. Go to <b>Containers</b>.<br>" +
+                                "2. Run <b>[Community] " + root.getJSONObject("meta").getString("game_name") + "</b>.<br>" +
+                                "3. Find your game EXE in Drive D: and play!";
+                        ContentDialog.alert(getContext(), message, null);
+                    } catch (Exception e) {
+                        Toast.makeText(getContext(), "Imported with minor errors.", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    Toast.makeText(getContext(), "Import failed.", Toast.LENGTH_LONG).show();
                 }
             });
         });

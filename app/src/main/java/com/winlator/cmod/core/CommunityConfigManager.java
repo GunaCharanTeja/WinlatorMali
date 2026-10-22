@@ -12,6 +12,9 @@ import java.nio.charset.StandardCharsets;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.util.concurrent.Executors;
+import android.content.Context;
+import android.provider.Settings;
+import java.security.MessageDigest;
 
 public class CommunityConfigManager {
     public static final String PROXY_URL = "https://win-mali-proxy.teja44951.workers.dev/";
@@ -163,6 +166,77 @@ public class CommunityConfigManager {
                 }
             } catch (Exception e) {
                 callback.call(e.getMessage() != null ? e.getMessage() : "Unknown network error");
+            }
+        });
+    }
+
+    public static void fetchVotes(Callback<JSONObject> callback) {
+        HttpUtils.download(PROXY_URL + "?action=votes", data -> {
+            try {
+                if (data != null && data.startsWith("{")) {
+                    callback.call(new JSONObject(data));
+                } else {
+                    callback.call(new JSONObject());
+                }
+            } catch (Exception e) {
+                callback.call(new JSONObject());
+            }
+        });
+    }
+
+        public static String getDeviceId(Context context) {
+        android.content.SharedPreferences sp = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
+        String id = sp.getString("community_voter_uuid", null);
+        if (id == null || id.isEmpty()) {
+            String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+            String raw = (androidId != null && !androidId.isEmpty()) ? androidId : java.util.UUID.randomUUID().toString();
+            try {
+                MessageDigest md = MessageDigest.getInstance("SHA-256");
+                byte[] digest = md.digest(raw.getBytes(StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                for (byte b : digest) sb.append(String.format("%02x", b));
+                id = sb.toString().substring(0, 16);
+            } catch (Exception e) {
+                id = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            }
+            sp.edit().putString("community_voter_uuid", id).apply();
+        }
+        return id;
+    }
+
+    public static void submitVote(Context context, String configId, int vote, Callback<JSONObject> callback) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                String deviceHash = getDeviceId(context);
+
+                JSONObject req = new JSONObject();
+                req.put("config_id", configId);
+                req.put("vote", vote);
+                req.put("device_id", deviceHash);
+
+                String payload = req.toString();
+                HttpURLConnection conn = (HttpURLConnection) new URL(PROXY_URL + "?action=vote").openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+                conn.setDoOutput(true);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(payload.getBytes(StandardCharsets.UTF_8));
+                }
+
+                int code = conn.getResponseCode();
+                if (code >= 200 && code < 300) {
+                    byte[] bytes = StreamUtils.copyToByteArray(conn.getInputStream());
+                    String resStr = new String(bytes, StandardCharsets.UTF_8);
+                    JSONObject resObj = new JSONObject(resStr);
+                    if (callback != null) callback.call(resObj);
+                } else {
+                    if (callback != null) callback.call(null);
+                }
+            } catch (Exception e) {
+                if (callback != null) callback.call(null);
             }
         });
     }

@@ -1058,7 +1058,7 @@ public class ShortcutsFragment extends Fragment {
                         });
                     });
                 } else {
-                    ContentDialog.alert(context, "Only standard Wine versions (Proton 9.0/10) can be shared.", null);
+                    ContentDialog.alert(context, "Please configure and select a valid Wine runtime before sharing.", null);
                 }
             });
         }

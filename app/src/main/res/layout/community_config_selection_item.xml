@@ -50,13 +50,51 @@
 
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/TVTimestamp"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="10sp"
-        android:textColor="?android:attr/textColorSecondary"
-        android:alpha="0.6"
-        android:text="2d ago"/>
+        android:orientation="vertical"
+        android:gravity="end|center_vertical"
+        android:layout_marginStart="8dp">
+
+        <TextView
+            android:id="@+id/TVTimestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:alpha="0.6"
+            android:text="2d ago"/>
+
+        <LinearLayout
+            android:id="@+id/LLRatingBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/TVLikeBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="#4CAF50"
+                android:text="👍 0"
+                android:layout_marginEnd="6dp"/>
+
+            <TextView
+                android:id="@+id/TVDislikeBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="#F44336"
+                android:text="👎 0"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>
