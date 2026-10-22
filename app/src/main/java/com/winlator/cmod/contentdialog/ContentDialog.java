@@ -38,8 +38,27 @@ public class ContentDialog extends Dialog {
 
     private View inflatedLayout;
 
+    private final boolean controllerNavigation;
+    private boolean controllerHighlightAttached;
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (controllerNavigation && !controllerHighlightAttached) {
+            controllerHighlightAttached = true;
+            com.winlator.cmod.core.ControllerNavigation.attach(getWindow());
+        }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(@NonNull android.view.KeyEvent event) {
+        if (controllerNavigation) return com.winlator.cmod.core.ControllerNavigation.dispatch(event, getWindow(), super::dispatchKeyEvent);
+        return super.dispatchKeyEvent(event);
+    }
+
     public ContentDialog(@NonNull Context context, int layoutResId) {
         super(context, com.winlator.cmod.ThemeManager.isDarkMode(context) ? R.style.ContentDialog_Dark : R.style.ContentDialog);
+        controllerNavigation = com.winlator.cmod.core.ControllerNavigation.isEnabledFor(context);
         contentView = LayoutInflater.from(context).inflate(R.layout.content_dialog, null);
 
 

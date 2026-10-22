@@ -78,6 +78,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ThemeManager.applyTheme(this);
 
         setContentView(R.layout.main_activity);
+        com.winlator.cmod.core.ControllerNavigation.attach(getWindow());
 
         drawerLayout = findViewById(R.id.DrawerLayout);
         NavigationView navigationView = findViewById(R.id.NavigationView);
@@ -206,6 +207,73 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             MenuItem item = navigationView.getMenu().findItem(R.id.main_menu_adrenotools_gpu_drivers);
             if (item != null) {
                 item.setVisible(forceShowAdreno || com.winlator.cmod.core.GPUInformation.isAdrenoGPU(this));
+            }
+        }
+    }
+
+    // Main sections L1/R1 cycle through, in drawer order (About is a dialog, not a section).
+    private static final int[] CONTROLLER_SECTIONS = {
+        R.id.main_menu_shortcuts, R.id.main_menu_containers, R.id.main_menu_input_controls,
+        R.id.main_menu_contents, R.id.main_menu_community_configs, R.id.main_menu_file_manager,
+        R.id.main_menu_manage_graphics_drivers, R.id.main_menu_adrenotools_gpu_drivers, R.id.main_menu_settings
+    };
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        boolean up = event.getAction() == android.view.KeyEvent.ACTION_UP;
+        switch (event.getKeyCode()) {
+            case android.view.KeyEvent.KEYCODE_BUTTON_START:
+                if (up) toggleDrawerForController();
+                return true;
+            case android.view.KeyEvent.KEYCODE_BUTTON_SELECT: {
+                if (up) {
+                    androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.Toolbar);
+                    if (toolbar != null) toolbar.showOverflowMenu();
+                }
+                return true;
+            }
+            case android.view.KeyEvent.KEYCODE_BUTTON_L1:
+                if (up) switchSectionForController(-1);
+                return true;
+            case android.view.KeyEvent.KEYCODE_BUTTON_R1:
+                if (up) switchSectionForController(1);
+                return true;
+        }
+        return com.winlator.cmod.core.ControllerNavigation.dispatch(event, getWindow(), super::dispatchKeyEvent);
+    }
+
+    private void toggleDrawerForController() {
+        if (drawerLayout == null) return;
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+            return;
+        }
+        drawerLayout.openDrawer(GravityCompat.START);
+        NavigationView navigationView = findViewById(R.id.NavigationView);
+        if (navigationView != null) navigationView.post(navigationView::requestFocus);
+    }
+
+    private void switchSectionForController(int direction) {
+        // Not while a sub-screen (e.g. the save folder picker) is stacked on top, or the editor flow is open.
+        if (editInputControls || getSupportFragmentManager().getBackStackEntryCount() > 0) return;
+        NavigationView navigationView = findViewById(R.id.NavigationView);
+        if (navigationView == null) return;
+
+        MenuItem checked = navigationView.getCheckedItem();
+        int current = -1;
+        for (int i = 0; i < CONTROLLER_SECTIONS.length; i++) {
+            if (checked != null && checked.getItemId() == CONTROLLER_SECTIONS[i]) current = i;
+        }
+        if (current < 0) current = direction > 0 ? -1 : 0;
+
+        int count = CONTROLLER_SECTIONS.length;
+        for (int step = 1; step <= count; step++) {
+            int index = ((current + direction * step) % count + count) % count;
+            MenuItem item = navigationView.getMenu().findItem(CONTROLLER_SECTIONS[index]);
+            if (item != null && item.isVisible()) {
+                navigationView.setCheckedItem(item);
+                onNavigationItemSelected(item);
+                return;
             }
         }
     }

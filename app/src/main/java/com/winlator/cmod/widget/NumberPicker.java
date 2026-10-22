@@ -39,6 +39,9 @@ public class NumberPicker extends FrameLayout implements View.OnTouchListener {
         editText = findViewById(R.id.EditText);
         findViewById(R.id.BTDecrement).setOnTouchListener(this);
         findViewById(R.id.BTIncrement).setOnTouchListener(this);
+        // Touch is consumed above, so these only fire for a controller / keyboard "press".
+        findViewById(R.id.BTDecrement).setOnClickListener(this::onButtonClick);
+        findViewById(R.id.BTIncrement).setOnClickListener(this::onButtonClick);
 
         if (attrs != null) {
             TypedArray ta = context.obtainStyledAttributes(attrs, R.styleable.NumberPicker);
