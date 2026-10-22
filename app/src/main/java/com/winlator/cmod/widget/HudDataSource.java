@@ -24,6 +24,8 @@ public class HudDataSource {
     public final java.util.concurrent.atomic.AtomicBoolean batteryCharging = new java.util.concurrent.atomic.AtomicBoolean(false);
     public final AtomicInteger batteryTempC  = new AtomicInteger(-1);
     public final AtomicInteger cpuTempC      = new AtomicInteger(-1);
+    // PowerManager thermal status (THERMAL_STATUS_NONE..SHUTDOWN), the fallback when the CPU temperature is blocked.
+    public final AtomicInteger thermalStatus = new AtomicInteger(-1);
     public final AtomicInteger batteryPct    = new AtomicInteger(-1);
     public final AtomicInteger ramUsagePct  = new AtomicInteger(-1);
 
@@ -326,6 +328,11 @@ public class HudDataSource {
     }
 
     private void pollCpuTemp() {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) thermalStatus.set(pm.getCurrentThermalStatus());
+        } catch (Exception ignored) {}
+
         for (String p : discoverCpuTempPaths()) {
             int v = readInt(p);
             if (v > 0) {

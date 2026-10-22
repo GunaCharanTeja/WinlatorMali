@@ -124,7 +124,7 @@ public class WinlatorHUD extends View {
     private long lastOnFrameNs = 0;
     private float snapFps = 0;
 
-    private int snapGpu=-1, snapGpuMhz=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
+    private int snapGpu=-1, snapGpuMhz=-1, snapThermal=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
     private String rendererLabel = "EGL";
     private boolean isNative = false;
 
@@ -388,9 +388,15 @@ public class WinlatorHUD extends View {
                 strTmp = (tmp > 0) ? tmp + "°C" : "";
             }
             int ctmp = dataSource.cpuTempC.get();
-            if (ctmp != snapCTmp) {
+            int thermal = dataSource.thermalStatus.get();
+            if (ctmp != snapCTmp || thermal != snapThermal) {
                 snapCTmp = ctmp;
-                strCTmp = (ctmp > 0) ? ctmp + "°C" : "";
+                snapThermal = thermal;
+                // Where the CPU temperature is blocked for apps, Android's thermal status still says how hot it runs.
+                String[] levels = {"Normal", "Light", "Moderate", "Severe", "Critical", "Emergency", "Shutdown"};
+                if (ctmp > 0) strCTmp = ctmp + "°C";
+                else if (thermal >= 0 && thermal < levels.length) strCTmp = levels[thermal];
+                else strCTmp = "";
             }
             int pct = dataSource.batteryPct.get();
             if (pct != snapPct) {
