@@ -110,6 +110,23 @@ The 1.2 Bionic release represents a comprehensive architectural overhaul over v1
 
 ---
 
+#### 🛠️ Bug Fixes, Stability & Refinements
+* **Crash Fixes**: Fixed crash when opening the integrated File Manager.
+* **Storage Info Dialog**: Fixed the 0% usage calculation bug and clipped circular progress indicator.
+* **USB Controller Reconnection**: Handled background/resume transitions cleanly without locking USB device handles, and fixed Android 12+ immutable permission flags.
+* **Touch & Mouse Pointers**: Resolved cursor getting trapped in corners caused by NaN cursor speeds, and fixed touch-event forwarding.
+* **Touchscreen & Radial Wheel Disentanglement**: Fixed an issue where touch controls could be disabled by default or inadvertently conflict with radial wheel triggers.
+* **Controls Profile Reset**: Made profile reset non-destructive, preserving custom icons, button placements, and imported `.icp`/`.icpx` assets.
+* **Icon Rendering Pipeline**: Fixed integer ID overflow, restored 100% icon opacity for custom imported assets, and added proper AndroidSVG vector parsing.
+* **Audio Routing**: Fixed PulseAudio-GN identifier mismatch and library loader paths.
+* **Multiplayer LAN**: Fixed LAN multiplayer local IP detection.
+* **Container Environment Variables**: Ensured default environment variable migrations run strictly once so that user deletions and custom edits permanently persist.
+
+#### 📝 Many More Things to Discover!
+In addition to the highlights above, **hundreds of smaller fixes, performance optimizations, memory leak resolutions, layout adjustments, and internal refinements** have been incorporated across the entire codebase that you will discover while navigating the app and playing your favorite games.
+
+---
+
 ### ⚡ Winlator Mali Bionic 1.1
 * **Hybrid x86 FEXCore**: Custom hybrid translation mode that enables software emulation only where strictly necessary (e.g. game physics calculations), while running the rest of the x86 code natively. Resolved broken physics in titles like *Assassin's Creed Brotherhood* and *Assassin's Creed Revelations* without needing to disable x86 Reduced Precision globally.
 * **Unreal Engine 3 Preset**: Dedicated optimization profile tested on titles such as *X-Men Origins: Wolverine*.
