@@ -10,7 +10,7 @@
 [![Architecture](https://img.shields.io/badge/Architecture-ARM64--v8a-purple.svg)](https://en.wikipedia.org/wiki/AArch64)
 [![License](https://img.shields.io/badge/License-GPL%20v3%20%2F%20LGPL%20v2.1%20%2F%20MIT-lightgrey.svg)](LICENSE)
 
-**Winlator Mali** is a dedicated Windows (x86 / x86_64) emulation environment for Android, specifically architected and optimized to bring PC gaming to devices powered by **ARM Mali and Immortalis GPUs** (MediaTek Dimensity, Samsung Exynos, and Google Tensor SoCs), while retaining full compatibility with Qualcomm Adreno devices.
+**Winlator Mali** is a dedicated Windows (x86 and x86_64) emulation environment for Android, specifically architected and optimized to bring PC gaming to devices powered by **ARM Mali and Immortalis GPUs** (MediaTek Dimensity, Samsung Exynos, and Google Tensor SoCs), while retaining full compatibility with Qualcomm Adreno devices.
 
 Built upon the high-performance **Android Bionic C runtime** (originating from Pipetto Cripto's Winlator Bionic fork), Winlator Mali bypasses traditional PRoot container and syscall-translation overhead, achieving near-native execution speed, reduced CPU bottlenecking, and superior thermal efficiency.
 
@@ -30,16 +30,60 @@ Standard Winlator distributions have traditionally centered on Qualcomm Snapdrag
 ## Release History & Evolution
 
 ### 🚀 Winlator Mali Bionic 1.2 *(Current Release — Branch `bionic-mali-1.2`)*
-The definitive 1.2 release brings persistent caching, next-generation frame interpolation, kernel-direct telemetry, cloud ecosystem upgrades, and full controller navigation:
-* **Persistent BCn Texture Disk Cache (`WRAPPER_USE_BCN_CACHE=1`)**: Eliminates the persistent stutter on game boot by caching transcoded ASTC/ETC2 textures to disk storage. Subsequent launches load pre-transcoded textures instantly.
-* **Native Direct Bypass Toggle**: Added a per-container and per-game toggle to bypass BCn translation entirely for titles that do not require it or on GPUs with native capabilities.
-* **Restored & Unified Vulkan Wrapper Suite**: Brought back all 5 switchable Vulkan wrapper profiles directly manageable inside *Manage Graphics Drivers* (`Wrapper` latest unified build, `Wrapper-1.1`, `Wrapper-v2`, `Wrapper-leegao`, and `Wrapper-gamenative`).
-* **ZeroFG Frame Generation Engine**: Complete upgrade to the ZeroFG frame interpolation engine, customized with Mali-specific compute shaders (`rc3_mali_d2`, `rc3_mali_d4`, `rc3_mali_d5a`, `rc3_mali_d5b`, subgroup motion search, optical flow lattice, and split resolve passes) for high perceived fluidity.
-* **Kernel-Direct Hardware Telemetry (Winlator HUD)**: Reads actual Mali GPU load (%) and clock frequency (MHz) straight from Linux kernel sysfs interfaces (`/sys/class/misc/mali0/device/utilization`, `/sys/class/devfreq/...cur_freq`), calculates real per-tick game CPU usage, displays accurate battery discharge wattage (Watts), thermal state, 1% and 0.1% frametime lows, a live frametime graph, and Madeira Glass styling.
-* **Native USB Gamepad & Dual-Motor Vibration**: Direct USB controller attachment via Android USB Host mode (`usb_device_filter.xml`) with persistent auto-grant permissions, true dual-motor haptic rumble (Xbox, PlayStation DualShock/DualSense, and X-Input), and complete D-Pad / Controller UI navigation across all dialogs and menus.
-* **Community Configs Cloud Ratings & Downloader**: Integrated Cloudflare Workers & KV voting system (**Helpful** 👍 / **Didn't Work** 👎) with persistent anonymous voter UUIDs, anti-spam rate limiting, automated Mali/Adreno compatibility badges, and an interactive unbundled Wine downloader flow.
-* **SteamGridDB 16:9 Hero Art & Universal Save Manager**: Automated scraping and selection of 16:9 widescreen hero banners, fullscreen preloader splash screens, and universal save backup/restoration with automatic detection for standard paths and cracked game releases (`Goldberg`, `CODEX`, `FLT`, `EMPRESS`, `RUNE`, etc.).
-* **In-App About Dialog Overhaul**: Fully scrollable in-app About dialog showcasing branch features, full developer credits, and clickable open-source licenses.
+The 1.2 Bionic release represents a comprehensive overhaul of the graphics pipeline, frame generation engine, user interface, input controls, hardware telemetry, and cloud ecosystem compared to v1.1:
+
+#### 🎨 Complete UI Revamp & Modernization
+* **All-New Theme System**: Integrated custom theme engine (`ThemeManager`) with Material styling, custom dark and light themes, and user-configurable accent palettes (`CustomThemeDialog`).
+* **Inter Typography**: Standardized the entire UI, controls, and dialogs on **Inter SemiBold** (`Inter.ttf`, SIL Open Font License 1.1) for high legibility across high-DPI displays.
+* **Modern Card-Based Views**: Redesigned Adrenotools, Save Manager, Input Controls, Manage Graphics Drivers, and Shortcut lists with clean card boundaries, soft drop-shadows, and confirmation prompts.
+* **Overhauled Scrollable About Section**: Redesigned scrollable dialog showcasing architecture highlights, complete developer credits, and clickable open-source licenses.
+* **Fullscreen Cinematic Preloader**: Displays custom 16:9 SteamGridDB hero banners with a refined loading scrim while games initialize.
+* **Official Vector Component Icons**: Added official branded vector logos and icons for Wine, Box64, FEXCore, DXVK, VKD3D, and Proton.
+
+#### ⚡ ZeroFG Replaces APEX Frame Generation
+* **Legacy APEX / MCFI Removed**: Completely stripped out the older APEX frame generation system and its legacy shader materials.
+* **ZeroFG Frame Generation Engine**: Integrated custom Vulkan compute frame interpolation engine (`zerofg`) optimized specifically for ARM Mali tile architectures:
+  * Mali-tuned compute passes (`rc3_mali_d2`, `rc3_mali_d4`, `rc3_mali_d5a`, `rc3_mali_d5b`).
+  * Subgroup motion estimation, optical flow lattice tracking, camera motion estimation, and split resolve passes.
+  * Fractional multipliers with display refresh rate synchronization, isolated exclusively to the game rendering window.
+  * Generates fluid intermediate frames to double perceived framerates with minimal latency.
+
+#### 🎮 On-Screen Controls & Input Engine Overhaul
+* **Madeira Liquid Glass Style (WinMali Default)**: Replaced old touch buttons with the new Madeira Liquid Glass theme featuring realistic light-catching rims, lens edges, highlights, and subtle drop shadows.
+* **Xbox & PlayStation Visual Profiles**: Pre-rendered cached bitmap controller skins offering high tactile clarity without cluttering game visibility.
+* **High-Visibility Minimum Alpha**: Touch controls never fade below 55% opacity, guaranteeing constant visibility in dark and bright game scenes alike.
+* **Steam Deck-Style Radial Action Wheels**: Built-in 8-slice pie menu activated via trigger hold, featuring full analog stick and touch dragging, custom slice icons, and vibration confirmation.
+* **Live In-Game Controls Editor**: Transparent overlay editor allowing buttons to be repositioned, resized, and bound live without pausing or exiting the running game.
+* **4-Player Multi-Controller Slots**: Dedicated multi-gamepad manager with manual slot pinning, per-player deadzones, and LED color indicators.
+* **Universal Icon Packs & InputBridge Support**: Full support for Bannerlator `.icpx` custom icon packs, Base64 embedded profiles, and InputBridge (`.ibp`) profile translation with 512x512 anti-aliased icon rendering.
+* **Precision Gyroscope Subsystem**: Full motion-to-aim controls with independent X/Y sensitivity, axis inversion, dynamic acceleration curves, and steering support.
+
+#### 🧱 Vulkan BCn Emulation & Persistent Disk Cache
+* **Persistent Disk Cache (`WRAPPER_USE_BCN_CACHE=1`)**: Caches decompressed and transcoded ASTC/ETC2 textures to local storage, permanently eliminating shader/texture compilation stutters on subsequent launches.
+* **Native Direct Bypass Toggle**: Allows bypassing texture translation on GPUs with native capabilities or for titles that do not require BCn transcoding.
+* **Restored & Unified Vulkan Wrapper Suite**: All 5 wrapper variants selectable in *Manage Graphics Drivers* (`Wrapper` unified default, `Wrapper-1.1`, `Wrapper-v2`, `Wrapper-leegao`, and `Wrapper-gamenative`).
+
+#### 📊 Kernel-Direct Telemetry HUD (Winlator HUD)
+* **Real Mali GPU Load & Clocks**: Directly queries Linux kernel sysfs nodes (`/sys/class/misc/mali0/device/utilization`, `/sys/class/devfreq/...cur_freq`) to report real Mali GPU utilization (%) and operating clock frequency (MHz).
+* **Accurate CPU Usage**: Calculates genuine per-process CPU core activity from `/proc/stat` and process cgroup threads.
+* **Battery Wattage**: Displays live discharge power in Watts calculated from hardware voltage and amperage monitors.
+* **Thermal & Frametime Metrics**: Real-time frametime histogram graph, 1% and 0.1% lows, and thermal mitigation status.
+* **Madeira Glass Overlay**: Styled with high-contrast semi-transparent glassmorphic borders matching on-screen controls.
+
+#### 🔌 USB Gamepad Attachment & Dual Rumble
+* **Direct USB HID Host Mode**: Connect gamepads via USB OTG with automatic device filtering (`usb_device_filter.xml`) and auto-grant persistent Android USB permissions.
+* **Dual-Motor Haptic Rumble**: Real force feedback support for Xbox, PlayStation (DualShock / DualSense), and X-Input gamepads.
+* **Full D-Pad / Controller UI Navigation**: Full system navigation across all dialogs, menus, and side drawers using physical controller buttons.
+
+#### ☁️ Community Configs & Cloud Ecosystem
+* **Cloudflare Workers & KV Backend**: Real-time community feedback with **Helpful** (👍) and **Didn't Work** (👎) ratings, backed by persistent anonymous voter UUIDs and anti-spam cooldowns.
+* **Automated GPU Badges**: Automatically detects and tags configs as Mali or Adreno compatible.
+* **Unbundled Wine Downloader Flow**: Interactive downloader that automatically fetches and installs missing Wine/Proton packages when importing community configs.
+
+#### 💾 SteamGridDB Hero Art & Game Save Manager
+* **16:9 Widescreen Hero Banners**: Automatically fetches high-resolution banners from SteamGridDB with a built-in interactive artwork selector.
+* **Universal Save Manager**: Automatically scans and restores game saves across standard paths (`AppData`, `Saved Games`, `Documents`, `Steam/userdata`) and cracked game folders (`Goldberg`, `CODEX`, `FLT`, `EMPRESS`, `RUNE`, etc.).
+* **Windows PE Detection**: Automatic game executable version extraction (`PEParser`), embedded icon extraction, and playtime tracking.
 
 ---
 
@@ -76,60 +120,6 @@ Before the Bionic migration, Winlator Mali began as an experimental PRoot and GL
 
 ---
 
-## Key Architectural Highlights
-
-```
-                                  +------------------------------------+
-                                  |    Direct3D 9 / 10 / 11 / 12 Game   |
-                                  +------------------------------------+
-                                                    |
-                                      [ DXVK / VKD3D / D8VK ]
-                                                    |
-                                                    v
-                                  +------------------------------------+
-                                  |    Vulkan Graphics Translation     |
-                                  +------------------------------------+
-                                                    |
-                         +--------------------------+--------------------------+
-                         |                                                     |
-                         v                                                     v
-          [ ARM Mali / Immortalis GPU ]                             [ Qualcomm Adreno GPU ]
-                         |                                                     |
-         +---------------+---------------+                                     v
-         |                               |                             [ Turnip Driver ]
-         v                               v                                     |
-+------------------+           +-------------------+                           |
-| BCn Layer Transcode |           | ZeroFG Frame Gen  |                           |
-| (ASTC / ETC2)    |           | (Vulkan Compute)  |                           |
-+------------------+           +-------------------+                           |
-         |                               |                                     |
-         +---------------+---------------+                                     |
-                         |                                                     |
-                         v                                                     v
-          +--------------------------------------------------------------------+
-          |             Native Android Bionic libc Runtime (ARM64)             |
-          +--------------------------------------------------------------------+
-                         |                                                     |
-                         v                                                     v
-          +-----------------------------+                       +-----------------------------+
-          |      Direct Kernel Sysfs    |                       |      USB HID Controller     |
-          |  (Real GPU MHz / Load / W)  |                       |  (Rumble & Auto-Permission) |
-          +-----------------------------+                       +-----------------------------+
-```
-
-1. **Vulkan BCn Emulation & Disk Cache**:
-   Desktop compressed textures (BC1–BC7) are dynamically transcoded into hardware-native ASTC or ETC2 blocks. Transcoded textures are committed to a persistent disk cache (`WRAPPER_USE_BCN_CACHE=1`), allowing subsequent game runs to bypass transcoding entirely.
-2. **ZeroFG Frame Interpolation**:
-   Low-latency Vulkan compute shaders calculate optical flow vectors and perform motion search tailored to Mali tile memory architectures, synthesizing intermediate frames to elevate perceived FPS in demanding scenes.
-3. **Hardware Telemetry HUD**:
-   Queries `/sys/class/misc/mali0/device/utilization`, `/sys/class/devfreq/...mali.../cur_freq`, and `/sys/kernel/gpu/gpu_busy` directly to report genuine Mali GPU load (%) and clock speeds (MHz), accompanied by per-process CPU usage, real battery wattage, thermal status, and 1% / 0.1% lows in a Madeira Glass overlay.
-4. **USB Controller Attachment & Dual Rumble**:
-   Direct USB OTG gamepad connection with persistent auto-grant permissions, true dual-motor vibration feedback, and full controller navigation across all UI elements.
-5. **Universal Game Save Manager**:
-   Scans and restores game save data across standard Windows user paths and major cracked release structures (`AppData`, `Saved Games`, `Documents`, `Steam/userdata`, `Goldberg`, `CODEX`, `FLT`, `EMPRESS`, `RUNE`, etc.).
-
----
-
 ## Product Flavors
 
 Winlator Mali is built with three distinct application flavors in [app/build.gradle](app/build.gradle):
@@ -156,21 +146,23 @@ git clone https://github.com/GunaCharanTeja/WinlatorMali.git -b bionic-mali-1.2
 cd WinlatorMali
 ```
 
-Build the standard release APK:
+Build all signed release flavors using Gradle:
 
 **Windows (PowerShell):**
 ```powershell
-.\gradlew.bat assembleStandardRelease
+.\gradlew.bat assembleRelease
 ```
 
 **Linux / macOS:**
 ```bash
 chmod +x ./gradlew
-./gradlew assembleStandardRelease
+./gradlew assembleRelease
 ```
 
-The APK will be generated at:
-`app/build/outputs/apk/standard/release/app-standard-release.apk`
+The compiled APKs will be generated at:
+* `app/build/outputs/apk/standard/release/app-standard-release.apk`
+* `app/build/outputs/apk/ludashi/release/app-ludashi-release.apk`
+* `app/build/outputs/apk/antutu/release/app-antutu-release.apk`
 
 ---
 
