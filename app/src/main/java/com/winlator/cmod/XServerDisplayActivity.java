@@ -1469,13 +1469,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             overrideEnvVars.clear(); // Clear overrideEnvVars as per smali logic
         }
 
-        // The legacy wrapper-side BCn path (superseded by the leegao layer, see extractGraphicsDriverFiles): forced
-        // off unconditionally, after every other source of env vars (container, shortcut, overrides) has already
-        // been merged in above, so a manually-set WRAPPER_EMULATE_BCN or WRAPPER_USE_BCN_CACHE can never re-enable
-        // it -- this always wins, last.
-        envVars.put("WRAPPER_EMULATE_BCN", "0");
-        envVars.put("WRAPPER_USE_BCN_CACHE", "0");
-
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
         if (emulationService != null) emulationService.setEnvironment(environment);
@@ -2327,6 +2320,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String disablePresentWait = graphicsDriverConfig.get("disablePresentWait");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
+        envVars.put("WRAPPER_EMULATE_BCN", "3");
+        envVars.put("WRAPPER_USE_BCN_CACHE", "1");
 
         // ENABLE_BCN_COMPUTE loads the layer, DISABLE_BCN_COMPUTE force-stops it (both builds). Qualcomm devices
         // already handle BC natively (Adreno/Turnip), so the layer is skipped there even when enabled.
