@@ -121,8 +121,11 @@ public class GameSaveBackup {
 
         public String getFormattedLastModified() {
             if (lastModified <= 0) return "";
-            SimpleDateFormat sdf = new SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault());
-            return sdf.format(new Date(lastModified));
+            // Short enough to fit on the card's info line next to the tag.
+            java.util.Calendar then = java.util.Calendar.getInstance();
+            then.setTimeInMillis(lastModified);
+            boolean thisYear = then.get(java.util.Calendar.YEAR) == java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+            return new SimpleDateFormat(thisYear ? "MMM d" : "MMM d, yyyy", Locale.getDefault()).format(new Date(lastModified));
         }
     }
 

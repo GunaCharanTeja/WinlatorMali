@@ -73,9 +73,13 @@ public class SaveManagerDialog extends ContentDialog {
         Button btnCancel = findViewById(R.id.BTCancel);
         if (btnConfirm != null) btnConfirm.setText("Export Backup");
         if (btnCancel != null) btnCancel.setText("Close");
+        // The three icons have different intrinsic sizes, which made one pill taller than the others.
+        sizeStartIcon(btnRestore, 18);
+        sizeStartIcon(btnAddFolder, 18);
+        limitListHeight();
 
         if (shortcut != null) {
-            tvSubtitle.setText("Save Folders (long-press a folder you added to remove it)");
+            tvSubtitle.setText("Save folders");
             btnAddFolder.setOnClickListener(v -> openFolderPicker());
             populateGameList(llSaveLocations, btnToggleAll);
 
@@ -89,7 +93,7 @@ public class SaveManagerDialog extends ContentDialog {
                         }
                     }
                     for (CheckBox cb : checkBoxes) cb.setChecked(!allChecked);
-                    btnToggleAll.setText(!allChecked ? "Deselect All" : "Select All");
+                    btnToggleAll.setText(!allChecked ? "Deselect all" : "Select all");
                 });
             }
 
@@ -114,9 +118,10 @@ public class SaveManagerDialog extends ContentDialog {
             });
 
         } else if (container != null) {
-            tvSubtitle.setText("Container Profile Saves");
+            tvSubtitle.setText("Container profile saves");
             if (btnToggleAll != null) btnToggleAll.setVisibility(View.GONE);
             btnAddFolder.setVisibility(View.GONE);
+            ((LinearLayout.LayoutParams) btnRestore.getLayoutParams()).setMarginEnd(0);
 
             TextView tvDesc = new TextView(activity);
             tvDesc.setText("Creates a full portable snapshot of Documents, Saved Games, AppData, Public Documents and ProgramData\\Steam (where cracked games keep saves) for container: " + container.getName());
@@ -160,19 +165,22 @@ public class SaveManagerDialog extends ContentDialog {
             CheckBox cb = itemView.findViewById(R.id.CBSaveItem);
             TextView tvTitle = itemView.findViewById(R.id.TVSaveTitle);
             TextView tvPath = itemView.findViewById(R.id.TVSavePath);
+            TextView tvTag = itemView.findViewById(R.id.TVSaveTag);
             TextView tvMeta = itemView.findViewById(R.id.TVSaveMeta);
+            android.widget.ImageButton btRemove = itemView.findViewById(R.id.BTRemoveSave);
 
-            tvTitle.setText(info.title + (info.custom ? "  • Added by you" : ""));
+            tvTitle.setText(info.title);
             tvPath.setText(info.friendlyPath);
 
-            String meta;
             if (info.missing) {
-                meta = "Folder not found";
+                showTag(tvTag, "Not found", 0xFFE5534B);
+                tvMeta.setText("Folder no longer exists");
             } else {
-                meta = info.fileCount + " Files • " + info.getFormattedSize() + (info.lastModified > 0 ? " • " + info.getFormattedLastModified() : "");
-                if (!info.suggested) meta = "Possible match (game's Steam AppID unknown) • " + meta;
+                if (info.custom) showTag(tvTag, "Added by you", 0xFF3D82FF);
+                else if (!info.suggested) showTag(tvTag, "Possible match", 0xFFD29922);
+                String files = info.fileCount == 1 ? "1 file" : info.fileCount + " files";
+                tvMeta.setText(files + " • " + info.getFormattedSize() + (info.lastModified > 0 ? " • " + info.getFormattedLastModified() : ""));
             }
-            tvMeta.setText(meta);
 
             cb.setChecked(info.suggested && !info.missing);
             cb.setEnabled(!info.missing);
@@ -183,21 +191,58 @@ public class SaveManagerDialog extends ContentDialog {
                 if (cb.isEnabled()) cb.setChecked(!cb.isChecked());
             });
             if (info.custom) {
+                Runnable confirmRemove = () -> new AlertDialog.Builder(activity)
+                    .setTitle("Remove folder?")
+                    .setMessage("Stop including this folder in this game's save backups?\n\n" + info.friendlyPath + "\n\nNothing is deleted from storage.")
+                    .setPositiveButton("Remove", (d, w) -> {
+                        GameSaveBackup.removeCustomSaveDir(shortcut, info.directory);
+                        populateGameList(llSaveLocations, btnToggleAll);
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+                btRemove.setVisibility(View.VISIBLE);
+                btRemove.setImageTintList(android.content.res.ColorStateList.valueOf(0xFF8B949E));
+                btRemove.setOnClickListener(v -> confirmRemove.run());
                 itemView.setOnLongClickListener(v -> {
-                    new AlertDialog.Builder(activity)
-                        .setTitle("Remove folder?")
-                        .setMessage("Stop including this folder in this game's save backups?\n\n" + info.friendlyPath + "\n\nNothing is deleted from storage.")
-                        .setPositiveButton("Remove", (d, w) -> {
-                            GameSaveBackup.removeCustomSaveDir(shortcut, info.directory);
-                            populateGameList(llSaveLocations, btnToggleAll);
-                        })
-                        .setNegativeButton("Cancel", null)
-                        .show();
+                    confirmRemove.run();
                     return true;
                 });
             }
             llSaveLocations.addView(itemView);
         }
+    }
+
+    private static void showTag(TextView tag, String text, int color) {
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor((color & 0x00FFFFFF) | 0x33000000);
+        bg.setCornerRadius(com.winlator.cmod.core.UnitUtils.dpToPx(8));
+        tag.setBackground(bg);
+        tag.setTextColor(color);
+        tag.setText(text);
+        tag.setVisibility(View.VISIBLE);
+    }
+
+    private static void sizeStartIcon(Button button, int dp) {
+        if (button == null) return;
+        android.graphics.drawable.Drawable icon = button.getCompoundDrawablesRelative()[0];
+        if (icon == null) return;
+        int px = (int) com.winlator.cmod.core.UnitUtils.dpToPx(dp);
+        icon.setBounds(0, 0, px, px);
+        button.setCompoundDrawablesRelative(icon, null, null, null);
+    }
+
+    // Keeps the export/close buttons on screen when a game has many save folders.
+    private void limitListHeight() {
+        View scroll = findViewById(R.id.SVSaveLocations);
+        if (scroll == null) return;
+        int max = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.42f);
+        scroll.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (b - t > max) {
+                android.view.ViewGroup.LayoutParams params = v.getLayoutParams();
+                params.height = max;
+                v.setLayoutParams(params);
+            }
+        });
     }
 
     private void openFolderPicker() {

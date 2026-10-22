@@ -5,87 +5,94 @@
     android:orientation="vertical"
     android:padding="8dp">
 
-    <!-- Subtitle -->
-    <TextView
-        android:id="@+id/TVSaveSubtitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Discovered Game Saves"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="14.5sp"
-        android:textStyle="bold" />
-
-    <!-- Action Pill Row: Perfectly Aligned 50/50 Horizontal Buttons -->
     <LinearLayout
         android:id="@+id/LLActionPillRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="10dp">
+        android:layout_marginBottom="14dp">
 
         <Button
             android:id="@+id/BTRestoreSaves"
             android:layout_width="0dp"
-            android:layout_height="36dp"
+            android:layout_height="42dp"
             android:layout_weight="1"
             android:background="@drawable/pill_button_background"
             android:drawableStart="@drawable/icon_restore_backup"
-            android:drawablePadding="6dp"
-            android:text="Restore"
+            android:drawablePadding="8dp"
+            android:text="Restore backup"
+            android:singleLine="true"
+            android:ellipsize="end"
             android:textColor="#3D82FF"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:textAllCaps="false"
             android:gravity="center"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:layout_marginEnd="4dp" />
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="5dp" />
 
         <Button
             android:id="@+id/BTAddSaveFolder"
             android:layout_width="0dp"
-            android:layout_height="36dp"
+            android:layout_height="42dp"
             android:layout_weight="1"
             android:background="@drawable/pill_button_background"
             android:drawableStart="@drawable/ic_nav_add_folder"
             android:drawableTint="#3D82FF"
-            android:drawablePadding="6dp"
-            android:text="Add Folder"
+            android:drawablePadding="8dp"
+            android:text="Add folder"
+            android:singleLine="true"
+            android:ellipsize="end"
             android:textColor="#3D82FF"
-            android:textSize="12sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:textAllCaps="false"
             android:gravity="center"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp" />
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="5dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/TVSaveSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Save folders"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/BTToggleSelectAll"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:background="@drawable/pill_button_background"
-            android:drawableStart="@drawable/icon_select_all"
-            android:drawablePadding="6dp"
-            android:text="Select All"
-            android:textColor="#3D82FF"
-            android:textSize="12sp"
-            android:textStyle="bold"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Select all"
             android:textAllCaps="false"
-            android:gravity="center"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp"
-            android:layout_marginStart="4dp" />
+            android:textColor="#3D82FF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Scrollable Cards Container -->
     <ScrollView
+        android:id="@+id/SVSaveLocations"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:maxHeight="270dp">
+        android:layout_height="wrap_content">
 
         <LinearLayout
             android:id="@+id/LLSaveLocations"
@@ -94,13 +101,13 @@
             android:orientation="vertical" />
     </ScrollView>
 
-    <!-- Destination Folder Note -->
     <TextView
+        android:id="@+id/TVSaveFooter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="📁 Backups destination: Downloads/Winlator/Saves"
+        android:text="Backups are saved to Downloads/Winlator/Saves"
         android:textColor="?android:attr/textColorSecondary"
-        android:textSize="11.5sp"
-        android:paddingTop="8dp" />
+        android:textSize="12sp"
+        android:paddingTop="10dp" />
 
 </LinearLayout>
