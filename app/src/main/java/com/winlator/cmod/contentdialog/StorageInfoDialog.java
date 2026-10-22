@@ -45,7 +45,9 @@ public class StorageInfoDialog extends ContentDialog {
             tvCacheSize.setText(StringUtils.formatBytes(cacheSize.get()));
             tvTotalSize.setText(StringUtils.formatBytes(totalSize.get()));
 
-            int progress = Math.toIntExact((totalSize.get() / internalStorageSize) * 100);
+            int progress = internalStorageSize > 0
+                    ? Math.min(100, (int)((totalSize.get() * 100) / internalStorageSize))
+                    : 0;
             tvUsedSpace.setText(progress+"%");
             circularProgressIndicator.setProgress(progress, true);
         };
