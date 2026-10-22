@@ -58,6 +58,18 @@ The 1.2 Bionic release represents a comprehensive overhaul of the graphics pipel
 * **Universal Icon Packs & InputBridge Support**: Full support for Bannerlator `.icpx` custom icon packs, Base64 embedded profiles, and InputBridge (`.ibp`) profile translation with 512x512 anti-aliased icon rendering.
 * **Precision Gyroscope Subsystem**: Full motion-to-aim controls with independent X/Y sensitivity, axis inversion, dynamic acceleration curves, and steering support.
 
+#### 🚀 Hardware Optimization & Performance Suite
+* **Show Adreno Tools on Unsupported Devices**: Added an option in Settings (`show_adrenotools_unsupported`) allowing users on Mali or other non-Qualcomm devices to access Adreno Tools to view and manage custom graphics driver layers.
+* **Dedicated In-Game Performance Dialog**: Access real-time hardware performance toggles directly during gameplay:
+  * **Game Mode Signal**: Signals Android Game Mode for system priority.
+  * **Thread Priority**: Boosts game and translation thread scheduling priorities.
+  * **Big Cores Affinity**: Pins execution threads to high-performance CPU cores.
+  * **Sustained Performance Mode**: Prevents aggressive thermal clock throttling.
+  * **Samsung Game SDK / SPerf Boost**: Integrates Samsung Game SDK / SPerf driver for Samsung devices.
+* **RAM Booster (LMK Trigger)**: Proactive Low Memory Killer memory cleaner with 7 selectable profiles (**Smart Auto**, **Low**, **Medium**, **High**, **Aggressive**, **Max**, and **Manual**), customizable Crisis / Pre-Crisis thresholds, and toast notifications.
+* **PulseAudio-GN (GameNative) Audio Driver**: Added new low-latency GameNative PulseAudio driver alongside ALSA and standard PulseAudio.
+* **Custom FPS Limiter**: Set any arbitrary target frame rate limit using the new "Custom..." FPS option.
+
 #### 🧱 Vulkan BCn Emulation & Persistent Disk Cache
 * **Persistent Disk Cache (`WRAPPER_USE_BCN_CACHE=1`)**: Caches decompressed and transcoded ASTC/ETC2 textures to local storage, permanently eliminating shader/texture compilation stutters on subsequent launches.
 * **Native Direct Bypass Toggle**: Allows bypassing texture translation on GPUs with native capabilities or for titles that do not require BCn transcoding.
