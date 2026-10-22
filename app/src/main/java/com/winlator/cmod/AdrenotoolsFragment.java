@@ -24,6 +24,12 @@ public class AdrenotoolsFragment extends Fragment {
     
     private AdrenotoolsManager adrenotoolsManager;
     private RecyclerView recyclerView;
+    private TextView tvEmpty;
+
+    private void updateEmptyState() {
+        if (tvEmpty == null || recyclerView.getAdapter() == null) return;
+        tvEmpty.setVisibility(recyclerView.getAdapter().getItemCount() == 0 ? View.VISIBLE : View.GONE);
+    }
     
     @Override 
     public void onCreate(Bundle savedInstanceState) {
@@ -35,9 +41,10 @@ public class AdrenotoolsFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         ViewGroup layout = (ViewGroup)inflater.inflate(R.layout.adrenotools_fragment, container, false);
         recyclerView = layout.findViewById(R.id.RecyclerView);
+        tvEmpty = layout.findViewById(R.id.TVEmpty);
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
-        recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
         recyclerView.setAdapter(new DriversAdapter(adrenotoolsManager.enumarateInstalledDrivers()));
+        updateEmptyState();
         View btInstallDriver = layout.findViewById(R.id.BTInstallDriver);
         btInstallDriver.setOnClickListener((v) -> {
             ContentDialog.confirm(getContext(), getString(R.string.install_drivers_message) + " " + getString(R.string.install_drivers_warning), () -> {
@@ -95,23 +102,31 @@ public class AdrenotoolsFragment extends Fragment {
         
         @Override
         public void onBindViewHolder(ViewHolder viewHolder, final int position) {
-            viewHolder.tvName.setText(adrenotoolsManager.getDriverName(driversList.get(position)));
-            viewHolder.tvVersion.setText(adrenotoolsManager.getDriverVersion(driversList.get(position)));
+            String driver = driversList.get(position);
+            String name = adrenotoolsManager.getDriverName(driver);
+            viewHolder.tvName.setText(name);
+            viewHolder.tvVersion.setText(adrenotoolsManager.getDriverVersion(driver));
             viewHolder.btMenu.setOnClickListener((v) -> {
-                removeAtIndex(position);
+                // Looked up at click time: the position captured at bind time is stale after an earlier removal.
+                int current = viewHolder.getBindingAdapterPosition();
+                if (current == RecyclerView.NO_POSITION) return;
+                ContentDialog.confirm(getContext(), "Remove the driver \"" + name + "\"?", () -> removeAtIndex(current));
             });
         }
-        
+
         public void addItem(String item) {
             driversList.add(item);
             notifyItemInserted(getItemCount() - 1);
+            updateEmptyState();
         }
-        
+
         public void removeAtIndex(int index) {
+            if (index < 0 || index >= driversList.size()) return;
             String deletedDriver = driversList.remove(index);
             adrenotoolsManager.removeDriver(deletedDriver);
             notifyItemRemoved(index);
             notifyItemRangeChanged(index, getItemCount());
+            updateEmptyState();
         }
         
         @Override
