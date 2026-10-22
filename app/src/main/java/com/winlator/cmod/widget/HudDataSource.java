@@ -16,6 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HudDataSource {
     public final AtomicInteger gpuLoad       = new AtomicInteger(-1);
+    public final AtomicInteger gpuClockMhz   = new AtomicInteger(-1);
+    private final MaliGpuCounters maliCounters = new MaliGpuCounters();
+    private final int[] maliSample = new int[2];
     public final AtomicInteger cpuLoad       = new AtomicInteger(-1);
     public final AtomicInteger batteryMw     = new AtomicInteger(-1);
     public final AtomicInteger batteryTempC  = new AtomicInteger(-1);
@@ -101,6 +104,7 @@ public class HudDataSource {
 
     public void stop() {
         handler.removeCallbacksAndMessages(null);
+        handler.post(maliCounters::close);
         thread.quitSafely();
     }
 
@@ -114,6 +118,12 @@ public class HudDataSource {
     }
 
     private void pollGpu() {
+        // Mali hardware counters first: they work where every sysfs GPU path is blocked (e.g. MediaTek/ColorOS).
+        if (maliCounters.read(maliSample)) {
+            gpuLoad.set(maliSample[0]);
+            gpuClockMhz.set(maliSample[1]);
+            return;
+        }
         if (gpuFailed) return;
 
         if (gpuPath != null) {

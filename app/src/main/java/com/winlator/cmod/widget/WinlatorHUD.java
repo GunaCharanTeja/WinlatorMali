@@ -119,7 +119,7 @@ public class WinlatorHUD extends View {
     private long lastOnFrameNs = 0;
     private float snapFps = 0;
 
-    private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
+    private int snapGpu=-1, snapGpuMhz=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
     private String rendererLabel = "EGL";
     private boolean isNative = false;
 
@@ -312,9 +312,11 @@ public class WinlatorHUD extends View {
 
         if (dataSource != null) {
             int gpu = dataSource.gpuLoad.get();
-            if (gpu != snapGpu) {
+            int gpuMhz = dataSource.gpuClockMhz.get();
+            if (gpu != snapGpu || gpuMhz != snapGpuMhz) {
                 snapGpu = gpu;
-                strGpu = (gpu >= 0) ? gpu + "%" : "N/A";
+                snapGpuMhz = gpuMhz;
+                strGpu = (gpu >= 0) ? gpu + "%" + (gpuMhz > 0 ? " · " + gpuMhz + "MHz" : "") : "N/A";
             }
             int cpu = dataSource.cpuLoad.get();
             if (cpu != snapCpu) {
