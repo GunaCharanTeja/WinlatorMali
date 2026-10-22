@@ -26,8 +26,29 @@
         <FrameLayout
             android:id="@+id/FLFragmentContainer"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+
+        <!-- Button hints, shown only while a game controller is connected (see ControllerNavigation). -->
+        <HorizontalScrollView
+            android:id="@+id/HSVControllerHints"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/gamingToolbarColor"
+            android:scrollbars="none"
+            android:focusable="false"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/LLControllerHints"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+        </HorizontalScrollView>
     </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView

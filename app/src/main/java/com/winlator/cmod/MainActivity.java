@@ -100,6 +100,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             setActionBarHomeIcon(R.drawable.icon_action_bar_menu);
         }
         if (toolbar != null) {
+            // AppCompat's Toolbar style blocks D-pad focus on touchscreen devices and makes itself a separate
+            // keyboard cluster, so a controller could never reach the hamburger or toolbar actions (e.g. +).
+            toolbar.setTouchscreenBlocksFocus(false);
+            toolbar.setKeyboardNavigationCluster(false);
             toolbar.setTitleTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
             if (toolbar.getOverflowIcon() != null) {
                 Drawable overflow = toolbar.getOverflowIcon().mutate();
@@ -228,10 +232,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case android.view.KeyEvent.KEYCODE_BUTTON_SELECT: {
                 if (up) {
                     androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.Toolbar);
-                    if (toolbar != null) toolbar.showOverflowMenu();
+                    if (toolbar != null && !toolbar.showOverflowMenu()) toggleToolbarFocus();
                 }
                 return true;
             }
+            case android.view.KeyEvent.KEYCODE_BUTTON_Y:
+                if (up) toggleToolbarFocus();
+                return true;
             case android.view.KeyEvent.KEYCODE_BUTTON_L1:
                 if (up) switchSectionForController(-1);
                 return true;
@@ -250,7 +257,99 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
         drawerLayout.openDrawer(GravityCompat.START);
         NavigationView navigationView = findViewById(R.id.NavigationView);
-        if (navigationView != null) navigationView.post(navigationView::requestFocus);
+        if (navigationView != null) navigationView.post(() -> focusDrawerItem(navigationView));
+    }
+
+    // Focus a real row (the current section) rather than the drawer's list, so the highlight shows at once.
+    @android.annotation.SuppressLint("RestrictedApi")
+    private void focusDrawerItem(NavigationView navigationView) {
+        if (!(navigationView.getChildAt(0) instanceof android.view.ViewGroup)) return;
+        android.view.ViewGroup list = (android.view.ViewGroup) navigationView.getChildAt(0);
+        View first = null;
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View child = list.getChildAt(i);
+            if (!(child instanceof com.google.android.material.internal.NavigationMenuItemView)) continue;
+            if (first == null) first = child;
+            androidx.appcompat.view.menu.MenuItemImpl item = ((com.google.android.material.internal.NavigationMenuItemView) child).getItemData();
+            if (item != null && item.isChecked()) {
+                child.requestFocusFromTouch();
+                return;
+            }
+        }
+        if (first != null) first.requestFocusFromTouch();
+    }
+
+    // Y: jump between the toolbar (hamburger, + and other actions) and the screen content.
+    private void toggleToolbarFocus() {
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.Toolbar);
+        if (toolbar == null) return;
+        View focused = getCurrentFocus();
+        boolean inToolbar = false;
+        for (View v = focused; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+            if (v == toolbar) {
+                inToolbar = true;
+                break;
+            }
+        }
+        if (inToolbar) {
+            View content = findViewById(R.id.FLFragmentContainer);
+            View target = content != null ? content.focusSearch(View.FOCUS_DOWN) : null;
+            if (content != null && !content.requestFocus(View.FOCUS_DOWN) && target != null) target.requestFocus();
+            return;
+        }
+        for (int i = 0; i < toolbar.getChildCount(); i++) {
+            View child = toolbar.getChildAt(i);
+            if (child instanceof android.widget.ImageButton && child.isShown()) {
+                child.requestFocusFromTouch();
+                return;
+            }
+        }
+        toolbar.requestFocusFromTouch();
+    }
+
+    private android.hardware.input.InputManager.InputDeviceListener controllerListener;
+
+    private void updateControllerHints() {
+        View bar = findViewById(R.id.HSVControllerHints);
+        if (bar == null) return;
+        boolean connected = com.winlator.cmod.core.ControllerNavigation.isControllerConnected();
+        if (connected && ((android.view.ViewGroup) findViewById(R.id.LLControllerHints)).getChildCount() == 0) {
+            com.winlator.cmod.core.ControllerNavigation.buildHints(findViewById(R.id.LLControllerHints), new String[][]{
+                {"A", "Select", "#3DA35D"},
+                {"B", "Back", "#D9453B"},
+                {"X", "Item menu", "#2F6FD6"},
+                {"Y", "Top bar", "#C9A227"},
+                {"LB RB", "Section", "#5A6270"},
+                {"LT RT", "Page", "#5A6270"},
+                {"START", "Menu", "#5A6270"}
+            });
+        }
+        bar.setVisibility(connected ? View.VISIBLE : View.GONE);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        android.hardware.input.InputManager inputManager = (android.hardware.input.InputManager) getSystemService(INPUT_SERVICE);
+        if (inputManager != null && controllerListener == null) {
+            controllerListener = new android.hardware.input.InputManager.InputDeviceListener() {
+                @Override public void onInputDeviceAdded(int deviceId) { updateControllerHints(); }
+                @Override public void onInputDeviceRemoved(int deviceId) { updateControllerHints(); }
+                @Override public void onInputDeviceChanged(int deviceId) { updateControllerHints(); }
+            };
+            inputManager.registerInputDeviceListener(controllerListener, null);
+        }
+        updateControllerHints();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        android.hardware.input.InputManager inputManager = (android.hardware.input.InputManager) getSystemService(INPUT_SERVICE);
+        if (inputManager != null && controllerListener != null) {
+            inputManager.unregisterInputDeviceListener(controllerListener);
+            controllerListener = null;
+        }
     }
 
     private void switchSectionForController(int direction) {
