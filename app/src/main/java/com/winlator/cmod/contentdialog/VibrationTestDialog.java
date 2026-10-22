@@ -41,6 +41,15 @@ public class VibrationTestDialog {
         show(context, null);
     }
 
+    // SOURCE_GAMEPAD shares the generic "has buttons" bit with keyboards, so the old "any bit set" check
+    // listed the phone's own power keys, fingerprint sensor and headset jack as gamepads.
+    private static boolean isGameController(InputDevice dev) {
+        if (dev == null || dev.isVirtual()) return false;
+        int sources = dev.getSources();
+        return (sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+               (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
+    }
+
     public static void show(Context context, ExternalController targetController) {
         if (context == null) return;
 
@@ -80,21 +89,21 @@ public class VibrationTestDialog {
 
         // --- Setup Spinners ---
         String[] motorModes = {
-            "Both Motors (Full Rumble)",
-            "Heavy Left Motor (Low-Freq Rumble)",
-            "Light Right Motor (High-Freq Buzz)",
-            "Pulse Pattern (L -> R -> Dual)"
+            "Both motors",
+            "Strong motor (left)",
+            "Light motor (right)",
+            "Pulse: left, right, both"
         };
         ArrayAdapter<String> motorAdapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, motorModes);
         motorAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         sMotorMode.setAdapter(motorAdapter);
 
         String[] durationOptions = {
-            "0.5 Seconds",
-            "1.0 Second",
-            "2.0 Seconds",
-            "3.0 Seconds",
-            "Continuous (Until Stop)"
+            "0.5 seconds",
+            "1 second",
+            "2 seconds",
+            "3 seconds",
+            "Until I press Stop"
         };
         ArrayAdapter<String> durAdapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, durationOptions);
         durAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -122,35 +131,33 @@ public class VibrationTestDialog {
             StringBuilder sb = new StringBuilder();
             pendingPermissionDevice[0] = null;
 
-            if (!usbList.isEmpty()) {
-                sb.append("USB Direct Gamepads:\n");
-                for (UsbDeviceInfo info : usbList) {
-                    sb.append(" • ").append(info.name);
-                    if (info.hasPermission) {
-                        sb.append(" (Connected - Ready)\n");
-                    } else {
-                        sb.append(" (Permission Required)\n");
-                        pendingPermissionDevice[0] = info;
-                    }
+            for (UsbDeviceInfo info : usbList) {
+                sb.append("🎮 ").append(info.name).append("\n    USB • ");
+                if (info.hasPermission) {
+                    sb.append("ready\n");
+                } else {
+                    sb.append("needs permission\n");
+                    pendingPermissionDevice[0] = info;
                 }
-            } else {
-                sb.append("USB Direct: No USB Gamepads detected via OTG.\n");
             }
 
-            sb.append("\nAndroid Framework Gamepads:\n");
-            boolean foundInputDevice = false;
             for (int id : inputDeviceIds) {
                 InputDevice dev = InputDevice.getDevice(id);
-                if (dev != null && !dev.isVirtual() && (dev.getSources() & (InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK)) != 0) {
-                    foundInputDevice = true;
-                    Vibrator v = dev.getVibrator();
-                    boolean hasVib = v != null && v.hasVibrator();
-                    sb.append(" • ").append(dev.getName()).append(" [ID:").append(id).append("] (Vibrator: ")
-                      .append(hasVib ? "YES" : "No Framework Motor").append(")\n");
+                if (!isGameController(dev)) continue;
+                // A USB pad also shows up here as a system device; it's already listed above.
+                boolean alreadyListed = false;
+                for (UsbDeviceInfo info : usbList) {
+                    if (info.vid == dev.getVendorId() && info.pid == dev.getProductId()) alreadyListed = true;
                 }
+                if (alreadyListed) continue;
+                Vibrator v = dev.getVibrator();
+                boolean hasVib = v != null && v.hasVibrator();
+                sb.append("🎮 ").append(dev.getName()).append("\n    ")
+                  .append(hasVib ? "can vibrate" : "no vibration support reported").append("\n");
             }
-            if (!foundInputDevice) {
-                sb.append(" • None detected\n");
+
+            if (sb.length() == 0) {
+                sb.append("No controller found.\nPlug one in over USB (OTG) or pair it over Bluetooth, then tap Rescan.");
             }
 
             tvDeviceStatus.setText(sb.toString().trim());
@@ -332,7 +339,7 @@ public class VibrationTestDialog {
                 int dispatchedCount = 0;
                 for (int id : InputDevice.getDeviceIds()) {
                     InputDevice dev = InputDevice.getDevice(id);
-                    if (dev != null && !dev.isVirtual() && (dev.getSources() & (InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK)) != 0) {
+                    if (isGameController(dev)) {
                         Vibrator vib = dev.getVibrator();
                         if (vib != null && vib.hasVibrator()) {
                             safeVibrateDevice.accept(vib, finalDur);
@@ -356,6 +363,12 @@ public class VibrationTestDialog {
                 handler.postDelayed(activeTestTask[0], finalDur);
             }
         });
+
+        // The dialog's generic Cancel/OK do nothing here; one Close button is clearer.
+        View btCancel = dialog.findViewById(R.id.BTCancel);
+        if (btCancel != null) btCancel.setVisibility(View.GONE);
+        TextView btConfirm = dialog.findViewById(R.id.BTConfirm);
+        if (btConfirm != null) btConfirm.setText("Close");
 
         dialog.setOnDismissListener((d) -> {
             stopAllVibrations.run();
