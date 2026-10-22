@@ -1,7 +1,5 @@
 package com.winlator.cmod.saves;
 
-import android.content.Context;
-import android.net.Uri;
 import android.os.Environment;
 import android.util.Log;
 
@@ -13,18 +11,27 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -33,7 +40,11 @@ public class GameSaveBackup {
     private static final String TAG = "GameSaveBackup";
     public static final String SAVES_BACKUP_DIR = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath() + "/Winlator/Saves";
     public static final String MANIFEST_FILE_NAME = "winlator_save_manifest.json";
+    private static final String FORMAT_V2 = "winlator_save_backup_v2";
+    private static final String CUSTOM_DIRS_EXTRA = "customSaveDirs";
+    private static final String CONTAINER_PREFIX = "@container/";
 
+    // Relative to the user profile (drive_c/users/xuser), searched for folders named like the game.
     private static final String[] USER_SAVE_ROOTS = {
         "Documents/My Games",
         "Documents",
@@ -44,6 +55,55 @@ public class GameSaveBackup {
         "Local Settings/Application Data"
     };
 
+    // Relative to drive_c, also searched for folders named like the game.
+    private static final String[] SHARED_SAVE_ROOTS = {
+        "users/Public/Documents",
+        "ProgramData"
+    };
+
+    // Relative to drive_c: where Steam emulators and cracks keep saves, one folder per Steam AppID.
+    private static final String[] EMULATOR_SAVE_ROOTS = {
+        "users/Public/Documents/Steam/CODEX",
+        "users/Public/Documents/Steam/RUNE",
+        "users/Public/Documents/Steam/EMPRESS",
+        "users/Public/Documents/Steam",
+        "users/Public/Documents/OnlineFix",
+        "users/Public/Documents/EMPRESS",
+        "users/xuser/AppData/Roaming/Goldberg SteamEmu Saves",
+        "users/xuser/AppData/Roaming/GSE Saves",
+        "users/xuser/AppData/Roaming/Steam/CODEX",
+        "users/xuser/AppData/Roaming/CODEX",
+        "users/xuser/AppData/Roaming/SmartSteamEmu",
+        "users/xuser/AppData/Roaming/CPY_SAVES",
+        "users/xuser/AppData/Roaming/EMPRESS",
+        "users/xuser/AppData/Roaming/3DMGAME",
+        "users/xuser/AppData/Roaming/NemirtingasEpicEmu",
+        "users/xuser/AppData/Local/SKIDROW",
+        "users/xuser/Documents/CPY_SAVES",
+        "users/xuser/Documents/SKIDROW",
+        "ProgramData/Steam/RLD!",
+        "ProgramData/Steam/Player",
+        "ProgramData/Steam/dodi",
+        "ProgramData/Steam"
+    };
+
+    // Relative to drive_c: what a whole-container backup includes.
+    private static final String[] CONTAINER_BACKUP_ROOTS = {
+        "users/xuser/Documents",
+        "users/xuser/Saved Games",
+        "users/xuser/AppData/Local",
+        "users/xuser/AppData/LocalLow",
+        "users/xuser/AppData/Roaming",
+        "users/Public/Documents",
+        "ProgramData/Steam"
+    };
+
+    private static final Set<String> GAME_DIR_SAVE_NAMES = new HashSet<>(java.util.Arrays.asList(
+        "save", "saves", "savegame", "savegames", "savedata", "saved", "profile", "profiles", "userdata"
+    ));
+
+    private static final Pattern INI_APP_ID = Pattern.compile("(?i)^\\s*(?:real)?app_?id\\s*=\\s*(\\d{3,10})\\s*$");
+
     public static class SaveLocationInfo {
         public File directory;
         public String title;
@@ -51,12 +111,12 @@ public class GameSaveBackup {
         public long totalBytes;
         public int fileCount;
         public long lastModified;
+        public boolean custom;
+        public boolean suggested = true;
+        public boolean missing;
 
         public String getFormattedSize() {
-            if (totalBytes <= 0) return "0 KB";
-            if (totalBytes < 1024) return totalBytes + " B";
-            if (totalBytes < 1024 * 1024) return String.format(Locale.US, "%.1f KB", totalBytes / 1024.0f);
-            return String.format(Locale.US, "%.2f MB", totalBytes / (1024.0f * 1024.0f));
+            return formatBytes(totalBytes);
         }
 
         public String getFormattedLastModified() {
@@ -82,70 +142,141 @@ public class GameSaveBackup {
         public String errorMessage;
     }
 
+    public interface StreamOpener {
+        InputStream open() throws IOException;
+    }
+
+    public enum ConflictMode {
+        BACKUP_THEN_OVERWRITE,
+        OVERWRITE,
+        NEWER_ONLY,
+        SKIP_EXISTING
+    }
+
+    public static class PlannedFile {
+        File target;
+        long zipTime;
+        boolean exists;
+    }
+
+    public static class RestorePlan {
+        final Map<String, PlannedFile> files = new LinkedHashMap<>();
+        final Map<String, File> dirs = new LinkedHashMap<>();
+        public int conflicts;
+        public int rejected;
+        public String gameName = "";
+        public final Set<String> locations = new LinkedHashSet<>();
+        File driveC;
+        File gameDir;
+
+        public int fileCount() {
+            return files.size();
+        }
+    }
+
+    public static class RestoreResult {
+        public int written;
+        public int skipped;
+        public int rejected;
+        public File preRestoreBackup;
+    }
+
+    public static File getDriveC(Container container) {
+        return new File(container.getRootDir(), ".wine/drive_c");
+    }
+
+    public static File getGameDir(Shortcut shortcut) {
+        if (shortcut == null) return null;
+        File exe = shortcut.resolveExeFile();
+        File dir = exe != null ? exe.getParentFile() : null;
+        return dir != null && dir.isDirectory() ? dir : null;
+    }
+
+    // ---------------------------------------------------------------- discovery
+
     /**
-     * Discovers all non-empty candidate save directories for a given shortcut.
+     * Every save folder worth showing for a shortcut: name matches in the usual Windows save locations,
+     * AppID-named folders from Steam emulators/cracks, save folders next to the exe, and folders the
+     * user added by hand.
      */
     public static List<SaveLocationInfo> getSaveLocations(Shortcut shortcut) {
         List<SaveLocationInfo> result = new ArrayList<>();
         if (shortcut == null || shortcut.container == null) return result;
 
-        File userDir = new File(shortcut.container.getRootDir(), ".wine/drive_c/users/xuser");
-        if (!userDir.exists()) return result;
+        Container container = shortcut.container;
+        File driveC = getDriveC(container);
+        File userDir = new File(driveC, "users/xuser");
+        File gameDir = getGameDir(shortcut);
 
         String gameName = normalize(shortcut.name);
         String exeBaseName = "";
-        if (shortcut.path != null && !shortcut.path.isEmpty()) {
-            exeBaseName = normalize(new File(shortcut.path).getName().replace(".exe", ""));
-        }
+        File exe = shortcut.resolveExeFile();
+        if (exe != null) exeBaseName = normalize(exe.getName().replaceAll("(?i)\\.exe$", ""));
 
-        List<File> rawCandidates = new ArrayList<>();
+        LinkedHashMap<String, File> matched = new LinkedHashMap<>();
+        LinkedHashMap<String, File> possible = new LinkedHashMap<>();
 
-        for (String relRoot : USER_SAVE_ROOTS) {
-            File rootDir = new File(userDir, relRoot);
-            if (!rootDir.exists() || !rootDir.isDirectory()) continue;
+        for (String rel : USER_SAVE_ROOTS) scanByName(new File(userDir, rel), gameName, exeBaseName, matched);
+        for (String rel : SHARED_SAVE_ROOTS) scanByName(new File(driveC, rel), gameName, exeBaseName, matched);
 
-            File[] children = rootDir.listFiles();
+        Set<String> appIds = findAppIds(shortcut, gameDir, driveC);
+        for (String rel : EMULATOR_SAVE_ROOTS) {
+            File[] children = new File(driveC, rel).listFiles(File::isDirectory);
             if (children == null) continue;
-
             for (File child : children) {
-                if (child.isDirectory()) {
-                    String childName = normalize(child.getName());
-                    if (isFuzzyMatch(childName, gameName, exeBaseName)) {
-                        rawCandidates.add(child);
-                    } else {
-                        File[] subChildren = child.listFiles();
-                        if (subChildren != null) {
-                            for (File subChild : subChildren) {
-                                if (subChild.isDirectory()) {
-                                    String subChildName = normalize(subChild.getName());
-                                    if (isFuzzyMatch(subChildName, gameName, exeBaseName)) {
-                                        rawCandidates.add(subChild);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                String name = child.getName();
+                if (appIds.contains(name) || isFuzzyMatch(normalize(name), gameName, exeBaseName)) {
+                    putUnique(matched, child);
+                } else if (appIds.isEmpty() && name.matches("\\d{3,10}")) {
+                    putUnique(possible, child);
                 }
             }
         }
 
-        if (shortcut.path != null && !shortcut.path.isEmpty()) {
-            File gameExe = new File(shortcut.path);
-            File gameDir = gameExe.getParentFile();
-            if (gameDir != null && gameDir.exists()) {
-                String[] localSaveNames = {"save", "saves", "savedata", "Save", "Saves", "profile", "Profile"};
-                for (String sName : localSaveNames) {
-                    File localSaveDir = new File(gameDir, sName);
-                    if (localSaveDir.exists() && localSaveDir.isDirectory()) {
-                        rawCandidates.add(localSaveDir);
-                    }
+        if (gameDir != null) {
+            File[] children = gameDir.listFiles(File::isDirectory);
+            if (children != null) {
+                for (File child : children) {
+                    if (GAME_DIR_SAVE_NAMES.contains(child.getName().toLowerCase(Locale.ROOT))) putUnique(matched, child);
+                }
+            }
+            // Goldberg's local-save mode keeps saves in a folder named inside local_save.txt.
+            for (File marker : new File[]{new File(gameDir, "local_save.txt"), new File(gameDir, "steam_settings/local_save.txt")}) {
+                String folder = readFirstLine(marker);
+                if (folder != null && !folder.isEmpty()) {
+                    File dir = new File(gameDir, folder);
+                    if (dir.isDirectory()) putUnique(matched, dir);
                 }
             }
         }
 
-        for (File dir : rawCandidates) {
-            SaveLocationInfo info = inspectFolder(dir, shortcut.container);
-            if (info != null && info.fileCount > 0 && info.totalBytes > 0) {
+        Set<String> customKeys = new HashSet<>();
+        for (File dir : getCustomSaveDirs(shortcut)) {
+            customKeys.add(dir.getAbsolutePath());
+            SaveLocationInfo info = inspectFolder(dir, container, gameDir);
+            if (info == null) {
+                info = new SaveLocationInfo();
+                info.directory = dir;
+                info.title = dir.getName();
+                info.friendlyPath = formatFriendlyPath(dir, container, gameDir);
+                info.missing = true;
+                info.suggested = false;
+            }
+            info.custom = true;
+            result.add(info);
+        }
+
+        for (File dir : matched.values()) {
+            if (customKeys.contains(dir.getAbsolutePath())) continue;
+            SaveLocationInfo info = inspectFolder(dir, container, gameDir);
+            if (info != null && info.fileCount > 0) result.add(info);
+        }
+
+        for (File dir : possible.values()) {
+            if (customKeys.contains(dir.getAbsolutePath()) || matched.containsKey(dir.getAbsolutePath())) continue;
+            SaveLocationInfo info = inspectFolder(dir, container, gameDir);
+            if (info != null && info.fileCount > 0) {
+                info.suggested = false;
                 result.add(info);
             }
         }
@@ -153,44 +284,168 @@ public class GameSaveBackup {
         return result;
     }
 
-    private static SaveLocationInfo inspectFolder(File dir, Container container) {
-        if (dir == null || !dir.exists() || !dir.isDirectory()) return null;
+    private static void scanByName(File root, String gameName, String exeName, Map<String, File> out) {
+        File[] children = root.listFiles(File::isDirectory);
+        if (children == null) return;
+        for (File child : children) {
+            if (isFuzzyMatch(normalize(child.getName()), gameName, exeName)) {
+                putUnique(out, child);
+                continue;
+            }
+            File[] subChildren = child.listFiles(File::isDirectory);
+            if (subChildren == null) continue;
+            for (File sub : subChildren) {
+                if (isFuzzyMatch(normalize(sub.getName()), gameName, exeName)) putUnique(out, sub);
+            }
+        }
+    }
+
+    private static void putUnique(Map<String, File> map, File dir) {
+        map.put(dir.getAbsolutePath(), dir);
+    }
+
+    /** Steam AppIDs for the game: the shortcut's own Steam ID, steam_appid.txt, and AppId keys in emulator/crack .ini files. */
+    private static Set<String> findAppIds(Shortcut shortcut, File gameDir, File driveC) {
+        Set<String> ids = new LinkedHashSet<>();
+        String steamId = shortcut.getSteamId();
+        if (steamId != null && steamId.trim().matches("\\d+")) ids.add(steamId.trim());
+
+        String driveCPath = driveC.getAbsolutePath();
+        File dir = gameDir;
+        for (int depth = 0; dir != null && depth < 3; depth++, dir = dir.getParentFile()) {
+            if (dir.getAbsolutePath().equals(driveCPath)) break;
+            addIdFromFile(new File(dir, "steam_appid.txt"), ids);
+            addIdFromFile(new File(dir, "steam_settings/steam_appid.txt"), ids);
+            File[] inis = dir.listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".ini"));
+            if (inis == null) continue;
+            for (File ini : inis) {
+                if (!ini.isFile() || ini.length() > 128 * 1024) continue;
+                try (BufferedReader reader = new BufferedReader(new FileReader(ini))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        Matcher m = INI_APP_ID.matcher(line);
+                        if (m.matches()) ids.add(m.group(1));
+                    }
+                } catch (IOException ignored) {}
+            }
+        }
+        return ids;
+    }
+
+    private static void addIdFromFile(File file, Set<String> ids) {
+        String line = readFirstLine(file);
+        if (line != null && line.matches("\\d{3,10}")) ids.add(line);
+    }
+
+    private static String readFirstLine(File file) {
+        if (!file.isFile() || file.length() > 4096) return null;
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line = reader.readLine();
+            return line != null ? line.trim() : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    // ---------------------------------------------------------------- custom folders
+
+    public static List<File> getCustomSaveDirs(Shortcut shortcut) {
+        List<File> dirs = new ArrayList<>();
+        String raw = shortcut.getExtra(CUSTOM_DIRS_EXTRA);
+        if (raw == null || raw.isEmpty()) return dirs;
+        try {
+            JSONArray array = new JSONArray(raw);
+            for (int i = 0; i < array.length(); i++) {
+                String entry = array.getString(i);
+                if (entry.startsWith(CONTAINER_PREFIX)) {
+                    dirs.add(new File(shortcut.container.getRootDir(), entry.substring(CONTAINER_PREFIX.length())));
+                } else {
+                    dirs.add(new File(entry));
+                }
+            }
+        } catch (Exception ignored) {}
+        return dirs;
+    }
+
+    /** Whether a folder may be used as a save location for this shortcut (and so restored into later). */
+    public static boolean isAllowedSaveDir(Shortcut shortcut, File dir) {
+        String path = canonical(dir);
+        if (path == null) return false;
+        for (String root : allowedRoots(shortcut.container, getGameDir(shortcut))) {
+            if (isInside(path, root)) return true;
+        }
+        return false;
+    }
+
+    public static boolean addCustomSaveDir(Shortcut shortcut, File dir) {
+        if (!isAllowedSaveDir(shortcut, dir)) return false;
+        List<File> dirs = getCustomSaveDirs(shortcut);
+        for (File d : dirs) {
+            if (d.getAbsolutePath().equals(dir.getAbsolutePath())) return true;
+        }
+        dirs.add(dir);
+        saveCustomSaveDirs(shortcut, dirs);
+        return true;
+    }
+
+    public static void removeCustomSaveDir(Shortcut shortcut, File dir) {
+        List<File> dirs = getCustomSaveDirs(shortcut);
+        dirs.removeIf(d -> d.getAbsolutePath().equals(dir.getAbsolutePath()));
+        saveCustomSaveDirs(shortcut, dirs);
+    }
+
+    private static void saveCustomSaveDirs(Shortcut shortcut, List<File> dirs) {
+        String rootPath = shortcut.container.getRootDir().getAbsolutePath();
+        JSONArray array = new JSONArray();
+        for (File d : dirs) {
+            String path = d.getAbsolutePath();
+            // Stored relative to the container when inside it, so it survives the container being moved.
+            array.put(isInside(path, rootPath) ? CONTAINER_PREFIX + path.substring(rootPath.length() + 1) : path);
+        }
+        shortcut.putExtra(CUSTOM_DIRS_EXTRA, array.length() > 0 ? array.toString() : null);
+        shortcut.saveData();
+    }
+
+    // ---------------------------------------------------------------- display helpers
+
+    private static SaveLocationInfo inspectFolder(File dir, Container container, File gameDir) {
+        if (dir == null || !dir.isDirectory()) return null;
 
         SaveLocationInfo info = new SaveLocationInfo();
         info.directory = dir;
         info.title = dir.getName();
-        info.friendlyPath = formatFriendlyPath(dir, container);
+        info.friendlyPath = formatFriendlyPath(dir, container, gameDir);
 
         long[] stats = calculateFolderStats(dir);
         info.totalBytes = stats[0];
         info.fileCount = (int) stats[1];
         info.lastModified = stats[2];
-
         return info;
     }
 
-    public static String formatFriendlyPath(File file, Container container) {
+    public static String formatFriendlyPath(File file, Container container, File gameDir) {
         if (file == null) return "";
         String path = file.getAbsolutePath();
-        if (container == null || container.getRootDir() == null) return file.getName();
 
-        File userDir = new File(container.getRootDir(), ".wine/drive_c/users/xuser");
-        String userPrefix = userDir.getAbsolutePath();
-        if (path.startsWith(userPrefix)) {
-            String rel = path.substring(userPrefix.length()).replace("\\", "/");
-            if (rel.startsWith("/")) rel = rel.substring(1);
-            return rel.replace("/", " ❯ ");
+        if (container != null) {
+            String userPrefix = new File(getDriveC(container), "users/xuser").getAbsolutePath();
+            if (isInside(path, userPrefix)) return relative(path, userPrefix).replace("/", " ❯ ");
+
+            String driveCPrefix = getDriveC(container).getAbsolutePath();
+            if (isInside(path, driveCPrefix)) return ("C: ❯ " + relative(path, driveCPrefix).replace("/", " ❯ ")).trim();
         }
 
-        File driveCDir = new File(container.getRootDir(), ".wine/drive_c");
-        String driveCPrefix = driveCDir.getAbsolutePath();
-        if (path.startsWith(driveCPrefix)) {
-            String rel = path.substring(driveCPrefix.length()).replace("\\", "/");
-            if (rel.startsWith("/")) rel = rel.substring(1);
-            return "C: ❯ " + rel.replace("/", " ❯ ");
+        if (gameDir != null && isInside(path, gameDir.getAbsolutePath())) {
+            return ("Game folder ❯ " + relative(path, gameDir.getAbsolutePath()).replace("/", " ❯ ")).trim();
         }
 
-        return file.getName();
+        String storage = Environment.getExternalStorageDirectory().getAbsolutePath();
+        if (isInside(path, storage)) return ("Storage ❯ " + relative(path, storage).replace("/", " ❯ ")).trim();
+        return path;
+    }
+
+    private static String relative(String path, String root) {
+        return path.length() > root.length() ? path.substring(root.length() + 1) : "";
     }
 
     private static long[] calculateFolderStats(File dir) {
@@ -216,27 +471,167 @@ public class GameSaveBackup {
         return new long[]{totalBytes, fileCount, latestModified};
     }
 
+    public static String formatBytes(long bytes) {
+        if (bytes <= 0) return "0 KB";
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format(Locale.US, "%.1f KB", bytes / 1024.0f);
+        return String.format(Locale.US, "%.2f MB", bytes / (1024.0f * 1024.0f));
+    }
+
+    // ---------------------------------------------------------------- backup
+
     /**
-     * Inspects a save archive before extracting to verify validity and prevent corruption.
+     * Zip key for a path, recording where it lives so restore can put it back: drive_c/..., game_dir/...
+     * (relative to the game's exe folder, for games outside drive C:), or abs/... for anything else.
      */
+    private static String zipKeyFor(File file, File driveC, File gameDir) {
+        String path = file.getAbsolutePath();
+        String driveCPath = driveC.getAbsolutePath();
+        if (isInside(path, driveCPath)) return "drive_c" + path.substring(driveCPath.length());
+        if (gameDir != null) {
+            String gamePath = gameDir.getAbsolutePath();
+            if (isInside(path, gamePath)) return "game_dir" + path.substring(gamePath.length());
+        }
+        return "abs" + path;
+    }
+
+    public static File backupGameSaves(Shortcut shortcut, List<File> saveDirs) throws IOException {
+        if (shortcut == null || shortcut.container == null) throw new IOException("Invalid shortcut or container");
+
+        File driveC = getDriveC(shortcut.container);
+        File gameDir = getGameDir(shortcut);
+        String safeName = shortcut.name.replaceAll("[^a-zA-Z0-9_-]", "_");
+        File zipFile = newBackupFile(safeName + "_SaveBackup_");
+
+        int totalFiles = 0;
+        long totalBytes = 0;
+        JSONArray locations = new JSONArray();
+        for (File dir : saveDirs) {
+            long[] stats = calculateFolderStats(dir);
+            totalBytes += stats[0];
+            totalFiles += (int) stats[1];
+            locations.put(formatFriendlyPath(dir, shortcut.container, gameDir));
+        }
+
+        try (ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)))) {
+            writeManifest(zos, shortcut.name, totalFiles, totalBytes, locations, gameDir);
+            Set<String> written = new HashSet<>();
+            for (File dir : saveDirs) {
+                if (dir.isDirectory()) zipDirectory(dir, zipKeyFor(dir, driveC, gameDir), zos, written);
+            }
+        }
+
+        Log.i(TAG, "Game saves backed up to: " + zipFile.getAbsolutePath());
+        return zipFile;
+    }
+
+    public static File backupContainerSaves(Container container) throws IOException {
+        if (container == null) throw new IOException("Container is null");
+        File driveC = getDriveC(container);
+        if (!driveC.isDirectory()) throw new IOException("Container drive C: does not exist");
+
+        String safeName = container.getName().replaceAll("[^a-zA-Z0-9_-]", "_");
+        File zipFile = newBackupFile("Container_" + safeName + "_AllSaves_");
+
+        int totalFiles = 0;
+        long totalBytes = 0;
+        JSONArray locations = new JSONArray();
+        List<File> roots = new ArrayList<>();
+        for (String rel : CONTAINER_BACKUP_ROOTS) {
+            File root = new File(driveC, rel);
+            if (!root.isDirectory()) continue;
+            long[] stats = calculateFolderStats(root);
+            if (stats[1] == 0) continue;
+            roots.add(root);
+            totalBytes += stats[0];
+            totalFiles += (int) stats[1];
+            locations.put(formatFriendlyPath(root, container, null));
+        }
+
+        try (ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)))) {
+            writeManifest(zos, "All Container Saves (" + container.getName() + ")", totalFiles, totalBytes, locations, null);
+            // Tracks entries already written: overlapping roots or symlinks would otherwise add duplicate
+            // entries, which makes ZipOutputStream throw and the whole backup fail.
+            Set<String> written = new HashSet<>();
+            for (File root : roots) zipDirectory(root, zipKeyFor(root, driveC, null), zos, written);
+        }
+
+        Log.i(TAG, "Container saves backed up to: " + zipFile.getAbsolutePath());
+        return zipFile;
+    }
+
+    private static File newBackupFile(String prefix) throws IOException {
+        File exportDir = new File(SAVES_BACKUP_DIR);
+        if (!exportDir.exists() && !exportDir.mkdirs()) throw new IOException("Cannot create " + SAVES_BACKUP_DIR);
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+        return new File(exportDir, prefix + timestamp + ".zip");
+    }
+
+    private static void writeManifest(ZipOutputStream zos, String gameName, int fileCount, long totalBytes, JSONArray locations, File gameDir) throws IOException {
+        try {
+            JSONObject manifest = new JSONObject();
+            manifest.put("format", FORMAT_V2);
+            manifest.put("app", "Winlator Mali");
+            manifest.put("game_name", gameName);
+            manifest.put("created_at", new SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(new Date()));
+            manifest.put("file_count", fileCount);
+            manifest.put("total_bytes", totalBytes);
+            manifest.put("locations", locations);
+            if (gameDir != null) manifest.put("game_dir", gameDir.getAbsolutePath());
+
+            zos.putNextEntry(new ZipEntry(MANIFEST_FILE_NAME));
+            zos.write(manifest.toString(2).getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        } catch (org.json.JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
+    private static void zipDirectory(File folder, String parentPath, ZipOutputStream zos, Set<String> written) throws IOException {
+        // An explicit entry for each folder, so empty save folders are recreated on restore too.
+        String dirEntry = parentPath + "/";
+        if (written.add(dirEntry)) {
+            ZipEntry entry = new ZipEntry(dirEntry);
+            entry.setTime(folder.lastModified());
+            zos.putNextEntry(entry);
+            zos.closeEntry();
+        }
+
+        File[] files = folder.listFiles();
+        if (files == null) return;
+
+        byte[] buffer = new byte[8192];
+        for (File file : files) {
+            String name = parentPath + "/" + file.getName();
+            if (file.isDirectory()) {
+                zipDirectory(file, name, zos, written);
+            } else if (written.add(name)) {
+                ZipEntry entry = new ZipEntry(name);
+                entry.setTime(file.lastModified());
+                zos.putNextEntry(entry);
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    int read;
+                    while ((read = fis.read(buffer)) != -1) zos.write(buffer, 0, read);
+                }
+                zos.closeEntry();
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- inspection
+
     public static ArchiveInspectionResult inspectArchive(InputStream is) {
         ArchiveInspectionResult result = new ArchiveInspectionResult();
         int validSaveEntries = 0;
-        int totalEntries = 0;
 
         try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(is))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 String name = entry.getName();
-                totalEntries++;
 
                 if (name.equals(MANIFEST_FILE_NAME)) {
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] buf = new byte[1024];
-                    int r;
-                    while ((r = zis.read(buf)) != -1) baos.write(buf, 0, r);
-                    try {
-                        JSONObject json = new JSONObject(baos.toString("UTF-8"));
+                    JSONObject json = readJson(zis);
+                    if (json != null) {
                         result.status = ArchiveStatus.VALID_WINLATOR_MANIFEST;
                         result.gameName = json.optString("game_name", "Game Saves");
                         result.createdAt = json.optString("created_at", "");
@@ -244,17 +639,15 @@ public class GameSaveBackup {
                         result.totalBytes = json.optLong("total_bytes", 0);
                         JSONArray locs = json.optJSONArray("locations");
                         if (locs != null) {
-                            for (int i = 0; i < locs.length(); i++) result.detectedPaths.add(locs.getString(i));
+                            for (int i = 0; i < locs.length(); i++) result.detectedPaths.add(locs.optString(i));
                         }
                         return result;
-                    } catch (Exception ignored) {}
+                    }
                 }
 
-                if (isProbableSavePath(name)) {
+                if (!entry.isDirectory() && isProbableSavePath(name)) {
                     validSaveEntries++;
-                    if (result.detectedPaths.size() < 5) {
-                        result.detectedPaths.add(name);
-                    }
+                    if (result.detectedPaths.size() < 5) result.detectedPaths.add(name);
                 }
                 zis.closeEntry();
             }
@@ -272,214 +665,267 @@ public class GameSaveBackup {
             result.status = ArchiveStatus.INVALID_NON_SAVE_ARCHIVE;
             result.errorMessage = "No valid Windows/Wine save data (Documents, AppData, Saved Games) found in this archive.";
         }
-
         return result;
     }
 
+    private static JSONObject readJson(ZipInputStream zis) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int r;
+            while ((r = zis.read(buf)) != -1) baos.write(buf, 0, r);
+            return new JSONObject(baos.toString("UTF-8"));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static boolean isProbableSavePath(String path) {
-        String p = path.toLowerCase().replace("\\", "/");
+        String p = path.toLowerCase(Locale.ROOT).replace("\\", "/");
         return p.contains("users/") || p.contains("documents/") || p.contains("saved games/") ||
-               p.contains("appdata/") || p.contains("game_dir/") || p.endsWith(".sav") ||
-               p.endsWith(".dat") || p.endsWith(".save") || p.endsWith(".sl2") || p.endsWith(".sl3");
+               p.contains("appdata/") || p.contains("programdata/") || p.contains("game_dir/") ||
+               p.endsWith(".sav") || p.endsWith(".dat") || p.endsWith(".save") || p.endsWith(".sl2") || p.endsWith(".sl3");
+    }
+
+    // ---------------------------------------------------------------- restore
+
+    private static List<String> allowedRoots(Container container, File gameDir) {
+        List<String> roots = new ArrayList<>();
+        String root = canonical(container.getRootDir());
+        if (root != null) roots.add(root);
+        if (gameDir != null) {
+            String game = canonical(gameDir);
+            if (game != null) roots.add(game);
+        }
+        String storage = canonical(Environment.getExternalStorageDirectory());
+        if (storage != null) roots.add(storage);
+        return roots;
     }
 
     /**
-     * Exports discovered game saves with a signed Winlator Mali manifest inside the zip.
+     * Reads the archive and works out where every entry goes, without writing anything: lets the caller
+     * show the destinations and ask how to handle files that already exist. Entries that would land
+     * outside this container, the game's folder or shared storage (e.g. "../" tricks) are refused.
      */
-    public static File backupGameSaves(Shortcut shortcut, List<File> saveDirs) throws IOException {
-        if (shortcut == null || shortcut.container == null) {
-            throw new IOException("Invalid shortcut or container");
-        }
+    public static RestorePlan planRestore(Container container, Shortcut shortcut, StreamOpener opener) throws IOException {
+        RestorePlan plan = new RestorePlan();
+        plan.driveC = getDriveC(container);
 
-        File exportDir = new File(SAVES_BACKUP_DIR);
-        if (!exportDir.exists()) exportDir.mkdirs();
-
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-        String displayDate = new SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(new Date());
-        String safeName = shortcut.name.replaceAll("[^a-zA-Z0-9_-]", "_");
-        File zipFile = new File(exportDir, safeName + "_SaveBackup_" + timestamp + ".zip");
-
-        File userDir = new File(shortcut.container.getRootDir(), ".wine/drive_c/users/xuser");
-        String userDirPath = userDir.getAbsolutePath();
-
-        int totalFiles = 0;
-        long totalBytes = 0;
-        List<String> friendlyLocations = new ArrayList<>();
-
-        for (File dir : saveDirs) {
-            long[] stats = calculateFolderStats(dir);
-            totalBytes += stats[0];
-            totalFiles += (int) stats[1];
-            friendlyLocations.add(formatFriendlyPath(dir, shortcut.container));
-        }
-
-        try (ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)))) {
-            // 1. Write signed manifest
-            JSONObject manifest = new JSONObject();
-            try {
-                manifest.put("format", "winlator_save_backup_v1");
-                manifest.put("app", "Winlator Mali");
-                manifest.put("game_name", shortcut.name);
-                manifest.put("created_at", displayDate);
-                manifest.put("file_count", totalFiles);
-                manifest.put("total_bytes", totalBytes);
-                JSONArray locArray = new JSONArray();
-                for (String loc : friendlyLocations) locArray.put(loc);
-                manifest.put("locations", locArray);
-
-                ZipEntry manifestEntry = new ZipEntry(MANIFEST_FILE_NAME);
-                zos.putNextEntry(manifestEntry);
-                zos.write(manifest.toString(2).getBytes(StandardCharsets.UTF_8));
-                zos.closeEntry();
-            } catch (Exception ignored) {}
-
-            // 2. Write save directories
-            for (File saveDir : saveDirs) {
-                if (!saveDir.exists()) continue;
-                String relativeBase;
-                if (saveDir.getAbsolutePath().startsWith(userDirPath)) {
-                    relativeBase = "drive_c/users/xuser" + saveDir.getAbsolutePath().substring(userDirPath.length());
-                } else {
-                    relativeBase = "game_dir/" + saveDir.getName();
-                }
-                zipDirectory(saveDir, relativeBase, zos);
-            }
-        }
-
-        Log.i(TAG, "Game saves backed up with manifest to: " + zipFile.getAbsolutePath());
-        return zipFile;
-    }
-
-    /**
-     * Backs up the entire container's user profile saves with manifest.
-     */
-    public static File backupContainerSaves(Container container) throws IOException {
-        if (container == null) throw new IOException("Container is null");
-
-        File exportDir = new File(SAVES_BACKUP_DIR);
-        if (!exportDir.exists()) exportDir.mkdirs();
-
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-        String displayDate = new SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(new Date());
-        String safeName = container.getName().replaceAll("[^a-zA-Z0-9_-]", "_");
-        File zipFile = new File(exportDir, "Container_" + safeName + "_AllSaves_" + timestamp + ".zip");
-
-        File userDir = new File(container.getRootDir(), ".wine/drive_c/users/xuser");
-        if (!userDir.exists()) throw new IOException("Container user profile does not exist");
-
-        try (ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)))) {
-            // Write manifest
-            JSONObject manifest = new JSONObject();
-            try {
-                manifest.put("format", "winlator_save_backup_v1");
-                manifest.put("app", "Winlator Mali");
-                manifest.put("game_name", "All Container Saves (" + container.getName() + ")");
-                manifest.put("created_at", displayDate);
-
-                ZipEntry manifestEntry = new ZipEntry(MANIFEST_FILE_NAME);
-                zos.putNextEntry(manifestEntry);
-                zos.write(manifest.toString(2).getBytes(StandardCharsets.UTF_8));
-                zos.closeEntry();
-            } catch (Exception ignored) {}
-
-            for (String relRoot : USER_SAVE_ROOTS) {
-                File rootDir = new File(userDir, relRoot);
-                if (rootDir.exists() && rootDir.isDirectory()) {
-                    long[] stats = calculateFolderStats(rootDir);
-                    if (stats[1] > 0) {
-                        zipDirectory(rootDir, "drive_c/users/xuser/" + relRoot, zos);
-                    }
-                }
-            }
-        }
-
-        Log.i(TAG, "Container saves backed up to: " + zipFile.getAbsolutePath());
-        return zipFile;
-    }
-
-    /**
-     * Restores saves from an InputStream into the target container.
-     */
-    public static boolean restoreSaves(Container container, InputStream is) throws IOException {
-        if (container == null || is == null) {
-            throw new IOException("Invalid container or input stream");
-        }
-
-        File driveCDir = new File(container.getRootDir(), ".wine/drive_c");
-        if (!driveCDir.exists()) driveCDir.mkdirs();
-
-        byte[] buffer = new byte[8192];
-        try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(is))) {
+        List<ZipEntry> entries = new ArrayList<>();
+        JSONObject manifest = null;
+        try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(opener.open()))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                String entryName = entry.getName();
-                if (entry.isDirectory() || entryName.equals(MANIFEST_FILE_NAME)) {
-                    continue;
-                }
-
-                // Normalize path to fit Winlator container structure
-                String targetRelPath;
-                if (entryName.startsWith("drive_c/users/steamuser/")) {
-                    targetRelPath = "users/xuser/" + entryName.substring("drive_c/users/steamuser/".length());
-                } else if (entryName.startsWith("drive_c/users/xuser/")) {
-                    targetRelPath = "users/xuser/" + entryName.substring("drive_c/users/xuser/".length());
-                } else if (entryName.startsWith("users/xuser/")) {
-                    targetRelPath = entryName;
-                } else if (entryName.startsWith("game_dir/")) {
-                    targetRelPath = "users/xuser/Documents/" + entryName.substring("game_dir/".length());
-                } else {
-                    targetRelPath = "users/xuser/Documents/" + entryName;
-                }
-
-                File targetFile = new File(driveCDir, targetRelPath);
-                File parent = targetFile.getParentFile();
-                if (parent != null && !parent.exists()) parent.mkdirs();
-
-                try (FileOutputStream fos = new FileOutputStream(targetFile)) {
-                    int read;
-                    while ((read = zis.read(buffer)) != -1) {
-                        fos.write(buffer, 0, read);
-                    }
-                }
+                if (entry.getName().equals(MANIFEST_FILE_NAME)) manifest = readJson(zis);
+                else entries.add(entry);
                 zis.closeEntry();
             }
         }
 
-        Log.i(TAG, "Saves restored successfully into container " + container.getName());
-        return true;
+        File gameDir = getGameDir(shortcut);
+        if (gameDir == null && manifest != null) {
+            String recorded = manifest.optString("game_dir", "");
+            if (!recorded.isEmpty()) {
+                File candidate = new File(recorded);
+                String path = canonical(candidate);
+                // Only trusted if it's somewhere we'd let a restore write anyway.
+                if (candidate.isDirectory() && path != null) {
+                    for (String root : allowedRoots(container, null)) {
+                        if (isInside(path, root)) {
+                            gameDir = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        plan.gameDir = gameDir;
+        if (manifest != null) plan.gameName = manifest.optString("game_name", "");
+
+        List<String> roots = allowedRoots(container, gameDir);
+        Set<String> parents = new LinkedHashSet<>();
+
+        for (ZipEntry entry : entries) {
+            File target = mapEntry(entry.getName(), plan.driveC, gameDir);
+            String targetPath = target != null ? canonical(target) : null;
+            boolean allowed = false;
+            if (targetPath != null) {
+                for (String root : roots) {
+                    if (isInside(targetPath, root)) {
+                        allowed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!allowed) {
+                if (!entry.isDirectory()) plan.rejected++;
+                continue;
+            }
+
+            if (entry.isDirectory()) {
+                plan.dirs.put(entry.getName(), target);
+                continue;
+            }
+
+            PlannedFile planned = new PlannedFile();
+            planned.target = target;
+            planned.zipTime = entry.getTime();
+            planned.exists = target.exists();
+            if (planned.exists) plan.conflicts++;
+            plan.files.put(entry.getName(), planned);
+
+            File parent = target.getParentFile();
+            if (parent != null) parents.add(formatFriendlyPath(parent, container, gameDir));
+        }
+
+        if (manifest != null && manifest.optJSONArray("locations") != null) {
+            JSONArray locs = manifest.optJSONArray("locations");
+            for (int i = 0; i < locs.length(); i++) plan.locations.add(locs.optString(i));
+        } else {
+            plan.locations.addAll(parents);
+        }
+        return plan;
     }
 
-    private static void zipDirectory(File folder, String parentPath, ZipOutputStream zos) throws IOException {
-        File[] files = folder.listFiles();
-        if (files == null) return;
+    private static File mapEntry(String rawName, File driveC, File gameDir) {
+        String name = rawName.replace('\\', '/');
+        while (name.startsWith("/")) name = name.substring(1);
+        if (name.endsWith("/")) name = name.substring(0, name.length() - 1);
+        if (name.isEmpty()) return null;
+
+        if (name.equals("drive_c")) return driveC;
+        if (name.startsWith("drive_c/")) return new File(driveC, remapUser(name.substring("drive_c/".length())));
+        if (name.startsWith("users/")) return new File(driveC, remapUser(name));
+        if (name.equals("game_dir") || name.startsWith("game_dir/")) {
+            if (gameDir == null) return null;
+            return name.equals("game_dir") ? gameDir : new File(gameDir, name.substring("game_dir/".length()));
+        }
+        if (name.startsWith("abs/")) return new File("/" + name.substring("abs/".length()));
+        return new File(driveC, "users/xuser/Documents/" + name);
+    }
+
+    // Saves from another Wine prefix (steamuser, a real Windows user name, ...) belong to this container's xuser.
+    private static String remapUser(String path) {
+        if (!path.startsWith("users/")) return path;
+        String rest = path.substring("users/".length());
+        int slash = rest.indexOf('/');
+        String user = slash >= 0 ? rest.substring(0, slash) : rest;
+        if (user.equalsIgnoreCase("Public") || user.equals("xuser")) return path;
+        return "users/xuser" + (slash >= 0 ? rest.substring(slash) : "");
+    }
+
+    public static RestoreResult executeRestore(RestorePlan plan, ConflictMode mode, String backupLabel, StreamOpener opener) throws IOException {
+        RestoreResult result = new RestoreResult();
+        result.rejected = plan.rejected;
+
+        if (mode == ConflictMode.BACKUP_THEN_OVERWRITE && plan.conflicts > 0) {
+            result.preRestoreBackup = backupExistingFiles(plan, backupLabel);
+        }
+
+        for (File dir : plan.dirs.values()) {
+            if (!dir.exists()) dir.mkdirs();
+        }
 
         byte[] buffer = new byte[8192];
-        for (File file : files) {
-            if (file.isDirectory()) {
-                zipDirectory(file, parentPath + "/" + file.getName(), zos);
-            } else {
-                ZipEntry entry = new ZipEntry(parentPath + "/" + file.getName());
-                zos.putNextEntry(entry);
-                try (FileInputStream fis = new FileInputStream(file)) {
+        try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(opener.open()))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                PlannedFile planned = plan.files.get(entry.getName());
+                if (planned == null || entry.isDirectory()) {
+                    zis.closeEntry();
+                    continue;
+                }
+
+                File target = planned.target;
+                boolean exists = target.exists();
+                boolean skip = target.isDirectory() ||
+                        (exists && mode == ConflictMode.SKIP_EXISTING) ||
+                        (exists && mode == ConflictMode.NEWER_ONLY && (planned.zipTime <= 0 || target.lastModified() >= planned.zipTime));
+                if (skip) {
+                    result.skipped++;
+                    zis.closeEntry();
+                    continue;
+                }
+
+                File parent = target.getParentFile();
+                if (parent != null && !parent.exists()) parent.mkdirs();
+                try (FileOutputStream fos = new FileOutputStream(target)) {
                     int read;
-                    while ((read = fis.read(buffer)) != -1) {
-                        zos.write(buffer, 0, read);
-                    }
+                    while ((read = zis.read(buffer)) != -1) fos.write(buffer, 0, read);
+                }
+                if (planned.zipTime > 0) target.setLastModified(planned.zipTime);
+                result.written++;
+                zis.closeEntry();
+            }
+        }
+
+        Log.i(TAG, "Restore finished: " + result.written + " written, " + result.skipped + " skipped, " + result.rejected + " refused");
+        return result;
+    }
+
+    /** Zips the files a restore is about to overwrite, in the same layout, so the restore can be undone. */
+    private static File backupExistingFiles(RestorePlan plan, String label) throws IOException {
+        String safeName = (label == null || label.isEmpty() ? "Saves" : label).replaceAll("[^a-zA-Z0-9_-]", "_");
+        File zipFile = newBackupFile(safeName + "_BeforeRestore_");
+
+        int count = 0;
+        long bytes = 0;
+        for (PlannedFile planned : plan.files.values()) {
+            if (planned.exists && planned.target.isFile()) {
+                count++;
+                bytes += planned.target.length();
+            }
+        }
+
+        JSONArray locations = new JSONArray();
+        for (String loc : plan.locations) locations.put(loc);
+
+        byte[] buffer = new byte[8192];
+        try (ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)))) {
+            writeManifest(zos, (label == null ? "Saves" : label) + " (before restore)", count, bytes, locations, plan.gameDir);
+            Set<String> written = new HashSet<>();
+            for (PlannedFile planned : plan.files.values()) {
+                if (!planned.exists || !planned.target.isFile()) continue;
+                String name = zipKeyFor(planned.target, plan.driveC, plan.gameDir);
+                if (!written.add(name)) continue;
+                ZipEntry entry = new ZipEntry(name);
+                entry.setTime(planned.target.lastModified());
+                zos.putNextEntry(entry);
+                try (FileInputStream fis = new FileInputStream(planned.target)) {
+                    int read;
+                    while ((read = fis.read(buffer)) != -1) zos.write(buffer, 0, read);
                 }
                 zos.closeEntry();
             }
         }
+        return zipFile;
+    }
+
+    // ---------------------------------------------------------------- utils
+
+    private static String canonical(File file) {
+        try {
+            return file.getCanonicalPath();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static boolean isInside(String path, String root) {
+        return path.equals(root) || path.startsWith(root.endsWith("/") ? root : root + "/");
     }
 
     private static String normalize(String s) {
         if (s == null) return "";
-        return s.toLowerCase().replaceAll("[^a-z0-9]", "");
+        return s.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
     private static boolean isFuzzyMatch(String child, String game, String exe) {
         if (child.isEmpty()) return false;
-        if (!game.isEmpty() && (child.contains(game) || game.contains(child))) return true;
-        if (!exe.isEmpty() && (child.contains(exe) || exe.contains(child))) return true;
+        // The reverse check needs a few letters, or short folder names like "EA" or "Steam" match half the games.
+        if (!game.isEmpty() && (child.contains(game) || (child.length() >= 4 && game.contains(child)))) return true;
+        if (!exe.isEmpty() && (child.contains(exe) || (child.length() >= 4 && exe.contains(child)))) return true;
         return false;
     }
 }

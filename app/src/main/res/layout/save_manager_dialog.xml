@@ -32,15 +32,35 @@
             android:background="@drawable/pill_button_background"
             android:drawableStart="@drawable/icon_restore_backup"
             android:drawablePadding="6dp"
-            android:text="Restore .zip"
+            android:text="Restore"
             android:textColor="#3D82FF"
             android:textSize="12sp"
             android:textStyle="bold"
             android:textAllCaps="false"
             android:gravity="center"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:layout_marginEnd="6dp" />
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/BTAddSaveFolder"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:background="@drawable/pill_button_background"
+            android:drawableStart="@drawable/ic_nav_add_folder"
+            android:drawableTint="#3D82FF"
+            android:drawablePadding="6dp"
+            android:text="Add Folder"
+            android:textColor="#3D82FF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
 
         <Button
             android:id="@+id/BTToggleSelectAll"
@@ -56,9 +76,9 @@
             android:textStyle="bold"
             android:textAllCaps="false"
             android:gravity="center"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:layout_marginStart="6dp" />
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:layout_marginStart="4dp" />
     </LinearLayout>
 
     <!-- Scrollable Cards Container -->

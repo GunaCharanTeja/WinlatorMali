@@ -48,6 +48,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class FileManagerFragment extends Fragment {
     public enum ConflictResolution { OVERWRITE, KEEP_BOTH, SKIP }
+    public static final String PICK_FOLDER_RESULT = "file_manager_pick_folder";
+    public static final String PICKED_PATH = "picked_path";
+    private static final String ARG_PICK_FOLDER = "pick_folder";
+    private static final String ARG_START_DIR = "start_dir";
+    private boolean pickFolderMode;
     private File currentDir;
     private RecyclerView recyclerViewFiles;
     private TextView tvCurrentPath;
@@ -76,6 +81,33 @@ public class FileManagerFragment extends Fragment {
         super.onCreate(savedInstanceState);
         containerManager = new ContainerManager(getContext());
         currentDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
+        Bundle args = getArguments();
+        if (args != null) {
+            pickFolderMode = args.getBoolean(ARG_PICK_FOLDER, false);
+            String startDir = args.getString(ARG_START_DIR);
+            if (startDir != null && new File(startDir).isDirectory()) currentDir = new File(startDir);
+        }
+    }
+
+    /**
+     * Opens the file manager as a folder picker: browse as usual, then "Use this folder" posts the path
+     * as a fragment result under PICK_FOLDER_RESULT and pops back. Backing out posts a result with no path.
+     */
+    public static FileManagerFragment newFolderPicker(File startDir) {
+        FileManagerFragment fragment = new FileManagerFragment();
+        Bundle args = new Bundle();
+        args.putBoolean(ARG_PICK_FOLDER, true);
+        if (startDir != null) args.putString(ARG_START_DIR, startDir.getAbsolutePath());
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    private void finishPick(File dir) {
+        Bundle result = new Bundle();
+        if (dir != null) result.putString(PICKED_PATH, dir.getAbsolutePath());
+        getParentFragmentManager().setFragmentResult(PICK_FOLDER_RESULT, result);
+        getParentFragmentManager().popBackStack();
     }
 
     @Nullable
@@ -92,7 +124,8 @@ public class FileManagerFragment extends Fragment {
         
         if (getActivity() instanceof AppCompatActivity activity) {
             if (activity.getSupportActionBar() != null) {
-                activity.getSupportActionBar().setTitle(R.string.file_manager);
+                if (pickFolderMode) activity.getSupportActionBar().setTitle("Select save folder");
+                else activity.getSupportActionBar().setTitle(R.string.file_manager);
             }
         }
 
@@ -168,7 +201,16 @@ public class FileManagerFragment extends Fragment {
             Toast.makeText(getContext(), "Clipboard cleared", Toast.LENGTH_SHORT).show();
             return true;
         });
-        fabPaste.setVisibility(!clipboardFiles.isEmpty() ? View.VISIBLE : View.GONE);
+        fabPaste.setVisibility(!clipboardFiles.isEmpty() && !pickFolderMode ? View.VISIBLE : View.GONE);
+
+        com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton btSelectFolder = view.findViewById(R.id.BTSelectFolder);
+        if (pickFolderMode) {
+            if (getContext() != null) {
+                btSelectFolder.setBackgroundTintList(android.content.res.ColorStateList.valueOf(ThemeManager.getAccentColor(getContext())));
+            }
+            btSelectFolder.setVisibility(View.VISIBLE);
+            btSelectFolder.setOnClickListener(v -> finishPick(currentDir));
+        }
 
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
@@ -177,6 +219,10 @@ public class FileManagerFragment extends Fragment {
                 if (searchArea != null && searchArea.getVisibility() == View.VISIBLE) {
                     view.findViewById(R.id.BTCloseSearch).performClick();
                 } else if (!navigateUp()) {
+                    if (pickFolderMode) {
+                        finishPick(null);
+                        return;
+                    }
                     setEnabled(false);
                     requireActivity().onBackPressed();
                 }
@@ -1209,7 +1255,9 @@ public class FileManagerFragment extends Fragment {
             holder.btFileMenu.setVisibility(View.GONE);
 
             holder.itemView.setOnClickListener(v -> {
-                if (!selectedFiles.isEmpty()) {
+                if (pickFolderMode) {
+                    if (file.isDirectory()) navigateTo(file);
+                } else if (!selectedFiles.isEmpty()) {
                     toggleSelection(file, position);
                 } else if (file.isDirectory()) {
                     navigateTo(file);
@@ -1219,6 +1267,7 @@ public class FileManagerFragment extends Fragment {
             });
 
             holder.itemView.setOnLongClickListener(v -> {
+                if (pickFolderMode) return true;
                 if (selectedFiles.contains(file)) {
                     showFileOptions(file, v);
                 } else {
