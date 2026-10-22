@@ -22,7 +22,7 @@
         android:layout_width="140dp"
         android:layout_height="140dp"
         android:layout_gravity="center"
-        android:src="@drawable/logo"
+        android:src="@mipmap/ic_launcher"
         android:visibility="gone"
         android:contentDescription="@null" />
 
