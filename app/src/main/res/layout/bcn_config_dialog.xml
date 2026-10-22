@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="320dp"
-    android:layout_height="220dp"
+    android:layout_height="wrap_content"
     android:fillViewport="true"
     android:scrollbars="vertical">
 
@@ -12,20 +12,20 @@
         android:orientation="vertical"
         android:padding="6dp">
 
-        <!-- Header / Emulation Mode -->
+        <!-- Header / Info -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:layout_marginTop="4dp"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="8dp">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/graphics_driver_bcn_emulation"
+                android:text="@string/bcn_layer_configuration"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:textColor="?android:attr/textColorSecondary" />
@@ -41,90 +41,6 @@
                 android:contentDescription="Info" />
         </LinearLayout>
 
-        <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:id="@+id/SGraphicsDriverBCnEmulation"
-            android:entries="@array/bcn_emulation_entries"
-            android:spinnerMode="dropdown"
-            android:layout_marginBottom="10dp" />
-
-        <!-- Emulation Type -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/graphics_driver_bcn_emulation_type"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:textColor="?android:attr/textColorSecondary"
-            android:layout_marginBottom="4dp" />
-
-        <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:id="@+id/SGraphicsDriverBCnEmulationType"
-            android:entries="@array/bcn_emulation_type_entries"
-            android:spinnerMode="dropdown"
-            android:layout_marginBottom="10dp" />
-
-        <!-- Emulation Cache -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/graphics_driver_bcn_emulation_cache"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:textColor="?android:attr/textColorSecondary"
-            android:layout_marginBottom="4dp" />
-
-        <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:id="@+id/SGraphicsDriverBCnEmulationCache"
-            android:entries="@array/bcn_emulation_cache_entries"
-            android:spinnerMode="dropdown"
-            android:layout_marginBottom="10dp" />
-
-        <!-- Quality Preset -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/graphics_driver_bcn_quality_preset"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="?android:attr/textColorSecondary" />
-
-            <ImageView
-                android:id="@+id/IVQualityPresetInfo"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_driver_info"
-                app:tint="?android:attr/textColorSecondary"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:padding="4dp"
-                android:contentDescription="Info" />
-        </LinearLayout>
-
-        <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="42dp"
-            android:id="@+id/SGraphicsDriverBCnQualityPreset"
-            android:entries="@array/bcn_quality_preset_entries"
-            android:spinnerMode="dropdown"
-            android:layout_marginBottom="12dp" />
-
         <!-- Options Card -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -138,10 +54,10 @@
             android:layout_marginBottom="8dp">
 
             <CheckBox
-                android:id="@+id/CBASTCTranscode"
+                android:id="@+id/CBBCnEnabled"
                 android:layout_width="match_parent"
                 android:layout_height="36dp"
-                android:text="@string/graphics_driver_astc_transcode"
+                android:text="@string/graphics_driver_bcn_enabled"
                 android:textSize="13sp" />
 
             <View
@@ -152,10 +68,11 @@
                 android:layout_marginBottom="4dp" />
 
             <CheckBox
-                android:id="@+id/CBETC2Transcode"
+                android:id="@+id/CBBCnKeepRaw"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
-                android:text="@string/graphics_driver_etc2_transcode"
+                android:layout_height="wrap_content"
+                android:minHeight="36dp"
+                android:text="@string/graphics_driver_bcn_keep_raw"
                 android:textSize="13sp" />
 
         </LinearLayout>

@@ -2198,10 +2198,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, driverFile, rootDir);
         }
 
-        String astcTranscode = graphicsDriverConfig.get("astcTranscode");
-        String etc2Transcode = graphicsDriverConfig.get("etc2Transcode");
-        boolean transcodeEnabled = "1".equals(astcTranscode) || "1".equals(etc2Transcode);
-
         File libDir = new File(rootDir, "usr/lib");
         File gladioLib = new File(libDir, "libGL.so.1.7.0");
         if (firstTimeBoot || !gladioLib.exists()) {
@@ -2215,33 +2211,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (firstTimeBoot) {
             Log.d("XServerDisplayActivity", "First time container boot, re-extracting layers and extra libs");
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "layers.tzst", rootDir);
-            
+
             File internalExtraLibs = new File(getFilesDir(), "graphics_driver/extra_libs.tzst");
             if (internalExtraLibs.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalExtraLibs, rootDir);
             else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
 
-            if (transcodeEnabled) {
-                File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
-                if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir);
-                else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
-            }
-            container.putExtra("transcodeEnabled", transcodeEnabled ? "1" : "0");
-        }
-        else {
-            boolean lastTranscodeEnabled = container.getExtra("transcodeEnabled", "0").equals("1");
-            if (transcodeEnabled != lastTranscodeEnabled) {
-                File internalExtraLibs = new File(getFilesDir(), "graphics_driver/extra_libs.tzst");
-                if (internalExtraLibs.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalExtraLibs, rootDir);
-                else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
-
-                if (transcodeEnabled) {
-                    File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
-                    if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir);
-                    else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
-                }
-                container.putExtra("transcodeEnabled", transcodeEnabled ? "1" : "0");
-                container.saveData();
-            }
+            // The leegao BCn layer (libbcn_layer.so): always extracted, same as extra_libs above -- whether it
+            // actually loads is purely the ENABLE_BCN_COMPUTE / DISABLE_BCN_COMPUTE env vars below, set every boot.
+            File internalLeegaoBcn = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
+            if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir);
+            else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
         }
 
         if (adrenoToolsDriverId != "System") {
@@ -2285,45 +2264,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String disablePresentWait = graphicsDriverConfig.get("disablePresentWait");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
-        String bcnEmulation = graphicsDriverConfig.get("bcnEmulation");
-        String bcnEmulationType = graphicsDriverConfig.get("bcnEmulationType");
-
-        switch (bcnEmulation) {
-            case "auto" -> {
-                if (bcnEmulationType.equals("compute") && GPUInformation.getVendorID(null, null) != 0x5143) {
-                    envVars.put("ENABLE_BCN_COMPUTE", "1");
-                    envVars.put("BCN_COMPUTE_AUTO", "1");
-                }
-                envVars.put("WRAPPER_EMULATE_BCN", "3");
-            }
-            case "full" -> {
-                if (bcnEmulationType.equals("compute") && GPUInformation.getVendorID(null, null) != 0x5143) {
-                    envVars.put("ENABLE_BCN_COMPUTE", "1");
-                    envVars.put("BCN_COMPUTE_AUTO", "0");
-                }
-                envVars.put("WRAPPER_EMULATE_BCN", "2");
-            }
-            case "none" -> envVars.put("WRAPPER_EMULATE_BCN", "0");
-            default -> envVars.put("WRAPPER_EMULATE_BCN", "1");
-        }
-
-        String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
-        envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
-        if ("0".equals(bcnEmulationCache)) {
-            envVars.put("BCN_DISABLE_DISK_CACHE", "1");
-        } else {
-            envVars.put("BCN_DISABLE_DISK_CACHE", "0");
-        }
-
-        if ("1".equals(astcTranscode))
-            envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
-
-        if ("1".equals(etc2Transcode))
-            envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
-
-        String bcnQualityPreset = graphicsDriverConfig.getOrDefault("bcnQualityPreset", "auto");
-        if (!bcnQualityPreset.equals("auto")) {
-            envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
+        // The leegao BCn layer's real env vars (bcn_layer_env.txt): ENABLE_BCN_COMPUTE loads it, DISABLE_BCN_COMPUTE
+        // force-stops it loading. BCN_NATIVE (transcode to ETC2/EAC/ASTC) and BCN_NATIVE_DIRECT (the fast write path)
+        // are left at their defaults (both 1): off is debug-only and either breaks BC textures on stock Mali or is
+        // just slower, with no user-facing upside. Qualcomm devices already handle BC natively (Adreno/Turnip), so
+        // the layer is skipped there even when enabled.
+        boolean bcnEnabled = !"0".equals(graphicsDriverConfig.getOrDefault("bcnEnabled", "1"))
+                && GPUInformation.getVendorID(null, null) != 0x5143;
+        envVars.put(bcnEnabled ? "ENABLE_BCN_COMPUTE" : "DISABLE_BCN_COMPUTE", "1");
+        if (bcnEnabled && "1".equals(graphicsDriverConfig.getOrDefault("bcnKeepRaw", "0"))) {
+            envVars.put("BCN_KEEP_RAW", "1");
         }
     }
 
