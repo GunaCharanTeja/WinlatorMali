@@ -1527,12 +1527,8 @@ public class ShortcutsFragment extends Fragment {
                     // Hero thumbnails show the whole banner uncropped (it's a preview, not a fill target) --
                     // cover art keeps cropping to fill its portrait box, matching the shortcut grid it previews for.
                     if (forHero) options2 = options2.fitCenter(); else options2 = options2.centerCrop();
-                    // SteamGridDB's "thumb" field is itself server-side cropped to a fixed aspect, which cut the
-                    // sides off wide hero banners even once fitCenter stopped us re-cropping it locally -- load
-                    // the actual full-size image for hero items instead so there's nothing left pre-cropped.
-                    String loadUrl = forHero ? data.url() : (data.thumb() != null ? data.thumb() : data.url());
                     Glide.with(context)
-                            .load(loadUrl)
+                            .load(data.thumb() != null ? data.thumb() : data.url())
                             .placeholder(R.drawable.cover_art_placeholder)
                             .thumbnail(0.1f)
                             .apply(options2)
