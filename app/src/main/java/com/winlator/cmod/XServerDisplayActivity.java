@@ -1429,6 +1429,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             overrideEnvVars.clear(); // Clear overrideEnvVars as per smali logic
         }
 
+        // The legacy wrapper-side BCn path (superseded by the leegao layer, see extractGraphicsDriverFiles): forced
+        // off unconditionally, after every other source of env vars (container, shortcut, overrides) has already
+        // been merged in above, so a manually-set WRAPPER_EMULATE_BCN or WRAPPER_USE_BCN_CACHE can never re-enable
+        // it -- this always wins, last.
+        envVars.put("WRAPPER_EMULATE_BCN", "0");
+        envVars.put("WRAPPER_USE_BCN_CACHE", "0");
+
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
         if (emulationService != null) emulationService.setEnvironment(environment);
