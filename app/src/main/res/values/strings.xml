@@ -677,6 +677,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="bcn_layer_configuration">BCn Layer Configuration</string>
     <string name="graphics_driver_bcn_enabled">BCn Emulation Enabled</string>
     <string name="graphics_driver_bcn_keep_raw">Keep raw texture data (for games that read textures back; uses ~2x BCn texture memory)</string>
+    <string name="graphics_driver_bcn_emulation">BCn Emulation</string>
+    <string name="graphics_driver_bcn_emulation_cache">BCn Emulation Cache</string>
     <string name="ram_booster">RAM Booster (LMK Trigger)</string>
     <string name="enable_ram_booster">Enable RAM Booster</string>
     <string name="enable_ram_booster_toast">Show RAM Booster Notifications</string>

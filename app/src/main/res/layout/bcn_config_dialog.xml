@@ -76,6 +76,43 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:text="@string/graphics_driver_bcn_emulation"
+                    android:textSize="12.5sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:layout_marginBottom="4dp" />
+
+                <Spinner
+                    style="@style/ComboBox"
+                    android:id="@+id/SGraphicsDriverBCnEmulation"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:spinnerMode="dropdown" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/graphics_driver_bcn_emulation_cache"
+                    android:textSize="12.5sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="4dp" />
+
+                <Spinner
+                    style="@style/ComboBox"
+                    android:id="@+id/SGraphicsDriverBCnEmulationCache"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:spinnerMode="dropdown" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#20FFFFFF"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:text="Layer version"
                     android:textSize="12.5sp"
                     android:textColor="?android:attr/textColorSecondary"

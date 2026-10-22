@@ -20,6 +20,10 @@ import java.util.List;
 //  - Legacy (September build): every BC texture is transcoded to one chosen format (ASTC / ETC2 / ETC1) at a
 //    quality preset, for games that render wrong with the current build.
 public class BCNConfigDialog extends ContentDialog {
+    private static final List<String> EMULATION_KEYS = Arrays.asList("auto", "full", "partial", "none");
+    private static final String[] EMULATION_LABELS = {"Auto", "Full", "Partial", "None"};
+    private static final List<String> CACHE_KEYS = Arrays.asList("1", "0");
+    private static final String[] CACHE_LABELS = {"Enabled", "Disabled"};
     private static final List<String> VERSION_KEYS = Arrays.asList("current", "legacy");
     private static final String[] VERSION_LABELS = {"Current (native, faster)", "Legacy (ASTC / ETC2)"};
     private static final List<String> TRANSCODE_KEYS = Arrays.asList("astc", "etc2", "etc1");
@@ -35,6 +39,8 @@ public class BCNConfigDialog extends ContentDialog {
         CheckBox cbEnabled = findViewById(R.id.CBBCnEnabled);
         CheckBox cbKeepRaw = findViewById(R.id.CBBCnKeepRaw);
         CheckBox cbNativeDirect = findViewById(R.id.CBBCnNativeDirect);
+        Spinner sEmulation = findViewById(R.id.SGraphicsDriverBCnEmulation);
+        Spinner sCache = findViewById(R.id.SGraphicsDriverBCnEmulationCache);
         Spinner sVersion = findViewById(R.id.SBCnVersion);
         Spinner sTranscode = findViewById(R.id.SBCnTranscode);
         Spinner sQuality = findViewById(R.id.SBCnQuality);
@@ -47,6 +53,8 @@ public class BCNConfigDialog extends ContentDialog {
         cbEnabled.setChecked(!"0".equals(config.getOrDefault("bcnEnabled", "1")));
         cbKeepRaw.setChecked("1".equals(config.getOrDefault("bcnKeepRaw", "0")));
         cbNativeDirect.setChecked(!"0".equals(config.getOrDefault("bcnNativeDirect", "1")));
+        setUpSpinner(sEmulation, EMULATION_LABELS, EMULATION_KEYS, config.getOrDefault("bcnEmulation", "auto"));
+        setUpSpinner(sCache, CACHE_LABELS, CACHE_KEYS, config.getOrDefault("bcnEmulationCache", "1"));
         setUpSpinner(sVersion, VERSION_LABELS, VERSION_KEYS, config.getOrDefault("bcnVersion", "current"));
         setUpSpinner(sTranscode, TRANSCODE_LABELS, TRANSCODE_KEYS, config.getOrDefault("bcnTranscode", "astc"));
         setUpSpinner(sQuality, QUALITY_LABELS, QUALITY_KEYS, config.getOrDefault("bcnQuality", "auto"));
@@ -68,6 +76,8 @@ public class BCNConfigDialog extends ContentDialog {
 
         setOnConfirmCallback(() -> {
             config.put("bcnEnabled", cbEnabled.isChecked() ? "1" : "0");
+            config.put("bcnEmulation", EMULATION_KEYS.get(sEmulation.getSelectedItemPosition()));
+            config.put("bcnEmulationCache", CACHE_KEYS.get(sCache.getSelectedItemPosition()));
             config.put("bcnKeepRaw", cbKeepRaw.isChecked() ? "1" : "0");
             config.put("bcnNativeDirect", cbNativeDirect.isChecked() ? "1" : "0");
             config.put("bcnVersion", VERSION_KEYS.get(sVersion.getSelectedItemPosition()));

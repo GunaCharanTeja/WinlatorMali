@@ -2320,8 +2320,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String disablePresentWait = graphicsDriverConfig.get("disablePresentWait");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
-        envVars.put("WRAPPER_EMULATE_BCN", "3");
-        envVars.put("WRAPPER_USE_BCN_CACHE", "1");
+        String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
+        switch (bcnEmulation) {
+            case "auto" -> envVars.put("WRAPPER_EMULATE_BCN", "3");
+            case "full" -> envVars.put("WRAPPER_EMULATE_BCN", "2");
+            case "none" -> envVars.put("WRAPPER_EMULATE_BCN", "0");
+            default -> envVars.put("WRAPPER_EMULATE_BCN", "1");
+        }
+
+        String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
+        envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
+        if ("0".equals(bcnEmulationCache)) {
+            envVars.put("BCN_DISABLE_DISK_CACHE", "1");
+        } else {
+            envVars.put("BCN_DISABLE_DISK_CACHE", "0");
+        }
 
         // ENABLE_BCN_COMPUTE loads the layer, DISABLE_BCN_COMPUTE force-stops it (both builds). Qualcomm devices
         // already handle BC natively (Adreno/Turnip), so the layer is skipped there even when enabled.
