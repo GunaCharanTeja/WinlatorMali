@@ -1003,6 +1003,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     protected void onStop() {
         super.onStop();
+        // Leaving the game screen without exiting the game (Home, recents, back to the menus) used to keep the
+        // controller claimed, so neither WinMali's menus nor other apps could see it. onResume takes it back.
+        if (usbRumbleClaimed) {
+            usbRumbleClaimed = false;
+            com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this).releaseClaim();
+        }
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
         com.winlator.cmod.perf.PerformanceManager.onGamePause(this);
