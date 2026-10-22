@@ -556,40 +556,54 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             tvWebpage.setText(Html.fromHtml("<a href=\"https://github.com/GunaCharanTeja/WinlatorMali\">github.com/GunaCharanTeja/WinlatorMali</a>", Html.FROM_HTML_MODE_LEGACY));
             tvWebpage.setMovementMethod(LinkMovementMethod.getInstance());
 
-            ((TextView) dialog.findViewById(R.id.TVAppVersion)).setText(getString(R.string.version) + " " + pInfo.versionName);
+            ((TextView) dialog.findViewById(R.id.TVAppVersion)).setText(getString(R.string.version) + " " + pInfo.versionName + " (egl-renderer)");
 
-            String creditsAndThirdPartyAppsHTML = String.join("<br />",
-                    "<b>Winlator Mali</b> by Fcharan",
-                    "<b>Winlator & Gladio</b> by <a href=\"https://github.com/brunodev85\">Bruno (brunodev85)</a>",
-                    "Fork of <b>Winlator Bionic</b> by <a href=\"https://github.com/Pipetto-crypto\">Pipetto Cripto</a>",
-                    "Controller fixes by <a href=\"https://github.com/Vivsi1\">vivsi1</a>",
-                    "Winlator HUD & File Manager from <b>Winlator Ludashi</b> by <a href=\"https://github.com/StevenMXZ\">stevenmxz</a>",
-                    "Theme system & CI contributions by <a href=\"https://github.com/Noysz\">Noysz</a>",
-                    "Original idea for Community Configs by <a href=\"https://github.com/The412Banner\">The412Banner</a>",
-                    "<b><a href=\"https://github.com/leegao\">leegao</a></b> (BCN Layer & Transcode)",
-                    "---",
-                    "Wine (<a href=\"https://www.winehq.org\">winehq.org</a>)",
-                    "Gladio (<a href=\"https://github.com/brunodev85/gladio\">github.com/brunodev85/gladio</a>)",
-                    "Box64 (<a href=\"https://github.com/ptitSeb/box64\">github.com/ptitSeb/box64</a>)",
-                    "Mesa (Turnip/Zink/Wrapper) (<a href=\"https://github.com/xMeM/mesa/tree/wrapper\">github.com/xMeM/mesa</a>)",
-                    "DXVK (<a href=\"https://github.com/doitsujin/dxvk\">github.com/doitsujin/dxvk</a>)",
-                    "VKD3D (<a href=\"https://gitlab.winehq.org/wine/vkd3d\">gitlab.winehq.org/wine/vkd3d</a>)",
-                    "D8VK (<a href=\"https://github.com/AlpyneDreams/d8vk\">github.com/AlpyneDreams/d8vk</a>)",
-                    "CNC DDraw (<a href=\"https://github.com/FunkyFr3sh/cnc-ddraw\">github.com/FunkyFr3sh/cnc-ddraw</a>)",
-                    "dxwrapper (<a href=\"https://github.com/elishacloud/dxwrapper\">github.com/elishacloud/dxwrapper</a>)",
-                    "FEX-Emu (<a href=\"https://github.com/FEX-Emu/FEX\">github.com/FEX-Emu/FEX</a>)",
-                    "libadrenotools (<a href=\"https://github.com/bylaws/libadrenotools\">github.com/bylaws/libadrenotools</a>)"
+            String branchFeaturesHTML = String.join("<br />",
+                    "<b>• BCn Texture Emulation &amp; Disk Cache:</b> Hardware-accelerated Vulkan BCn layer with ASTC/ETC2 transcode, Native Direct toggle, and persistent disk caching for Mali GPUs.",
+                    "<b>• ZeroFG Frame Generation:</b> Custom Mali-optimized frame interpolation engine for higher perceived framerates.",
+                    "<b>• Winlator Telemetry HUD:</b> Direct Mali GPU load and clock telemetry via sysfs, real CPU usage, thermal status, battery watts, 1% and 0.1% lows, frame-time graph, and Madeira Glass styling.",
+                    "<b>• USB Gamepad &amp; Vibration:</b> True USB controller attachment, auto-grant permission persistence, rumble feedback, and full D-Pad/controller UI navigation.",
+                    "<b>• Community Configs &amp; Ratings:</b> Cloud config sync, automated Mali/Adreno badges, unbundled Wine downloader flow, and real-time community Helpful / Didn't Work ratings.",
+                    "<b>• Save Manager &amp; Hero Art:</b> 16:9 SteamGridDB hero art, fullscreen launch screens, and automatic save detection &amp; restoration for standard and cracked games."
             );
+            TextView tvBranchFeatures = dialog.findViewById(R.id.TVBranchFeatures);
+            if (tvBranchFeatures != null) {
+                tvBranchFeatures.setText(Html.fromHtml(branchFeaturesHTML, Html.FROM_HTML_MODE_LEGACY));
+            }
 
-            TextView tvCreditsAndThirdPartyApps = dialog.findViewById(R.id.TVCreditsAndThirdPartyApps);
-            tvCreditsAndThirdPartyApps.setText(Html.fromHtml(creditsAndThirdPartyAppsHTML, Html.FROM_HTML_MODE_LEGACY));
-            tvCreditsAndThirdPartyApps.setMovementMethod(LinkMovementMethod.getInstance());
+            String creditsHTML = String.join("<br />",
+                    "<b>Winlator Mali</b> by <a href=\"https://github.com/GunaCharanTeja\">GunaCharanTeja (Fcharan)</a>",
+                    "<b>Winlator &amp; Gladio</b> by <a href=\"https://github.com/brunodev85\">Bruno (brunodev85)</a>",
+                    "Fork of <b>Winlator Bionic</b> by <a href=\"https://github.com/Pipetto-crypto\">Pipetto Cripto</a>",
+                    "<b>BCN Layer &amp; Transcode</b> by <a href=\"https://github.com/leegao\">leegao</a>",
+                    "Winlator HUD &amp; File Manager from <b>Winlator Ludashi</b> by <a href=\"https://github.com/StevenMXZ\">stevenmxz</a>",
+                    "Controller fixes &amp; Navigation by <a href=\"https://github.com/Vivsi1\">vivsi1</a>",
+                    "Theme system &amp; CI contributions by <a href=\"https://github.com/Noysz\">Noysz</a>",
+                    "Original Community Configs Concept by <a href=\"https://github.com/The412Banner\">The412Banner</a>",
+                    "GLIBC Fork contributions by <a href=\"https://github.com/longjunyu2\">longjunyu2</a>"
+            );
+            TextView tvCredits = dialog.findViewById(R.id.TVCreditsAndThirdPartyApps);
+            if (tvCredits != null) {
+                tvCredits.setText(Html.fromHtml(creditsHTML, Html.FROM_HTML_MODE_LEGACY));
+                tvCredits.setMovementMethod(LinkMovementMethod.getInstance());
+            }
 
-            String glibcExpVersionForkHTML = String.join("<br />",
-                    "longjunyu2's <a href=\"https://github.com/longjunyu2/winlator/tree/use-glibc-instead-of-proot\">(GLIBC Fork)</a>");
-            TextView tvGlibcExpVersionFork = dialog.findViewById(R.id.TVGlibcExpVersionFork);
-            tvGlibcExpVersionFork.setText(Html.fromHtml(glibcExpVersionForkHTML, Html.FROM_HTML_MODE_LEGACY));
-            tvGlibcExpVersionFork.setMovementMethod(LinkMovementMethod.getInstance());
+            String licensesHTML = String.join("<br />",
+                    "<b>Wine / Proton:</b> LGPL v2.1+ (<a href=\"https://www.winehq.org\">winehq.org</a>)",
+                    "<b>Box64 &amp; FEX-Emu:</b> MIT (<a href=\"https://github.com/ptitSeb/box64\">ptitSeb</a> / <a href=\"https://github.com/FEX-Emu/FEX\">FEX-Emu</a>)",
+                    "<b>Mesa (Turnip / Zink / Wrapper):</b> MIT / LGPL (<a href=\"https://github.com/xMeM/mesa\">xMeM</a>)",
+                    "<b>DXVK &amp; VKD3D:</b> zlib / LGPL v2.1 (<a href=\"https://github.com/doitsujin/dxvk\">doitsujin</a> / <a href=\"https://gitlab.winehq.org/wine/vkd3d\">WineHQ</a>)",
+                    "<b>D8VK &amp; dxwrapper &amp; CNC DDraw:</b> zlib / GPL / MIT",
+                    "<b>libadrenotools:</b> GPL v3 (<a href=\"https://github.com/bylaws/libadrenotools\">bylaws</a>)",
+                    "<b>ZeroFG Frame Generation:</b> Apache 2.0 / BSD 3-Clause",
+                    "<b>Inter Font:</b> SIL Open Font License 1.1",
+                    "<b>Android Open Source Project:</b> Apache 2.0"
+            );
+            TextView tvLicenses = dialog.findViewById(R.id.TVLicenses);
+            if (tvLicenses != null) {
+                tvLicenses.setText(Html.fromHtml(licensesHTML, Html.FROM_HTML_MODE_LEGACY));
+                tvLicenses.setMovementMethod(LinkMovementMethod.getInstance());
+            }
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
         }

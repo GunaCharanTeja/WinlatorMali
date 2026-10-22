@@ -139,7 +139,7 @@ public class CommunityConfigManager {
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("X-App-Signature", signature);
-                conn.setRequestProperty("X-App-Version", "1.0-bionic");
+                conn.setRequestProperty("X-App-Version", "1.2-bionic");
                 conn.setDoOutput(true);
 
                 try (OutputStream os = conn.getOutputStream()) {
