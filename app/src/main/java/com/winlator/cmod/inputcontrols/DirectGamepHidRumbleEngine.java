@@ -104,6 +104,7 @@ public class DirectGamepHidRumbleEngine {
 
     public synchronized void releaseClaim() {
         if (claimCount > 0) claimCount--;
+        Log.i(TAG, "releaseClaim: claimCount=" + claimCount + ", sessions=" + activeSessions.size());
         if (claimCount > 0) return;
         if (autoStopRunnable != null) {
             mainHandler.removeCallbacks(autoStopRunnable);
@@ -645,10 +646,13 @@ public class DirectGamepHidRumbleEngine {
             }
             try {
                 if (session.connection != null) {
-                    if (session.usbInterface != null) session.connection.releaseInterface(session.usbInterface);
+                    boolean released = session.usbInterface == null || session.connection.releaseInterface(session.usbInterface);
                     session.connection.close();
+                    Log.i(TAG, "Released " + getDeviceDisplayName(session.device) + " (interface released=" + released + ")");
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Log.w(TAG, "Release failed for " + deviceName + ": " + e);
+            }
         }
     }
 

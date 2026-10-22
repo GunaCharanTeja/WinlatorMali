@@ -312,8 +312,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void updateControllerHints() {
         View bar = findViewById(R.id.HSVControllerHints);
         if (bar == null) return;
-        boolean connected = com.winlator.cmod.core.ControllerNavigation.isControllerConnected();
-        if (connected && ((android.view.ViewGroup) findViewById(R.id.LLControllerHints)).getChildCount() == 0) {
+        boolean connected = com.winlator.cmod.core.ControllerNavigation.isControllerConnected();        if (connected && ((android.view.ViewGroup) findViewById(R.id.LLControllerHints)).getChildCount() == 0) {
             com.winlator.cmod.core.ControllerNavigation.buildHints(findViewById(R.id.LLControllerHints), new String[][]{
                 {"A", "Select", "#3DA35D"},
                 {"B", "Back", "#D9453B"},
