@@ -881,8 +881,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
 
         com.winlator.cmod.perf.PerformanceManager.onGameResume(this, com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent.getPid());
-        com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this).scanAndConnectGamepads();
+        com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine usbRumble = com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this);
+        if (!usbRumbleClaimed) {
+            usbRumble.acquire();
+            usbRumbleClaimed = true;
+        } else {
+            usbRumble.scanAndConnectGamepads();
+        }
     }
+
+    private boolean usbRumbleClaimed = false;
 
     @Override
     public void onPause() {
@@ -958,6 +966,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
 
             runOnUiThread(() -> {
+                // Hand the controller back to Android before the process restart, which may skip onDestroy.
+                if (usbRumbleClaimed) {
+                    usbRumbleClaimed = false;
+                    com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this).releaseClaim();
+                }
                 preloaderDialog.closeOnUiThread();
                 AppUtils.restartApplication(getApplicationContext());
             });
@@ -966,6 +979,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        if (usbRumbleClaimed) {
+            usbRumbleClaimed = false;
+            com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this).releaseClaim();
+        }
         com.winlator.cmod.core.RefreshRateUtils.onActivityDestroyed(this);
         com.winlator.cmod.perf.PerformanceManager.onGameStop(this);
         if (xServerView != null) xServerView.onDestroy();

@@ -45,6 +45,9 @@ public class DirectGamepHidRumbleEngine {
     private WinHandler winHandler;
     private Runnable onPermissionGrantedCallback;
     private Runnable autoStopRunnable;
+    // Claiming a pad (force-claim detaches Android's own gamepad driver) hides it from every other app, so
+    // it's only held while something needs it: a running game or the vibration test dialog.
+    private int claimCount = 0;
 
     public static class GamepadUsbSession {
         public UsbDevice device;
@@ -81,7 +84,6 @@ public class DirectGamepHidRumbleEngine {
         this.context = context.getApplicationContext();
         this.usbManager = (UsbManager) this.context.getSystemService(Context.USB_SERVICE);
         registerUsbReceiver();
-        scanAndConnectGamepads();
     }
 
     public static synchronized DirectGamepHidRumbleEngine getInstance(Context context) {
@@ -89,6 +91,32 @@ public class DirectGamepHidRumbleEngine {
             instance = new DirectGamepHidRumbleEngine(context);
         }
         return instance;
+    }
+
+    public static synchronized DirectGamepHidRumbleEngine peekInstance() {
+        return instance;
+    }
+
+    public synchronized void acquire() {
+        claimCount++;
+        scanAndConnectGamepads();
+    }
+
+    public synchronized void releaseClaim() {
+        if (claimCount > 0) claimCount--;
+        if (claimCount > 0) return;
+        if (autoStopRunnable != null) {
+            mainHandler.removeCallbacks(autoStopRunnable);
+            autoStopRunnable = null;
+        }
+        if (!activeSessions.isEmpty()) sendRumble(0, 0);
+        for (String devName : new ArrayList<>(activeSessions.keySet())) {
+            closeSession(devName);
+        }
+    }
+
+    private synchronized boolean isClaimed() {
+        return claimCount > 0;
     }
 
     public void setWinHandler(WinHandler winHandler) {
@@ -117,7 +145,7 @@ public class DirectGamepHidRumbleEngine {
                     UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                         if (device != null) {
-                            openGamepadConnection(device);
+                            if (isClaimed()) openGamepadConnection(device);
                             if (onPermissionGrantedCallback != null) {
                                 mainHandler.post(onPermissionGrantedCallback);
                             }
@@ -128,8 +156,10 @@ public class DirectGamepHidRumbleEngine {
                 }
             } else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
                 UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                if (device != null && isSupportedGamepad(device)) {
-                    requestPermissionOrOpen(device);
+                if (device != null && isClaimed() && isSupportedGamepad(device)) {
+                    // The system sends this broadcast before it auto-grants permission via the
+                    // UsbAttachActivity route, so asking right away would pop the dialog anyway.
+                    mainHandler.postDelayed(() -> requestPermissionOrOpen(device), 750);
                 }
             } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
                 UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
@@ -139,7 +169,7 @@ public class DirectGamepHidRumbleEngine {
     };
 
     public void scanAndConnectGamepads() {
-        if (usbManager == null) return;
+        if (usbManager == null || !isClaimed()) return;
         HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
         for (UsbDevice device : deviceList.values()) {
             if (isSupportedGamepad(device)) {
@@ -231,7 +261,8 @@ public class DirectGamepHidRumbleEngine {
     }
 
     public void requestPermissionOrOpen(UsbDevice device) {
-        if (device == null || usbManager == null) return;
+        if (device == null || usbManager == null || !isClaimed()) return;
+        if (activeSessions.containsKey(device.getDeviceName())) return;
         if (usbManager.hasPermission(device)) {
             openGamepadConnection(device);
         } else {
@@ -251,7 +282,7 @@ public class DirectGamepHidRumbleEngine {
     }
 
     public boolean openGamepadConnection(UsbDevice device) {
-        if (device == null || usbManager == null) return false;
+        if (device == null || usbManager == null || !isClaimed()) return false;
         closeSession(device.getDeviceName());
 
         if (!usbManager.hasPermission(device)) {
@@ -608,6 +639,9 @@ public class DirectGamepHidRumbleEngine {
             session.readerRunning = false;
             if (session.readerThread != null) {
                 session.readerThread.interrupt();
+                try {
+                    session.readerThread.join(150);
+                } catch (InterruptedException ignored) {}
             }
             try {
                 if (session.connection != null) {

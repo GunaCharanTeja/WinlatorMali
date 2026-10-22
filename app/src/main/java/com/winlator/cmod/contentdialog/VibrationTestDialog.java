@@ -49,6 +49,7 @@ public class VibrationTestDialog {
         dialog.setIcon(R.drawable.icon_vibration);
 
         final DirectGamepHidRumbleEngine usbRumble = DirectGamepHidRumbleEngine.getInstance(context);
+        usbRumble.acquire();
         final Vibrator phoneVibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -356,7 +357,10 @@ public class VibrationTestDialog {
             }
         });
 
-        dialog.setOnDismissListener((d) -> stopAllVibrations.run());
+        dialog.setOnDismissListener((d) -> {
+            stopAllVibrations.run();
+            usbRumble.releaseClaim();
+        });
         dialog.show();
     }
 }
