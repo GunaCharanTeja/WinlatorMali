@@ -1523,11 +1523,15 @@ public class ShortcutsFragment extends Fragment {
                 public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
                     ArtOption data = options.get(position);
                     ImageView imageView = holder.itemView.findViewById(R.id.ImageView);
+                    com.bumptech.glide.request.RequestOptions options2 = new com.bumptech.glide.request.RequestOptions();
+                    // Hero thumbnails show the whole banner uncropped (it's a preview, not a fill target) --
+                    // cover art keeps cropping to fill its portrait box, matching the shortcut grid it previews for.
+                    if (forHero) options2 = options2.fitCenter(); else options2 = options2.centerCrop();
                     Glide.with(context)
                             .load(data.thumb() != null ? data.thumb() : data.url())
                             .placeholder(R.drawable.cover_art_placeholder)
                             .thumbnail(0.1f)
-                            .centerCrop()
+                            .apply(options2)
                             .into(imageView);
 
                     holder.itemView.setOnClickListener(v -> {
