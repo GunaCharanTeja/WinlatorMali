@@ -228,6 +228,11 @@ public class XServer {
         extensions.put(RandrExtension.MAJOR_OPCODE, new RandrExtension(screenInfo));
     }
 
+    /** OpenGL renderer Zink: Mesa's libGL talks the standard GLX protocol, not Gladio's. Call before clients connect. */
+    public void useMesaGLX() {
+        extensions.put(GLXExtension.MAJOR_OPCODE, new com.winlator.cmod.xserver.extensions.MesaGLXExtension(this));
+    }
+
     public <T extends Extension> T getExtension(int opcode) {
         return (T)extensions.get(opcode);
     }
