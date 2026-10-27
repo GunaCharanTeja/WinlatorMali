@@ -623,17 +623,29 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             new int[]{android.R.attr.state_pressed},
             new int[]{}
         };
-        int[] textColors = new int[]{
-            accentColor,
-            accentColor,
-            onSurfaceColor
-        };
-        android.content.res.ColorStateList textStateList = new android.content.res.ColorStateList(states, textColors);
+        // The selected item reads brighter than the rest: its text is the accent lifted towards the normal text color
+        // (plain accent on an accent pill was darker than the unselected items), its icon the full accent.
+        int checkedIcon = androidx.core.graphics.ColorUtils.blendARGB(accentColor, onSurfaceColor, 0.35f);
+        int normalText = (onSurfaceColor & 0x00FFFFFF) | (0xD9 << 24);
+        android.content.res.ColorStateList textStateList = new android.content.res.ColorStateList(states,
+            new int[]{onSurfaceColor, onSurfaceColor, normalText});
+        android.content.res.ColorStateList iconStateList = new android.content.res.ColorStateList(states,
+            new int[]{checkedIcon, checkedIcon, (onSurfaceColor & 0x00FFFFFF) | (0xA8 << 24)});
         navigationView.setItemTextColor(textStateList);
-        navigationView.setItemIconTintList(textStateList);
+        navigationView.setItemIconTintList(iconStateList);
+
+        // The app version under the title.
+        View header = navigationView.getHeaderCount() > 0 ? navigationView.getHeaderView(0) : null;
+        TextView tvVersion = header != null ? header.findViewById(R.id.TVHeaderVersion) : null;
+        if (tvVersion != null) {
+            try {
+                tvVersion.setText("v" + getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
+                tvVersion.setVisibility(View.VISIBLE);
+            } catch (PackageManager.NameNotFoundException ignored) {}
+        }
 
         // Dynamic theme accent pill highlight
-        int pillAlpha = 0x2A; // ~16.5% alpha
+        int pillAlpha = 0x55; // ~33% alpha
         int pillColor = (accentColor & 0x00FFFFFF) | (pillAlpha << 24);
         int rippleColor = (accentColor & 0x00FFFFFF) | (0x33 << 24);
 
@@ -649,13 +661,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         stateListDrawable.addState(new int[]{android.R.attr.state_checked}, checkedDrawable);
         stateListDrawable.addState(new int[]{}, transparentDrawable);
 
+        // The pill (and its ripple) floats inside the drawer: a custom item background ignores itemShapeInset*.
+        android.graphics.drawable.GradientDrawable rippleMask = new android.graphics.drawable.GradientDrawable();
+        rippleMask.setCornerRadius(dpToPx(24));
+        rippleMask.setColor(Color.WHITE);
         android.graphics.drawable.RippleDrawable rippleDrawable = new android.graphics.drawable.RippleDrawable(
             android.content.res.ColorStateList.valueOf(rippleColor),
             stateListDrawable,
-            null
+            rippleMask
         );
-
-        navigationView.setItemBackground(rippleDrawable);
+        int insetH = (int) dpToPx(12), insetV = (int) dpToPx(2);
+        navigationView.setItemBackground(new android.graphics.drawable.InsetDrawable(rippleDrawable, insetH, insetV, insetH, insetV));
     }
 
     private float dpToPx(float dp) {

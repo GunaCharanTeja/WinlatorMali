@@ -52,19 +52,22 @@
     </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView
-        android:layout_width="280dp"
+        android:layout_width="272dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:id="@+id/NavigationView"
         android:fitsSystemWindows="true"
         android:background="?attr/semanticSurface"
+        android:theme="@style/ThemeOverlay.Winlator.Drawer"
         app:headerLayout="@layout/main_menu_header"
         app:itemShapeInsetStart="12dp"
         app:itemShapeInsetEnd="12dp"
-        app:itemShapeInsetTop="3dp"
-        app:itemShapeInsetBottom="3dp"
-        app:itemHorizontalPadding="16dp"
-        app:itemIconPadding="14dp"
+        app:itemShapeInsetTop="2dp"
+        app:itemShapeInsetBottom="2dp"
+        app:itemHorizontalPadding="18dp"
+        app:itemIconPadding="16dp"
+        app:itemIconSize="22dp"
+        app:itemTextAppearance="@style/TextAppearance.Winlator.DrawerItem"
         app:itemMaxLines="1"
         app:menu="@menu/main_menu"/>
 </androidx.drawerlayout.widget.DrawerLayout>

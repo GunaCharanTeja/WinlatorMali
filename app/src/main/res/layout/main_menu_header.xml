@@ -8,27 +8,44 @@
     android:paddingStart="20dp"
     android:paddingEnd="20dp"
     android:paddingTop="52dp"
-    android:paddingBottom="16dp">
+    android:paddingBottom="18dp">
 
     <ImageView
         android:id="@+id/IVHeaderLogo"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_gravity="center_vertical"
         android:scaleType="fitCenter"
         android:src="@mipmap/ic_launcher"
         android:contentDescription="Winlator Mali" />
 
-    <TextView
-        android:id="@+id/TVHeaderTitle"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="14dp"
-        android:layout_gravity="center_vertical"
-        android:text="Winlator Mali"
-        android:textStyle="bold"
-        android:textSize="19sp"
-        android:letterSpacing="0.02"
-        android:textColor="#FFFFFF" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/TVHeaderTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Winlator Mali"
+            android:textStyle="bold"
+            android:textSize="20sp"
+            android:letterSpacing="0.01"
+            android:textColor="#FFFFFF" />
+
+        <!-- App version, filled in by MainActivity. -->
+        <TextView
+            android:id="@+id/TVHeaderVersion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="12.5sp"
+            android:letterSpacing="0.03"
+            android:alpha="0.65"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+    </LinearLayout>
 
 </LinearLayout>

@@ -710,6 +710,18 @@
         <item name="windowNoTitle">false</item>
     </style>
 
+    <!-- Side menu: slightly compact rows (Material 1.4 sizes navigation items from listPreferredItemHeightSmall). -->
+    <style name="ThemeOverlay.Winlator.Drawer" parent="">
+        <item name="listPreferredItemHeightSmall">46dp</item>
+    </style>
+
+    <!-- Side menu item text; the color comes from MainActivity.applyDrawerStyling (checked / normal). -->
+    <style name="TextAppearance.Winlator.DrawerItem" parent="TextAppearance.AppCompat.Body2">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
     <style name="TextAppearance.Winlator.Toolbar.Title" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
         <item name="android:textSize">15sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>
