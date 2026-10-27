@@ -301,6 +301,13 @@ public class XServerView extends SurfaceView implements SurfaceHolder.Callback, 
     /** Frame generation: {multiplier (0 = off), game fps, shown fps, ms per generated frame}. */
     public static native float[] nativeGetFrameGenStats();
 
+    /** Fit / Fill / Integer scaling and Center / Top / Bottom placement, see {@link com.winlator.cmod.renderer.ViewTransformation}. */
+    public void setScaleMode(int mode, int alignment) {
+        nativeSetScaleMode(mode, alignment);
+    }
+
+    private native void nativeSetScaleMode(int mode, int alignment);
+
     /** Frame pacing: game frames are shown on an even beat of this rate (the FPS limit; 0 = off). */
     public static native void nativeSetFramePacing(int fps);
 

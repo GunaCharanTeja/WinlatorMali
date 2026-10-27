@@ -512,6 +512,8 @@
     <string name="disable_xinput_for_shortcut">Disable Xinput (For Exclusive M/KB Control)</string>
     <string name="num_controllers">Number of Controllers</string>
     <string name="fullscreen_stretched">Enable Fullscreen (Stretched)</string>
+    <string name="fullscreen_mode">Fullscreen Mode</string>
+    <string name="screen_alignment">Screen Alignment</string>
     <string name="export_container">Export Container</string>
     <string name="exporting_container">Exporting Container...</string>
 

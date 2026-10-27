@@ -567,6 +567,11 @@ Java_com_winlator_cmod_widget_XServerView_nativeSetPostProcessing(JNIEnv *env, j
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_winlator_cmod_widget_XServerView_nativeSetScaleMode(JNIEnv *env, jobject thiz, jint mode, jint alignment) {
+    renderer.setScaleMode(mode, alignment);
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_winlator_cmod_widget_XServerView_nativeSetFramePacing(JNIEnv *env, jclass clazz, jint fps) {
     renderer.pacingFps = fps > 0 ? fps : 0;
 }

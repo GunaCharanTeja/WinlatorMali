@@ -165,7 +165,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/fullscreen_stretched"
+                        android:visibility="gone"
                         android:textSize="14sp" />
+
+                    <include layout="@layout/fullscreen_mode_row" />
                 </LinearLayout>
 
                 <!-- CARD 2: GRAPHICS & RENDERING -->

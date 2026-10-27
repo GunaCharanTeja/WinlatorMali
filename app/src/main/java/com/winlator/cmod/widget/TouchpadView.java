@@ -107,10 +107,20 @@ public class TouchpadView extends View {
         resolutionScale = 1000.0f / Math.min(xServer.screenInfo.width, xServer.screenInfo.height);
     }
 
+    private int scaleMode = ViewTransformation.MODE_FIT;
+    private int screenAlignment = ViewTransformation.ALIGN_CENTER;
+
+    /** Same scaling and placement as the renderer, so touches land where the screen is drawn. */
+    public void setScaleMode(int mode, int alignment) {
+        scaleMode = mode;
+        screenAlignment = alignment;
+        updateXform(getWidth(), getHeight(), xServer.screenInfo.width, xServer.screenInfo.height);
+    }
+
     private void updateXform(int outerWidth, int outerHeight, int innerWidth, int innerHeight) {
         if (outerWidth <= 0 || outerHeight <= 0 || innerWidth <= 0 || innerHeight <= 0) return;
         ViewTransformation viewTransformation = new ViewTransformation();
-        viewTransformation.update(outerWidth, outerHeight, innerWidth, innerHeight);
+        viewTransformation.update(outerWidth, outerHeight, innerWidth, innerHeight, scaleMode, screenAlignment);
 
         float invAspect = 1.0f / (viewTransformation.aspect != 0 ? viewTransformation.aspect : 1.0f);
         boolean isFullscreen = xServer != null && xServer.getRenderer() != null && xServer.getRenderer().isFullscreen();

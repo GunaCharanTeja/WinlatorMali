@@ -40,6 +40,17 @@
                 android:textSize="16sp" />
         </LinearLayout>
 
+        <!-- Live: applied at once and saved for this game (or the container when not launched from a shortcut). -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp">
+
+            <include layout="@layout/fullscreen_mode_row" />
+        </FrameLayout>
+
         <!-- PIP Mode -->
         <LinearLayout
             android:id="@+id/BTPipMode"

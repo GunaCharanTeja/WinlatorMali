@@ -46,6 +46,18 @@
         <item>WineD3D</item>
         <item>DXVK+VKD3D</item>
     </string-array>
+    <!-- Order = ViewTransformation.MODE_* / ALIGN_* -->
+    <string-array name="fullscreen_mode_entries">
+        <item>Fit (keep aspect)</item>
+        <item>Stretch</item>
+        <item>Fill (crop)</item>
+        <item>Integer (pixel-perfect)</item>
+    </string-array>
+    <string-array name="screen_alignment_entries">
+        <item>Center</item>
+        <item>Top half</item>
+        <item>Bottom half</item>
+    </string-array>
     <string-array name="ddrawrapper_entries">
         <item>CnC-DDraw</item>
         <item>Dd7To9</item>

@@ -104,6 +104,7 @@ import com.winlator.cmod.math.XForm;
 import com.winlator.cmod.midi.MidiHandler;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.renderer.PostProcessing;
+import com.winlator.cmod.renderer.ViewTransformation;
 import com.winlator.cmod.widget.HudDataSource;
 import com.winlator.cmod.widget.WinlatorHUD;
 import com.winlator.cmod.widget.InputControlsView;
@@ -1670,11 +1671,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             shouldStretch = true;
         }
 
-        if (shouldStretch) {
-            // Toggle fullscreen mode based on the final decision
-            xServerView.toggleFullscreen();
-            touchpadView.toggleFullscreen();
-        }
+        // Fullscreen mode (Fit / Stretch / Fill / Integer) and screen alignment: the shortcut's, else the container's.
+        // Older settings only have the Stretch checkbox.
+        int fullscreenMode = shouldStretch ? ViewTransformation.MODE_STRETCH : ViewTransformation.MODE_FIT;
+        String modeExtra = shortcut != null ? shortcut.getExtra("fullscreenMode") : "";
+        if (modeExtra.isEmpty() && shortcutFullscreenStretched == null && container != null) modeExtra = container.getExtra("fullscreenMode");
+        try { if (!modeExtra.isEmpty()) fullscreenMode = Integer.parseInt(modeExtra); } catch (NumberFormatException ignored) {}
+        String alignExtra = shortcut != null ? shortcut.getExtra("screenAlignment") : "";
+        if (alignExtra.isEmpty() && container != null) alignExtra = container.getExtra("screenAlignment");
+        int screenAlignment = ViewTransformation.ALIGN_CENTER;
+        try { if (!alignExtra.isEmpty()) screenAlignment = Integer.parseInt(alignExtra); } catch (NumberFormatException ignored) {}
+
+        applyScreenMode(fullscreenMode, screenAlignment, false);
 
         if (shortcut != null) {
             String controlsProfile = shortcut.getExtra("controlsProfile");
@@ -1756,6 +1764,37 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
+    private int currentFullscreenMode = ViewTransformation.MODE_FIT;
+    private int currentScreenAlignment = ViewTransformation.ALIGN_CENTER;
+
+    /** Fit / Stretch / Fill / Integer and Center / Top / Bottom, live; saved for this game (or the container) when asked. */
+    private void applyScreenMode(int fullscreenMode, int screenAlignment, boolean save) {
+        if (fullscreenMode == currentFullscreenMode && screenAlignment == currentScreenAlignment && save
+                && xServerView.isFullscreen() == (fullscreenMode == ViewTransformation.MODE_STRETCH)) return;
+        currentFullscreenMode = fullscreenMode;
+        currentScreenAlignment = screenAlignment;
+        int scaleMode = fullscreenMode == ViewTransformation.MODE_STRETCH ? ViewTransformation.MODE_FIT : fullscreenMode;
+        xServerView.setScaleMode(scaleMode, screenAlignment);
+        touchpadView.setScaleMode(scaleMode, screenAlignment);
+        if (xServerView.isFullscreen() != (fullscreenMode == ViewTransformation.MODE_STRETCH)) {
+            xServerView.toggleFullscreen();
+            touchpadView.toggleFullscreen();
+        }
+        if (!save) return;
+        if (shortcut != null) {
+            shortcut.putExtra("fullscreenStretched", fullscreenMode == ViewTransformation.MODE_STRETCH ? "1" : "0");
+            shortcut.putExtra("fullscreenMode", String.valueOf(fullscreenMode));
+            shortcut.putExtra("screenAlignment", String.valueOf(screenAlignment));
+            shortcut.saveData();
+        }
+        else if (container != null) {
+            container.setFullscreenStretched(fullscreenMode == ViewTransformation.MODE_STRETCH);
+            container.putExtra("fullscreenMode", String.valueOf(fullscreenMode));
+            container.putExtra("screenAlignment", String.valueOf(screenAlignment));
+            container.saveData();
+        }
+    }
+
     private void showDisplaySessionDialog() {
         final ContentDialog dialog = new ContentDialog(this, R.layout.display_session_dialog);
         dialog.setTitle(R.string.display_and_session);
@@ -1766,6 +1805,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             touchpadView.toggleFullscreen();
             dialog.dismiss();
         });
+
+        final Spinner sFullscreenMode = dialog.findViewById(R.id.SFullscreenMode);
+        final Spinner sScreenAlignment = dialog.findViewById(R.id.SScreenAlignment);
+        sFullscreenMode.setSelection(xServerView.isFullscreen() ? ViewTransformation.MODE_STRETCH : (currentFullscreenMode == ViewTransformation.MODE_STRETCH ? ViewTransformation.MODE_FIT : currentFullscreenMode), false);
+        sScreenAlignment.setSelection(currentScreenAlignment, false);
+        android.widget.AdapterView.OnItemSelectedListener screenModeListener = new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                applyScreenMode(sFullscreenMode.getSelectedItemPosition(), sScreenAlignment.getSelectedItemPosition(), true);
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        };
+        sFullscreenMode.setOnItemSelectedListener(screenModeListener);
+        sScreenAlignment.setOnItemSelectedListener(screenModeListener);
 
         dialog.findViewById(R.id.BTPipMode).setOnClickListener(v -> {
             enterPictureInPictureMode();

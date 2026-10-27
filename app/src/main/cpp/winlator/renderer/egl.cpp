@@ -83,6 +83,18 @@ void EGLRenderer::resume() {
     renderLock.wait(lock, [&]{ return state == State::NONE; });
 }
 
+// Fit / Fill / Integer scaling and Center / Top / Bottom placement of the X screen (Stretch is the fullscreen flag).
+void EGLRenderer::setScaleMode(int mode, int alignment) {
+    auto lock = renderLock.lock();
+    scaleMode = mode;
+    screenAlignment = alignment;
+    if (surfaceWidth > 0 && surfaceHeight > 0)
+        viewTransformation.update(surfaceWidth, surfaceHeight, windowManager->getRootWindow()->width, windowManager->getRootWindow()->height, scaleMode, screenAlignment);
+    sceneDirty = true;
+    requestUpdate = true;
+    renderLock.notify();
+}
+
 void EGLRenderer::setPostProcessing(const std::string& config) {
     postFX.setConfig(config);
     requestRenderer();
@@ -173,7 +185,7 @@ void EGLRenderer::renderingThreadLoop() {
 
         if (currState == State::CHANGE_SURFACE) {
             printf("Received state CHANGE_SURFACE");
-            viewTransformation.update(surfaceWidth, surfaceHeight, windowManager->getRootWindow()->width, windowManager->getRootWindow()->height);
+            viewTransformation.update(surfaceWidth, surfaceHeight, windowManager->getRootWindow()->width, windowManager->getRootWindow()->height, scaleMode, screenAlignment);
             surfaceChanged = true;
             sizeChanged = true;
             requestUpdate = true;

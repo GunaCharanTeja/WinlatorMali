@@ -202,9 +202,16 @@ public class ShortcutSettingsDialog extends ContentDialog {
             }
         });
 
-        final CheckBox cbFullscreenStretched =  findViewById(R.id.CBFullscreenStretched);
-        boolean fullscreenStretched = shortcut.getExtra("fullscreenStretched", "0").equals("1");
+        final CheckBox cbFullscreenStretched =  findViewById(R.id.CBFullscreenStretched);        boolean fullscreenStretched = shortcut.getExtra("fullscreenStretched", "0").equals("1");
         cbFullscreenStretched.setChecked(fullscreenStretched);
+        // The container's mode and alignment unless this game sets its own (older shortcuts only have the Stretch checkbox).
+        final Spinner sFullscreenMode = findViewById(R.id.SFullscreenMode);
+        final Spinner sScreenAlignment = findViewById(R.id.SScreenAlignment);
+        final int containerFullscreenMode = ContainerDetailFragment.parseIndex(shortcut.container.getExtra("fullscreenMode"), shortcut.container.isFullscreenStretched() ? 1 : 0, 3);
+        final int containerScreenAlignment = ContainerDetailFragment.parseIndex(shortcut.container.getExtra("screenAlignment"), 0, 2);
+        int shortcutMode = shortcut.getExtra("fullscreenStretched").isEmpty() ? containerFullscreenMode : (fullscreenStretched ? 1 : 0);
+        sFullscreenMode.setSelection(ContainerDetailFragment.parseIndex(shortcut.getExtra("fullscreenMode"), shortcutMode, 3));
+        sScreenAlignment.setSelection(ContainerDetailFragment.parseIndex(shortcut.getExtra("screenAlignment"), containerScreenAlignment, 2));
 
         final Spinner sBox64Preset = findViewById(R.id.SBox64Preset);
         Box64PresetManager.loadSpinner("box64", sBox64Preset, shortcut.getExtra("box64Preset", shortcut.container.getBox64Preset()));
@@ -424,7 +431,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("midiSoundFont", midiSoundFont);
                 shortcut.putExtra("lc_all", lc_all);
 
-                shortcut.putExtra("fullscreenStretched", cbFullscreenStretched.isChecked() ? "1" : null);
+                int fullscreenMode = sFullscreenMode.getSelectedItemPosition();
+                int screenAlignment = sScreenAlignment.getSelectedItemPosition();
+                boolean ownMode = fullscreenMode != containerFullscreenMode;
+                shortcut.putExtra("fullscreenStretched", ownMode ? (fullscreenMode == 1 ? "1" : "0") : null);
+                shortcut.putExtra("fullscreenMode", ownMode ? String.valueOf(fullscreenMode) : null);
+                shortcut.putExtra("screenAlignment", screenAlignment != containerScreenAlignment ? String.valueOf(screenAlignment) : null);
 
                 String wincomponents = containerDetailFragment.getWinComponents(getContentView());
                 shortcut.putExtra("wincomponents", wincomponents);
