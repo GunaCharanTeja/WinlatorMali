@@ -59,9 +59,9 @@
                     android:background="@drawable/community_badge_bg"
                     android:backgroundTint="#2196F3"
                     android:textColor="#FFFFFF"
-                    android:textSize="9sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
-                    android:text="A:0"
+                    android:text="Adreno 0"
                     android:layout_marginEnd="4dp"
                     android:visibility="gone"/>
 
@@ -72,9 +72,9 @@
                     android:background="@drawable/community_badge_bg"
                     android:backgroundTint="#4CAF50"
                     android:textColor="#FFFFFF"
-                    android:textSize="9sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
-                    android:text="M:0"
+                    android:text="Mali 0"
                     android:visibility="gone"/>
             </LinearLayout>
         </FrameLayout>

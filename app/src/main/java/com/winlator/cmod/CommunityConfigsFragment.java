@@ -134,8 +134,8 @@ public class CommunityConfigsFragment extends Fragment {
                     tvEmptyText.setText(maintenance);
                     llEmptyState.setVisibility(View.VISIBLE);
                 } else if (games != null && games.length() > 0) {
-                    fullGameList = games;
-                    adapter = new GameAdapter(games);
+                    fullGameList = mergeSameNamedGames(games);
+                    adapter = new GameAdapter(fullGameList);
                     recyclerView.setAdapter(adapter);
                     llEmptyState.setVisibility(View.GONE);
                 } else if (games != null && games.length() == 0) {
@@ -181,6 +181,58 @@ public class CommunityConfigsFragment extends Fragment {
             llEmptyState.setVisibility(View.GONE);
         }
         adapter.updateData(filtered);
+    }
+
+    // The same game uploaded under two ids ("Black Flag" twice) is one card: counts summed, all its ids kept in "ids".
+    private static JSONArray mergeSameNamedGames(JSONArray games) {
+        java.util.LinkedHashMap<String, JSONObject> byName = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < games.length(); i++) {
+            JSONObject game = games.optJSONObject(i);
+            if (game == null) continue;
+            String key = game.optString("name", game.optString("id")).toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            try {
+                JSONObject merged = byName.get(key);
+                if (merged == null) {
+                    merged = new JSONObject(game.toString());
+                    merged.put("ids", new JSONArray().put(game.optString("id")));
+                    byName.put(key, merged);
+                    continue;
+                }
+                merged.getJSONArray("ids").put(game.optString("id"));
+                for (String count : new String[]{"config_count", "adreno_count", "mali_count"})
+                    merged.put(count, merged.optInt(count, 0) + game.optInt(count, 0));
+                for (String art : new String[]{"community_image", "steam_id"})
+                    if (merged.optString(art, "").isEmpty() && !game.optString(art, "").isEmpty()) merged.put(art, game.optString(art));
+            } catch (JSONException ignored) {}
+        }
+        JSONArray result = new JSONArray();
+        for (JSONObject game : byName.values()) result.put(game);
+        return result;
+    }
+
+    // A merged card: the configs of all its ids in one list (each config keeps its own "game" id for download and votes).
+    private void showConfigsForGames(String gameName, java.util.List<String> ids) {
+        if (ids.size() <= 1) {
+            showConfigsForGame(ids.isEmpty() ? gameName : ids.get(0));
+            return;
+        }
+        final MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) activity.preloaderDialog.show("Fetching Configurations...");
+        JSONArray all = new JSONArray();
+        java.util.concurrent.atomic.AtomicInteger pending = new java.util.concurrent.atomic.AtomicInteger(ids.size());
+        for (String id : ids) {
+            CommunityConfigManager.fetchConfigsForGame(id, (configs, maintenance) -> {
+                synchronized (all) {
+                    if (configs != null) for (int i = 0; i < configs.length(); i++) all.put(configs.opt(i));
+                }
+                if (pending.decrementAndGet() > 0 || activity == null) return;
+                activity.runOnUiThread(() -> {
+                    activity.preloaderDialog.close();
+                    if (all.length() > 0) showConfigSelectionDialog(ids.get(0), all);
+                    else Toast.makeText(getContext(), "No configurations found for this game.", Toast.LENGTH_SHORT).show();
+                });
+            });
+        }
     }
 
     private void showConfigsForGame(String gameName) {
@@ -229,7 +281,7 @@ public class CommunityConfigsFragment extends Fragment {
         listView.setOnItemClickListener((parent, view, position, id) -> {
             try {
                 JSONObject configRef = configs.getJSONObject(position);
-                showConfigDetailsDialog(gameName, configRef);
+                showConfigDetailsDialog(configRef.optString("game", gameName), configRef);
                 dialog.dismiss();
             } catch (JSONException e) {}
         });
@@ -684,7 +736,12 @@ public class CommunityConfigsFragment extends Fragment {
                 }
 
                 holder.tvGameName.setText(displayName);
-                
+                // Cards on the preset's surface color, so they stand out from the page on every theme.
+                if (holder.itemView instanceof androidx.cardview.widget.CardView && getContext() != null) {
+                    ((androidx.cardview.widget.CardView) holder.itemView).setCardBackgroundColor(ThemeManager.getSurfaceColor(getContext()));
+                    holder.tvGameName.setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
+                }
+
                 if (configCount > 0) {
                     holder.tvConfigCount.setText(configCount + (configCount == 1 ? " CONFIG" : " CONFIGS"));
                     holder.tvConfigCount.setVisibility(View.VISIBLE);
@@ -693,12 +750,12 @@ public class CommunityConfigsFragment extends Fragment {
                     int maliCount = item instanceof JSONObject ? ((JSONObject)item).optInt("mali_count", 0) : 0;
                     
                     if (adrenoCount > 0) {
-                        holder.tvAdrenoCount.setText("A:" + adrenoCount);
+                        holder.tvAdrenoCount.setText("Adreno " + adrenoCount);
                         holder.tvAdrenoCount.setVisibility(View.VISIBLE);
                     } else holder.tvAdrenoCount.setVisibility(View.GONE);
 
                     if (maliCount > 0) {
-                        holder.tvMaliCount.setText("M:" + maliCount);
+                        holder.tvMaliCount.setText("Mali " + maliCount);
                         holder.tvMaliCount.setVisibility(View.VISIBLE);
                     } else holder.tvMaliCount.setVisibility(View.GONE);
                     
@@ -732,7 +789,11 @@ public class CommunityConfigsFragment extends Fragment {
                     holder.ivCoverArt.setImageResource(R.drawable.cover_art_placeholder);
                 }
 
-                holder.itemView.setOnClickListener(v -> showConfigsForGame(gameId));
+                java.util.List<String> ids = new java.util.ArrayList<>();
+                JSONArray idArray = item instanceof JSONObject ? ((JSONObject) item).optJSONArray("ids") : null;
+                if (idArray != null) for (int i = 0; i < idArray.length(); i++) ids.add(idArray.optString(i));
+                if (ids.isEmpty()) ids.add(gameId);
+                holder.itemView.setOnClickListener(v -> showConfigsForGames(displayName, ids));
             } catch (JSONException e) { holder.tvGameName.setText("Error"); }
         }
 
