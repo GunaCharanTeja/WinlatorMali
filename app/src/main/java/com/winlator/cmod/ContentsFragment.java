@@ -346,6 +346,19 @@ public class ContentsFragment extends Fragment {
         builder.show();
     }
 
+    private static final boolean HAS_NTSYNC = new java.io.File("/dev/ntsync").exists();
+
+    // What a Wine/Proton build needs on this phone, from its name: arm64ec runs x86 code with FEXCore
+    // (WOWBox64 optional for 32-bit), x86_64 runs under Box64. NTSync builds need /dev/ntsync in the kernel.
+    private static String requirementBadge(ContentProfile profile) {
+        if (profile.type != ContentProfile.ContentType.CONTENT_TYPE_WINE && profile.type != ContentProfile.ContentType.CONTENT_TYPE_PROTON) return "";
+        String name = (profile.verName != null ? profile.verName : "").toLowerCase();
+        String badge = name.contains("arm64ec") ? "arm64ec: FEXCore"
+                : (name.contains("x86_64") || name.contains("x86-64")) ? "x86_64: Box64" : "";
+        if (name.contains("ntsync") && !HAS_NTSYNC) badge += (badge.isEmpty() ? "" : " • ") + "NTSync not on this phone (runs without it)";
+        return badge;
+    }
+
     private void sortProfiles(List<ContentProfile> profiles) {
         if (profiles == null || profiles.isEmpty()) return;
         if (sSortBy != null) {
@@ -652,6 +665,12 @@ public class ContentsFragment extends Fragment {
             } else {
                 holder.tvVersionCode.setVisibility(View.GONE);
             }
+            String badge = requirementBadge(profile);
+            if (!badge.isEmpty()) {
+                CharSequence sub = holder.tvVersionCode.getVisibility() == View.VISIBLE ? holder.tvVersionCode.getText() : "";
+                holder.tvVersionCode.setText(sub.length() > 0 ? badge + " • " + sub : badge);
+                holder.tvVersionCode.setVisibility(View.VISIBLE);
+            }
 
             // Safe async size loader: updates text view directly if still bound, NO notifyItemChanged!
             if (profile.remoteUrl != null && (profile.sizeFormatted == null || profile.sizeFormatted.isEmpty())) {
@@ -660,7 +679,8 @@ public class ContentsFragment extends Fragment {
                         getActivity().runOnUiThread(() -> {
                             if (holder.getBindingAdapterPosition() == position && profile.sizeFormatted != null) {
                                 String desc = (profile.desc != null && !profile.desc.isEmpty()) ? profile.desc : ("Cloud Package • " + profile.type);
-                                holder.tvVersionCode.setText(profile.sizeFormatted + " • " + desc);
+                                String b = requirementBadge(profile);
+                                holder.tvVersionCode.setText((b.isEmpty() ? "" : b + " • ") + profile.sizeFormatted + " • " + desc);
                                 holder.tvVersionCode.setVisibility(View.VISIBLE);
                             }
                         });

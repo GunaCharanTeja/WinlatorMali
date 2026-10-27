@@ -96,6 +96,33 @@ public class ContentsManager {
         void onSucceed(ContentProfile profile);
     }
 
+    // Catalogs list some names twice from different release folders, and these are not always the same
+    // file (WinNative's two Proton-11.0-1-arm64ec-steam-unix are 103 MB and 300 MB builds). Keep both and
+    // add the release folder, or the file type when the folder matches, so the entries can be told apart.
+    private static void labelSameNamedProfiles(ArrayList<ContentProfile> profiles) {
+        HashMap<String, Integer> counts = new HashMap<>();
+        for (ContentProfile p : profiles) counts.merge(p.type + "|" + p.verName, 1, Integer::sum);
+        HashMap<String, Integer> folderCounts = new HashMap<>();
+        for (ContentProfile p : profiles) {
+            if (counts.get(p.type + "|" + p.verName) > 1) folderCounts.merge(p.type + "|" + p.verName + "|" + releaseFolder(p.remoteUrl), 1, Integer::sum);
+        }
+        for (ContentProfile p : profiles) {
+            if (counts.get(p.type + "|" + p.verName) < 2) continue;
+            String folder = releaseFolder(p.remoteUrl);
+            boolean folderUnique = folderCounts.get(p.type + "|" + p.verName + "|" + folder) == 1;
+            String ext = p.remoteUrl.substring(p.remoteUrl.lastIndexOf('.') + 1);
+            p.verName = p.verName + " (" + (folderUnique ? folder : ext) + ")";
+        }
+    }
+
+    private static String releaseFolder(String url) {
+        int i = url.indexOf("/download/");
+        if (i < 0) return "";
+        String rest = url.substring(i + 10);
+        int slash = rest.indexOf('/');
+        return slash > 0 ? rest.substring(0, slash) : rest;
+    }
+
     public synchronized void setRemoteProfiles(String json) {
         try {
             ArrayList<ContentProfile> newProfiles = new ArrayList<>();
@@ -125,7 +152,10 @@ public class ContentsManager {
                         String typeStr = object.optString("type", "").trim();
                         ContentProfile.ContentType explicitType = ContentProfile.ContentType.getTypeByName(typeStr);
 
-                        if (explicitType != null) {
+                        if (explicitType == ContentProfile.ContentType.CONTENT_TYPE_WINE && verName.toLowerCase().contains("proton")) {
+                            // StevenMX lists proton-10-arm64ec as type "Wine".
+                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                        } else if (explicitType != null) {
                             remoteProfile.type = explicitType;
                         } else {
                             String lowerAll = (typeStr + " " + verName + " " + url).toLowerCase();
@@ -185,6 +215,7 @@ public class ContentsManager {
                     }
                 }
             }
+            labelSameNamedProfiles(newProfiles);
             remoteProfiles = newProfiles;
         } catch (Exception e) {
             Log.e("ContentsManager", "Failed to parse remote JSON", e);

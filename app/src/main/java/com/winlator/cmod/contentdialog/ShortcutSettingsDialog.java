@@ -174,6 +174,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, wineInfo.isArm64EC());
         loadBox64VersionSpinner(context, contentsManager, sBox64Version, wineInfo.isArm64EC());
+        ContainerDetailFragment.applyBox64Labels(getContentView(), wineInfo.isArm64EC());
 
         // Add this part to set the initial spinner selection based on the shortcut
         String currentBox64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());

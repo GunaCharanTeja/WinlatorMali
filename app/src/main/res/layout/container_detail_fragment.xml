@@ -800,6 +800,7 @@
                                 android:layout_marginBottom="16dp">
 
                                 <TextView
+                                    android:id="@+id/TVBox64VersionLabel"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="@string/box64_version"
@@ -815,6 +816,7 @@
                                     android:layout_marginBottom="12dp" />
 
                                 <TextView
+                                    android:id="@+id/TVBox64PresetLabel"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="@string/box64_preset"

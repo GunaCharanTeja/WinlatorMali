@@ -1059,6 +1059,7 @@ public class ContainerDetailFragment extends Fragment {
                     sEmulator64.setSelection(1);
                 }
                 loadBox64VersionSpinner(context, container, contentsManager, sBox64Version, wineInfo.isArm64EC());
+                applyBox64Labels(view, wineInfo.isArm64EC());
                 setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, wineInfo.isArm64EC());
             }
             @Override
@@ -1090,6 +1091,17 @@ public class ContainerDetailFragment extends Fragment {
         
         // Set the adapter with the combined list
         spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
+    }
+
+    // x86_64 Wine runs entirely under Box64. arm64ec Wine runs x86 code with FEXCore; WOWBox64 is only an
+    // optional alternative to FEXCore for 32-bit programs, so the section must not say Box64 there.
+    public static void applyBox64Labels(View root, boolean isArm64EC) {
+        TextView header = root.findViewById(R.id.TVBox64);
+        TextView version = root.findViewById(R.id.TVBox64VersionLabel);
+        TextView preset = root.findViewById(R.id.TVBox64PresetLabel);
+        if (header != null) header.setText(isArm64EC ? "WOWBox64 (32-bit programs, optional; FEXCore can do this too)" : "Box64");
+        if (version != null) version.setText(isArm64EC ? "WOWBox64 Version" : "Box64 Version");
+        if (preset != null) preset.setText(isArm64EC ? "WOWBox64 Preset" : "Box64 Preset");
     }
 
     public static void loadBox64VersionSpinner(Context context, Container container, ContentsManager manager, Spinner spinner, boolean isArm64EC) {
