@@ -1,44 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:paddingLeft="16.0dip" android:paddingRight="16.0dip" android:layout_width="fill_parent" android:layout_height="wrap_content"
-    xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <ImageView android:id="@id/ImageView" android:layout_width="36.0dip" android:layout_height="36.0dip" android:layout_marginTop="8.0dip" android:layout_marginRight="16.0dip" android:layout_marginBottom="8.0dip" app:tint="?attr/colorAccent" />
-    <TextView android:ellipsize="end" android:gravity="center_vertical" android:id="@id/TVTitle" android:layout_width="0.0dip" android:layout_height="fill_parent" android:maxLines="1" android:layout_weight="1.0" android:textColor="?attr/semanticOnSurface" />
-    <LinearLayout android:orientation="horizontal" android:layout_width="wrap_content" android:layout_height="wrap_content">
-        <ImageView android:id="@+id/BTRun" android:layout_marginRight="2.0dip" android:src="@drawable/icon_run" app:tint="?attr/colorAccent" style="@style/LeftSideButton" />
-        <ImageView android:id="@id/BTMenu" android:layout_marginLeft="2.0dip" android:src="@drawable/icon_list_item_menu" app:tint="?attr/colorAccent" style="@style/RightSideButton" />
-    </LinearLayout>
-</LinearLayout>
-<!--
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- A container as a card: name, its Wine/Proton (arch chip, version, screen size), a round Run button and a menu. Colors
+     are set from the theme preset in ContainersFragment. -->
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/CVContainer"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:paddingLeft="16dp"
-    android:paddingRight="16dp"
-    android:gravity="center_vertical">
+    android:layout_marginStart="12dp"
+    android:layout_marginEnd="12dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="6dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="0dp">
 
-    <ImageView
-        android:id="@+id/ImageView"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginRight="16dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp"
-        app:tint="@color/colorPrimaryDark" />
-
-    <TextView
-        android:id="@+id/TVTitle"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:ellipsize="end"
-        android:maxLines="1" />
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
 
-    <ImageButton
-        style="@style/ListMenuButton"
-        android:id="@+id/BTMenu"
-        android:src="@drawable/icon_list_item_menu" />
-</LinearLayout> -->
+        <!-- Same icon on every card, so hidden: its width goes to the version and screen size. -->
+        <ImageView
+            android:id="@+id/ImageView"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginEnd="14dp"
+            android:visibility="gone"
+            app:tint="?attr/colorAccent" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/TVTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="?attr/semanticOnSurface" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/TVArchChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="1dp"
+                    android:paddingBottom="1dp"
+                    android:textSize="10.5sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.04"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/TVSubtitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/BTRun"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="10dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/run"
+            android:src="@drawable/icon_run" />
+
+        <ImageView
+            android:id="@+id/BTMenu"
+            android:layout_width="34dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="2dp"
+            android:padding="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/icon_list_item_menu" />
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

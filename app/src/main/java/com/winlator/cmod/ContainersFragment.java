@@ -78,7 +78,7 @@ public class ContainersFragment extends Fragment {
         loadContainersList();
         androidx.appcompat.app.ActionBar actionBar = ((AppCompatActivity) getActivity()).getSupportActionBar();
         if (actionBar != null) {
-            actionBar.setTitle("");
+            actionBar.setTitle(R.string.containers);
         }
 
         checkFirstLaunchWineSetup();
@@ -97,14 +97,21 @@ public class ContainersFragment extends Fragment {
         recyclerView = frameLayout.findViewById(R.id.RecyclerView);
         emptyTextView = frameLayout.findViewById(R.id.TVEmptyText);
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
-        recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
+        recyclerView.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, 0);
+        recyclerView.setClipToPadding(false);
         return frameLayout;
     }
 
     private void loadContainersList() {
         ArrayList<Container> containers = manager.getContainers();
         recyclerView.setAdapter(new ContainersAdapter(containers));
-        if (containers.isEmpty()) emptyTextView.setVisibility(View.VISIBLE);
+        if (containers.isEmpty()) {
+            emptyTextView.setText("No containers yet\n\nTap + above to create one");
+            emptyTextView.setTextSize(16);
+            if (getContext() != null) emptyTextView.setTextColor((ThemeManager.getOnSurfaceTextColor(getContext()) & 0x00FFFFFF) | 0xB3000000);
+            emptyTextView.setVisibility(View.VISIBLE);
+        }
+        else emptyTextView.setVisibility(View.GONE);
     }
 
     @Override
@@ -178,6 +185,8 @@ public class ContainersFragment extends Fragment {
             private final ImageView menuButton; // Changed to ImageButton
             private final ImageView imageView;
             private final TextView title;
+            private final TextView subtitle;
+            private final TextView archChip;
 
             private ViewHolder(View view) {
                 super(view);
@@ -185,6 +194,8 @@ public class ContainersFragment extends Fragment {
                 this.imageView = view.findViewById(R.id.ImageView);
                 this.title = view.findViewById(R.id.TVTitle);
                 this.menuButton = view.findViewById(R.id.BTMenu);
+                this.subtitle = view.findViewById(R.id.TVSubtitle);
+                this.archChip = view.findViewById(R.id.TVArchChip);
             }
         }
 
@@ -211,10 +222,42 @@ public class ContainersFragment extends Fragment {
             holder.title.setText(item.getName());
 
             if (getContext() != null) {
-                int accent = ThemeManager.getAccentColor(getContext());
+                Context context = getContext();
+                int accent = ThemeManager.getAccentColor(context);
+                int onSurface = ThemeManager.getOnSurfaceTextColor(context);
+                float density = context.getResources().getDisplayMetrics().density;
+                if (holder.itemView instanceof androidx.cardview.widget.CardView)
+                    ((androidx.cardview.widget.CardView) holder.itemView).setCardBackgroundColor(ThemeManager.getSurfaceColor(context));
+                holder.title.setTextColor(onSurface);
                 holder.imageView.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
-                holder.runButton.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
-                holder.menuButton.setImageTintList(android.content.res.ColorStateList.valueOf(accent));
+                holder.menuButton.setImageTintList(android.content.res.ColorStateList.valueOf((onSurface & 0x00FFFFFF) | 0xB3000000));
+
+                // Run: a round filled accent button, its icon dark or light by the accent's brightness.
+                android.graphics.drawable.GradientDrawable runBg = new android.graphics.drawable.GradientDrawable();
+                runBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                runBg.setColor(accent);
+                holder.runButton.setBackground(new android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x33FFFFFF), runBg, null));
+                holder.runButton.setImageTintList(android.content.res.ColorStateList.valueOf(
+                    androidx.core.graphics.ColorUtils.calculateLuminance(accent) > 0.5 ? 0xFF101010 : 0xFFFFFFFF));
+
+                // What the container runs: arch chip, then Wine/Proton version and screen size.
+                String wine = item.getWineVersion() != null ? item.getWineVersion() : "";
+                boolean arm64ec = wine.toLowerCase().contains("arm64ec");
+                holder.archChip.setVisibility(wine.isEmpty() ? View.GONE : View.VISIBLE);
+                holder.archChip.setText(arm64ec ? "ARM64EC" : "X86_64");
+                android.graphics.drawable.GradientDrawable chipBg = new android.graphics.drawable.GradientDrawable();
+                chipBg.setCornerRadius(6 * density);
+                chipBg.setColor((accent & 0x00FFFFFF) | (0x40 << 24));
+                holder.archChip.setBackground(chipBg);
+                holder.archChip.setTextColor(androidx.core.graphics.ColorUtils.blendARGB(accent, onSurface, 0.5f));
+                boolean proton = new java.io.File(context.getFilesDir(), "contents/proton/" + wine).exists();
+                String version = wine.replaceAll("-\\d+$", "").replaceAll("(?i)-?(arm64ec|x86_64)", "");
+                String sub = wine.isEmpty() ? "" : (proton ? "Proton " : "Wine ") + version;
+                String screen = item.getScreenSize();
+                if (screen != null && !screen.isEmpty()) sub += (sub.isEmpty() ? "" : " · ") + screen;
+                holder.subtitle.setText(sub);
+                holder.subtitle.setTextColor((onSurface & 0x00FFFFFF) | 0xA6000000);
             }
 
             holder.runButton.setOnClickListener(view -> runContainer(item)); // Correct item reference
