@@ -513,9 +513,7 @@
     <string name="num_controllers">Number of Controllers</string>
     <string name="fullscreen_stretched">Enable Fullscreen (Stretched)</string>
     <string name="fullscreen_mode">Fullscreen Mode</string>
-    <string name="screen_alignment">Screen Alignment</string>
-    <string name="opengl_renderer">OpenGL Renderer</string>
-    <string name="export_container">Export Container</string>
+    <string name="screen_alignment">Screen Alignment</string>    <string name="export_container">Export Container</string>
     <string name="exporting_container">Exporting Container...</string>
 
     <string name="brightness">Brightness</string>

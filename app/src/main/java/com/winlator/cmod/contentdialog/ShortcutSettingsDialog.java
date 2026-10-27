@@ -212,9 +212,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
         int shortcutMode = shortcut.getExtra("fullscreenStretched").isEmpty() ? containerFullscreenMode : (fullscreenStretched ? 1 : 0);
         sFullscreenMode.setSelection(ContainerDetailFragment.parseIndex(shortcut.getExtra("fullscreenMode"), shortcutMode, 3));
         sScreenAlignment.setSelection(ContainerDetailFragment.parseIndex(shortcut.getExtra("screenAlignment"), containerScreenAlignment, 2));
-        final Spinner sOpenGLRenderer = findViewById(R.id.SOpenGLRenderer);
-        final String containerOpenGLRenderer = "zink".equals(shortcut.container.getExtra("openglRenderer")) ? "zink" : "gladio";
-        sOpenGLRenderer.setSelection("zink".equals(shortcut.getExtra("openglRenderer", containerOpenGLRenderer)) ? 1 : 0);
 
         final Spinner sBox64Preset = findViewById(R.id.SBox64Preset);
         Box64PresetManager.loadSpinner("box64", sBox64Preset, shortcut.getExtra("box64Preset", shortcut.container.getBox64Preset()));
@@ -440,8 +437,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("fullscreenStretched", ownMode ? (fullscreenMode == 1 ? "1" : "0") : null);
                 shortcut.putExtra("fullscreenMode", ownMode ? String.valueOf(fullscreenMode) : null);
                 shortcut.putExtra("screenAlignment", screenAlignment != containerScreenAlignment ? String.valueOf(screenAlignment) : null);
-                String openglRenderer = sOpenGLRenderer.getSelectedItemPosition() == 1 ? "zink" : "gladio";
-                shortcut.putExtra("openglRenderer", !openglRenderer.equals(containerOpenGLRenderer) ? openglRenderer : null);
 
                 String wincomponents = containerDetailFragment.getWinComponents(getContentView());
                 shortcut.putExtra("wincomponents", wincomponents);

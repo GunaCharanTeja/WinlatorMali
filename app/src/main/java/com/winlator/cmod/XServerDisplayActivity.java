@@ -628,7 +628,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         inputControlsManager = new InputControlsManager(this);
         xServer = new XServer(new ScreenInfo(screenSize));
-        if (getOpenGLRenderer().equals("zink")) xServer.useMesaGLX();
         xServer.setWinHandler(winHandler);
         advertisePanelRefreshRates();
 
@@ -1505,19 +1504,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             overrideEnvVars.clear(); // Clear overrideEnvVars as per smali logic
         }
 
-        // Zink (see applyOpenGLRenderer): Pipetto's settings, unless the user set their own.
-        if (zinkActive) {
-            envVars.put("MESA_LOADER_DRIVER_OVERRIDE", "zink");
-            if (!envVars.has("GALLIUM_DRIVER")) envVars.put("GALLIUM_DRIVER", "zink");
-            if (!envVars.has("ZINK_DESCRIPTORS")) envVars.put("ZINK_DESCRIPTORS", "lazy");
-            if (!envVars.has("ZINK_DEBUG")) envVars.put("ZINK_DEBUG", "compact");
-            if (!envVars.has("mesa_glthread")) envVars.put("mesa_glthread", "true");
-            // Zink asks for a mutable-format swapchain (UNORM + SRGB views) and the wrapper's WSI aborts on it
-            // ("format_found" in wsi_configure_image); without the extension Zink makes an ordinary swapchain.
-            String blacklist = envVars.get("WRAPPER_EXTENSION_BLACKLIST");
-            if (!blacklist.contains("VK_KHR_swapchain_mutable_format"))
-                envVars.put("WRAPPER_EXTENSION_BLACKLIST", (blacklist.isEmpty() ? "" : blacklist + ",") + "VK_KHR_swapchain_mutable_format");
-        }
 
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
@@ -2384,8 +2370,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir, skipBcnVersionFile);
         else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, bcnFile, rootDir, skipBcnVersionFile);
 
-        applyOpenGLRenderer(rootDir);
-
         if (adrenoToolsDriverId != "System") {
             AdrenotoolsManager adrenotoolsManager = new AdrenotoolsManager(this);
             adrenotoolsManager.setDriverById(envVars, imageFs, adrenoToolsDriverId);
@@ -2668,48 +2652,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (!dlls.isEmpty()) restoreOriginalDllFiles(dlls.toArray(new String[0]));
         }
         catch (JSONException e) {}
-    }
-
-    private boolean zinkActive = false;
-
-    /** The OpenGL renderer of this game (shortcut) or container: "gladio" (default) or "zink". */
-    private String getOpenGLRenderer() {
-        String value = shortcut != null ? shortcut.getExtra("openglRenderer") : "";
-        if (value.isEmpty() && container != null) value = container.getExtra("openglRenderer");
-        return "zink".equals(value) ? "zink" : "gladio";
-    }
-
-    // Zink, as in Pipetto's build: Wine's opengl32 -> Mesa 24.3 libGL (bionic, native) -> Zink -> the wrapper Vulkan
-    // driver. Gladio's libGL is linked as libGL.so.1 on every launch before this; Zink links Mesa's instead.
-    private void applyOpenGLRenderer(File rootDir) {
-        // The Windows-DLL Zink of an earlier test build: give Wine its own opengl32 back.
-        File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
-        File oldMarker = new File(windowsDir, ".zink_installed");
-        if (oldMarker.exists()) {
-            restoreOriginalDllFiles("opengl32.dll");
-            for (String dir : new String[]{"system32", "syswow64"}) new File(windowsDir, dir + "/libgallium_wgl.dll").delete();
-            oldMarker.delete();
-        }
-
-        if (!getOpenGLRenderer().equals("zink")) return;
-        File libDir = new File(rootDir, "usr/lib");
-        File mesaLib = new File(libDir, "libGL.so.1.5.0");
-        if (!mesaLib.exists() || !new File(libDir, "libgallium-24.3.0.so").exists()) {
-            File internalMesa = new File(getFilesDir(), "graphics_driver/mesa_zink.tzst");
-            boolean extracted = internalMesa.exists()
-                ? TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalMesa, rootDir)
-                : TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/mesa_zink.tzst", rootDir);
-            if (!extracted) {
-                Log.e("XServerDisplayActivity", "Mesa Zink could not be extracted, staying on Gladio");
-                return;
-            }
-        }
-        for (String link : new String[]{"libGL.so.1", "libGL.so", "libGLX.so.0", "libGLX.so"})
-            FileUtils.symlink("libGL.so.1.5.0", new File(libDir, link).getAbsolutePath());
-        FileUtils.symlink("libglapi.so.0.0.0", new File(libDir, "libglapi.so.0").getAbsolutePath());
-        FileUtils.symlink("libglapi.so.0.0.0", new File(libDir, "libglapi.so").getAbsolutePath());
-        zinkActive = true;
-        Log.d("XServerDisplayActivity", "OpenGL renderer: Zink (Mesa)");
     }
 
     private void restoreOriginalDllFiles(final String... dlls) {

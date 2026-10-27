@@ -256,14 +256,11 @@
                         android:orientation="vertical"
                         android:layout_marginBottom="16dp">
 
-                        <include layout="@layout/opengl_renderer_row" />
-
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/graphics_driver"
                             android:textSize="13sp"
-                            android:layout_marginTop="8dp"
                             android:layout_marginBottom="4dp" />
 
                         <LinearLayout

@@ -368,8 +368,6 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sScreenAlignment = view.findViewById(R.id.SScreenAlignment);
         sFullscreenMode.setSelection(isEditMode() ? parseIndex(container.getExtra("fullscreenMode"), container.isFullscreenStretched() ? 1 : 0, 3) : 0);
         sScreenAlignment.setSelection(isEditMode() ? parseIndex(container.getExtra("screenAlignment"), 0, 2) : 0);
-        final Spinner sOpenGLRenderer = view.findViewById(R.id.SOpenGLRenderer);
-        sOpenGLRenderer.setSelection(isEditMode() && "zink".equals(container.getExtra("openglRenderer")) ? 1 : 0);
 
         final EditText etLC_ALL = view.findViewById(R.id.ETlcall);
         Locale systemLocal = Locale.getDefault();
@@ -554,7 +552,6 @@ public class ContainerDetailFragment extends Fragment {
                 boolean showFPS = cbShowFPS.isChecked();
                 int fullscreenMode = sFullscreenMode.getSelectedItemPosition();
                 int screenAlignment = sScreenAlignment.getSelectedItemPosition();
-                String openglRenderer = sOpenGLRenderer.getSelectedItemPosition() == 1 ? "zink" : "gladio";
                 boolean fullscreenStretched = fullscreenMode == 1;
                 String cpuList = cpuListView.getCheckedCPUListAsString();
                 String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
@@ -609,7 +606,6 @@ public class ContainerDetailFragment extends Fragment {
                     container.setFullscreenStretched(fullscreenStretched);
                     container.putExtra("fullscreenMode", String.valueOf(fullscreenMode));
                     container.putExtra("screenAlignment", String.valueOf(screenAlignment));
-                    container.putExtra("openglRenderer", openglRenderer);
                     container.saveData();
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -668,7 +664,6 @@ public class ContainerDetailFragment extends Fragment {
                             this.container = container;
                             container.putExtra("fullscreenMode", String.valueOf(fullscreenMode));
                             container.putExtra("screenAlignment", String.valueOf(screenAlignment));
-                            container.putExtra("openglRenderer", openglRenderer);
                             container.saveData();
                             saveWineRegistryKeys(view);
                         }

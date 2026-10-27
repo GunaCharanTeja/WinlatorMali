@@ -222,30 +222,40 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
     private final java.util.concurrent.ConcurrentHashMap<Integer, WindowTiming> windowTimings =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-    // Idles still waiting for their release time; freed pixmaps, destroyed windows and limit changes release them early.
-    private final java.util.concurrent.ConcurrentLinkedQueue<PendingIdle> cpuQueue = new java.util.concurrent.ConcurrentLinkedQueue<>();
-    private java.util.concurrent.ScheduledThreadPoolExecutor limiterExecutor = null;
+    private Thread cpuPacerThread = null;
+    private final java.util.concurrent.PriorityBlockingQueue<PendingIdle> cpuQueue =
+            new java.util.concurrent.PriorityBlockingQueue<>(11,
+                    java.util.Comparator.comparingLong(p -> p.targetNs));
 
-    // As in Winlator-Ludashi: a timer thread that sleeps until each release is due. The old pacer thread polled every
-    // 0.5-1 ms and spun with yield() at max priority, for as long as the app ran, taking a core from the game.
-    private synchronized java.util.concurrent.ScheduledThreadPoolExecutor getLimiterExecutor() {
-        if (limiterExecutor == null) {
-            limiterExecutor = new java.util.concurrent.ScheduledThreadPoolExecutor(1, runnable -> {
-                Thread thread = new Thread(runnable, "PresentFpsLimiter");
-                thread.setDaemon(true);
-                return thread;
-            });
-            limiterExecutor.setRemoveOnCancelPolicy(true);
-        }
-        return limiterExecutor;
-    }
-
-    private void releaseIdle(PendingIdle p) {
-        if (!cpuQueue.remove(p)) return;
-        sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
-        if (p.window != null && p.window.originClient != null && p.window.originClient.xServer != null && p.window.originClient.xServer.getWinlatorHUD() != null) {
-            p.window.originClient.xServer.getWinlatorHUD().onFrame();
-        }
+    private synchronized void startCpuPacer() {
+        if (cpuPacerThread != null && cpuPacerThread.isAlive()) return;
+        cpuPacerThread = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                PendingIdle p = cpuQueue.peek();
+                if (p == null) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(500_000L);
+                    continue;
+                }
+                long now = System.nanoTime();
+                if (now >= p.targetNs) {
+                    cpuQueue.poll();
+                    sendIdleNotify(p.window, p.pixmap, p.serial, p.idleFence);
+                    if (p.window != null && p.window.originClient != null && p.window.originClient.xServer != null && p.window.originClient.xServer.getWinlatorHUD() != null) {
+                        p.window.originClient.xServer.getWinlatorHUD().onFrame();
+                    }
+                } else {
+                    long diff = p.targetNs - now;
+                    if (diff > 2_000_000L) {
+                        java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+                    } else {
+                        Thread.yield();
+                    }
+                }
+            }
+        }, "PresentPacer-CPU");
+        cpuPacerThread.setDaemon(true);
+        cpuPacerThread.setPriority(Thread.MAX_PRIORITY);
+        cpuPacerThread.start();
     }
 
     private void scheduleIdleNotify(Window window, Pixmap pixmap, int serial, int idleFence, int targetFps) {
@@ -260,13 +270,16 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
         final long frameNs = 1_000_000_000L / targetFps;
         long now = System.nanoTime();
         WindowTiming wt = windowTimings.computeIfAbsent(window.id, k -> new WindowTiming());
-        PendingIdle pending;
         synchronized (wt) {
-            wt.nextIdleNs = wt.nextIdleNs < now ? now + frameNs : wt.nextIdleNs + frameNs;
-            pending = new PendingIdle(window, pixmap, serial, idleFence, wt.nextIdleNs - FIRE_EARLY_NS);
-            cpuQueue.offer(pending);
+            if (wt.nextIdleNs <= now - frameNs) {
+                wt.nextIdleNs = now + frameNs;
+            } else {
+                wt.nextIdleNs += frameNs;
+            }
+            long fireTime = wt.nextIdleNs - FIRE_EARLY_NS;
+            cpuQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, fireTime));
         }
-        getLimiterExecutor().schedule(() -> releaseIdle(pending), Math.max(0L, pending.targetNs - now), java.util.concurrent.TimeUnit.NANOSECONDS);
+        startCpuPacer();
     }
 
     private boolean lifecycleListenersRegistered = false;
@@ -335,11 +348,9 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
     }
 
     public void close() {
-        synchronized (this) {
-            if (limiterExecutor != null) {
-                limiterExecutor.shutdownNow();
-                limiterExecutor = null;
-            }
+        if (cpuPacerThread != null) {
+            cpuPacerThread.interrupt();
+            cpuPacerThread = null;
         }
         drainAndFireAll();
         if (lifecycleListenersRegistered && xServer != null) {
