@@ -353,8 +353,8 @@ public class ContentsFragment extends Fragment {
     private static String requirementBadge(ContentProfile profile) {
         if (profile.type != ContentProfile.ContentType.CONTENT_TYPE_WINE && profile.type != ContentProfile.ContentType.CONTENT_TYPE_PROTON) return "";
         String name = (profile.verName != null ? profile.verName : "").toLowerCase();
-        String badge = name.contains("arm64ec") ? "arm64ec: FEXCore"
-                : (name.contains("x86_64") || name.contains("x86-64")) ? "x86_64: Box64" : "";
+        // arm64ec builds always say so in the name; the rest (wine-9.22_ref, ...) are x86_64 builds.
+        String badge = name.contains("arm64ec") ? "arm64ec: FEXCore" : "x86_64: Box64";
         if (name.contains("ntsync") && !HAS_NTSYNC) badge += (badge.isEmpty() ? "" : " • ") + "NTSync not on this phone (runs without it)";
         return badge;
     }
