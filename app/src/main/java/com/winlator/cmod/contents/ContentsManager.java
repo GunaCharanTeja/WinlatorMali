@@ -147,7 +147,9 @@ public class ContentsManager {
                             } else if (typeStr.equalsIgnoreCase("Wine") || lowerAll.contains("wine")) {
                                 remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WINE;
                             } else {
-                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WINE;
+                                // A type this app can't install (e.g. Banner's "Turnip" GPU driver zips such as
+                                // Rutabaga) used to fall back to Wine and show up in the Wine list. Skip it.
+                                continue;
                             }
                         }
 
