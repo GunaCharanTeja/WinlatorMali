@@ -56,6 +56,37 @@ public abstract class ProcessHelper {
         }
     }
 
+    /** From Bannerlator: run {@code command} like exec() and block until it exits or {@code timeoutMs} passes (then kill it). */
+    public static int execAndWait(String command, String[] envp, File workingDir, long timeoutMs) {
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        final int[] status = {-1};
+        int pid = exec(command, envp, workingDir, (s) -> { status[0] = s; done.countDown(); });
+        if (pid <= 0) return -1;
+        try {
+            if (!done.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                killProcess(pid);
+                return -1;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return -1;
+        }
+        return status[0];
+    }
+
+    /** From Bannerlator: terminate every wine process, wait up to {@code graceMs}, then kill survivors when asked. */
+    public static void terminateAllWineProcessesAndWait(int graceMs, boolean forceKill) {
+        resumeAllWineProcesses();
+        terminateAllWineProcesses();
+        long start = System.currentTimeMillis();
+        while (!listRunningWineProcesses().isEmpty() && System.currentTimeMillis() - start < graceMs) {
+            try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
+        if (forceKill) {
+            for (String process : listRunningWineProcesses()) killProcess(Integer.parseInt(process));
+        }
+    }
+
     public static void pauseAllWineProcesses() {
         for (String process : listRunningWineProcesses()) {
             suspendProcess(Integer.parseInt(process));

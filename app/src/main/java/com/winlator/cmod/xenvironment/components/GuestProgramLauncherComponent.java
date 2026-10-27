@@ -462,12 +462,11 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
         ld_preload = appendFirstExistingPreload(ld_preload, cryptoCandidates);
 
+        // As in Bannerlator: no discovery node here. event<N> exists only while a controller holds slot N (WinHandler's
+        // slot writers create it). An always-present event0 was a pad with nothing behind it; on x86_64 Wine the bundled
+        // wfm.exe spun forever on its HID device entry (wfm + wineserver at 100%, File Manager never opened).
         File devInputDir = new File(imageFs.getRootDir(), "dev/input");
         devInputDir.mkdirs();
-        File event0 = new File(devInputDir, "event0");
-        if (!event0.exists()) {
-            try { event0.createNewFile(); } catch (Exception e) {}
-        }
 
         execEnvVars.put("FAKE_EVDEV_DIR", devInputDir.getAbsolutePath());
         execEnvVars.put("FAKE_EVDEV_VIBRATION", "1");
@@ -532,6 +531,10 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             FileUtils.chmod(box64File, 0755);
         }
 
+        // As in Bannerlator: bring a stale prefix up to date before the session, with Wine Mono's download prompt off.
+        String wineLauncher = wineInfo.isArm64EC() ? winePath + "/wine" : imageFs.getBinDir() + "/box64 wine";
+        updatePrefixBeforeSession(execEnvVars, wineLauncher, rootDir, imageFs);
+
         Log.d("GuestLauncher", "Executing command: " + command);
         return ProcessHelper.exec(command, execEnvVars.toStringArray(), rootDir, (status) -> {
             synchronized (lock) {
@@ -541,6 +544,50 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             if (terminationCallback != null)
                 terminationCallback.call(status);
         });
+    }
+
+    /**
+     * From Bannerlator: run Wine's prefix update (the wine.inf install ntdll otherwise starts inside the session) in a
+     * session of its own before the real launch, whenever the prefix's .update-timestamp doesn't match the layer's
+     * wine.inf. mscoree=d for this step only keeps the Wine Mono download dialog away; the game keeps its own overrides.
+     */
+    private void updatePrefixBeforeSession(EnvVars guestEnv, String wineLauncher, File rootDir, ImageFs imageFs) {
+        final String tag = "GuestProgramLauncherComponent";
+        try {
+            File wineInf = new File(imageFs.getWinePath(), "share/wine/wine.inf");
+            File stamp = new File(rootDir, ImageFs.WINEPREFIX + "/.update-timestamp");
+            if (!wineInf.isFile()) return;
+            long infMtime = wineInf.lastModified() / 1000L;
+            String current = stamp.isFile() ? FileUtils.readString(stamp) : "";
+            if (current == null) current = "";
+            current = current.trim();
+            if (current.startsWith("disable")) return;
+            long stamped = -1;
+            int i = 0;
+            while (i < current.length() && Character.isDigit(current.charAt(i))) i++;
+            if (i > 0) {
+                try { stamped = Long.parseLong(current.substring(0, i)); } catch (NumberFormatException ignored) {}
+            }
+            if (stamped == infMtime) return;
+
+            EnvVars env = new EnvVars();
+            env.putAll(guestEnv);
+            String overrides = env.get("WINEDLLOVERRIDES").trim();
+            while (overrides.endsWith(";")) overrides = overrides.substring(0, overrides.length() - 1).trim();
+            env.put("WINEDLLOVERRIDES", overrides.isEmpty() ? "mscoree=d" : overrides + ";mscoree=d");
+            Log.i(tag, "prefix update: .update-timestamp \"" + current + "\" != wine.inf mtime " + infMtime + "; running it before the session");
+            long t0 = System.currentTimeMillis();
+            int status = ProcessHelper.execAndWait(wineLauncher + " wineboot -h", env.toStringArray(), rootDir, 180_000);
+            // Let the wineserver wind down on its own (it flushes the registry on exit).
+            long deadline = System.currentTimeMillis() + 30_000;
+            while (!ProcessHelper.listRunningWineProcesses().isEmpty() && System.currentTimeMillis() < deadline) {
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            }
+            if (!ProcessHelper.listRunningWineProcesses().isEmpty()) ProcessHelper.terminateAllWineProcessesAndWait(3000, true);
+            Log.i(tag, "prefix update: finished in " + (System.currentTimeMillis() - t0) + " ms (wineboot exit " + status + ")");
+        } catch (Throwable t) {
+            Log.w(tag, "prefix update: the step before the session failed; launching anyway", t);
+        }
     }
 
     private void addBox64EnvVars(EnvVars envVars, boolean enableLogs) {

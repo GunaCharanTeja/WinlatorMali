@@ -23,6 +23,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class WineUtils {
+    // As in Bannerlator: winebus without hidraw. With hidraw on, the virtual pad also gets a HID device object, and the
+    // bundled wfm.exe enumerating devices spins on it forever on x86_64 Wine (wfm and wineserver at 100%, no window).
+    public static void setWinebusOptions(Container container) {
+        File systemRegFile = new File(container.getRootDir(), ".wine/system.reg");
+        try (WineRegistryEditor registryEditor = new WineRegistryEditor(systemRegFile)) {
+            registryEditor.setCreateKeyIfNotExist(false);
+            for (String key : new String[]{"System\\CurrentControlSet\\Services\\winebus", "System\\ControlSet001\\Services\\winebus"})
+                registryEditor.setDwordValue(key, "DisableHidraw", 1);
+        }
+    }
+
     public static void createDosdevicesSymlinks(Container container) {
         String dosdevicesPath = (new File(container.getRootDir(), ".wine/dosdevices")).getPath();
         File[] files = (new File(dosdevicesPath)).listFiles();

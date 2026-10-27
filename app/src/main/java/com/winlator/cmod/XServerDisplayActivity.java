@@ -1392,6 +1392,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         WineStartMenuCreator.create(this, container);
         WineUtils.createDosdevicesSymlinks(container);
+        WineUtils.setWinebusOptions(container);
 
         // The wfm.exe in container_pattern_common hangs on x86_64 Wine (loops on NtQueryDirectoryObject),
         // so File Manager never opens and blocks other programs. Bannerlator's newer wfm.exe and winhandler.exe

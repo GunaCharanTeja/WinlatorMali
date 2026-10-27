@@ -151,12 +151,12 @@ public class ContainerManager {
                 return null;
             }
 
-//            // Extract the selected graphics driver files
-//            String driverVersion = container.getGraphicsDriverVersion();
-//            if (!extractGraphicsDriverFiles(driverVersion, containerDir, null)) {
-//                FileUtils.delete(containerDir);
-//                return null;
-//            }
+            // As in Bannerlator: run as administrator (UAC off), so installers and tools that check the elevation
+            // token don't refuse to run; Wine leaves EnableLUA=1 in most prefixPacks.
+            try (com.winlator.cmod.core.WineRegistryEditor registryEditor = new com.winlator.cmod.core.WineRegistryEditor(new File(containerDir, ".wine/system.reg"))) {
+                registryEditor.setCreateKeyIfNotExist(true);
+                registryEditor.setDwordValue("Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "EnableLUA", 0);
+            }
 
             container.saveData();
             loadContainers();
@@ -281,39 +281,58 @@ public class ContainerManager {
         return null;
     }
 
+    // From Bannerlator: the Wine layer's PE files into the prefix. Creation never overwrites an existing file; the
+    // in-place layer update (refreshCommonDlls) overwrites only files still carrying Wine's builtin marker.
     private void extractCommonDlls(WineInfo wineInfo, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) {
         if (wineInfo == null || wineInfo.path == null || wineInfo.path.isEmpty()) return;
+        copyLayerDlls(new File(wineInfo.path), wineInfo.isArm64EC(), srcName, dstName, containerDir, false, onExtractFileListener);
+    }
 
-        File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
-        if (!srcDir.exists()) {
-            srcDir = new File(wineInfo.path + "/lib64/wine/" + srcName);
-        }
-        if (!srcDir.exists()) {
-            srcDir = new File(wineInfo.path + "/lib/" + srcName);
-        }
+    static int copyLayerDlls(File layerDir, boolean arm64ec, String srcName, String dstName, File containerDir, boolean overwriteBuiltins, OnExtractFileListener onExtractFileListener) {
+        File srcDir = new File(layerDir, "lib/wine/" + srcName);
 
         File[] srcfiles = srcDir.listFiles(file -> file.isFile());
-        if (srcfiles == null) {
-            Log.w("ContainerManager", "Common DLL directory does not exist or has no files: " + srcDir.getAbsolutePath());
-            return;
-        }
+        if (srcfiles == null) return 0;
 
+        int written = 0;
         for (File file : srcfiles) {
             String dllName = file.getName();
-            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
-                File iexploreFile = new File(wineInfo.path + "/lib/wine/i386-windows/iexplore.exe");
-                if (iexploreFile.exists()) file = iexploreFile;
-            }
+            if (dllName.equals("iexplore.exe") && arm64ec && srcName.equals("aarch64-windows"))
+                file = new File(layerDir, "lib/wine/i386-windows/iexplore.exe");
             if (dllName.equals("tabtip.exe") || dllName.equals("icu.dll"))
                 continue;
             File dstFile = new File(containerDir, ".wine/drive_c/windows/" + dstName + "/" + dllName);
-            if (dstFile.exists()) continue;
+            if (dstFile.exists()) {
+                if (!overwriteBuiltins || !isWineBuiltinPe(dstFile)) continue;
+            }
             if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
-            FileUtils.copy(file, dstFile);
+            if (FileUtils.copy(file, dstFile)) written++;
         }
+        return written;
+    }
+
+    /** Layer-update refresh of system32 + syswow64 from {@code layerDir}, as in Bannerlator. */
+    public static int refreshCommonDlls(File layerDir, boolean arm64ec, File containerDir) {
+        int written = copyLayerDlls(layerDir, arm64ec, arm64ec ? "aarch64-windows" : "x86_64-windows", "system32", containerDir, true, null);
+        written += copyLayerDlls(layerDir, arm64ec, "i386-windows", "syswow64", containerDir, true, null);
+        return written;
+    }
+
+    /** True when {@code file} is a PE whose DOS stub carries winebuild's marker (a copy the layer itself produced). */
+    public static boolean isWineBuiltinPe(File file) {
+        byte[] head = new byte[256];
+        int n;
+        try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+            n = in.read(head);
+        } catch (java.io.IOException e) {
+            return false;
+        }
+        if (n < 64 || head[0] != 'M' || head[1] != 'Z') return false;
+        String stub = new String(head, 0, n, java.nio.charset.StandardCharsets.ISO_8859_1);
+        return stub.contains("Wine builtin DLL") || stub.contains("Wine placeholder DLL");
     }
 
     public static String getPatternUrlForWineVersion(String wineVersion) {
@@ -399,85 +418,35 @@ public class ContainerManager {
         if (!syswow64.exists()) syswow64.mkdirs();
     }
 
+    // As in Bannerlator: the Wine/Proton layer's own prefix (a bundled <wineVersion>_container_pattern.tzst, else the
+    // layer's prefixPack.txz), then that layer's PE files. No other version's pattern, no fabricated registry: a prefix
+    // built from another Wine (or an arm64ec pattern under x86_64 Wine) misbehaves in ways that are hard to trace.
     public boolean extractContainerPatternFile(Container container, String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
-        Log.d("ContainerManager", "Extracting pattern for wine: " + wineVersion + " at path: " + wineInfo.path);
+        String containerPattern = wineVersion + "_container_pattern.tzst";
+        boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
 
-        boolean patternExtracted = false;
-
-        // 1. Check if specific container pattern exists on disk
-        List<File> candidatePatterns = new ArrayList<>();
-        if (wineInfo.path != null && !wineInfo.path.isEmpty()) {
-            candidatePatterns.add(new File(wineInfo.path, "prefixPack.tzst"));
-            candidatePatterns.add(new File(wineInfo.path, "prefixPack.txz"));
-            candidatePatterns.add(new File(wineInfo.path, "container_pattern.tzst"));
-            candidatePatterns.add(new File(wineInfo.path, wineVersion + "_container_pattern.tzst"));
-            candidatePatterns.add(new File(wineInfo.path, "proton-9.0-arm64ec_container_pattern.tzst"));
-            candidatePatterns.add(new File(wineInfo.path, "proton-10-arm64ec_container_pattern.tzst"));
-            candidatePatterns.add(new File(wineInfo.path, "proton-9.0-x86_64_container_pattern.tzst"));
+        if (!result) {
+            File containerPatternFile = new File(wineInfo.path + "/prefixPack.txz");
+            result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, containerPatternFile, containerDir);
         }
-        File patternsDir = new File(context.getFilesDir(), "contents/patterns");
-        candidatePatterns.add(new File(patternsDir, wineVersion + "_container_pattern.tzst"));
-        candidatePatterns.add(new File(patternsDir, wineVersion.replace("-", ".") + "_container_pattern.tzst"));
-        candidatePatterns.add(new File(patternsDir, "proton-9.0-arm64ec_container_pattern.tzst"));
-        candidatePatterns.add(new File(patternsDir, "proton-10-arm64ec_container_pattern.tzst"));
-        candidatePatterns.add(new File(patternsDir, "proton-9.0-x86_64_container_pattern.tzst"));
-        candidatePatterns.add(new File(context.getFilesDir(), "imagefs/opt/" + wineVersion + "/prefixPack.tzst"));
-        candidatePatterns.add(new File(context.getFilesDir(), "imagefs/opt/" + wineVersion + "/container_pattern.tzst"));
-
-        for (File pFile : candidatePatterns) {
-            if (pFile != null && pFile.exists() && pFile.length() > 0) {
-                Log.d("ContainerManager", "Found specific container pattern on disk: " + pFile.getAbsolutePath());
-                patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, pFile, containerDir, onExtractFileListener);
-                if (!patternExtracted) {
-                    patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, pFile, containerDir, onExtractFileListener);
-                }
-                if (patternExtracted) break;
-            }
+        // The same layer's own pattern as WineDownloader stores it next to a downloaded build.
+        for (String name : new String[]{"prefixPack.tzst", "container_pattern.tzst"}) {
+            File own = new File(wineInfo.path, name);
+            if (!result && own.isFile()) result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, own, containerDir, onExtractFileListener);
         }
 
-        // 2. Try extracting specific version container pattern from assets
-        if (!patternExtracted) {
-            String containerPattern = wineVersion + "_container_pattern.tzst";
-            patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
-        }
-
-        // 3. If STILL not found, check if it's a known official Winlator Mali Proton version and download the specific container pattern on the fly!
-        if (!patternExtracted) {
-            String patternUrl = getPatternUrlForWineVersion(wineVersion);
-            if (patternUrl != null) {
-                Log.d("ContainerManager", "Downloading specific container pattern on-the-fly from: " + patternUrl);
-                File downloadedPattern = downloadContainerPatternSync(context, patternUrl, wineVersion);
-                if (downloadedPattern != null && downloadedPattern.exists() && downloadedPattern.length() > 0) {
-                    patternExtracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, downloadedPattern, containerDir, onExtractFileListener);
-                    // Also cache to wineInfo.path so subsequent creations are instant
-                    if (wineInfo.path != null && new File(wineInfo.path).exists()) {
-                        FileUtils.copy(downloadedPattern, new File(wineInfo.path, "prefixPack.tzst"));
-                        FileUtils.copy(downloadedPattern, new File(wineInfo.path, "container_pattern.tzst"));
-                    }
-                }
-            }
-        }
-
-        // 4. Extract container_pattern_common.tzst from assets as baseline
-        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "container_pattern_common.tzst", containerDir, onExtractFileListener);
-
-        // 5. Extract common DLLs (system32 / syswow64) from Wine runtime
-        try {
+        if (result) {
             if (wineInfo.isArm64EC())
-                extractCommonDlls(wineInfo, "aarch64-windows", "system32", containerDir, onExtractFileListener);
+                extractCommonDlls(wineInfo, "aarch64-windows", "system32", containerDir, onExtractFileListener); // arm64ec only
             else
                 extractCommonDlls(wineInfo, "x86_64-windows", "system32", containerDir, onExtractFileListener);
 
             extractCommonDlls(wineInfo, "i386-windows", "syswow64", containerDir, onExtractFileListener);
-        } catch (Exception e) {
-            Log.e("ContainerManager", "Error extracting common DLLs", e);
         }
+        else Log.e("ContainerManager", "No prefix for " + wineVersion + ": neither " + containerPattern + " nor " + wineInfo.path + "/prefixPack.txz");
 
-        // 6. Ensure Wine registry files are initialized and valid
-        ensureWineRegistryExists(containerDir);
-
-        return true;
+        return result;
     }
 
     public Container getContainerForShortcut(Shortcut shortcut) {
