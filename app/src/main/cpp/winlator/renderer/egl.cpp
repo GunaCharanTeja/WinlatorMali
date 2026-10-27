@@ -395,6 +395,14 @@ EGLBoolean EGLRenderer::drawFrame() {
 
     // A redraw for a cursor move only (touch controls, touchpad): nothing in the scene changed.
     bool cursorOnly = !sceneDirty.exchange(false);
+    // Frames are paced on a beat (FPS limit): an unscheduled cursor-only frame queued behind a scheduled one would make
+    // the compositor drop it. While the game is presenting, the cursor is drawn with its next frame instead.
+    if (cursorOnly && pacingFps.load() > 0 && !(frameGenOn && fgRatio > 0)) {
+        double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        std::lock_guard<std::mutex> lock(realLock);
+        if (now - lastRealTime < 0.1)
+            return EGL_TRUE;
+    }
     if (cursorOnly && frameGenOn && fgRatio > 0) {
         // Frame generation is showing frames at its own even pace and draws the cursor on each: a frame in between
         // would only break that pace.
@@ -602,11 +610,24 @@ EGLBoolean EGLRenderer::drawFrame() {
 
     glDisable(GL_SCISSOR_TEST);
 
+    static auto presentationTime = (PFNEGLPRESENTATIONTIMEANDROIDPROC)eglGetProcAddress("eglPresentationTimeANDROID");
     if (realPresentAt.time_since_epoch().count() != 0) {
-        static auto presentationTime = (PFNEGLPRESENTATIONTIMEANDROIDPROC)eglGetProcAddress("eglPresentationTimeANDROID");
         if (presentationTime)
             presentationTime(display, surface, (EGLnsecsANDROID)std::chrono::duration_cast<std::chrono::nanoseconds>(realPresentAt.time_since_epoch()).count());
         realPresentAt = {};
+    }
+    else if (int fps = pacingFps.load(); fps > 0 && !cursorOnly && presentationTime) {
+        // Frame pacing (FPS limit set): each game frame is shown on an even beat, 1/limit apart, instead of whenever
+        // it happened to arrive. The compositor puts it on the first refresh at or after its time, and the refresh
+        // rate is picked to divide evenly by the limit, so every frame stays on screen for the same number of refreshes.
+        using clock = std::chrono::steady_clock;
+        auto period = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(1.0 / fps));
+        auto earliest = clock::now() + std::chrono::milliseconds(2);
+        // Late (the game fell under the limit) or far ahead: the beat starts again from now.
+        if (paceNext < earliest || paceNext > earliest + period * 2)
+            paceNext = earliest;
+        presentationTime(display, surface, (EGLnsecsANDROID)std::chrono::duration_cast<std::chrono::nanoseconds>(paceNext.time_since_epoch()).count());
+        paceNext += period;
     }
     captureFrame("real", 1.0f);
     return eglSwapBuffers(display, surface);

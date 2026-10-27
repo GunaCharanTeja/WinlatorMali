@@ -103,6 +103,9 @@ public class XServer {
 
     public void setFpsLimit(int fpsLimit) {
         this.fpsLimit = fpsLimit;
+        try {
+            com.winlator.cmod.widget.XServerView.nativeSetFramePacing(fpsLimit);
+        } catch (UnsatisfiedLinkError ignored) {}
         com.winlator.cmod.xserver.extensions.PresentExtension presentExt = getExtension(com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
         if (presentExt != null) {
             presentExt.onFpsLimitChanged(fpsLimit);
