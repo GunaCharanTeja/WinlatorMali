@@ -486,7 +486,12 @@ EGLBoolean EGLRenderer::drawFrame() {
                     if (ratio < (fgRatio > 0 ? 1.1 : 1.2))
                         ratio = 0;
                 } else if (interval >= 0.020) {
-                    ratio = 2;
+                    // 2x, but never past what the display shows: 40 fps doubled is 80 on a 60 Hz panel, where the
+                    // extra frames are dropped unevenly and the motion looks no smoother. 40 fps there gets 1.5x.
+                    float refresh = xServer->refreshRate;
+                    ratio = refresh >= 30.0f ? std::min(2.0, refresh * interval) : 2.0;
+                    if (ratio < (fgRatio > 0 ? 1.1 : 1.2))
+                        ratio = 0;
                 }
             }
             if (ratio == 0) {
