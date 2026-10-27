@@ -151,6 +151,15 @@ public class Shortcut {
         return fallbackCoverArt;
     }
 
+    /** Home-screen icon: a square crop of real cover art (custom or downloaded) when there is one, else the exe icon. */
+    public Bitmap getLauncherIcon() {
+        if (coverArt == null) return icon;
+        int w = coverArt.getWidth(), h = coverArt.getHeight();
+        int side = Math.min(w, h);
+        Bitmap square = Bitmap.createBitmap(coverArt, (w - side) / 2, (h - side) / 2, side, side);
+        return side > 512 ? Bitmap.createScaledBitmap(square, 512, 512, true) : square;
+    }
+
     public Bitmap getCoverArt(int width, int height) {
         if (coverArt != null) return coverArt;
         return fallbackCoverArt;

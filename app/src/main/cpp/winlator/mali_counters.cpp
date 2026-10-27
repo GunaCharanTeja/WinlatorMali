@@ -27,7 +27,6 @@ union TimeInfo {
     struct { uint64_t sec; uint32_t nsec; uint32_t padding; uint64_t timestamp; uint64_t cycle_counter; } out;
 };
 
-#define IOCTL_VERSION_CHECK_JM  _IOWR(KBASE_IOCTL_TYPE, 0, VersionCheck)
 #define IOCTL_VERSION_CHECK_CSF _IOWR(KBASE_IOCTL_TYPE, 52, VersionCheck)
 #define IOCTL_SET_FLAGS         _IOW(KBASE_IOCTL_TYPE, 1, SetFlags)
 #define IOCTL_GET_GPUPROPS      _IOW(KBASE_IOCTL_TYPE, 3, GpuProps)
@@ -52,7 +51,7 @@ struct Reader {
     int rfd = -1;
     uint8_t *map = nullptr;
     uint32_t bufSize = 0;
-    int activeIndex = 4;     // front-end block "GPU active cycles": 4 on CSF GPUs, 6 on job-manager GPUs
+    int activeIndex = 4;     // front-end block "GPU active cycles" on CSF GPUs
     double maxMhz = 0;
     uint64_t prevTimestamp = 0;
 };
@@ -108,14 +107,12 @@ Reader *openReader() {
     r->fd = open("/dev/mali0", O_RDWR | O_CLOEXEC);
     if (r->fd < 0) { closeReader(r); return nullptr; }
 
+    // CSF GPUs only (Mali-G310/G510/G610/G615/G710/G715/G720 and newer). On a job-manager driver this
+    // ioctl is a reserved no-op that fails. Job-manager GPUs (G52/G57/G76/G77/G78...) are skipped: on old
+    // MediaTek Bifrost kernels the counter reader or time-info ioctls reboot the phone (Helio G95 report).
     VersionCheck csf = {1, 20};
-    if (ioctl(r->fd, IOCTL_VERSION_CHECK_CSF, &csf) == 0) {
-        r->activeIndex = 4;
-    } else {
-        VersionCheck jm = {11, 40};
-        if (ioctl(r->fd, IOCTL_VERSION_CHECK_JM, &jm) != 0) { closeReader(r); return nullptr; }
-        r->activeIndex = 6;
-    }
+    if (ioctl(r->fd, IOCTL_VERSION_CHECK_CSF, &csf) != 0) { closeReader(r); return nullptr; }
+    r->activeIndex = 4;
 
     SetFlags flags = {0};
     if (ioctl(r->fd, IOCTL_SET_FLAGS, &flags) != 0) { closeReader(r); return nullptr; }

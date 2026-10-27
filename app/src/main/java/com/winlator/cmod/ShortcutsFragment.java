@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
@@ -1232,7 +1233,8 @@ public class ShortcutsFragment extends Fragment {
         Context context = shortcut.container.getManager().getContext();
         ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
         if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported()) {
-            Icon icon = shortcut.icon != null ? Icon.createWithBitmap(shortcut.icon) : Icon.createWithResource(context, R.drawable.icon_shortcut);
+            Bitmap launcherIcon = shortcut.getLauncherIcon();
+            Icon icon = launcherIcon != null ? Icon.createWithBitmap(launcherIcon) : Icon.createWithResource(context, R.drawable.icon_shortcut);
             ShortcutInfo shortcutInfo = buildScreenShortCut(context, shortcut.name, shortcut.name, shortcut.container.id, shortcut.file.getPath(), icon, shortcut.name);
             shortcutManager.requestPinShortcut(shortcutInfo, null);
         }

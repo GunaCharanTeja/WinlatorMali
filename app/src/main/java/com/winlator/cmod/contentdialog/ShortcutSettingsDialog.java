@@ -526,8 +526,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
         }
 
         fragment.loadShortcutsList();
+        android.graphics.Bitmap launcherIcon = shortcut.getLauncherIcon();
         fragment.updateShortcutOnScreen(newName, newName, shortcut.container.id, newDesktopFile.getAbsolutePath(),
-                Icon.createWithBitmap(shortcut.icon), shortcut.getExtra("uuid"));
+                launcherIcon != null ? Icon.createWithBitmap(launcherIcon) : Icon.createWithResource(getContext(), R.drawable.icon_shortcut),
+                shortcut.getExtra("uuid"));
     }
 
     // Method to ensure no old file remains

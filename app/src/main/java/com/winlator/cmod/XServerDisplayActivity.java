@@ -2330,11 +2330,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
         envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
-        if ("0".equals(bcnEmulationCache)) {
-            envVars.put("BCN_DISABLE_DISK_CACHE", "1");
-        } else {
-            envVars.put("BCN_DISABLE_DISK_CACHE", "0");
-        }
 
         // ENABLE_BCN_COMPUTE loads the layer, DISABLE_BCN_COMPUTE force-stops it (both builds). Qualcomm devices
         // already handle BC natively (Adreno/Turnip), so the layer is skipped there even when enabled.
@@ -2354,6 +2349,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // The current build (bcn_layer_env.txt): BCN_NATIVE stays at its default (on; off is debug-only and
             // breaks BC textures on stock Mali). BCN_NATIVE_DIRECT=0 is the slower staging-buffer upload, a
             // compatibility fallback for drivers that mishandle the direct one.
+            // BCN_COMPUTE_AUTO lets the layer pick per texture, as fbf43ea sent it; "full" emulation forces compute.
+            envVars.put("BCN_COMPUTE_AUTO", "full".equals(bcnEmulation) ? "0" : "1");
             if ("1".equals(graphicsDriverConfig.getOrDefault("bcnKeepRaw", "0"))) envVars.put("BCN_KEEP_RAW", "1");
             if ("0".equals(graphicsDriverConfig.getOrDefault("bcnNativeDirect", "1"))) envVars.put("BCN_NATIVE_DIRECT", "0");
         }

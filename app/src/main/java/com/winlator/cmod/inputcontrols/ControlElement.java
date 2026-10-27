@@ -1823,7 +1823,10 @@ public class ControlElement {
 
                     for (byte i = 0; i < 4; i++) {
                         Binding binding = getBindingAt(i);
-                        inputControlsView.handleInputEvent(binding, states[i], magnitude);
+                        // Only mouse movement is analog. A partial magnitude on a key binding makes
+                        // InputControlsView pulse the key on and off, so held W/A/S/D stutter in game.
+                        if (binding.isMouseMove()) inputControlsView.handleInputEvent(binding, states[i], magnitude);
+                        else if (states[i] != this.states[i]) inputControlsView.handleInputEvent(binding, states[i], 0);
                         this.states[i] = states[i];
                     }
                 }
@@ -1889,7 +1892,10 @@ public class ControlElement {
                     float value = i == 1 || i == 3 ? deltaX : deltaY;
                     Binding binding = getBindingAt(i);
                     boolean state = binding.isMouseMove() ? (states[i] || states[(i+2)%4]) : states[i];
-                    inputControlsView.handleInputEvent(binding, state, value);
+                    // Keys get no analog value: a positive offset under 0.95 (right/down only, left/up are
+                    // negative) made InputControlsView pulse the key, so moving right stuttered.
+                    if (binding.isMouseMove() || binding.isGamepad()) inputControlsView.handleInputEvent(binding, state, value);
+                    else if (state != this.states[i]) inputControlsView.handleInputEvent(binding, state, 0);
                     this.states[i] = state;
                 }
             }

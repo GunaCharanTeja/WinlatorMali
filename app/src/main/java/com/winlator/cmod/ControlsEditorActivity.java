@@ -567,6 +567,16 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (!isInitializing[0]) {
                     update.run();
+                    // The new list shows its first entry when the old binding isn't in it, and re-picking an
+                    // already shown entry fires no selection event, so commit what is shown now.
+                    int pos = sBinding.getSelectedItemPosition();
+                    Binding[] values = position == 1 ? Binding.mouseBindingValues()
+                            : position == 2 ? Binding.gamepadBindingValues() : Binding.keyboardBindingValues();
+                    if (pos >= 0 && pos < values.length && values[pos] != element.getBindingAt(index)) {
+                        element.setBindingAt(index, values[pos]);
+                        profile.save();
+                        inputControlsView.invalidate();
+                    }
                 }
             }
 

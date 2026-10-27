@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (!winlatorDir.exists())
             winlatorDir.mkdirs();
 
-        containerManager = new ContainerManager(this);
+        if (containerManager == null) containerManager = new ContainerManager(this);
 
         Intent intent = getIntent();
         editInputControls = intent.getBooleanExtra("edit_input_controls", false);
@@ -663,6 +663,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public ContainerManager getContainerManager() {
+        // Fragments restored after process death call this from super.onCreate(), before onCreate assigns it.
+        if (containerManager == null) containerManager = new ContainerManager(this);
         return containerManager;
     }
 
