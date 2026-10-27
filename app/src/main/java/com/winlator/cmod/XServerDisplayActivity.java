@@ -1395,6 +1395,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // The wfm.exe in container_pattern_common hangs on x86_64 Wine (loops on NtQueryDirectoryObject),
         // so File Manager never opens and blocks other programs. Bannerlator's newer wfm.exe and winhandler.exe
         // ship in assets and are copied into every container on launch, as Bannerlator does.
+        // wfm.exe imports libcdio.dll (ISO/CD support); without it the loader fails and File Manager never opens.
+        stageBundledWindowsExe("libcdio.dll", ".libcdio_version", "banner-1");
         stageBundledWindowsExe("wfm.exe", ".wfm_version", "banner-1.2.1");
         stageBundledWindowsExe("winhandler.exe", ".winhandler_version", "banner-1-no-unmaximize");
         // Configure Wine joystick registry keys based on Automated Emulation Mode
