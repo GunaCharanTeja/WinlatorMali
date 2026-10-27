@@ -104,6 +104,7 @@ class EGLRenderer {
         double fgPhase = 0;  // where the next frame shown falls between the next pair of real frames (0 to 1)
         std::chrono::steady_clock::time_point fgNextPresent{};  // the display time of the next frame shown
         std::chrono::steady_clock::time_point paceNext{};       // frame pacing: the display time of the next game frame
+        uint32_t pacedSerial = 0;                               // frame pacing: the game frame last given a beat
         std::chrono::steady_clock::time_point realPresentAt{};  // the display time of the real frame after generated ones
         // Real frames are the content updates of the window updating the most (the game), chosen again every second.
         // Counted per window and per path (window content or direct buffers): a frame reported by both counts once.

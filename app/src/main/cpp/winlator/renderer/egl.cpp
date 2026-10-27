@@ -409,7 +409,9 @@ EGLBoolean EGLRenderer::drawFrame() {
     bool cursorOnly = !sceneDirty.exchange(false);
     // Frames are paced on a beat (FPS limit): an unscheduled cursor-only frame queued behind a scheduled one would make
     // the compositor drop it. While the game is presenting, the cursor is drawn with its next frame instead.
-    if (cursorOnly && pacingFps.load() > 0 && !(frameGenOn && fgRatio > 0)) {
+    // Likewise a redraw with no new game frame since the last paced one (a second update of the same frame, another
+    // window): taking a beat of its own would push the next game frame a beat late.
+    if ((cursorOnly || contentSerial.load() == pacedSerial) && pacingFps.load() > 0 && !(frameGenOn && fgRatio > 0)) {
         double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         std::lock_guard<std::mutex> lock(realLock);
         if (now - lastRealTime < 0.1)
@@ -635,11 +637,15 @@ EGLBoolean EGLRenderer::drawFrame() {
         using clock = std::chrono::steady_clock;
         auto period = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(1.0 / fps));
         auto earliest = clock::now() + std::chrono::milliseconds(2);
-        // Late (the game fell under the limit) or far ahead: the beat starts again from now.
-        if (paceNext < earliest || paceNext > earliest + period * 2)
+        // A little late: the frame takes the next slot of the same beat, so the rhythm stays even (restarting it from
+        // now made the following gap short, a visible hitch). Far behind (a stall) or far ahead: start again from now.
+        if (paceNext < earliest - period * 4 || paceNext > earliest + period * 2)
             paceNext = earliest;
+        while (paceNext < earliest)
+            paceNext += period;
         presentationTime(display, surface, (EGLnsecsANDROID)std::chrono::duration_cast<std::chrono::nanoseconds>(paceNext.time_since_epoch()).count());
         paceNext += period;
+        pacedSerial = contentSerial.load();
     }
     captureFrame("real", 1.0f);
     return eglSwapBuffers(display, surface);
