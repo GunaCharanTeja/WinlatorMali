@@ -1320,6 +1320,32 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     //         Log.d("XServerDisplayActivity", "Failed to extract input dlls");
     // }
 
+    // Copy assets/<exeName> into this container's drive_c\windows when the marker beside it doesn't
+    // match version. Temp file + rename so a failed copy never leaves a truncated exe. Best-effort.
+    private void stageBundledWindowsExe(String exeName, String markerName, String version) {
+        try {
+            File windowsDir = new File(container.getRootDir(), ".wine/drive_c/windows");
+            if (!windowsDir.isDirectory()) return;
+            File exeFile = new File(windowsDir, exeName);
+            File marker = new File(windowsDir, markerName);
+            if (exeFile.isFile() && marker.isFile() && version.equals(FileUtils.readString(marker).trim())) return;
+
+            File tmp = new File(windowsDir, exeName + ".tmp");
+            try (java.io.InputStream in = getAssets().open(exeName);
+                 java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                byte[] buf = new byte[65536];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            }
+            if (tmp.length() == 0) { tmp.delete(); return; }
+            if (exeFile.exists()) exeFile.delete();
+            if (!tmp.renameTo(exeFile)) { tmp.delete(); return; }
+            FileUtils.writeString(marker, version);
+        } catch (Exception e) {
+            Log.w("XServerDisplayActivity", "stageBundledWindowsExe " + exeName + ": " + e.getMessage());
+        }
+    }
+
     private void setupWineSystemFiles() {
         String appVersion = String.valueOf(AppUtils.getVersionCode(this));
         String imgVersion = String.valueOf(imageFs.getVersion());
@@ -1365,6 +1391,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         WineStartMenuCreator.create(this, container);
         WineUtils.createDosdevicesSymlinks(container);
+
+        // The wfm.exe in container_pattern_common hangs on x86_64 Wine (loops on NtQueryDirectoryObject),
+        // so File Manager never opens and blocks other programs. Bannerlator's newer wfm.exe and winhandler.exe
+        // ship in assets and are copied into every container on launch, as Bannerlator does.
+        stageBundledWindowsExe("wfm.exe", ".wfm_version", "banner-1.2.1");
+        stageBundledWindowsExe("winhandler.exe", ".winhandler_version", "banner-1-no-unmaximize");
         // Configure Wine joystick registry keys based on Automated Emulation Mode
         UnifiedInputState.EmulationMode mode = container.getEmulationMode();
         if (shortcut != null) {
