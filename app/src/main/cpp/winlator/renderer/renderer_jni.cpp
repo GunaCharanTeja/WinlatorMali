@@ -571,11 +571,6 @@ Java_com_winlator_cmod_widget_XServerView_nativeSetScaleMode(JNIEnv *env, jobjec
     renderer.setScaleMode(mode, alignment);
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_winlator_cmod_widget_XServerView_nativeSetFramePacing(JNIEnv *env, jclass clazz, jint fps) {
-    renderer.pacingFps = fps > 0 ? fps : 0;
-}
-
 // out = {scale, offsetX, offsetY}: X screen point = game point * scale + offset.
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_widget_XServerView_nativeGetFitMapping(JNIEnv *env, jobject thiz, jfloatArray out) {

@@ -103,7 +103,6 @@ class EGLRenderer {
         double fgRatio = 0;  // frames shown per real one, 0 when frame generation is not running
         double fgPhase = 0;  // where the next frame shown falls between the next pair of real frames (0 to 1)
         std::chrono::steady_clock::time_point fgNextPresent{};  // the display time of the next frame shown
-        std::chrono::steady_clock::time_point paceNext{};       // frame pacing: the display time of the next game frame
         std::chrono::steady_clock::time_point realPresentAt{};  // the display time of the real frame after generated ones
         // Real frames are the content updates of the window updating the most (the game), chosen again every second.
         // Counted per window and per path (window content or direct buffers): a frame reported by both counts once.
@@ -173,7 +172,6 @@ class EGLRenderer {
         void requestRenderer();
         void requestCursorRender();
         void markContentUpdate(int windowId, bool direct);
-        std::atomic<int> pacingFps{0};  // the FPS limit game frames are paced to on the display (0 = off)
         int scaleMode = ViewTransformation::MODE_FIT;
         int screenAlignment = ViewTransformation::ALIGN_CENTER;
         void setScaleMode(int mode, int alignment);

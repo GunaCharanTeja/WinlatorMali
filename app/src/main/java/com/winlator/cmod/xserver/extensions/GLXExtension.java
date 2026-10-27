@@ -413,15 +413,10 @@ public class GLXExtension implements Extension {
         long nextFrameTimeNs = lastFrameTimeNs + frameIntervalNs;
 
         if (now < nextFrameTimeNs) {
-            java.util.concurrent.locks.LockSupport.parkNanos(nextFrameTimeNs - now);
+            long waitNs = nextFrameTimeNs - now;
+            java.util.concurrent.locks.LockSupport.parkNanos(waitNs);
             lastFrameTimeNs = nextFrameTimeNs;
-        }
-        // A little late: stay on the same beat (restarting it from now made the next gap short, a stutter). Far behind
-        // (a stall, loading): start again from now.
-        else if (now - nextFrameTimeNs < 4 * frameIntervalNs) {
-            lastFrameTimeNs = nextFrameTimeNs;
-        }
-        else {
+        } else {
             lastFrameTimeNs = now;
         }
     }

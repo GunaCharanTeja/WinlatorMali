@@ -308,9 +308,6 @@ public class XServerView extends SurfaceView implements SurfaceHolder.Callback, 
 
     private native void nativeSetScaleMode(int mode, int alignment);
 
-    /** Frame pacing: game frames are shown on an even beat of this rate (the FPS limit; 0 = off). */
-    public static native void nativeSetFramePacing(int fps);
-
     private native boolean nativeGetFitMapping(float[] out);
     @FastNative
     private native void nativeUpdateWindowContent(int id);
