@@ -1504,6 +1504,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             overrideEnvVars.clear(); // Clear overrideEnvVars as per smali logic
         }
 
+        // Zink (see applyOpenGLRenderer), after the user's variables so their own WINEDLLOVERRIDES keeps it.
+        if (zinkActive) {
+            if (!envVars.has("GALLIUM_DRIVER")) envVars.put("GALLIUM_DRIVER", "zink");
+            String overrides = envVars.get("WINEDLLOVERRIDES");
+            envVars.put("WINEDLLOVERRIDES", (overrides.isEmpty() ? "" : overrides + ";") + "opengl32=n,b");
+        }
+
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
         if (emulationService != null) emulationService.setEnvironment(environment);
@@ -2369,6 +2376,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (internalLeegaoBcn.exists()) TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalLeegaoBcn, rootDir, skipBcnVersionFile);
         else TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, bcnFile, rootDir, skipBcnVersionFile);
 
+        applyOpenGLRenderer(rootDir);
+
         if (adrenoToolsDriverId != "System") {
             AdrenotoolsManager adrenotoolsManager = new AdrenotoolsManager(this);
             adrenotoolsManager.setDriverById(envVars, imageFs, adrenoToolsDriverId);
@@ -2651,6 +2660,40 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (!dlls.isEmpty()) restoreOriginalDllFiles(dlls.toArray(new String[0]));
         }
         catch (JSONException e) {}
+    }
+
+    private boolean zinkActive = false;
+
+    /** The OpenGL renderer of this game (shortcut) or container: "gladio" (default) or "zink". */
+    private String getOpenGLRenderer() {
+        String value = shortcut != null ? shortcut.getExtra("openglRenderer") : "";
+        if (value.isEmpty() && container != null) value = container.getExtra("openglRenderer");
+        return "zink".equals(value) ? "zink" : "gladio";
+    }
+
+    // Zink: Mesa's Windows opengl32.dll + libgallium_wgl.dll (OpenGL drawn through Vulkan, so through the same driver as
+    // DXVK) replace Wine's opengl32, which otherwise sends OpenGL to Gladio. Switching back restores Wine's own DLLs.
+    private void applyOpenGLRenderer(File rootDir) {
+        File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
+        File marker = new File(windowsDir, ".zink_installed");
+        if (getOpenGLRenderer().equals("zink")) {
+            File internalZink = new File(getFilesDir(), "graphics_driver/zink_dlls.tzst");
+            boolean extracted = internalZink.exists()
+                ? TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalZink, windowsDir)
+                : TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/zink_dlls.tzst", windowsDir);
+            if (!extracted) {
+                Log.e("XServerDisplayActivity", "Zink DLLs could not be extracted, staying on Gladio");
+                return;
+            }
+            FileUtils.writeString(marker, "1");
+            zinkActive = true;
+            Log.d("XServerDisplayActivity", "OpenGL renderer: Zink");
+        }
+        else if (marker.exists()) {
+            restoreOriginalDllFiles("opengl32.dll");
+            for (String dir : new String[]{"system32", "syswow64"}) new File(windowsDir, dir + "/libgallium_wgl.dll").delete();
+            marker.delete();
+        }
     }
 
     private void restoreOriginalDllFiles(final String... dlls) {

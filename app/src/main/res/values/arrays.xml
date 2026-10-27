@@ -53,6 +53,11 @@
         <item>Fill (crop)</item>
         <item>Integer (pixel-perfect)</item>
     </string-array>
+    <!-- Order = "gladio", "zink" -->
+    <string-array name="opengl_renderer_entries">
+        <item>Gladio (OpenGL on GLES)</item>
+        <item>Zink (OpenGL on Vulkan)</item>
+    </string-array>
     <string-array name="screen_alignment_entries">
         <item>Center</item>
         <item>Top half</item>

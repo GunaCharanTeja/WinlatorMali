@@ -234,6 +234,8 @@
                             android:textSize="14sp" />
 
                         <include layout="@layout/fullscreen_mode_row" />
+
+                        <include layout="@layout/opengl_renderer_row" />
                     </LinearLayout>
 
                     <!-- CARD 2: GRAPHICS & RENDERING -->
