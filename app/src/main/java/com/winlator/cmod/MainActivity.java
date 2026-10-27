@@ -21,6 +21,7 @@ import android.text.style.ForegroundColorSpan;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.IntRange;
@@ -634,9 +635,32 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         navigationView.setItemTextColor(textStateList);
         navigationView.setItemIconTintList(iconStateList);
 
+        // Section titles and dividers: Material 1.4 draws them from the theme's fixed colors (white), which vanish on a
+        // light custom palette. They are recolored from the preset's readable text and divider colors on every layout.
+        int subheaderColor = (onSurfaceColor & 0x00FFFFFF) | (0xA6 << 24);
+        int dividerColor = ThemeManager.getDividerColor(this);
+        View menuList = navigationView.getChildAt(0);
+        if (menuList instanceof ViewGroup) {
+            ViewGroup list = (ViewGroup) menuList;
+            list.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+                for (int i = 0; i < list.getChildCount(); i++) {
+                    View child = list.getChildAt(i);
+                    if (child instanceof TextView) ((TextView) child).setTextColor(subheaderColor);
+                    else if (child instanceof ViewGroup && child.getClass().getSimpleName().contains("Separator")) {
+                        View line = ((ViewGroup) child).getChildCount() > 0 ? ((ViewGroup) child).getChildAt(0) : null;
+                        if (line != null) line.setBackgroundColor(dividerColor);
+                    }
+                }
+            });
+        }
+
         // The app version under the title.
         View header = navigationView.getHeaderCount() > 0 ? navigationView.getHeaderView(0) : null;
+        // Header text follows the preset's readable text color (a custom palette can have a light background).
+        TextView tvTitle = header != null ? header.findViewById(R.id.TVHeaderTitle) : null;
+        if (tvTitle != null) tvTitle.setTextColor(onSurfaceColor);
         TextView tvVersion = header != null ? header.findViewById(R.id.TVHeaderVersion) : null;
+        if (tvVersion != null) tvVersion.setTextColor(onSurfaceColor);
         if (tvVersion != null) {
             try {
                 tvVersion.setText("v" + getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
