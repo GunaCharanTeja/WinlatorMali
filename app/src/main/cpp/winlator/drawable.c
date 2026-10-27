@@ -365,6 +365,22 @@ Java_com_winlator_cmod_xserver_Drawable_lockBuffer(JNIEnv *env, jclass obj, jlon
     return (*env)->NewDirectByteBuffer(env, addr, outDesc.stride * outDesc.height * 4);
 }
 
+// Unlock + relock makes gralloc clean the CPU cache so the GPU sees the latest writes
+// (a buffer that stays locked forever shows stale rows as stripes on cached mappings).
+// Returns a new ByteBuffer only when the mapping moved, otherwise NULL.
+JNIEXPORT jobject JNICALL
+Java_com_winlator_cmod_xserver_Drawable_flushBuffer(JNIEnv *env, jclass obj, jlong ahb, jobject oldData) {
+    if (!ahb) return NULL;
+    void *oldAddr = oldData ? (*env)->GetDirectBufferAddress(env, oldData) : NULL;
+    AHardwareBuffer_unlock((AHardwareBuffer *)ahb, NULL);
+    void *addr;
+    if (AHardwareBuffer_lock((AHardwareBuffer *)ahb, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr) != 0) return NULL;
+    if (addr == oldAddr) return NULL;
+    AHardwareBuffer_Desc outDesc;
+    AHardwareBuffer_describe((AHardwareBuffer *)ahb, &outDesc);
+    return (*env)->NewDirectByteBuffer(env, addr, outDesc.stride * outDesc.height * 4);
+}
+
 JNIEXPORT void JNICALL
 Java_com_winlator_cmod_xserver_Drawable_unlockBuffer(JNIEnv *env, jclass obj, jlong ahb) {
     if (ahb) {

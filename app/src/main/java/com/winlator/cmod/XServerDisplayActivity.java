@@ -2489,6 +2489,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d(TAG, "No DDRaw wrapper has been selected, restoring original ddraw files");
                 restoreOriginalDllFiles(new String[]{ "ddraw.dll", "d3dimm.dll" });
             }
+            else if (ddrawrapper.startsWith("d7vk-")) {
+                ContentProfile d7vkProfile = contentsManager.getProfileByEntryName(ddrawrapper);
+                if (d7vkProfile != null) {
+                    Log.d(TAG, "Applying D7VK content profile: " + ddrawrapper);
+                    contentsManager.applyContent(d7vkProfile);
+                }
+                else {
+                    Log.e(TAG, "D7VK not installed: " + ddrawrapper);
+                    restoreOriginalDllFiles(new String[]{ "ddraw.dll", "d3dimm.dll" });
+                }
+            }
             else {
                 if (ddrawrapper.equals("cnc-ddraw"))
                     envVars.put("CNC_DDRAW_CONFIG_FILE", "C:\\windows\\syswow64\\ddraw.ini");

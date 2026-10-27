@@ -363,6 +363,8 @@ public class ContentsFragment extends Fragment {
                 return "arm64ec Wine: 32-bit programs (optional)";
             case CONTENT_TYPE_BOX64:
                 return "x86_64 Wine";
+            case CONTENT_TYPE_D7VK:
+                return "DirectDraw/D3D7 games: pick it in DXVK settings → DDraw Wrapper";
             case CONTENT_TYPE_WINE:
             case CONTENT_TYPE_PROTON:
                 break;
@@ -640,7 +642,7 @@ public class ContentsFragment extends Fragment {
             // its colours), else a drawn one in the accent colour (DXVK, VKD3D and Proton publish no icon).
             int iconId = switch (profile.type) {
                 case CONTENT_TYPE_PROTON -> R.drawable.icon_content_proton;
-                case CONTENT_TYPE_DXVK -> R.drawable.icon_content_dxvk;
+                case CONTENT_TYPE_DXVK, CONTENT_TYPE_D7VK -> R.drawable.icon_content_dxvk;
                 case CONTENT_TYPE_VKD3D -> R.drawable.icon_content_vkd3d;
                 case CONTENT_TYPE_BOX64, CONTENT_TYPE_WOWBOX64 -> R.drawable.content_logo_box64;
                 case CONTENT_TYPE_FEXCORE -> R.drawable.content_logo_fex;

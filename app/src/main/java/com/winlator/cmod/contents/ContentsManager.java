@@ -160,9 +160,11 @@ public class ContentsManager {
                         } else {
                             String lowerAll = (typeStr + " " + verName + " " + url).toLowerCase();
 
-                            if (lowerAll.contains("vkd3d") || lowerAll.contains("d3d12")) {
+                            if (lowerAll.contains("d7vk")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_D7VK;
+                            } else if (lowerAll.contains("vkd3d") || lowerAll.contains("d3d12")) {
                                 remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
-                            } else if (lowerAll.contains("dxvk") || lowerAll.contains("d7vk") || lowerAll.contains("d8vk") || lowerAll.contains("d9vk") || lowerAll.contains("d3d9") || lowerAll.contains("d3d11") || lowerAll.contains("dxgi")) {
+                            } else if (lowerAll.contains("dxvk") || lowerAll.contains("d8vk") || lowerAll.contains("d9vk") || lowerAll.contains("d3d9") || lowerAll.contains("d3d11") || lowerAll.contains("dxgi")) {
                                 remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
                             } else if (lowerAll.contains("fexcore") || lowerAll.contains("fex-core") || lowerAll.contains("wow64fex")) {
                                 remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
@@ -676,6 +678,7 @@ public class ContentsManager {
             case CONTENT_TYPE_BOX64 -> ContentDirName.CONTENT_BOX64_DIR_NAME.toString();
             case CONTENT_TYPE_WOWBOX64 -> ContentDirName.CONTENT_WOWBOX64_DIR_NAME.toString();
             case CONTENT_TYPE_FEXCORE -> ContentDirName.CONTENT_FEXCORE_DIR_NAME.toString();
+            case CONTENT_TYPE_D7VK -> "d7vk";
             default -> "misc";
         };
         File dir = new File(getContentDir(context), subName);
@@ -723,6 +726,9 @@ public class ContentsManager {
             queryVersion = entryName.substring(entryName.indexOf('-') + 1);
         } else if (lowerEntry.startsWith("dxvk-")) {
             preferredType = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("d7vk-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_D7VK;
             queryVersion = entryName.substring(entryName.indexOf('-') + 1);
         } else if (lowerEntry.startsWith("vkd3d-")) {
             preferredType = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;

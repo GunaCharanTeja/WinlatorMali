@@ -110,6 +110,13 @@ public class DXVKConfigDialog extends ContentDialog {
         setDXVKSpinner(sDXVKVersion, config, contentsManager, isARM64EC);
         selectVersion(sVKD3DVersion, config.get("vkd3dVersion"));
         AppUtils.setSpinnerSelectionFromIdentifier(sVKD3DFeatureLevel, config.get("vkd3dLevel"));
+        // Installed D7VK builds (a Vulkan ddraw.dll) are DDraw wrappers, listed after the built-in ones.
+        java.util.List<String> ddrawItems = new java.util.ArrayList<>(java.util.Arrays.asList(context.getResources().getStringArray(R.array.ddrawrapper_entries)));
+        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_D7VK))
+            ddrawItems.add("D7VK " + profile.verName);
+        ArrayAdapter<String> ddrawAdapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, ddrawItems);
+        ddrawAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sDDRAWrapper.setAdapter(ddrawAdapter);
         AppUtils.setSpinnerSelectionFromIdentifier(sDDRAWrapper, config.get("ddrawrapper"));
 
         try {

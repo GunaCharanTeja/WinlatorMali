@@ -22,6 +22,7 @@ public class Drawable extends XResource {
     private Callback<Drawable> onDestroyListener;
     public final Object renderLock = new Object();
     private boolean directScanout = false;
+    private static final java.util.LinkedHashSet<Drawable> cpuDirtyDrawables = new java.util.LinkedHashSet<>();
 
     public boolean isDirectScanout() {
         return directScanout;
@@ -97,6 +98,30 @@ public class Drawable extends XResource {
         if (onDrawListener != null) onDrawListener.run();
     }
 
+    private void notifyCpuWrite() {
+        if (backingAHB != 0 && gpuImage == null) {
+            synchronized (cpuDirtyDrawables) { cpuDirtyDrawables.add(this); }
+        }
+        if (onDrawListener != null) onDrawListener.run();
+    }
+
+    /** Called after each batch of X requests: flushes CPU writes into the hardware buffers so the GPU never samples stale cache lines. */
+    public static void flushCpuWrites() {
+        Drawable[] dirty;
+        synchronized (cpuDirtyDrawables) {
+            if (cpuDirtyDrawables.isEmpty()) return;
+            dirty = cpuDirtyDrawables.toArray(new Drawable[0]);
+            cpuDirtyDrawables.clear();
+        }
+        for (Drawable drawable : dirty) {
+            synchronized (drawable.renderLock) {
+                ByteBuffer moved = flushBuffer(drawable.backingAHB, drawable.data);
+                if (moved != null) drawable.data = moved.order(ByteOrder.LITTLE_ENDIAN);
+            }
+            if (drawable.onDrawListener != null) drawable.onDrawListener.run();
+        }
+    }
+
     public Callback<Drawable> getOnDestroyListener() {
         return onDestroyListener;
     }
@@ -121,7 +146,7 @@ public class Drawable extends XResource {
         data.rewind();
         this.data.rewind();
 
-        if (onDrawListener != null) onDrawListener.run();
+        notifyCpuWrite();
     }
 
     public ByteBuffer getImage(short x, short y, short width, short height) {
@@ -157,7 +182,7 @@ public class Drawable extends XResource {
         drawable.data.rewind();
         this.data.rewind();
 
-        if (onDrawListener != null) onDrawListener.run();
+        notifyCpuWrite();
     }
 
     public void fillColor(int color) {
@@ -173,7 +198,7 @@ public class Drawable extends XResource {
         fillRect((short)x, (short)y, (short)width, (short)height, color, this.getStride(), this.data);
         this.data.rewind();
 
-        if (onDrawListener != null) onDrawListener.run();
+        notifyCpuWrite();
     }
 
     public void drawLines(int color, int lineWidth, short... points) {
@@ -192,14 +217,14 @@ public class Drawable extends XResource {
 
         this.data.rewind();
 
-        if (onDrawListener != null) onDrawListener.run();
+        notifyCpuWrite();
     }
 
     public void drawAlphaMaskedBitmap(byte foreRed, byte foreGreen, byte foreBlue, byte backRed, byte backGreen, byte backBlue, Drawable srcDrawable, Drawable maskDrawable) {
         drawAlphaMaskedBitmap(foreRed, foreGreen, foreBlue, backRed, backGreen, backBlue, srcDrawable.data, srcDrawable.getStride(), maskDrawable.data, maskDrawable.getStride(), this.width, this.height, this.getStride(), this.data);
         this.data.rewind();
 
-        if (onDrawListener != null) onDrawListener.run();
+        notifyCpuWrite();
     }
 
     private static native void drawBitmap(short width, short height, ByteBuffer srcData, short dstStride, ByteBuffer dstData);
@@ -221,6 +246,8 @@ public class Drawable extends XResource {
     public native ByteBuffer lockBuffer(long ahb);
 
     public native void unlockBuffer(long ahb);
+
+    private static native ByteBuffer flushBuffer(long ahb, ByteBuffer oldData);
 
     /** GPU-copies the current GL read framebuffer into this drawable's hardware buffer (used by GLX/Gladio). */
     public boolean blitReadBuffer(int width, int height, boolean flipY) {
