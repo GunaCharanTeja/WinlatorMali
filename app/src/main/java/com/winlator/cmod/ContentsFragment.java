@@ -351,8 +351,24 @@ public class ContentsFragment extends Fragment {
     // What a Wine/Proton build needs on this phone, from its name: arm64ec runs x86 code with FEXCore
     // (WOWBox64 optional for 32-bit), x86_64 runs under Box64. NTSync builds need /dev/ntsync in the kernel.
     private static String requirementBadge(ContentProfile profile) {
-        if (profile.type != ContentProfile.ContentType.CONTENT_TYPE_WINE && profile.type != ContentProfile.ContentType.CONTENT_TYPE_PROTON) return "";
         String name = (profile.verName != null ? profile.verName : "").toLowerCase();
+        switch (profile.type) {
+            case CONTENT_TYPE_DXVK:
+            case CONTENT_TYPE_VKD3D:
+                // Both work in arm64ec Wine; the arm64ec build runs natively there, the x86 one is emulated.
+                return name.contains("arm64ec") ? "arm64ec build: native on arm64ec Wine" : "x86 build: any Wine";
+            case CONTENT_TYPE_FEXCORE:
+                return name.contains("unix") ? "unixlib build (DLLs + native .so)" : "DLL build";
+            case CONTENT_TYPE_WOWBOX64:
+                return "arm64ec Wine: 32-bit programs (optional)";
+            case CONTENT_TYPE_BOX64:
+                return "x86_64 Wine";
+            case CONTENT_TYPE_WINE:
+            case CONTENT_TYPE_PROTON:
+                break;
+            default:
+                return "";
+        }
         // arm64ec builds always say so in the name; the rest (wine-9.22_ref, ...) are x86_64 builds.
         String badge = name.contains("arm64ec") ? "arm64ec: FEXCore" : "x86_64: Box64";
         if (name.contains("ntsync") && !HAS_NTSYNC) badge += (badge.isEmpty() ? "" : " • ") + "NTSync not on this phone (runs without it)";
