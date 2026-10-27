@@ -165,8 +165,7 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
         }
         window.usingPresent = true;
         sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
-        scheduleIdleNotify(window, pixmap, serial, idleFence, targetFps);
-    }
+        scheduleIdleNotify(window, pixmap, serial, idleFence, targetFps);    }
 
     private void selectInput(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int eventId = inputStream.readInt();
@@ -271,11 +270,10 @@ public class PresentExtension implements Extension, XResourceManager.OnResourceL
         long now = System.nanoTime();
         WindowTiming wt = windowTimings.computeIfAbsent(window.id, k -> new WindowTiming());
         synchronized (wt) {
-            if (wt.nextIdleNs <= now - frameNs) {
-                wt.nextIdleNs = now + frameNs;
-            } else {
-                wt.nextIdleNs += frameNs;
-            }
+            // Releases are spaced 1/limit apart: the game gets at most limit frames per second. A frame that arrives late
+            // is released at once instead of a frame later (the old reset added a whole frame on top of the delay, which
+            // then cascaded through the swapchain images: 100-150 ms pauses followed by bursts).
+            wt.nextIdleNs = Math.max(now, wt.nextIdleNs + frameNs);
             long fireTime = wt.nextIdleNs - FIRE_EARLY_NS;
             cpuQueue.offer(new PendingIdle(window, pixmap, serial, idleFence, fireTime));
         }

@@ -400,8 +400,11 @@ EGLBoolean EGLRenderer::drawFrame() {
     int sceneX = 0, sceneY = 0, sceneWidth = rootWindow->width, sceneHeight = rootWindow->height;
     bool postFXActive = contextVersion >= 3 && postFX.isActive();
     bool frameGenOn = contextVersion >= 3 && postFX.frameGeneration();
-    if (!frameGenOn)
+    if (!frameGenOn) {
         fgStatMultiplier = 0;
+        // Every window's frames count again (frame pacing): the game window frame generation picked may be gone.
+        contentSource = 0;
+    }
     else
         chooseContentWindow();
 
