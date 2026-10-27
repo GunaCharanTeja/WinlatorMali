@@ -397,6 +397,17 @@ public class MesaGLXExtension implements Extension {
     @Override
     public void handleRequest(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int opcode = client.getRequestData();
+        Log.d("MesaGLXExtension", "request " + opcode + " len " + client.getRemainingRequestLength());
+        try {
+            dispatch(opcode, client, inputStream, outputStream);
+        }
+        catch (XRequestError e) {
+            Log.w("MesaGLXExtension", "request " + opcode + " failed: " + e.getClass().getSimpleName());
+            throw e;
+        }
+    }
+
+    private void dispatch(int opcode, XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         switch (opcode) {
             case ClientOpcodes.QUERY_VERSION: queryVersion(client, inputStream, outputStream); break;
             case ClientOpcodes.QUERY_SERVER_STRING: queryServerString(client, inputStream, outputStream); break;
