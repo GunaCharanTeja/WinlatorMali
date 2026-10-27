@@ -36,9 +36,7 @@ public class XClientRequestHandler implements RequestHandler {
         XOutputStream outputStream = client.getOutputStream();
 
         if (xClient.isAuthenticated()) {
-            boolean more = handleNormalRequest(xClient, inputStream, outputStream);
-            if (!more) Drawable.flushCpuWrites();
-            return more;
+            return handleNormalRequest(xClient, inputStream, outputStream);
         }
         else return handleAuthRequest(xClient, inputStream, outputStream);
     }

@@ -22,7 +22,6 @@ public class Drawable extends XResource {
     private Callback<Drawable> onDestroyListener;
     public final Object renderLock = new Object();
     private boolean directScanout = false;
-    private static final java.util.LinkedHashSet<Drawable> cpuDirtyDrawables = new java.util.LinkedHashSet<>();
 
     public boolean isDirectScanout() {
         return directScanout;
@@ -98,28 +97,16 @@ public class Drawable extends XResource {
         if (onDrawListener != null) onDrawListener.run();
     }
 
+    // Every CPU write is flushed into the hardware buffer before the redraw is requested, like Pipetto's
+    // lock/write/unlock per call: the GPU never samples stale cache lines (stripes on cached mappings).
     private void notifyCpuWrite() {
         if (backingAHB != 0 && gpuImage == null) {
-            synchronized (cpuDirtyDrawables) { cpuDirtyDrawables.add(this); }
+            synchronized (renderLock) {
+                ByteBuffer moved = flushBuffer(backingAHB, data);
+                if (moved != null) data = moved.order(ByteOrder.LITTLE_ENDIAN);
+            }
         }
         if (onDrawListener != null) onDrawListener.run();
-    }
-
-    /** Called after each batch of X requests: flushes CPU writes into the hardware buffers so the GPU never samples stale cache lines. */
-    public static void flushCpuWrites() {
-        Drawable[] dirty;
-        synchronized (cpuDirtyDrawables) {
-            if (cpuDirtyDrawables.isEmpty()) return;
-            dirty = cpuDirtyDrawables.toArray(new Drawable[0]);
-            cpuDirtyDrawables.clear();
-        }
-        for (Drawable drawable : dirty) {
-            synchronized (drawable.renderLock) {
-                ByteBuffer moved = flushBuffer(drawable.backingAHB, drawable.data);
-                if (moved != null) drawable.data = moved.order(ByteOrder.LITTLE_ENDIAN);
-            }
-            if (drawable.onDrawListener != null) drawable.onDrawListener.run();
-        }
     }
 
     public Callback<Drawable> getOnDestroyListener() {
