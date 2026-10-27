@@ -1509,6 +1509,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (!envVars.has("GALLIUM_DRIVER")) envVars.put("GALLIUM_DRIVER", "zink");
             String overrides = envVars.get("WINEDLLOVERRIDES");
             envVars.put("WINEDLLOVERRIDES", (overrides.isEmpty() ? "" : overrides + ";") + "opengl32=n,b");
+            // Zink asks for a mutable-format swapchain (UNORM + SRGB views); the format list that reaches the wrapper's
+            // WSI misses the swapchain's own format and Mesa aborts ("format_found"). Without the extension Zink makes
+            // an ordinary swapchain.
+            String blacklist = envVars.get("WRAPPER_EXTENSION_BLACKLIST");
+            if (!blacklist.contains("VK_KHR_swapchain_mutable_format"))
+                envVars.put("WRAPPER_EXTENSION_BLACKLIST", (blacklist.isEmpty() ? "" : blacklist + ",") + "VK_KHR_swapchain_mutable_format");
         }
 
         // Create our overall XEnvironment with various components
