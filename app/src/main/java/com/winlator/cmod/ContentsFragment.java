@@ -127,6 +127,20 @@ public class ContentsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         ThemeManager.applyThemeToView(view, getContext());
+        // The screen's main action as a filled accent button (the theme pass makes every button an outline), with text
+        // dark or light by the accent's brightness so it reads on every preset.
+        android.widget.Button btInstall = view.findViewById(R.id.BTInstallContent);
+        if (btInstall != null && getContext() != null) {
+            int accent = ThemeManager.getAccentColor(getContext());
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setCornerRadius(getResources().getDisplayMetrics().density * 12);
+            bg.setColor(accent);
+            btInstall.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(0x33FFFFFF), bg, null));
+            btInstall.setTextColor(androidx.core.graphics.ColorUtils.calculateLuminance(accent) > 0.5 ? 0xFF101010 : Color.WHITE);
+            int padH = (int) (getResources().getDisplayMetrics().density * 22);
+            btInstall.setPadding(padH, btInstall.getPaddingTop(), padH, btInstall.getPaddingBottom());
+        }
         if (getActivity() != null && ((AppCompatActivity) getActivity()).getSupportActionBar() != null) {
             ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.contents);
         }
@@ -166,7 +180,15 @@ public class ContentsFragment extends Fragment {
                 public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
                     View v = super.getView(position, convertView, parent);
                     if (v instanceof TextView) {
-                        ((TextView) v).setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
+                        TextView tv = (TextView) v;
+                        tv.setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
+                        // The closed picker shows the short name ("Bannerlator", not "☁️ Bannerlator Nightlies"), which fits.
+                        String full = getItem(position);
+                        String name = full != null ? full.replaceFirst("^\\S+\\s+", "") : "";
+                        int space = name.indexOf(' ');
+                        tv.setText(position < catalogs.length - 1 && space > 0 ? name.substring(0, space) : name);
+                        tv.setSingleLine(true);
+                        tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     }
                     return v;
                 }
@@ -175,8 +197,8 @@ public class ContentsFragment extends Fragment {
                 public View getDropDownView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
                     View v = super.getDropDownView(position, convertView, parent);
                     if (v instanceof TextView) {
-                        ((TextView) v).setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
-                        v.setBackgroundColor(isDarkMode ? 0xFF2A2A2A : 0xFFFFFFFF);
+                        ((TextView) v).setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
+                        v.setBackgroundColor(ThemeManager.getSurfaceColor(getContext()));
                     }
                     return v;
                 }
@@ -247,7 +269,7 @@ public class ContentsFragment extends Fragment {
                 public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
                     View v = super.getView(position, convertView, parent);
                     if (v instanceof TextView) {
-                        ((TextView) v).setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
+                        ((TextView) v).setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
                     }
                     return v;
                 }
@@ -256,8 +278,8 @@ public class ContentsFragment extends Fragment {
                 public View getDropDownView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
                     View v = super.getDropDownView(position, convertView, parent);
                     if (v instanceof TextView) {
-                        ((TextView) v).setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
-                        v.setBackgroundColor(isDarkMode ? 0xFF2A2A2A : 0xFFFFFFFF);
+                        ((TextView) v).setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
+                        v.setBackgroundColor(ThemeManager.getSurfaceColor(getContext()));
                     }
                     return v;
                 }
@@ -324,7 +346,7 @@ public class ContentsFragment extends Fragment {
         final android.widget.EditText input = new android.widget.EditText(getContext());
         input.setText(savedCustomUrl);
         input.setSingleLine(true);
-        input.setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
+        input.setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
         input.setHint("https://.../contents.json");
 
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext(), isDarkMode ? android.R.style.Theme_DeviceDefault_Dialog_Alert : android.R.style.Theme_DeviceDefault_Light_Dialog_Alert);
@@ -375,6 +397,53 @@ public class ContentsFragment extends Fragment {
         String badge = name.contains("arm64ec") ? "arm64ec: FEXCore" : "x86_64: Box64";
         if (name.contains("ntsync") && !HAS_NTSYNC) badge += (badge.isEmpty() ? "" : " • ") + "NTSync not on this phone (runs without it)";
         return badge;
+    }
+
+    // The architecture a build is for, shown as a chip: Wine/Proton arm64ec or x86_64, DXVK/VKD3D arm64ec or x86.
+    private static String archChip(ContentProfile profile) {
+        String name = (profile.verName != null ? profile.verName : "").toLowerCase();
+        switch (profile.type) {
+            case CONTENT_TYPE_WINE:
+            case CONTENT_TYPE_PROTON:
+                return name.contains("arm64ec") ? "ARM64EC" : "X86_64";
+            case CONTENT_TYPE_DXVK:
+            case CONTENT_TYPE_VKD3D:
+                return name.contains("arm64ec") ? "ARM64EC" : "X86";
+            default:
+                return "";
+        }
+    }
+
+    // Second line of a row: what the build needs (the architecture is in the chip), its size, its description.
+    private static String rowSubtitle(ContentProfile profile) {
+        String name = (profile.verName != null ? profile.verName : "").toLowerCase();
+        String need;
+        switch (profile.type) {
+            case CONTENT_TYPE_WINE:
+            case CONTENT_TYPE_PROTON:
+                need = name.contains("arm64ec") ? "FEXCore" : "Box64";
+                if (name.contains("ntsync") && !HAS_NTSYNC) need += " • NTSync not on this phone (runs without it)";
+                break;
+            case CONTENT_TYPE_DXVK:
+            case CONTENT_TYPE_VKD3D:
+                need = name.contains("arm64ec") ? "native on arm64ec Wine" : "any Wine";
+                break;
+            default:
+                need = requirementBadge(profile);
+        }
+        StringBuilder sb = new StringBuilder(need);
+        if (profile.sizeFormatted != null && !profile.sizeFormatted.isEmpty()) {
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append(profile.sizeFormatted);
+        }
+        String desc = profile.desc != null ? profile.desc.trim() : "";
+        if (!desc.isEmpty() && (profile.sizeFormatted == null || !desc.contains(profile.sizeFormatted))) {
+            if (sb.length() > 0) sb.append(" • ");
+            sb.append(desc);
+        } else if (desc.isEmpty() && sb.length() == 0 && profile.verCode > 0) {
+            sb.append("Build ").append(profile.verCode);
+        }
+        return sb.toString();
     }
 
     private void sortProfiles(List<ContentProfile> profiles) {
@@ -469,7 +538,7 @@ public class ContentsFragment extends Fragment {
             public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
                 View v = super.getView(position, convertView, parent);
                 if (v instanceof TextView) {
-                    ((TextView) v).setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
+                    ((TextView) v).setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
                 }
                 return v;
             }
@@ -478,8 +547,8 @@ public class ContentsFragment extends Fragment {
             public View getDropDownView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
                 View v = super.getDropDownView(position, convertView, parent);
                 if (v instanceof TextView) {
-                    ((TextView) v).setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
-                    v.setBackgroundColor(isDarkMode ? 0xFF2A2A2A : 0xFFFFFFFF);
+                    ((TextView) v).setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
+                    v.setBackgroundColor(ThemeManager.getSurfaceColor(getContext()));
                 }
                 return v;
             }
@@ -595,6 +664,7 @@ public class ContentsFragment extends Fragment {
             private final ImageView ivIcon;
             private final TextView tvVersionName;
             private final TextView tvVersionCode;
+            private final TextView tvArchChip;
             private final ImageButton ibMenu;
             private final ImageButton ibDownload;
             private final View llDownloadProgress;
@@ -608,6 +678,7 @@ public class ContentsFragment extends Fragment {
                 ivIcon = view.findViewById(R.id.IVIcon);
                 tvVersionName = view.findViewById(R.id.TVVersionName);
                 tvVersionCode = view.findViewById(R.id.TVVersionCode);
+                tvArchChip = view.findViewById(R.id.TVArchChip);
                 ibMenu = view.findViewById(R.id.BTMenu);
                 ibDownload = view.findViewById(R.id.BTDownload);
                 llDownloadProgress = view.findViewById(R.id.LLDownloadProgress);
@@ -661,34 +732,24 @@ public class ContentsFragment extends Fragment {
 
             String title = (profile.verName != null && !profile.verName.isEmpty()) ? profile.verName : "Component";
             holder.tvVersionName.setText(title);
+            if (getContext() != null) holder.tvVersionName.setTextColor(ThemeManager.getOnSurfaceTextColor(getContext()));
 
-            // Subtitle formatting
-            if (profile.sizeFormatted != null && !profile.sizeFormatted.isEmpty()) {
-                String desc = (profile.desc != null && !profile.desc.isEmpty()) ? profile.desc : ("Cloud Package • " + profile.type);
-                if (desc.contains(profile.sizeFormatted)) {
-                    holder.tvVersionCode.setText(desc);
-                } else {
-                    holder.tvVersionCode.setText(profile.sizeFormatted + " • " + desc);
-                }
-                holder.tvVersionCode.setVisibility(View.VISIBLE);
-            } else if (profile.desc != null && !profile.desc.isEmpty()) {
-                holder.tvVersionCode.setVisibility(View.VISIBLE);
-                holder.tvVersionCode.setText(profile.desc);
-            } else if (profile.verCode > 0) {
-                holder.tvVersionCode.setVisibility(View.VISIBLE);
-                holder.tvVersionCode.setText("Build " + profile.verCode);
-            } else if (profile.remoteUrl != null) {
-                holder.tvVersionCode.setVisibility(View.VISIBLE);
-                holder.tvVersionCode.setText("Cloud Package • " + profile.type);
-            } else {
-                holder.tvVersionCode.setVisibility(View.GONE);
+            // Architecture chip, then what the build needs, its size and its description.
+            String chip = archChip(profile);
+            holder.tvArchChip.setVisibility(chip.isEmpty() ? View.GONE : View.VISIBLE);
+            if (!chip.isEmpty() && getContext() != null) {
+                int accent = ThemeManager.getAccentColor(getContext());
+                int onSurface = ThemeManager.getOnSurfaceTextColor(getContext());
+                android.graphics.drawable.GradientDrawable chipBg = new android.graphics.drawable.GradientDrawable();
+                chipBg.setCornerRadius(getResources().getDisplayMetrics().density * 6);
+                chipBg.setColor((accent & 0x00FFFFFF) | (0x40 << 24));
+                holder.tvArchChip.setBackground(chipBg);
+                holder.tvArchChip.setTextColor(androidx.core.graphics.ColorUtils.blendARGB(accent, onSurface, 0.5f));
+                holder.tvArchChip.setText(chip);
             }
-            String badge = requirementBadge(profile);
-            if (!badge.isEmpty()) {
-                CharSequence sub = holder.tvVersionCode.getVisibility() == View.VISIBLE ? holder.tvVersionCode.getText() : "";
-                holder.tvVersionCode.setText(sub.length() > 0 ? badge + " • " + sub : badge);
-                holder.tvVersionCode.setVisibility(View.VISIBLE);
-            }
+            String subtitle = rowSubtitle(profile);
+            holder.tvVersionCode.setText(subtitle);
+            holder.tvVersionCode.setVisibility(subtitle.isEmpty() && chip.isEmpty() ? View.GONE : View.VISIBLE);
 
             // Safe async size loader: updates text view directly if still bound, NO notifyItemChanged!
             if (profile.remoteUrl != null && (profile.sizeFormatted == null || profile.sizeFormatted.isEmpty())) {
@@ -696,9 +757,7 @@ public class ContentsFragment extends Fragment {
                     if (isAdded() && getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
                             if (holder.getBindingAdapterPosition() == position && profile.sizeFormatted != null) {
-                                String desc = (profile.desc != null && !profile.desc.isEmpty()) ? profile.desc : ("Cloud Package • " + profile.type);
-                                String b = requirementBadge(profile);
-                                holder.tvVersionCode.setText((b.isEmpty() ? "" : b + " • ") + profile.sizeFormatted + " • " + desc);
+                                holder.tvVersionCode.setText(rowSubtitle(profile));
                                 holder.tvVersionCode.setVisibility(View.VISIBLE);
                             }
                         });

@@ -4,10 +4,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="9dp"
+    android:paddingBottom="9dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -17,9 +17,9 @@
 
         <ImageView
             android:id="@+id/IVIcon"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:layout_marginEnd="14dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="12dp"
             android:src="@drawable/icon_wine"
             app:tint="?attr/colorAccent" />
 
@@ -29,43 +29,68 @@
             android:layout_weight="1"
             android:orientation="vertical">
 
+            <!-- Full name over up to two lines: the version and architecture sit at its end. -->
             <TextView
                 android:id="@+id/TVVersionName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="?android:attr/textColorPrimary"
-                android:textSize="15sp"
-                android:textStyle="bold"
+                android:textSize="14.5sp"
+                android:fontFamily="sans-serif-medium"
                 android:ellipsize="end"
-                android:maxLines="1" />
+                android:maxLines="2" />
 
-            <TextView
-                android:id="@+id/TVVersionCode"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="12sp"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="1" />
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- Architecture chip (x86_64 / arm64ec / x86), colored from the theme accent. -->
+                <TextView
+                    android:id="@+id/TVArchChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="1dp"
+                    android:paddingBottom="1dp"
+                    android:textSize="10.5sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.04"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/TVVersionCode"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="12sp"
+                    android:ellipsize="end"
+                    android:maxLines="2" />
+            </LinearLayout>
         </LinearLayout>
 
         <ImageButton
             android:id="@+id/BTMenu"
             style="@style/ListMenuButton"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:layout_marginStart="8dp"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="5dp"
             app:tint="?attr/colorAccent"
             android:src="@drawable/icon_list_item_menu" />
 
         <ImageButton
             android:id="@+id/BTDownload"
             style="@style/ListMenuButton"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
-            android:layout_marginStart="8dp"
-            android:padding="6dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="2dp"
+            android:padding="7dp"
             app:tint="?attr/colorAccent"
             android:src="@drawable/icon_download"
             android:contentDescription="Download Component" />
@@ -78,6 +103,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
         android:visibility="gone">
 
         <ProgressBar
