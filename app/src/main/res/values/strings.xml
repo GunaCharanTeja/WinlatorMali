@@ -513,7 +513,7 @@
     <string name="num_controllers">Number of Controllers</string>
     <string name="fullscreen_stretched">Enable Fullscreen (Stretched)</string>
     <string name="fullscreen_mode">Fullscreen Mode</string>
-    <string name="move_cursor_to_touchpoint">Move Cursor to Touchpoint (tap clicks where you touch)</string>
+    <string name="move_cursor_to_touchpoint">Simulate touch screen</string>
     <string name="screen_alignment">Screen Alignment</string>    <string name="export_container">Export Container</string>
     <string name="exporting_container">Exporting Container...</string>
 

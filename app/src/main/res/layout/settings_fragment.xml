@@ -374,6 +374,14 @@
                             android:min="10"
                             android:max="200" />
 
+                        <!-- brunodev85's Simulate touch screen: a tap clicks where you touch, a one-finger drag moves the cursor there. -->
+                        <CheckBox
+                            android:id="@+id/CBMoveCursorToTouchpoint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/move_cursor_to_touchpoint"
+                            android:layout_marginVertical="3dp" />
+
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="1dp"
@@ -392,13 +400,6 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Capture External Pointer (Mouse Lock)"
-                            android:layout_marginVertical="3dp" />
-
-                        <CheckBox
-                            android:id="@+id/CBMoveCursorToTouchpoint"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/move_cursor_to_touchpoint"
                             android:layout_marginVertical="3dp" />
 
                         <CheckBox
