@@ -331,7 +331,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         File rootDir = imageFs.getRootDir();
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean enableBox64Logs = preferences.getBoolean("enable_box64_logs", false);
+        boolean enableBox64Logs = com.winlator.cmod.logs.LogFiles.isOn(environment.getContext(), "enable_box64_logs");
         boolean openWithAndroidBrowser = preferences.getBoolean("open_with_android_browser", false);
         boolean shareAndroidClipboard = preferences.getBoolean("share_android_clipboard", false);
 

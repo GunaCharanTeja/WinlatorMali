@@ -102,6 +102,17 @@ public final class SessionLog {
         dir = null;
     }
 
+    /** Like {@link #stop}, with logcat written before returning: for an exit that ends the process right after. */
+    public static void stopAndWait(Context context) {
+        File folder;
+        synchronized (SessionLog.class) {
+            folder = dir;
+            stop(context, false);
+        }
+        if (folder != null && LogFiles.isOn(context, LogFiles.PREF_LOGCAT))
+            FileUtils.writeString(new File(folder, LogFiles.LOGCAT_LOG), deviceHeader(context, null) + logcat(LOGCAT_LINES));
+    }
+
     /** The last {@code lines} of this app's own logcat (no other app's output, so nothing of theirs is shared). */
     public static String logcat(int lines) {
         try {

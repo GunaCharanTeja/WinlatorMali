@@ -114,6 +114,13 @@ public class LogManagerFragment extends Fragment {
     private void build() {
         Context context = requireContext();
         content.removeAllViews();
+        boolean enabled = LogFiles.isOn(context, LogFiles.PREF_ENABLED);
+
+        // Master switch
+        LinearLayout master = card();
+        master.setPadding(dp(14), dp(14), dp(14), dp(14));
+        toggle(master, "Logs", enabled ? "On — the switches below choose what is recorded" : "Off — nothing is recorded at all",
+            LogFiles.PREF_ENABLED, INFO_MASTER, null);
 
         // Where logs go
         section("Where logs go");
@@ -135,6 +142,7 @@ public class LogManagerFragment extends Fragment {
         // What to record
         section("What to record");
         LinearLayout what = card();
+        if (!enabled) what.setAlpha(0.45f);
         toggle(what, "Wine debug", "Slows games down — for diagnosing a problem", LogFiles.PREF_WINE, INFO_WINE, null);
         wineChannels(what);
         toggle(what, "Box64 / FEXCore", "Slows games down at higher verbosity", LogFiles.PREF_BOX64, INFO_BOX64, null);
@@ -510,10 +518,13 @@ public class LogManagerFragment extends Fragment {
         infoButton.setOnClickListener(v -> showText(title, info, null));
         row.addView(infoButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
         CheckBox box = new CheckBox(context);
-        box.setChecked(LogFiles.isOn(context, pref));
+        box.setChecked(LogFiles.PREF_ENABLED.equals(pref) ? LogFiles.isOn(context, pref) : LogFiles.savedValue(context, pref));
         box.setEnabled(disabledWhy == null);
         box.setButtonTintList(android.content.res.ColorStateList.valueOf(accent));
-        box.setOnCheckedChangeListener((b, checked) -> prefs.edit().putBoolean(pref, checked).apply());
+        box.setOnCheckedChangeListener((b, checked) -> {
+            prefs.edit().putBoolean(pref, checked).apply();
+            if (LogFiles.PREF_ENABLED.equals(pref)) content.post(this::build);
+        });
         row.addView(box);
         row.setOnClickListener(v -> { if (box.isEnabled()) box.toggle(); });
         if (disabledWhy != null) row.setAlpha(0.5f);
@@ -611,7 +622,11 @@ public class LogManagerFragment extends Fragment {
     // ---------------------------------------------------------------------------------------------------------------
     // What each switch does (after Bannerlator's LogCopy)
 
-    private static final String INFO_PER_GAME = "No performance cost.\n\nGives each game its own folder inside your log location, named "
+    private static final String INFO_MASTER = "One switch for all logging.\n\nOff, nothing at all is recorded: no Wine or "
+        + "Box64 / FEXCore output, no DXVK or VKD3D logs (they are kept silent), no logcat, no crash reports and no exit reasons, "
+        + "and no folders are created. Your choices below are kept and come back when you turn it on again.\n\nLogs already "
+        + "on disk stay listed here, so you can still read, share or delete them.";
+    private static final String INFO_PER_GAME ="No performance cost.\n\nGives each game its own folder inside your log location, named "
         + "after the shortcut (or the container, when you start one without a shortcut), so one game's logs don't get mixed up with "
         + "another's. Each folder keeps the last runs under \"previous\".\n\nTurn it off to keep everything in one folder; past runs "
         + "are then not kept. Logs already written are left where they are.";

@@ -433,7 +433,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             navigationView.setBackgroundResource(R.drawable.content_dialog_background_dark);
         }
 
-        boolean enableLogs = preferences.getBoolean("enable_wine_debug", false) || preferences.getBoolean("enable_box64_logs", false);
+        boolean enableLogs = com.winlator.cmod.logs.LogFiles.isOn(this, "enable_wine_debug") || com.winlator.cmod.logs.LogFiles.isOn(this, "enable_box64_logs");
         Menu menu = navigationView.getMenu();
         menu.findItem(R.id.main_menu_logs).setVisible(enableLogs);
         navigationView.setNavigationItemSelectedListener(this);
@@ -977,6 +977,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 } catch (InterruptedException e) {}
             }
 
+            // Log Manager: close this session's log and save logcat now; the process restart below skips onDestroy.
+            com.winlator.cmod.logs.SessionLog.stopAndWait(this);
+
             runOnUiThread(() -> {
                 // Hand the controller back to Android before the process restart, which may skip onDestroy.
                 if (usbRumbleClaimed) {
@@ -1454,7 +1457,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("LC_ALL", lc_all);
         envVars.put("WINEPREFIX", imageFs.wineprefix);
 
-        boolean enableWineDebug = preferences.getBoolean("enable_wine_debug", false);
+        boolean enableWineDebug = com.winlator.cmod.logs.LogFiles.isOn(this, "enable_wine_debug");
         String wineDebugChannels = preferences.getString("wine_debug_channels", SettingsFragment.DEFAULT_WINE_DEBUG_CHANNELS);
         envVars.put("WINEDEBUG", enableWineDebug && !wineDebugChannels.isEmpty()
                 ? "+" + wineDebugChannels.replace(",", ",+")

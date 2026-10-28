@@ -46,7 +46,21 @@ public final class LogFiles {
     public static final String PREF_CRASH = "enable_crash_reports";        // default on
     public static final String PREF_EXIT_AUTOSAVE = "exit_reasons_autosave"; // default off
 
+    /** Master switch: off, nothing at all is recorded (every "what to record" switch reads as off). */
+    public static final String PREF_ENABLED = "logs_enabled";
+
     public static boolean isOn(Context context, String pref) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        if (PREF_ENABLED.equals(pref)) return prefs.getBoolean(PREF_ENABLED, true);
+        boolean recording = PREF_WINE.equals(pref) || PREF_BOX64.equals(pref) || PREF_DXVK.equals(pref)
+            || PREF_LOGCAT.equals(pref) || PREF_CRASH.equals(pref) || PREF_EXIT_AUTOSAVE.equals(pref);
+        if (recording && !prefs.getBoolean(PREF_ENABLED, true)) return false;
+        boolean def = PREF_DXVK.equals(pref) || PREF_LOGCAT.equals(pref) || PREF_CRASH.equals(pref) || PREF_PER_GAME.equals(pref);
+        return prefs.getBoolean(pref, def);
+    }
+
+    /** The switch's own saved value, ignoring the master switch (for showing it in the Log Manager). */
+    public static boolean savedValue(Context context, String pref) {
         boolean def = PREF_DXVK.equals(pref) || PREF_LOGCAT.equals(pref) || PREF_CRASH.equals(pref) || PREF_PER_GAME.equals(pref);
         return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(pref, def);
     }
