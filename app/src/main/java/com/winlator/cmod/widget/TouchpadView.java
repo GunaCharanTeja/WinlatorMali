@@ -471,6 +471,10 @@ public class TouchpadView extends View {
 
 
 
+    private boolean moveCursorToTouchpoint() {
+        return preferences != null && preferences.getBoolean("move_cursor_to_touchpoint", false);
+    }
+
     private void handleFingerUp(Finger finger1) {
         switch (numFingers) {
             case 1:
@@ -481,7 +485,11 @@ public class TouchpadView extends View {
                     };
                     postDelayed(clickDelay, CLICK_DELAYED_TIME);
                 }
-                else if (finger1.isTap()) pressPointerButtonLeft(finger1);
+                else if (finger1.isTap()) {
+                    // brunodev85's "Move Cursor to Touchpoint": the tap clicks where the finger is, not at the cursor.
+                    if (moveCursorToTouchpoint()) xServer.injectPointerMove(finger1.x, finger1.y);
+                    pressPointerButtonLeft(finger1);
+                }
                 break;
             case 2:
                 Finger finger2 = findSecondFinger(finger1);
@@ -538,6 +546,9 @@ public class TouchpadView extends View {
             if (simTouchScreen) {
                 if (System.currentTimeMillis() - finger1.touchTime > CLICK_DELAYED_TIME)
                     xServer.injectPointerMove(finger1.x, finger1.y);
+            }
+            else if (moveCursorToTouchpoint() && numFingers == 1 && !xServer.isRelativeMouseMovement()) {
+                xServer.injectPointerMove(finger1.x, finger1.y);
             }
             else if (xServer.isRelativeMouseMovement()) {
                 WinHandler winHandler = xServer.getWinHandler();

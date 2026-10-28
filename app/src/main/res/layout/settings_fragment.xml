@@ -395,6 +395,13 @@
                             android:layout_marginVertical="3dp" />
 
                         <CheckBox
+                            android:id="@+id/CBMoveCursorToTouchpoint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/move_cursor_to_touchpoint"
+                            android:layout_marginVertical="3dp" />
+
+                        <CheckBox
                             android:id="@+id/CBXinputToggle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
