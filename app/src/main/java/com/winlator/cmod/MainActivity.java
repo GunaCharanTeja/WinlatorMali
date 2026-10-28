@@ -80,6 +80,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         setContentView(R.layout.main_activity);
         com.winlator.cmod.core.ControllerNavigation.attach(getWindow());
+        com.winlator.cmod.logs.SessionLog.installCrashHandler(this);
+        if (savedInstanceState == null) com.winlator.cmod.logs.SessionLog.autosaveExitReasons(this);
 
         drawerLayout = findViewById(R.id.DrawerLayout);
         NavigationView navigationView = findViewById(R.id.NavigationView);

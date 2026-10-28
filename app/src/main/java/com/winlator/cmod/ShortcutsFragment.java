@@ -661,6 +661,14 @@ public class ShortcutsFragment extends Fragment {
                         }
                     });
                 }
+                else if (itemId == R.id.shortcut_view_logs) {
+                    // As in Bannerlator: straight to this game's logs in the Log Manager.
+                    getParentFragmentManager().beginTransaction()
+                        .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down, R.anim.slide_in_down, R.anim.slide_out_up)
+                        .addToBackStack(null)
+                        .replace(R.id.FLFragmentContainer, LogManagerFragment.forGame(shortcut.name))
+                        .commit();
+                }
                 else if (itemId == R.id.shortcut_save_manager) {
                     new com.winlator.cmod.saves.SaveManagerDialog(getActivity(), shortcut).show();
                 }

@@ -330,6 +330,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         ThemeManager.applyTheme(this);
 
         super.onCreate(savedInstanceState);
+        com.winlator.cmod.logs.SessionLog.installCrashHandler(this);
         com.winlator.cmod.core.ProcessHelper.killAllWineProcesses();
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
@@ -549,6 +550,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (enableLogs) {
             LogView.setFilename(getExecutable());
             ProcessHelper.addDebugCallback(debugDialog = new DebugDialog(this));
+        }
+        // Log Manager: this session's logs go to <log root>/<game>/ (shortcut name, else container name; the
+        // previous run archived): Wine/Box64 output when on, DXVK/VKD3D logs, and logcat when the session ends.
+        {
+            com.winlator.cmod.logs.SessionLog.start(this, shortcut != null ? shortcut.name : container.getName(),
+                "Container: " + container.getName() + " (id " + container.id + ")\n"
+                + "Wine: " + wineVersion + "\n"
+                + "Graphics driver: " + container.getGraphicsDriver() + "\n"
+                + "DX wrapper: " + container.getDXWrapper() + " / " + container.getDXWrapperConfig() + "\n"
+                + (shortcut != null ? "Executable: " + shortcut.path + "\n" : "Executable: File Manager\n"));
         }
 
         graphicsDriver = container.getGraphicsDriver();
@@ -980,6 +991,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        // Log Manager: close this session's log and dump the app's logcat next to it.
+        com.winlator.cmod.logs.SessionLog.stop(this, true);
         if (usbRumbleClaimed) {
             usbRumbleClaimed = false;
             com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(this).releaseClaim();
@@ -1447,6 +1460,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "+" + wineDebugChannels.replace(",", ",+")
                 : "-all"
         );
+
+        // Log Manager "DXVK & VKD3D": on, their logs go into this session's log folder; off, the wrappers stay silent
+        // (DXVK logs by default otherwise, into the game's own folder). A user's own variables win either way.
+        File sessionLogDir = com.winlator.cmod.logs.SessionLog.currentDir();
+        if (sessionLogDir != null && com.winlator.cmod.logs.LogFiles.isOn(this, com.winlator.cmod.logs.LogFiles.PREF_DXVK)) {
+            if (!envVars.has("DXVK_LOG_PATH")) envVars.put("DXVK_LOG_PATH", sessionLogDir.getAbsolutePath());
+            if (!envVars.has("VKD3D_LOG_FILE")) envVars.put("VKD3D_LOG_FILE", new File(sessionLogDir, "vkd3d-proton.log").getAbsolutePath());
+        }
+        else if (!com.winlator.cmod.logs.LogFiles.isOn(this, com.winlator.cmod.logs.LogFiles.PREF_DXVK)) {
+            if (!envVars.has("DXVK_LOG_LEVEL")) envVars.put("DXVK_LOG_LEVEL", "none");
+            if (!envVars.has("VKD3D_DEBUG")) envVars.put("VKD3D_DEBUG", "none");
+        }
 
         // Clear any temporary directory
         String rootPath = imageFs.getRootDir().getPath();
