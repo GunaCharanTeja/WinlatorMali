@@ -23,8 +23,7 @@ A fixes-and-polish update to 1.2. **It installs over 1.2: your containers, games
 - **Contents:** badges for DXVK/VKD3D (arm64ec or x86), FEXCore (unixlib or DLL), Box64/WOWBox64 and NTSync; same-named entries labelled by release folder; Wine/Proton without arm64ec in the name are marked x86_64; unknown content types (Turnip/Rutabaga driver zips) are no longer listed as Wine.
 
 ## Controls
-- **Move Cursor to Touchpoint** (from brunodev85): a tap clicks where you touch, and a one-finger drag moves the cursor there.
-- **Simulate touch screen** (from brunodev85), in Settings > Mouse under Cursor Speed.
+- **Simulate touch screen** (from brunodev85), in Settings > Mouse under Cursor Speed: a tap clicks where you touch, and a one-finger drag moves the cursor there.
 
 ## Log Manager (new)
 Modelled on Bannerlator, in our UI:
