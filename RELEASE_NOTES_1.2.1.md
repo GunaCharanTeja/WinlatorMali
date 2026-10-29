@@ -14,7 +14,6 @@ Uninstall the old version and install 1.2.1 fresh. Back up your game saves first
 
 ## Graphics and performance
 - **Fullscreen modes:** Fit, Stretch, Fill and Integer, plus screen alignment (Center, Top, Bottom half), set per container or per game and changeable live in Display & Session.
-- **FPS limiter:** reworked on a sleeping scheduled timer (as in Winlator-Ludashi), so the limiter no longer spins a thread at maximum priority.
 - **EGL stripes fixed:** CPU writes into the window buffer are flushed per X batch.
 - **ZeroFG:** the default multiplier is capped at the display refresh rate (40 fps on a 60 Hz screen now gives 1.5x instead of 2x with dropped frames).
 - **Gladio:** refuses OpenGL contexts above 3.3 again; libGL stripped of debug info (1.48 MB to 488 KB).
