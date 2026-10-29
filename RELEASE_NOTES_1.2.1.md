@@ -1,6 +1,9 @@
 # Winlator Mali Bionic 1.2.1
 
-A fixes-and-polish update to 1.2. **It installs over 1.2: your containers, games and settings are kept.**
+A fixes-and-polish update to 1.2.
+
+## ⚠️ Reinstall Required!
+Uninstall the old version and install 1.2.1 fresh. Back up your game saves first (Save Manager, or copy them out of your container). Containers made on 1.2 are not carried over.
 
 ## Fixes for 1.2 user reports
 - Fixed a reboot on some MediaTek Mali phones (JM Mali).

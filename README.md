@@ -30,7 +30,7 @@ Standard Winlator distributions have traditionally centered on Qualcomm Snapdrag
 ## Release History & Evolution
 
 ### 🛠️ Winlator Mali Bionic 1.2.1 *(Current Release)*
-A fixes-and-polish update to 1.2 that installs over it. Highlights: fixes for 1.2 user reports (JM Mali reboot, shortcut crash, binding editor, D-pad stutter, File Manager), fullscreen modes and screen alignment, a reworked FPS limiter, EGL stripe fix, a capped ZeroFG default, the Log Manager, Simulate touch screen, and updated Wine/Proton container setup and Contents badges. Full notes: [RELEASE_NOTES_1.2.1.md](RELEASE_NOTES_1.2.1.md).
+A fixes-and-polish update to 1.2. **Reinstall required.** Highlights: fixes for 1.2 user reports (JM Mali reboot, shortcut crash, binding editor, D-pad stutter, File Manager), fullscreen modes and screen alignment, a reworked FPS limiter, EGL stripe fix, a capped ZeroFG default, the Log Manager, Simulate touch screen, and updated Wine/Proton container setup and Contents badges. Full notes: [RELEASE_NOTES_1.2.1.md](RELEASE_NOTES_1.2.1.md).
 
 ### 🚀 Winlator Mali Bionic 1.2 *(Branch `bionic-mali-1.2`)*
 The 1.2 Bionic release represents a comprehensive architectural overhaul over v1.1, transitioning the core rendering system to a native EGL architecture, replacing legacy APEX with ZeroFG Vulkan compute frame interpolation, overhauling the UI and touch controls with Madeira Liquid Glass, integrating persistent BCn disk caching, and adding comprehensive hardware performance tools:
