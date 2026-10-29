@@ -4,7 +4,7 @@
 
 # Winlator Mali (Bionic Edition)
 
-[![Release](https://img.shields.io/badge/Release-1.2%20Bionic-blue.svg)](https://github.com/GunaCharanTeja/WinlatorMali/releases)
+[![Release](https://img.shields.io/badge/Release-1.2.1%20Bionic-blue.svg)](https://github.com/GunaCharanTeja/WinlatorMali/releases)
 [![Default Branch](https://img.shields.io/badge/Branch-bionic--mali--1.2-brightgreen.svg)](https://github.com/GunaCharanTeja/WinlatorMali/tree/bionic-mali-1.2)
 [![Android Support](https://img.shields.io/badge/Android-8.0%2B%20(SDK%2026--34)-orange.svg)](https://developer.android.com)
 [![Architecture](https://img.shields.io/badge/Architecture-ARM64--v8a-purple.svg)](https://en.wikipedia.org/wiki/AArch64)
@@ -29,7 +29,10 @@ Standard Winlator distributions have traditionally centered on Qualcomm Snapdrag
 
 ## Release History & Evolution
 
-### 🚀 Winlator Mali Bionic 1.2 *(Current Release — Branch `bionic-mali-1.2`)*
+### 🛠️ Winlator Mali Bionic 1.2.1 *(Current Release)*
+A fixes-and-polish update to 1.2 that installs over it. Highlights: fixes for 1.2 user reports (JM Mali reboot, shortcut crash, binding editor, D-pad stutter, File Manager), fullscreen modes and screen alignment, a reworked FPS limiter, EGL stripe fix, a capped ZeroFG default, the Log Manager, Move Cursor to Touchpoint, and updated Wine/Proton container setup and Contents badges. Full notes: [RELEASE_NOTES_1.2.1.md](RELEASE_NOTES_1.2.1.md).
+
+### 🚀 Winlator Mali Bionic 1.2 *(Branch `bionic-mali-1.2`)*
 The 1.2 Bionic release represents a comprehensive architectural overhaul over v1.1, transitioning the core rendering system to a native EGL architecture, replacing legacy APEX with ZeroFG Vulkan compute frame interpolation, overhauling the UI and touch controls with Madeira Liquid Glass, integrating persistent BCn disk caching, and adding comprehensive hardware performance tools:
 
 #### 🖥️ Native EGL Rendering Engine & Gladio Integration (Replaces 1.1 Renderer)
@@ -208,7 +211,7 @@ The compiled APKs will be generated at:
 
 ## Installation & Setup
 
-1. Download the latest **Winlator Mali 1.2 Bionic** release APK from [GitHub Releases](https://github.com/GunaCharanTeja/WinlatorMali/releases).
+1. Download the latest **Winlator Mali 1.2.1 Bionic** release APK from [GitHub Releases](https://github.com/GunaCharanTeja/WinlatorMali/releases).
 2. Install the APK and grant required storage permissions.
 3. On first launch, the app will automatically unpack the bundled root filesystem (`imagefs.tzst`).
 4. **Container Recommendations**:
