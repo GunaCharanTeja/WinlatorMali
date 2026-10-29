@@ -40,6 +40,12 @@ Modelled on Bannerlator, in our UI:
 - Containers screen: cards on the preset surface, with arch chip, Wine/Proton version and screen size.
 - Community Configs: same-named games merged (counts summed, configs of all ids listed), and Mali / Adreno badges spelled out.
 
+## Credits
+Thank you to the projects and people whose work this update builds on:
+- **brunodev85 (Bruno):** Winlator and Gladio. *Simulate touch screen* (Move Cursor to Touchpoint) comes from his Winlator, and Gladio's OpenGL 3.3 limit follows his original.
+- **The412Banner / Bannerlator:** the newer File Manager (`wfm.exe`) and `winhandler.exe`, the container pattern, the Wine/Proton prefix setup, fullscreen modes and screen alignment, and the model for our Log Manager.
+- **Pipetto-crypto:** the native EGL renderer; the window-buffer write flush follows his lock/write/unlock.
+- Everyone credited in the [1.2 release](https://github.com/GunaCharanTeja/WinlatorMali/releases/tag/bionic-mali-1.2): Bruno (`brunodev85`), Pipetto-crypto, leegao, stevenmxz, vivsi1, Noysz, The412Banner / BannerHub, longjunyu2, hy300leosquizz-ctrl and willfaust (Madeira).
 ## Flavors
 - **Standard** `com.winlator.mali`: recommended.
 - **Ludashi** `com.ludashi.benchmark`
