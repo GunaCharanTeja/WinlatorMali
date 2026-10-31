@@ -7,25 +7,31 @@
 [![Release](https://img.shields.io/badge/Release-1.2.1%20Bionic-blue.svg)](https://github.com/GunaCharanTeja/WinlatorMali/releases)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-orange.svg)](https://developer.android.com)
 [![Architecture](https://img.shields.io/badge/Arch-ARM64--v8a-purple.svg)](https://en.wikipedia.org/wiki/AArch64)
-[![Support](https://img.shields.io/badge/Support-Ko--fi-ff5e5b.svg)](https://ko-fi.com/gunacharanteja)
+[![Support](https://img.shields.io/badge/Support-DXML-ff5e5b.svg)](https://kofi-tracker.teja44951.workers.dev/goal)
 
 **Winlator Mali** runs Windows (x86 / x86_64) games on Android, built for devices with **ARM Mali and Immortalis GPUs** (MediaTek Dimensity, Samsung Exynos, Google Tensor), and still works on Qualcomm Adreno.
 
 It is built on the Android Bionic runtime (from Pipetto Cripto's Winlator Bionic fork) for faster, cooler, battery-friendly gaming.
 
+> **Status:** Winlator Mali is no longer being updated. **1.2.1 is the final release.** Development has moved to **DXML**, an independent, Mali-specialized Direct3D translation platform. See below.
+
 ---
 
-## ❤️ Support the Project
+## ❤️ Support DXML
 
-Winlator Mali is built and maintained by one person, for free. If it works for you, please consider chipping in. It directly pays for the time and testing that keep updates coming.
+**DXML** is an independent, Mali-specialized Direct3D translation platform, built from scratch for Mali GPUs instead of relying on DXVK. It is built by one person, for free, and the project fund is how you can help it along.
 
+**My promise:** DXML updates will keep coming, whether or not the goal is reached.
+
+[![Project fund](https://img.shields.io/endpoint?url=https://kofi-tracker.teja44951.workers.dev/donations/goal.json)](https://kofi-tracker.teja44951.workers.dev/goal)
+[![Supporters](https://img.shields.io/endpoint?url=https://kofi-tracker.teja44951.workers.dev/donations/supporters.json)](https://kofi-tracker.teja44951.workers.dev/goal)
+
+* 📊 **Live fund page**: [kofi-tracker.teja44951.workers.dev/goal](https://kofi-tracker.teja44951.workers.dev/goal)
 * ☕ **Ko-fi**: [ko-fi.com/gunacharanteja](https://ko-fi.com/gunacharanteja)
 * 🇮🇳 **UPI (India)**: `gunacharanteja@slc`
+* 🪙 **Crypto (USDT)**: message me on [Telegram](https://t.me/+RDjo9_ORqXgwODc1) for the address and network. Please don't send anything before you've checked it with me.
 
-[![Monthly goal](https://img.shields.io/endpoint?url=https://kofi-tracker.teja44951.workers.dev/donations/goal.json)](https://ko-fi.com/gunacharanteja)
-[![Supporters](https://img.shields.io/endpoint?url=https://kofi-tracker.teja44951.workers.dev/donations/supporters.json)](https://ko-fi.com/gunacharanteja)
-
-Even a small amount helps. Sharing the project with friends helps too. Thank you!
+Even a small amount helps. Sharing the project with other Mali users helps too. Thank you!
 
 ---
 
@@ -42,7 +48,7 @@ Mali GPUs don't natively support the BCn texture formats (BC1–BC7) that PC gam
 
 ---
 
-## Latest Release: 1.2.1 Bionic
+## Final Release: 1.2.1 Bionic
 
 Fixes and polish for 1.2. **Reinstall required.** Full notes: [RELEASE_NOTES_1.2.1.md](RELEASE_NOTES_1.2.1.md).
 
@@ -56,7 +62,7 @@ Older versions (1.0, 1.1, 1.2) are listed on the [Releases page](https://github.
 2. Install it and grant storage permissions.
 3. On first launch, wait while the root filesystem unpacks.
 4. Container setup:
-   * **Mali GPUs**: set Graphics Driver to **Wrapper**, and set BCn Emulation to Current Layer or Legacy And set to ASTC or ETC2.
+   * **Mali GPUs**: choose **Mali / Zink** or **Turnip + Zink**, set Graphics Driver to **Wrapper**, and set BCn Emulation to ASTC or ETC2.
    * **Adreno GPUs**: choose **Turnip (Adreno)** with DXVK.
    * **Box64 / FEX preset**: start with *Intermediate* or *Compatibility*.
 5. Launch a container, or import tested shortcuts from the **Community Configs** tab.
@@ -103,4 +109,4 @@ Wine/Proton (LGPL v2.1+), Box64 (MIT), FEX-Emu (MIT), Mesa (MIT/LGPL), DXVK (zli
 
 ---
 
-<p align="center">If Winlator Mali helped you, <a href="https://ko-fi.com/gunacharanteja">buy me a coffee ☕</a></p>
+<p align="center">Building DXML for Mali users. <a href="https://kofi-tracker.teja44951.workers.dev/goal">Support the project fund ☕</a></p>
