@@ -9,7 +9,7 @@
 [![Architecture](https://img.shields.io/badge/Arch-ARM64--v8a-purple.svg)](https://en.wikipedia.org/wiki/AArch64)
 [![Support](https://img.shields.io/badge/Support-DXML-ff5e5b.svg)](https://kofi-tracker.teja44951.workers.dev/goal)
 
-**Winlator Mali** runs Windows (x86 / x86_64) games on Android, built for devices with **ARM Mali and Immortalis GPUs** (MediaTek Dimensity, Samsung Exynos, Google Tensor), and still works on Qualcomm Adreno.
+**Winlator Mali** runs Windows (x86 / x86_64) games on Android, built for Non Snapdragon Devices with (MediaTek Dimensity, Samsung Exynos, Google Tensor), and still works on Qualcomm Adreno.
 
 It is built on the Android Bionic runtime (from Pipetto Cripto's Winlator Bionic fork) for faster, cooler, battery-friendly gaming.
 
@@ -62,7 +62,7 @@ Older versions (1.0, 1.1, 1.2) are listed on the [Releases page](https://github.
 2. Install it and grant storage permissions.
 3. On first launch, wait while the root filesystem unpacks.
 4. Container setup:
-   * **Mali GPUs**: choose **Mali / Zink** or **Turnip + Zink**, set Graphics Driver to **Wrapper**, and set BCn Emulation to ASTC or ETC2.
+   * **Mali GPUs**: set Graphics Driver to **Wrapper**, and set BCn Emulation to ASTC or ETC2.
    * **Adreno GPUs**: choose **Turnip (Adreno)** with DXVK.
    * **Box64 / FEX preset**: start with *Intermediate* or *Compatibility*.
 5. Launch a container, or import tested shortcuts from the **Community Configs** tab.
