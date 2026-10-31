@@ -56,7 +56,7 @@ Older versions (1.0, 1.1, 1.2) are listed on the [Releases page](https://github.
 2. Install it and grant storage permissions.
 3. On first launch, wait while the root filesystem unpacks.
 4. Container setup:
-   * **Mali GPUs**: choose **Mali / Zink** or **Turnip + Zink**, set Graphics Driver to **Wrapper**, and set BCn Emulation to ASTC or ETC2.
+   * **Mali GPUs**: set Graphics Driver to **Wrapper**, and set BCn Emulation to Current Layer or Legacy And set to ASTC or ETC2.
    * **Adreno GPUs**: choose **Turnip (Adreno)** with DXVK.
    * **Box64 / FEX preset**: start with *Intermediate* or *Compatibility*.
 5. Launch a container, or import tested shortcuts from the **Community Configs** tab.
