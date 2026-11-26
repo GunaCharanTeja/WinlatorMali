@@ -29,7 +29,6 @@
     </string-array>
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>
-        <item>v819</item>
     </string-array>
     <string-array name="audio_driver_entries">
         <item>ALSA</item>
