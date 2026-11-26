@@ -261,6 +261,7 @@ public class ContainersFragment extends Fragment {
             }
 
             holder.runButton.setOnClickListener(view -> runContainer(item)); // Correct item reference
+            holder.itemView.setOnClickListener(view -> runContainer(item));
 
             holder.menuButton.setOnClickListener(view -> showListItemMenu(view, item));
         }
