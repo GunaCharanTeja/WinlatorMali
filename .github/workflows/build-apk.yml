@@ -1,4 +1,5 @@
 name: Naruto Storm Mali APK Build
+# Triggered to validate the merged Console Runtime Manager, Diagnostics, and manual EXE changes.
 
 on:
   push:
