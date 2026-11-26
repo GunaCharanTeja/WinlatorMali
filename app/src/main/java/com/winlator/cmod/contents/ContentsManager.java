@@ -1,0 +1,888 @@
+package com.winlator.cmod.contents;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.net.Uri;
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+
+import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.TarCompressorUtils;
+import com.winlator.cmod.xenvironment.ImageFs;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+public class ContentsManager {
+    public static final String PROFILE_NAME = "profile.json";
+
+    public static final String BANNERLATOR_PROFILES = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/contents.json";
+    public static final String WINNATIVE_PROFILES = "https://raw.githubusercontent.com/nicholasx417/WinNative-Components/refs/heads/main/contents.json";
+    public static final String STEVENMXZ_PROFILES = "https://raw.githubusercontent.com/StevenMXZ/Winlator-Contents/main/contents.json";
+    public static final String WINLATOR_MALI_BASE_URL = "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/";
+    public static final String REMOTE_PROFILES = BANNERLATOR_PROFILES;
+
+    public static final String[] DXVK_TRUST_FILES = {"${system32}/d3d8.dll", "${system32}/d3d9.dll", "${system32}/d3d10.dll", "${system32}/d3d10_1.dll",
+            "${system32}/d3d10core.dll", "${system32}/d3d11.dll", "${system32}/dxgi.dll", "${syswow64}/d3d8.dll", "${syswow64}/d3d9.dll", "${syswow64}/d3d10.dll",
+            "${syswow64}/d3d10_1.dll", "${syswow64}/d3d10core.dll", "${syswow64}/d3d11.dll", "${syswow64}/dxgi.dll"};
+    public static final String[] VKD3D_TRUST_FILES = {"${system32}/d3d12core.dll", "${system32}/d3d12.dll",
+            "${syswow64}/d3d12core.dll", "${syswow64}/d3d12.dll"};
+    public static final String[] BOX64_TRUST_FILES = {"${bindir}/box64"};
+    public static final String[] WOWBOX64_TRUST_FILES = {"${system32}/wowbox64.dll"};
+    public static final String[] FEXCORE_TRUST_FILES = {
+            "${system32}/libwow64fex.dll", "${system32}/libarm64ecfex.dll",
+            "${libdir}/wine/aarch64-unix/libwow64fex.so", "${libdir}/wine/aarch64-unix/libarm64ecfex.so"
+    };
+
+    public enum InstallFailedReason {
+        ERROR_NOSPACE,
+        ERROR_BADTAR,
+        ERROR_NOPROFILE,
+        ERROR_BADPROFILE,
+        ERROR_MISSINGFILES,
+        ERROR_EXIST,
+        ERROR_UNTRUSTPROFILE,
+        ERROR_UNKNOWN
+    }
+
+    public enum ContentDirName {
+        CONTENT_MAIN_DIR_NAME("contents"),
+        CONTENT_WINE_DIR_NAME("wine"),
+        CONTENT_PROTON_DIR_NAME("proton"),
+        CONTENT_DXVK_DIR_NAME("dxvk"),
+        CONTENT_VKD3D_DIR_NAME("vkd3d"),
+        CONTENT_BOX64_DIR_NAME("box64"),
+        CONTENT_WOWBOX64_DIR_NAME("wowbox64"),
+        CONTENT_FEXCORE_DIR_NAME("fexcore");
+
+        private String name;
+
+        ContentDirName(String name) {
+            this.name = name;
+        }
+
+        @NonNull
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    private final Context context;
+    private final SharedPreferences preferences;
+    private HashMap<ContentProfile.ContentType, List<ContentProfile>> profilesMap;
+    private ArrayList<ContentProfile> remoteProfiles = new ArrayList<>();
+
+    public ContentsManager(Context context) {
+        this.context = context;
+        this.preferences = context.getSharedPreferences("contents_manager_prefs", Context.MODE_PRIVATE);
+    }
+
+    public void setGraphicsDriverInstalled(String driverVersion, boolean installed) {
+        preferences.edit().putBoolean("graphics_driver_installed_" + driverVersion, installed).apply();
+    }
+
+    public interface OnInstallFinishedCallback {
+        void onFailed(InstallFailedReason reason, Exception e);
+        void onSucceed(ContentProfile profile);
+    }
+
+    // Catalogs list some names twice from different release folders, and these are not always the same
+    // file (WinNative's two Proton-11.0-1-arm64ec-steam-unix are 103 MB and 300 MB builds). Keep both and
+    // add the release folder, or the file type when the folder matches, so the entries can be told apart.
+    private static void labelSameNamedProfiles(ArrayList<ContentProfile> profiles) {
+        HashMap<String, Integer> counts = new HashMap<>();
+        for (ContentProfile p : profiles) counts.merge(p.type + "|" + p.verName, 1, Integer::sum);
+        HashMap<String, Integer> folderCounts = new HashMap<>();
+        for (ContentProfile p : profiles) {
+            if (counts.get(p.type + "|" + p.verName) > 1) folderCounts.merge(p.type + "|" + p.verName + "|" + releaseFolder(p.remoteUrl), 1, Integer::sum);
+        }
+        for (ContentProfile p : profiles) {
+            if (counts.get(p.type + "|" + p.verName) < 2) continue;
+            String folder = releaseFolder(p.remoteUrl);
+            boolean folderUnique = folderCounts.get(p.type + "|" + p.verName + "|" + folder) == 1;
+            String ext = p.remoteUrl.substring(p.remoteUrl.lastIndexOf('.') + 1);
+            p.verName = p.verName + " (" + (folderUnique ? folder : ext) + ")";
+        }
+    }
+
+    private static String releaseFolder(String url) {
+        int i = url.indexOf("/download/");
+        if (i < 0) return "";
+        String rest = url.substring(i + 10);
+        int slash = rest.indexOf('/');
+        return slash > 0 ? rest.substring(0, slash) : rest;
+    }
+
+    public synchronized void setRemoteProfiles(String json) {
+        try {
+            ArrayList<ContentProfile> newProfiles = new ArrayList<>();
+
+            if (json != null && !json.isEmpty()) {
+                JSONArray content = new JSONArray(json);
+                for (int i = 0; i < content.length(); i++) {
+                    try {
+                        JSONObject object = content.getJSONObject(i);
+                        String url = object.optString("remoteUrl", "");
+                        if (url.isEmpty()) continue;
+
+                        ContentProfile remoteProfile = new ContentProfile();
+                        remoteProfile.remoteUrl = url;
+
+                        String verName = object.optString("verName", object.optString("versionName", object.optString("name", "")));
+                        if (verName.isEmpty() || verName.equalsIgnoreCase("null")) {
+                            try {
+                                String filename = new File(new java.net.URL(url).getPath()).getName();
+                                verName = filename.replace(".wcp", "").replace(".tzst", "").replace(".tar.xz", "").replace(".txz", "");
+                            } catch (Exception e) {
+                                verName = "Component-" + i;
+                            }
+                        }
+                        remoteProfile.verName = verName;
+
+                        String typeStr = object.optString("type", "").trim();
+                        ContentProfile.ContentType explicitType = ContentProfile.ContentType.getTypeByName(typeStr);
+
+                        if (explicitType == ContentProfile.ContentType.CONTENT_TYPE_WINE && verName.toLowerCase().contains("proton")) {
+                            // StevenMX lists proton-10-arm64ec as type "Wine".
+                            remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                        } else if (explicitType != null) {
+                            remoteProfile.type = explicitType;
+                        } else {
+                            String lowerAll = (typeStr + " " + verName + " " + url).toLowerCase();
+
+                            if (lowerAll.contains("d7vk")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_D7VK;
+                            } else if (lowerAll.contains("vkd3d") || lowerAll.contains("d3d12")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
+                            } else if (lowerAll.contains("dxvk") || lowerAll.contains("d8vk") || lowerAll.contains("d9vk") || lowerAll.contains("d3d9") || lowerAll.contains("d3d11") || lowerAll.contains("dxgi")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
+                            } else if (lowerAll.contains("fexcore") || lowerAll.contains("fex-core") || lowerAll.contains("wow64fex")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+                            } else if (lowerAll.contains("wowbox64") || lowerAll.contains("wow-box64")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64;
+                            } else if (lowerAll.contains("box64") && !lowerAll.contains("fex")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_BOX64;
+                            } else if (lowerAll.contains("fex-") || lowerAll.contains("_fex") || lowerAll.contains("-fex") || lowerAll.contains("/fex")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+                            } else if (typeStr.equalsIgnoreCase("Proton") || lowerAll.contains("proton") || lowerAll.contains("wine-ge") || lowerAll.contains("winege")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                            } else if (typeStr.equalsIgnoreCase("Wine") || lowerAll.contains("wine")) {
+                                remoteProfile.type = ContentProfile.ContentType.CONTENT_TYPE_WINE;
+                            } else {
+                                // A type this app can't install (e.g. Banner's "Turnip" GPU driver zips such as
+                                // Rutabaga) used to fall back to Wine and show up in the Wine list. Skip it.
+                                continue;
+                            }
+                        }
+
+                        int verCode = 0;
+                        if (object.has("verCode")) {
+                            try {
+                                verCode = object.getInt("verCode");
+                            } catch (Exception e) {
+                                try {
+                                    verCode = Integer.parseInt(object.getString("verCode").trim());
+                                } catch (Exception ignored) {}
+                            }
+                        } else if (object.has("versionCode")) {
+                            verCode = object.optInt("versionCode", 0);
+                        }
+                        remoteProfile.verCode = verCode;
+                        // Check explicit date fields in JSON
+                        long releaseDate = 0L;
+                        String dateStr = object.optString("date", object.optString("releaseDate", object.optString("uploadedAt", "")));
+                        if (!dateStr.isEmpty()) {
+                            try {
+                                releaseDate = java.time.Instant.parse(dateStr).toEpochMilli();
+                            } catch (Exception ignored) {}
+                        }
+                        if (releaseDate == 0L) {
+                            releaseDate = estimateReleaseDate(remoteProfile.verName, url);
+                        }
+                        remoteProfile.releaseDate = releaseDate;
+
+                        newProfiles.add(remoteProfile);
+                    } catch (Exception e) {
+                        Log.w("ContentsManager", "Error parsing remote profile at index " + i, e);
+                    }
+                }
+            }
+            labelSameNamedProfiles(newProfiles);
+            remoteProfiles = newProfiles;
+        } catch (Exception e) {
+            Log.e("ContentsManager", "Failed to parse remote JSON", e);
+        }
+        syncContents();
+    }
+
+    public static final java.util.Map<String, String> sizeCache = new java.util.concurrent.ConcurrentHashMap<>();
+    public static final java.util.Map<String, Long> dateCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void fetchRemoteSizeAsync(ContentProfile profile, Runnable onFetched) {
+        if (profile == null || profile.remoteUrl == null || profile.remoteUrl.isEmpty()) return;
+        if (sizeCache.containsKey(profile.remoteUrl)) {
+            profile.sizeFormatted = sizeCache.get(profile.remoteUrl);
+            if (dateCache.containsKey(profile.remoteUrl)) {
+                profile.releaseDate = dateCache.get(profile.remoteUrl);
+            }
+            if (onFetched != null) onFetched.run();
+            return;
+        }
+
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                java.net.URL url = new java.net.URL(profile.remoteUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("HEAD");
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.connect();
+
+                long length = conn.getContentLengthLong();
+                if (length > 0) {
+                    profile.size = length;
+                    profile.sizeFormatted = Downloader.formatFileSize(length);
+                    sizeCache.put(profile.remoteUrl, profile.sizeFormatted);
+                }
+
+                long lastModified = conn.getLastModified();
+                if (lastModified > 0) {
+                    profile.releaseDate = lastModified;
+                    dateCache.put(profile.remoteUrl, lastModified);
+                }
+
+                if (onFetched != null) onFetched.run();
+                conn.disconnect();
+            } catch (Exception ignored) {}
+        });
+    }
+
+    public static long estimateReleaseDate(String verName, String url) {
+        if (verName == null) verName = "";
+        if (url == null) url = "";
+        String combined = (verName + " " + url).toLowerCase();
+
+        // 1. Try 6-digit date like 241214 (YYMMDD -> 2024-12-14)
+        java.util.regex.Matcher m6 = java.util.regex.Pattern.compile("(?:20)?(2[0-9])(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])").matcher(combined);
+        if (m6.find()) {
+            try {
+                int yy = Integer.parseInt(m6.group(1)) + 2000;
+                int mm = Integer.parseInt(m6.group(2));
+                int dd = Integer.parseInt(m6.group(3));
+                return java.time.LocalDate.of(yy, mm, dd).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Try 4-digit date like 2608, 2601, 2512 (YYMM -> 2026-08)
+        java.util.regex.Matcher m4 = java.util.regex.Pattern.compile("\\b(2[3-9])(0[1-9]|1[0-2])\\b").matcher(combined);
+        if (m4.find()) {
+            try {
+                int yy = Integer.parseInt(m4.group(1)) + 2000;
+                int mm = Integer.parseInt(m4.group(2));
+                return java.time.LocalDate.of(yy, mm, 1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            } catch (Exception ignored) {}
+        }
+
+        // 3. Try Wine version major (wine-11 -> 2026, wine-10 -> 2025, wine-9 -> 2024, wine-8 -> 2023)
+        java.util.regex.Matcher mWine = java.util.regex.Pattern.compile("(?:wine|proton)[-_]?(?:ge[-_]?)?([0-9]+)(?:\\.([0-9]+))?").matcher(combined);
+        if (mWine.find()) {
+            try {
+                int major = Integer.parseInt(mWine.group(1));
+                int minor = mWine.group(2) != null ? Integer.parseInt(mWine.group(2)) : 0;
+                int year = 2015 + major;
+                int month = Math.min(12, Math.max(1, (minor % 12) + 1));
+                return java.time.LocalDate.of(year, month, 1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            } catch (Exception ignored) {}
+        }
+
+        // 4. Try DXVK / D7VK / VKD3D versions
+        java.util.regex.Matcher mDxvk = java.util.regex.Pattern.compile("(?:dxvk|d7vk|d8vk|d9vk|vkd3d)[-_]?([0-9]+)\\.([0-9]+)(?:\\.([0-9]+))?").matcher(combined);
+        if (mDxvk.find()) {
+            try {
+                int major = Integer.parseInt(mDxvk.group(1));
+                int minor = Integer.parseInt(mDxvk.group(2));
+                int patch = mDxvk.group(3) != null ? Integer.parseInt(mDxvk.group(3)) : 0;
+                int year = major >= 3 ? 2026 : (major == 2 ? 2022 + Math.min(4, minor / 3) : 2020);
+                int month = Math.min(12, Math.max(1, (minor % 12) + 1));
+                return java.time.LocalDate.of(year, month, Math.min(28, patch * 3 + 1)).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            } catch (Exception ignored) {}
+        }
+
+        // 5. Try WOWBox64 / Box64 versions
+        java.util.regex.Matcher mBox = java.util.regex.Pattern.compile("(?:wowbox64|box64)[-_]?0\\.([0-9]+)(?:\\.([0-9]+))?").matcher(combined);
+        if (mBox.find()) {
+            try {
+                int minor = Integer.parseInt(mBox.group(1));
+                int patch = mBox.group(2) != null ? Integer.parseInt(mBox.group(2)) : 0;
+                int year = minor >= 4 ? 2025 + (patch >= 5 ? 1 : 0) : 2023 + (minor / 2);
+                int month = Math.min(12, Math.max(1, (patch * 2 % 12) + 1));
+                return java.time.LocalDate.of(year, month, 1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            } catch (Exception ignored) {}
+        }
+
+        // 6. Generic semantic version fallback (e.g. 2.7.1, 3.0.1, 0.4.5)
+        java.util.regex.Matcher mSem = java.util.regex.Pattern.compile("([0-9]+)\\.([0-9]+)(?:\\.([0-9]+))?").matcher(combined);
+        if (mSem.find()) {
+            try {
+                int major = Integer.parseInt(mSem.group(1));
+                int minor = Integer.parseInt(mSem.group(2));
+                int patch = mSem.group(3) != null ? Integer.parseInt(mSem.group(3)) : 0;
+                int year = major >= 10 ? 2015 + major : (major >= 2 ? 2022 + major : 2023);
+                int month = Math.min(12, Math.max(1, (minor % 12) + 1));
+                return java.time.LocalDate.of(year, month, Math.min(28, patch + 1)).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            } catch (Exception ignored) {}
+        }
+
+        return 0L;
+    }
+
+    public synchronized void syncContents() {
+        profilesMap = new HashMap<>();
+
+        for (ContentProfile.ContentType type : ContentProfile.ContentType.values()) {
+            profilesMap.put(type, new LinkedList<>());
+        }
+
+        for (ContentProfile.ContentType type : ContentProfile.ContentType.values()) {
+            List<ContentProfile> profiles = profilesMap.get(type);
+
+            // Load local profiles from disk
+            File typeFile = getContentTypeDir(context, type);
+            File[] fileList = typeFile.listFiles();
+            if (fileList != null) {
+                for (File file : fileList) {
+                    if (!file.isDirectory()) continue;
+                    File proFile = new File(file, PROFILE_NAME);
+                    ContentProfile profile = null;
+                    if (proFile.exists() && proFile.isFile()) {
+                        profile = readProfile(proFile);
+                    }
+
+                    if (profile == null) {
+                        profile = createFallbackProfile(type, file);
+                    }
+
+                    if (profile != null) {
+                        if (profile.type == null) profile.type = type;
+                        if (profile.type == type) profiles.add(profile);
+                    }
+                }
+            }
+
+            // Also check /opt/ for installed Wine/Proton runtimes
+            if (type == ContentProfile.ContentType.CONTENT_TYPE_WINE || type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
+                File optDir = new File(context.getFilesDir(), "imagefs/opt");
+                File[] optFiles = optDir.listFiles();
+                if (optFiles != null) {
+                    for (File f : optFiles) {
+                        if (f.isDirectory() && (f.getName().startsWith("wine-") || f.getName().startsWith("proton-"))) {
+                            ContentProfile p = new ContentProfile();
+                            p.type = f.getName().startsWith("proton-") ? ContentProfile.ContentType.CONTENT_TYPE_PROTON : ContentProfile.ContentType.CONTENT_TYPE_WINE;
+                            p.verName = f.getName();
+                            p.verCode = 1;
+                            p.wineBinPath = f.getAbsolutePath() + "/bin";
+                            p.wineLibPath = f.getAbsolutePath() + "/lib";
+                            p.winePrefixPack = f.getAbsolutePath() + "/prefixPack.txz";
+                            boolean exists = false;
+                            for (ContentProfile cp : profiles) {
+                                if (cp.verName != null && cp.verName.equalsIgnoreCase(p.verName)) {
+                                    exists = true;
+                                    break;
+                                }
+                            }
+                            if (!exists) profiles.add(p);
+                        }
+                    }
+                }
+            }
+
+            // Add remote profiles
+            if (remoteProfiles != null) {
+                List<ContentProfile> snapshot = new ArrayList<>(remoteProfiles);
+                for (ContentProfile remote : snapshot) {
+                    if (remote != null && remote.type == type) {
+                        boolean exists = false;
+                        for (ContentProfile cp : profiles) {
+                            if (cp.verName != null && cp.verName.equalsIgnoreCase(remote.verName)) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                        if (!exists) profiles.add(remote);
+                    }
+                }
+            }
+        }
+    }
+
+    private ContentProfile createFallbackProfile(ContentProfile.ContentType type, File installDir) {
+        String dirName = installDir.getName();
+        int dashIndex = dirName.lastIndexOf('-');
+        if (dashIndex <= 0 || dashIndex >= dirName.length() - 1) return null;
+
+        try {
+            ContentProfile profile = new ContentProfile();
+            profile.type = type;
+            profile.verName = dirName.substring(0, dashIndex);
+            profile.verCode = Integer.parseInt(dirName.substring(dashIndex + 1));
+            return profile;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public void extraContentFile(Uri uri, OnInstallFinishedCallback callback) {
+        extraContentFile(uri, getTmpDir(context), callback);
+    }
+
+    // Extracts into the given staging directory, so several packages can be installed at the same time.
+    public void extraContentFile(Uri uri, File file, OnInstallFinishedCallback callback) {
+        FileUtils.delete(file);
+        file.mkdirs();
+
+        boolean ret = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, uri, file);
+        if (!ret)
+            ret = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, context, uri, file);
+        if (!ret) {
+            callback.onFailed(InstallFailedReason.ERROR_BADTAR, null);
+            return;
+        }
+
+        File proFile = new File(file, PROFILE_NAME);
+        if (!proFile.exists()) {
+            // Auto-detect Wine/Proton tarball without a manifest
+            File binDir = new File(file, "bin");
+            File libDir = new File(file, "lib");
+            if (binDir.exists() && libDir.exists()) {
+                String name = new File(uri.getPath()).getName().replace(".tzst", "").replace(".wcp", "").replace(".tar.xz", "");
+                ContentProfile autoProfile = new ContentProfile();
+                autoProfile.type = name.contains("proton") ? ContentProfile.ContentType.CONTENT_TYPE_PROTON : ContentProfile.ContentType.CONTENT_TYPE_WINE;
+                autoProfile.verName = name;
+                autoProfile.verCode = 1;
+                autoProfile.desc = "Auto-installed Wine runtime";
+                autoProfile.wineBinPath = "bin";
+                autoProfile.wineLibPath = "lib";
+                autoProfile.winePrefixPack = "prefixPack.txz";
+                finishInstallWineDirect(file, autoProfile, callback);
+                return;
+            }
+
+            callback.onFailed(InstallFailedReason.ERROR_NOPROFILE, null);
+            return;
+        }
+
+        ContentProfile profile = readProfile(proFile);
+        if (profile == null) {
+            callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+            return;
+        }
+
+        callback.onSucceed(profile);
+    }
+
+    private void finishInstallWineDirect(File srcDir, ContentProfile profile, OnInstallFinishedCallback callback) {
+        File optDir = new File(context.getFilesDir(), "imagefs/opt/" + profile.verName);
+        if (!optDir.exists()) optDir.mkdirs();
+
+        if (FileUtils.copy(srcDir, optDir)) {
+            FileUtils.delete(srcDir);
+            profile.installedDirect = true;
+            callback.onSucceed(profile);
+        } else {
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+        }
+    }
+
+    public void applyContent(ContentProfile profile) {
+        if (profile == null) return;
+        File installDir = getInstallDir(context, profile);
+        if (!installDir.exists() || !installDir.isDirectory()) return;
+
+        if (profile.fileList != null && !profile.fileList.isEmpty()) {
+            for (ContentProfile.ContentFile file : profile.fileList) {
+                if (file.source == null || file.target == null) continue;
+                File src = new File(installDir, file.source);
+                String targetPath = getPathFromTemplate(file.target);
+                File dst = new File(targetPath);
+                if (src.exists()) {
+                    File parent = dst.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+                    // Replaced, not written into: the old file may be a link to Wine's own copy of the DLL.
+                    dst.delete();
+                    FileUtils.copy(src, dst);
+                }
+            }
+        } else {
+            // Fallback for directory structures without explicit profile file lists
+            File rootDir = new File(context.getFilesDir(), "imagefs");
+            File sys32 = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows/system32");
+            File syswow64 = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows/syswow64");
+            File binDir = new File(rootDir, "usr/local/bin");
+
+            if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_DXVK || profile.type == ContentProfile.ContentType.CONTENT_TYPE_VKD3D) {
+                // Check x64 / x86 / x32 subfolders
+                File x64Dir = new File(installDir, "x64");
+                File x32Dir = new File(installDir, "x32");
+                if (!x32Dir.exists()) x32Dir = new File(installDir, "x86");
+
+                if (x64Dir.exists() && x64Dir.isDirectory()) {
+                    if (!sys32.exists()) sys32.mkdirs();
+                    FileUtils.copy(x64Dir, sys32);
+                }
+                if (x32Dir.exists() && x32Dir.isDirectory()) {
+                    if (!syswow64.exists()) syswow64.mkdirs();
+                    FileUtils.copy(x32Dir, syswow64);
+                }
+
+                // If DLLs are placed directly in the install directory root
+                File[] rootFiles = installDir.listFiles();
+                if (rootFiles != null) {
+                    for (File f : rootFiles) {
+                        if (f.isFile() && f.getName().toLowerCase().endsWith(".dll")) {
+                            if (!sys32.exists()) sys32.mkdirs();
+                            if (!syswow64.exists()) syswow64.mkdirs();
+                            FileUtils.copy(f, new File(sys32, f.getName()));
+                            FileUtils.copy(f, new File(syswow64, f.getName()));
+                        }
+                    }
+                }
+            } else if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_BOX64) {
+                File box64Bin = new File(installDir, "box64");
+                if (box64Bin.exists()) {
+                    if (!binDir.exists()) binDir.mkdirs();
+                    File dst = new File(binDir, "box64");
+                    FileUtils.copy(box64Bin, dst);
+                    FileUtils.chmod(dst, 0755);
+                }
+            } else if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64) {
+                File wowDll = new File(installDir, "wowbox64.dll");
+                if (wowDll.exists()) {
+                    if (!sys32.exists()) sys32.mkdirs();
+                    FileUtils.copy(wowDll, new File(sys32, "wowbox64.dll"));
+                }
+            }
+        }
+    }
+
+    public String getPathFromTemplate(String template) {
+        if (template == null) return "";
+        File rootDir = new File(context.getFilesDir(), "imagefs");
+        String sys32 = rootDir.getAbsolutePath() + "/" + ImageFs.WINEPREFIX + "/drive_c/windows/system32";
+        String syswow64 = rootDir.getAbsolutePath() + "/" + ImageFs.WINEPREFIX + "/drive_c/windows/syswow64";
+        String bin = rootDir.getAbsolutePath() + "/usr/local/bin";
+        String lib = rootDir.getAbsolutePath() + "/usr/local/lib";
+
+        return template.replace("${system32}", sys32)
+                       .replace("${syswow64}", syswow64)
+                       .replace("${bindir}", bin)
+                       .replace("${libdir}", lib)
+                       .replace("${rootdir}", rootDir.getAbsolutePath());
+    }
+
+    public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {
+        finishInstallContent(profile, getTmpDir(context), callback);
+    }
+
+    public void finishInstallContent(ContentProfile profile, File stagingDir, OnInstallFinishedCallback callback) {
+        File installPath = getInstallDir(context, profile);
+        if (installPath.exists()) {
+            callback.onFailed(InstallFailedReason.ERROR_EXIST, null);
+            return;
+        }
+
+        if (!installPath.mkdirs()) {
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+            return;
+        }
+
+        if (!stagingDir.renameTo(installPath)) {
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+            return;
+        }
+
+        callback.onSucceed(profile);
+    }
+
+    public ContentProfile readProfile(File file) {
+        try {
+            ContentProfile profile = new ContentProfile();
+            JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+            String typeName = profileJSONObject.optString(ContentProfile.MARK_TYPE, "");
+            String verName = profileJSONObject.optString(ContentProfile.MARK_VERSION_NAME, profileJSONObject.optString("verName", profileJSONObject.optString("name", "")));
+            int verCode = profileJSONObject.optInt(ContentProfile.MARK_VERSION_CODE, profileJSONObject.optInt("verCode", 0));
+            String desc = profileJSONObject.optString(ContentProfile.MARK_DESC, profileJSONObject.optString("description", ""));
+
+            profile.type = ContentProfile.ContentType.getTypeByName(typeName);
+            profile.verName = verName;
+            profile.verCode = verCode;
+            profile.desc = desc;
+            profile.releaseDate = estimateReleaseDate(verName, "");
+
+            if (profileJSONObject.has(ContentProfile.MARK_FILE_LIST)) {
+                JSONArray filesArray = profileJSONObject.optJSONArray(ContentProfile.MARK_FILE_LIST);
+                if (filesArray != null) {
+                    List<ContentProfile.ContentFile> fileList = new ArrayList<>();
+                    for (int i = 0; i < filesArray.length(); i++) {
+                        JSONObject fileObj = filesArray.optJSONObject(i);
+                        if (fileObj != null) {
+                            ContentProfile.ContentFile cf = new ContentProfile.ContentFile();
+                            cf.source = fileObj.optString(ContentProfile.MARK_FILE_SOURCE, "");
+                            cf.target = fileObj.optString(ContentProfile.MARK_FILE_TARGET, "");
+                            if (!cf.source.isEmpty() && !cf.target.isEmpty()) {
+                                fileList.add(cf);
+                            }
+                        }
+                    }
+                    profile.fileList = fileList;
+                }
+            }
+
+            if (typeName.equals(ContentProfile.ContentType.CONTENT_TYPE_WINE.toString()) || typeName.equals(ContentProfile.ContentType.CONTENT_TYPE_PROTON.toString())) {
+                JSONObject wineJSONObject = profileJSONObject.optJSONObject(ContentProfile.MARK_WINE);
+                if (wineJSONObject != null) {
+                    profile.wineLibPath = wineJSONObject.optString(ContentProfile.MARK_WINE_LIBPATH, "lib");
+                    profile.wineBinPath = wineJSONObject.optString(ContentProfile.MARK_WINE_BINPATH, "bin");
+                    profile.winePrefixPack = wineJSONObject.optString(ContentProfile.MARK_WINE_PREFIX_PACK, "prefixPack.txz");
+                }
+            }
+
+            return profile;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static File getContentDir(Context context) {
+        File dir = new File(context.getFilesDir(), ContentDirName.CONTENT_MAIN_DIR_NAME.toString());
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    public static File getContentTypeDir(Context context, ContentProfile.ContentType type) {
+        String subName = switch (type) {
+            case CONTENT_TYPE_WINE -> ContentDirName.CONTENT_WINE_DIR_NAME.toString();
+            case CONTENT_TYPE_PROTON -> ContentDirName.CONTENT_PROTON_DIR_NAME.toString();
+            case CONTENT_TYPE_DXVK -> ContentDirName.CONTENT_DXVK_DIR_NAME.toString();
+            case CONTENT_TYPE_VKD3D -> ContentDirName.CONTENT_VKD3D_DIR_NAME.toString();
+            case CONTENT_TYPE_BOX64 -> ContentDirName.CONTENT_BOX64_DIR_NAME.toString();
+            case CONTENT_TYPE_WOWBOX64 -> ContentDirName.CONTENT_WOWBOX64_DIR_NAME.toString();
+            case CONTENT_TYPE_FEXCORE -> ContentDirName.CONTENT_FEXCORE_DIR_NAME.toString();
+            case CONTENT_TYPE_D7VK -> "d7vk";
+            default -> "misc";
+        };
+        File dir = new File(getContentDir(context), subName);
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    public static File getInstallDir(Context context, ContentProfile profile) {
+        return new File(getContentTypeDir(context, profile.type), profile.verName + "-" + profile.verCode);
+    }
+
+    private static File getTmpDir(Context context) {
+        File dir = new File(context.getCacheDir(), "contents_tmp");
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    private static void cleanTmpDir(Context context) {
+        FileUtils.delete(getTmpDir(context));
+    }
+
+    public List<ContentProfile> getProfiles(ContentProfile.ContentType type) {
+        if (profilesMap == null) syncContents();
+        List<ContentProfile> list = profilesMap.get(type);
+        return list != null ? list : new ArrayList<>();
+    }
+
+    public ContentProfile getProfileByEntryName(String entryName) {
+        if (entryName == null || entryName.isEmpty()) return null;
+        if (profilesMap == null) syncContents();
+
+        String lowerEntry = entryName.toLowerCase();
+        ContentProfile.ContentType preferredType = null;
+        String queryVersion = entryName;
+
+        if (lowerEntry.startsWith("fexcore-") || lowerEntry.startsWith("fex-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("wowbox64-") || lowerEntry.startsWith("wow-box64-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64;
+            queryVersion = entryName.substring(entryName.indexOf('-', entryName.indexOf('-') + 1) + 1); // Handles wow-box64-
+            if (lowerEntry.startsWith("wowbox64-")) queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("box64-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_BOX64;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("dxvk-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_DXVK;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("d7vk-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_D7VK;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("vkd3d-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("proton-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        } else if (lowerEntry.startsWith("wine-")) {
+            preferredType = ContentProfile.ContentType.CONTENT_TYPE_WINE;
+            queryVersion = entryName.substring(entryName.indexOf('-') + 1);
+        }
+
+        if (preferredType != null) {
+            List<ContentProfile> list = profilesMap.get(preferredType);
+            String normalizedQuery = queryVersion.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+            if (list != null) {
+                for (ContentProfile p : list) {
+                    if (p == null || p.verName == null) continue;
+                    // The settings store a downloaded VKD3D as "verName-verCode" even when the code is 0, which
+                    // getEntryName leaves out, so the name with its code is compared as well.
+                    if (getEntryName(p).equalsIgnoreCase(entryName) || p.verName.equalsIgnoreCase(queryVersion) || getEntryName(p).equalsIgnoreCase(preferredType.toString() + "-" + queryVersion)
+                        || (p.verName + "-" + p.verCode).equalsIgnoreCase(queryVersion)) return p;
+                }
+                // Names with or without their type prefix ("dxvk-2.5" saved as "2.5"), within this type only.
+                for (ContentProfile p : list) {
+                    if (p == null || p.verName == null) continue;
+                    String normalizedVer = p.verName.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+                    if (!normalizedQuery.isEmpty() && (normalizedVer.equalsIgnoreCase(normalizedQuery) || (normalizedVer + "-" + p.verCode).equalsIgnoreCase(normalizedQuery))) return p;
+                }
+            }
+            // A graphics wrapper of another type would install the wrong DLLs; the built-in archives are the fallback.
+            if (preferredType == ContentProfile.ContentType.CONTENT_TYPE_DXVK || preferredType == ContentProfile.ContentType.CONTENT_TYPE_VKD3D)
+                return null;
+        }
+
+        String normalizedQuery = entryName.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+
+        for (List<ContentProfile> list : profilesMap.values()) {
+            for (ContentProfile p : list) {
+                if (p == null) continue;
+                String entry = getEntryName(p);
+                String ver = p.verName != null ? p.verName : "";
+
+                if (entry.equalsIgnoreCase(entryName) || ver.equalsIgnoreCase(entryName)) {
+                    return p;
+                }
+
+                String normalizedEntry = entry.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+                String normalizedVer = ver.toLowerCase().replaceAll("^(dxvk|vkd3d|box64|wowbox64|fexcore|proton|wine)[-_]", "").trim();
+
+                if (!normalizedQuery.isEmpty() && (normalizedEntry.equalsIgnoreCase(normalizedQuery) || normalizedVer.equalsIgnoreCase(normalizedQuery))) {
+                    return p;
+                }
+            }
+        }
+        return null;
+    }
+
+    public static String getEntryName(ContentProfile profile) {
+        if (profile == null) return "";
+        return profile.type.toString() + '-' + profile.verName + (profile.verCode > 0 ? "-" + profile.verCode : "");
+    }
+
+    public List<ContentProfile> getInstalledProfiles(ContentProfile.ContentType type) {
+        List<ContentProfile> installed = new ArrayList<>();
+        
+        // 1. Local contents profiles in /contents/<type>/
+        File typeFile = getContentTypeDir(context, type);
+        File[] fileList = typeFile.listFiles();
+        if (fileList != null) {
+            for (File file : fileList) {
+                if (!file.isDirectory()) continue;
+                File proFile = new File(file, PROFILE_NAME);
+                ContentProfile profile = null;
+                if (proFile.exists() && proFile.isFile()) {
+                    profile = readProfile(proFile);
+                }
+
+                if (profile == null) {
+                    profile = createFallbackProfile(type, file);
+                }
+
+                if (profile != null) {
+                    if (profile.type == null) profile.type = type;
+                    if (profile.type == type) {
+                        profile.size = FileUtils.getDirectorySize(file);
+                        profile.sizeFormatted = Downloader.formatFileSize(profile.size);
+                        profile.releaseDate = estimateReleaseDate(profile.verName, "");
+                        installed.add(profile);
+                    }
+                }
+            }
+        }
+
+        // 2. /opt/ Wine/Proton directories
+        if (type == ContentProfile.ContentType.CONTENT_TYPE_WINE || type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
+            File optDir = new File(context.getFilesDir(), "imagefs/opt");
+            File[] optFiles = optDir.listFiles();
+            if (optFiles != null) {
+                for (File f : optFiles) {
+                    if (f.isDirectory() && (f.getName().startsWith("wine-") || f.getName().startsWith("proton-"))) {
+                        boolean isProton = f.getName().startsWith("proton-");
+                        if ((type == ContentProfile.ContentType.CONTENT_TYPE_PROTON && isProton) || (type == ContentProfile.ContentType.CONTENT_TYPE_WINE && !isProton)) {
+                            ContentProfile p = new ContentProfile();
+                            p.type = type;
+                            p.verName = f.getName();
+                            p.verCode = 1;
+                            p.wineBinPath = f.getAbsolutePath() + "/bin";
+                            p.wineLibPath = f.getAbsolutePath() + "/lib";
+                            p.winePrefixPack = f.getAbsolutePath() + "/prefixPack.txz";
+                            p.size = FileUtils.getDirectorySize(f);
+                            p.sizeFormatted = Downloader.formatFileSize(p.size);
+                            p.desc = "Installed Locally on Device (" + p.sizeFormatted + ")";
+                            p.releaseDate = estimateReleaseDate(p.verName, "");
+                            installed.add(p);
+                        }
+                    }
+                }
+            }
+        }
+        return installed;
+    }
+
+    public static String getContainerUsingWine(Context context, ContentProfile profile) {
+        if (context == null || profile == null) return null;
+        com.winlator.cmod.container.ContainerManager containerManager = new com.winlator.cmod.container.ContainerManager(context);
+        String verName = profile.verName != null ? profile.verName.trim() : "";
+        String entryName = getEntryName(profile).trim();
+
+        for (com.winlator.cmod.container.Container container : containerManager.getContainers()) {
+            String cWine = container.getWineVersion();
+            if (cWine != null && !cWine.isEmpty()) {
+                cWine = cWine.trim();
+                if (cWine.equalsIgnoreCase(verName) || cWine.equalsIgnoreCase(entryName) || cWine.startsWith(verName) || (verName.startsWith(cWine) && !cWine.equals("proton-") && !cWine.equals("wine-"))) {
+                    return container.getName();
+                }
+            }
+        }
+        return null;
+    }
+
+    public void removeContent(ContentProfile profile) {
+        File installPath = getInstallDir(context, profile);
+        if (installPath.exists()) {
+            FileUtils.delete(installPath);
+        }
+        File optPath = new File(context.getFilesDir(), "imagefs/opt/" + profile.verName);
+        if (optPath.exists()) {
+            FileUtils.delete(optPath);
+        }
+        syncContents();
+    }
+
+    public List<ContentProfile.ContentFile> getUnTrustedContentFiles(ContentProfile profile) {
+        return new ArrayList<>();
+    }
+}

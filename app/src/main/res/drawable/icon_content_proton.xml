@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Proton: an atom. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group android:pivotX="12" android:pivotY="12" android:rotation="0">
+        <path
+            android:pathData="M12,3.5a3.6,8.5 0,1 0,0.01 0z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.6" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="60">
+        <path
+            android:pathData="M12,3.5a3.6,8.5 0,1 0,0.01 0z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.6" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="-60">
+        <path
+            android:pathData="M12,3.5a3.6,8.5 0,1 0,0.01 0z"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.6" />
+    </group>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,10.2a1.8,1.8 0,1 0,0.01 0z" />
+</vector>

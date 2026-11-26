@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/shortcuts_menu_search"
+        android:icon="@drawable/ic_nav_search"
+        android:title="@string/search"
+        app:actionViewClass="androidx.appcompat.widget.SearchView"
+        app:showAsAction="collapseActionView|ifRoom" />
+
+    <item
+        android:id="@+id/shortcuts_menu_import"
+        android:icon="@drawable/icon_action_bar_import"
+        android:title="Import Shortcut"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/shortcuts_menu_sort"
+        android:icon="@drawable/ic_sort"
+        android:title="@string/sort"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/shortcuts_menu_refresh"
+        android:icon="@drawable/ic_refresh"
+        android:title="@string/refresh"
+        app:showAsAction="ifRoom" />
+</menu>

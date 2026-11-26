@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FEXCore: a processor chip (x86 code run on ARM). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M6.5,6.5h11v11h-11z M9.75,9.75h4.5v4.5h-4.5z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M9.5,3v3.5 M12,3v3.5 M14.5,3v3.5 M9.5,17.5v3.5 M12,17.5v3.5 M14.5,17.5v3.5 M3,9.5h3.5 M3,12h3.5 M3,14.5h3.5 M17.5,9.5h3.5 M17.5,12h3.5 M17.5,14.5h3.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round" />
+</vector>

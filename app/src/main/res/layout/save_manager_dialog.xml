@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:id="@+id/LLActionPillRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="14dp">
+
+        <Button
+            android:id="@+id/BTRestoreSaves"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:background="@drawable/pill_button_background"
+            android:drawableStart="@drawable/icon_restore_backup"
+            android:drawablePadding="8dp"
+            android:text="Restore backup"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#3D82FF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="5dp" />
+
+        <Button
+            android:id="@+id/BTAddSaveFolder"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:background="@drawable/pill_button_background"
+            android:drawableStart="@drawable/ic_nav_add_folder"
+            android:drawableTint="#3D82FF"
+            android:drawablePadding="8dp"
+            android:text="Add folder"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#3D82FF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:gravity="center"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="5dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/TVSaveSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Save folders"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/BTToggleSelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="Select all"
+            android:textAllCaps="false"
+            android:textColor="#3D82FF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/SVSaveLocations"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:id="@+id/LLSaveLocations"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/TVSaveFooter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Backups are saved to Downloads/Winlator/Saves"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp"
+        android:paddingTop="10dp" />
+
+</LinearLayout>

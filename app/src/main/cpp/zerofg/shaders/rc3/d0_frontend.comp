@@ -1,0 +1,79 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D0 Frontend, mode 0 (pass-through): the RC1 pyramid. One source per dispatch (the host binds A or B).
+// Step 0 of the walking skeleton: the arithmetic is the RC1 pyramid's, operation for operation, so the
+// whole chain can be compared with RC1 bit for bit. Modes 1 and 2 (structure evidence, plane formats,
+// the QCOM luma plane) are added in later steps.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D source_image;
+layout(r8, binding = 1) uniform writeonly image2D pyramid_l0;
+layout(r8, binding = 2) uniform writeonly image2D pyramid_l1;
+layout(r8, binding = 3) uniform writeonly image2D pyramid_l2;
+
+layout(push_constant) uniform FrontendPush {
+  ivec2 source_extent;
+  ivec2 active_origin;
+  ivec2 active_extent;
+  ivec2 l0_extent;
+} pc;
+
+shared float l0_shared[64];
+
+vec3 SampleActive(vec2 source_pixel) {
+  vec2 lower = vec2(pc.active_origin) + vec2(0.5);
+  vec2 upper = vec2(pc.active_origin + pc.active_extent) - vec2(0.5);
+  vec2 safe_pixel = clamp(source_pixel, lower, upper);
+  return textureLod(source_image, safe_pixel / vec2(pc.source_extent), 0.0).rgb;
+}
+
+void main() {
+  ivec2 coordinate = ivec2(gl_GlobalInvocationID.xy);
+  ivec2 local_coordinate = ivec2(gl_LocalInvocationID.xy);
+  uint local_index = gl_LocalInvocationIndex;
+  bool valid = all(lessThan(coordinate, pc.l0_extent));
+
+  float intensity = 0.0;
+  if (valid) {
+    vec2 source_scale = vec2(pc.active_extent) / vec2(pc.l0_extent);
+    const float q[4] = float[4](0.125, 0.375, 0.625, 0.875);
+    vec3 rgb = vec3(0.0);
+    for (int y = 0; y < 4; ++y) {
+      for (int x = 0; x < 4; ++x) {
+        vec2 source_pixel = vec2(pc.active_origin) +
+            (vec2(coordinate) + vec2(q[x], q[y])) * source_scale;
+        rgb += SampleActive(source_pixel);
+      }
+    }
+    rgb *= 1.0 / 16.0;
+    intensity = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  }
+  l0_shared[local_index] = intensity;
+
+  // Every invocation reaches this barrier, including padded edge lanes.
+  barrier();
+
+  if (!valid) {
+    return;
+  }
+  imageStore(pyramid_l0, coordinate, vec4(intensity, 0.0, 0.0, 1.0));
+
+  if ((local_coordinate.x & 1) == 0 && (local_coordinate.y & 1) == 0) {
+    float sum = l0_shared[local_index] + l0_shared[local_index + 1] +
+        l0_shared[local_index + 8] + l0_shared[local_index + 9];
+    imageStore(pyramid_l1, coordinate / 2, vec4(sum * 0.25, 0.0, 0.0, 1.0));
+  }
+  if ((local_coordinate.x & 3) == 0 && (local_coordinate.y & 3) == 0) {
+    float sum = 0.0;
+    for (int y = 0; y < 4; ++y) {
+      for (int x = 0; x < 4; ++x) {
+        sum += l0_shared[local_index + uint(y * 8 + x)];
+      }
+    }
+    imageStore(pyramid_l2, coordinate / 4, vec4(sum * (1.0 / 16.0), 0.0, 0.0, 1.0));
+  }
+}

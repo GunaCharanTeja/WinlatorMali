@@ -1,0 +1,32 @@
+package com.winlator.cmod.fexcore;
+
+import androidx.annotation.NonNull;
+
+public class FEXCorePreset {
+    public static final String STABILITY = "STABILITY";
+    public static final String COMPATIBILITY = "COMPATIBILITY";
+    public static final String INTERMEDIATE = "INTERMEDIATE";
+    public static final String PERFORMANCE = "PERFORMANCE";
+    public static final String PERFORMANCE_X87_OFF = "PERFORMANCE_X87_OFF";
+    public static final String PERFORMANCE_TSO = "PERFORMANCE_TSO";
+    public static final String UNREAL_ENGINE_3 = "UNREAL_ENGINE_3";
+    public static final String DENUVO = "DENUVO";
+    public static final String CUSTOM = "CUSTOM";
+    public final String id;
+    public final String name;
+
+    public FEXCorePreset(String id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    public boolean isCustom() {
+        return id.startsWith(CUSTOM);
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        return name;
+    }
+}

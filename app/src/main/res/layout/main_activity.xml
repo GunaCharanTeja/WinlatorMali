@@ -6,6 +6,10 @@
     android:layout_height="match_parent"
     android:background="#0B0E14">
 
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
     <LinearLayout
         android:id="@+id/consoleRoot"
         android:layout_width="match_parent"
@@ -117,12 +121,15 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical"/>
         </HorizontalScrollView>
+    </LinearLayout>
+
         <FrameLayout
             android:id="@+id/FLFragmentContainer"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:visibility="gone"/>
-    </LinearLayout>
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:background="#0B0E14"/>
+    </FrameLayout>
 
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/NavigationView"

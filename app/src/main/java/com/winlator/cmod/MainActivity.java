@@ -56,6 +56,12 @@ import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.contents.ContentProfile;
+import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.core.WineInfo;
+import com.winlator.cmod.xenvironment.ImageFs;
+import org.json.JSONException;
+import org.json.JSONObject;
 import java.io.IOException;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.xenvironment.ImageFsInstaller;
@@ -228,6 +234,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
             }
         }
+        ensureConsoleContainer();
         NavigationView navigationView = findViewById(R.id.NavigationView);
         if (navigationView != null) {
             boolean forceShowAdreno = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("show_adrenotools_unsupported", false);
@@ -743,9 +750,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private static final String KEY_RESOLUTION = "resolution_hd";
     private static final String KEY_DXVK = "dxvk_1103";
     private static final String KEY_FPS = "fps_60";
-    private static final String KEY_TOUCH = "touch_controls";
     private static final String KEY_HUD = "hud_enabled";
     private static final String KEY_CPU_FULL = "cpu_full";
+    private boolean consoleContainerCreationPending = false;
     private void initializeConsoleLauncher() {
         View toolbar = findViewById(R.id.Toolbar); if (toolbar != null) toolbar.setVisibility(View.GONE);
         NavigationView nav = findViewById(R.id.NavigationView); if (nav != null) nav.setVisibility(View.GONE);
@@ -780,7 +787,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             int colon = documentId.indexOf(':');
             if (colon < 0) return null;
             String volume = documentId.substring(0, colon);
-            String relative = documentId.substring(colon + 1);
+            String relative = Uri.decode(documentId.substring(colon + 1));
             if ("primary".equalsIgnoreCase(volume))
                 return new File(Environment.getExternalStorageDirectory(), relative).getAbsolutePath();
             return new File("/storage/" + volume + "/" + relative).getAbsolutePath();
@@ -811,17 +818,75 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ((Button)findViewById(R.id.btnConsoleControls)).setText(p.getBoolean(KEY_HUD,true)?"HUD ON":"HUD OFF");
         ((Button)findViewById(R.id.btnConsoleCpu)).setText(p.getBoolean(KEY_CPU_FULL,false)?"Penuh (8 Core)":"Adem (4 Core)");
     }
+    private void ensureConsoleContainer() {
+        if (consoleContainerCreationPending) return;
+        if (containerManager == null) containerManager = new ContainerManager(this);
+        if (!containerManager.isInitialized() || !containerManager.getContainers().isEmpty()) return;
+        if (!ImageFs.find(this).isValid()) return;
+
+        ContentsManager contentsManager = new ContentsManager(this);
+        contentsManager.syncContents();
+
+        ContentProfile protonProfile = null;
+        for (ContentProfile profile : contentsManager.getInstalledProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
+            String versionName = profile != null && profile.verName != null
+                    ? profile.verName.toLowerCase(java.util.Locale.ROOT) : "";
+            if (versionName.contains("11.0-2")) {
+                protonProfile = profile;
+                break;
+            }
+        }
+        if (protonProfile == null) return;
+
+        String wineVersion = ContentsManager.getEntryName(protonProfile);
+        WineInfo wineInfo = WineInfo.fromIdentifier(this, contentsManager, wineVersion);
+        if (wineInfo.path == null || !new File(wineInfo.path).isDirectory()) {
+            android.util.Log.w("ConsoleLauncher", "Installed Proton 11.0-2 path is not available: " + wineInfo.path);
+            return;
+        }
+
+        try {
+            JSONObject data = new JSONObject();
+            data.put("name", "Naruto Storm Console");
+            data.put("wineVersion", wineVersion);
+            data.put("screenSize", Container.DEFAULT_SCREEN_SIZE);
+            data.put("graphicsDriver", "wrapper");
+            data.put("dxwrapper", "dxvk");
+            data.put("dxwrapperConfig", "version=1.11,framerate=0,async=0,asyncCache=0,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl,dxvkConfig=1");
+            data.put("drives", "D:" + Environment.getExternalStorageDirectory().getAbsolutePath());
+            data.put("cpuList", "4,5,6,7");
+            data.put("envVars", Container.DEFAULT_ENV_VARS + " DXVK_SHADER_COMPILATION_METHOD=dyasync");
+            data.put("emulator", Container.DEFAULT_EMULATOR);
+            data.put("audioDriver", Container.DEFAULT_AUDIO_DRIVER);
+            data.put("wincomponents", Container.DEFAULT_WINCOMPONENTS);
+            data.put("startupSelection", Container.STARTUP_SELECTION_ESSENTIAL);
+
+            consoleContainerCreationPending = true;
+            containerManager.createContainerAsync(data, contentsManager, container -> {
+                consoleContainerCreationPending = false;
+                if (container == null) {
+                    Toast.makeText(this, "Pembuatan Naruto Storm Console gagal. Periksa paket Proton 11.0-2 dan prefix pack-nya.", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Container Naruto Storm Console berhasil dibuat.", Toast.LENGTH_SHORT).show();
+                }
+            });
+        } catch (JSONException e) {
+            consoleContainerCreationPending = false;
+            android.util.Log.e("ConsoleLauncher", "Cannot prepare default container data", e);
+        }
+    }
+
     private void launchConsoleGame() {
         if(consoleGameFile==null||!consoleGameFile.exists()){scanConsoleGames();refreshConsoleUi();}
         if(consoleGameFile==null||!consoleGameFile.exists()){Toast.makeText(this,"Pilih file EXE terlebih dahulu",Toast.LENGTH_LONG).show();return;}
-        if(containerManager==null||containerManager.getContainers().isEmpty()){Toast.makeText(this,"Container belum tersedia",Toast.LENGTH_LONG).show();return;}
+        if(containerManager==null||containerManager.getContainers().isEmpty()){ensureConsoleContainer();Toast.makeText(this,"Container sedang disiapkan. Pastikan Proton 11.0-2 sudah terpasang, lalu tekan MAIN SEKARANG lagi.",Toast.LENGTH_LONG).show();return;}
         Container target=containerManager.getContainers().get(0);for(Container c:containerManager.getContainers())if("Naruto Storm Console".equals(c.getName())){target=c;break;}
         SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE);boolean hd=p.getBoolean(KEY_RESOLUTION,false),dx=p.getBoolean(KEY_DXVK,false),fps=p.getBoolean(KEY_FPS,false),hud=p.getBoolean(KEY_HUD,true);
         target.setScreenSize(hd?"1280x720":"960x544");target.setDXWrapper("dxvk");
         target.setCPUList(p.getBoolean(KEY_CPU_FULL,false)?"0,1,2,3,4,5,6,7":"4,5,6,7");
-        target.setDrives("F:"+Environment.getExternalStorageDirectory().getAbsolutePath()+"D:/storage/emulated/0");
+        target.setDrives("D:"+Environment.getExternalStorageDirectory().getAbsolutePath());
         target.setEnvVars(Container.DEFAULT_ENV_VARS.replace("DXVK_HUD=devinfo,fps,memory,gpuload,version,api",hud?"DXVK_HUD=devinfo,fps,memory,gpuload,version,api":"DXVK_HUD=0")+" DXVK_SHADER_COMPILATION_METHOD=dyasync");
-        target.setDXWrapperConfig("version="+(dx?"1.10.3":"1.11")+",framerate=0,async=0,asyncCache=0,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl,dxvkConfig=1");target.saveData();
+        target.setDXWrapperConfig("version="+(dx?"1.10.3-async":"1.11")+",framerate=0,async=0,asyncCache=0,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl,dxvkConfig=1");target.saveData();
         writeConsoleConf(new File(consoleGameFile.getParentFile(),"dxvk.conf"),fps?60:30);writeConsoleConf(new File(target.getRootDir(),".wine/dxvk.conf"),fps?60:30);updateStormIni(new File(consoleGameFile.getParentFile(),"NSUNSR.ini"),hd);
         Intent i=new Intent(this,XServerDisplayActivity.class);i.putExtra("container_id",target.id);i.putExtra("shortcut_path",consoleGameFile.getAbsolutePath());i.putExtra("shortcut_name",consoleGameFile.getName());i.putExtra("console_touch_controls",true);startActivity(i);
     }

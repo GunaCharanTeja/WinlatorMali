@@ -1,0 +1,22 @@
+﻿<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="300dp"
+    android:viewportWidth="200"
+    android:viewportHeight="300">
+    <!-- Dark Glass Container Background -->
+    <path
+        android:fillColor="#121824"
+        android:pathData="M0,0h200v300H0z" />
+    <!-- Diagonal Subtle Cyber Grid Lines -->
+    <path
+        android:fillColor="#182232"
+        android:pathData="M0,0L200,200v100H100L0,200z" />
+    <path
+        android:fillColor="#1E2B3E"
+        android:pathData="M40,0L200,160v40L80,0z" />
+    <!-- Center Gamepad Hologram Silhouette -->
+    <path
+        android:fillColor="?attr/colorAccent"
+        android:fillAlpha="0.6"
+        android:pathData="M142,128c-4.4,-9.2 -14.6,-16 -27,-16h-30c-12.4,0 -22.6,6.8 -27,16 -3,6.4 -4,14.6 -2.6,22.4 2,11.2 10.4,19.8 21.6,21.6 6.8,1 12.2,-1.6 16,-6l7,-8h10l7,8c3.8,4.4 9.2,7 16,6 11.2,-1.8 19.6,-10.4 21.6,-21.6 1.4,-7.8 0.4,-16 -2.6,-22.4zM90,144h-8v8h-6v-8h-8v-6h8v-8h6v8h8v6zm38,-4c-2.2,0 -4,-1.8 -4,-4s1.8,-4 4,-4 4,1.8 4,4 -1.8,4 -4,4zm14,14c-2.2,0 -4,-1.8 -4,-4s1.8,-4 4,-4 4,1.8 4,4 -1.8,4 -4,4z" />
+</vector>

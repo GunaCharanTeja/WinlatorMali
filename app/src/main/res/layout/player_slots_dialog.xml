@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="340dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbarStyle="outsideOverlay">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- ── Connected Controllers ── -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    style="@style/FieldSet"
+                    android:id="@+id/ControllersSection"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/TVNoControllers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No physical controllers detected.\nConnect a gamepad via USB or Bluetooth."
+                        android:textSize="12sp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:padding="4dp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <TextView
+                    style="@style/FieldSetLabel"
+                    android:text="Connected Controllers" />
+            </FrameLayout>
+
+            <!-- ── Per-Slot Settings ── -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    style="@style/FieldSet"
+                    android:id="@+id/SlotSettingsSection"
+                    android:orientation="vertical" />
+
+                <TextView
+                    style="@style/FieldSetLabel"
+                    android:text="Deadzone &amp; Vibration" />
+            </FrameLayout>
+
+            <Button
+                style="@style/ButtonNeutral"
+                android:id="@+id/BTTestVibration"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="12dp"
+                android:drawableStart="@drawable/icon_vibration"
+                android:drawablePadding="8dp"
+                android:gravity="center"
+                android:text="@string/test_vibration" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

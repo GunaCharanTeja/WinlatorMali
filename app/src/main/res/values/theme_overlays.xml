@@ -1,0 +1,620 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ===================================================== -->
+    <!-- DARK THEME OVERLAYS                                   -->
+    <!-- ===================================================== -->
+
+    <!-- Default Winlator / Dark Glass (Dark) -->
+    <style name="ThemePreset_DarkGlass">
+        <item name="android:windowBackground">#FF121212</item>
+        <item name="android:colorBackground">#FF121212</item>
+        <item name="colorPrimary">#FF2A2A2A</item>
+        <item name="colorPrimaryDark">#FF1E1E1E</item>
+        <item name="colorAccent">#FF0288D1</item>
+        <item name="gamingSurfaceColor">#FF1E1E1E</item>
+        <item name="gamingToolbarColor">#FF2A2A2A</item>
+        <item name="gamingPopupColor">#FF252525</item>
+        <item name="semanticSurface">#FF1E1E1E</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF2A2A2A</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF383838</item>
+        <item name="semanticAccentDim">#FF014B73</item>
+        <item name="semanticSurfaceContainer">#FF252525</item>
+    </style>
+
+    <!-- Crimson Dusk (Dark) -->
+    <style name="ThemePreset_CrimsonDusk">
+        <item name="android:windowBackground">#FF181A2F</item>
+        <item name="android:colorBackground">#FF181A2F</item>
+        <item name="colorPrimary">#FF37415C</item>
+        <item name="colorPrimaryDark">#FF242E49</item>
+        <item name="colorAccent">#FFC85464</item>
+        <item name="gamingSurfaceColor">#FF242E49</item>
+        <item name="gamingToolbarColor">#FF37415C</item>
+        <item name="gamingPopupColor">#FF2D3751</item>
+        <item name="semanticSurface">#FF242E49</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF37415C</item>
+        <item name="semanticOnSurfaceVariant">#FFADADAD</item>
+        <item name="semanticDivider">#FF4F4F4F</item>
+        <item name="semanticAccentDim">#FF510B14</item>
+        <item name="semanticSurfaceContainer">#FF2D3751</item>
+    </style>
+
+    <!-- Mauve Ash (Dark) -->
+    <style name="ThemePreset_MauveAsh">
+        <item name="android:windowBackground">#FF30333A</item>
+        <item name="android:colorBackground">#FF30333A</item>
+        <item name="colorPrimary">#FF72676F</item>
+        <item name="colorPrimaryDark">#FF51403D</item>
+        <item name="colorAccent">#FFB79D9B</item>
+        <item name="gamingSurfaceColor">#FF51403D</item>
+        <item name="gamingToolbarColor">#FF72676F</item>
+        <item name="gamingPopupColor">#FF584845</item>
+        <item name="semanticSurface">#FF51403D</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF72676F</item>
+        <item name="semanticOnSurfaceVariant">#FFEBEBEB</item>
+        <item name="semanticDivider">#FF626262</item>
+        <item name="semanticAccentDim">#FF524746</item>
+        <item name="semanticSurfaceContainer">#FF584845</item>
+    </style>
+
+    <!-- Violet Cream (Dark) -->
+    <style name="ThemePreset_VioletCream">
+        <item name="android:windowBackground">#FF190019</item>
+        <item name="android:colorBackground">#FF190019</item>
+        <item name="colorPrimary">#FF522B5B</item>
+        <item name="colorPrimaryDark">#FF2B124C</item>
+        <item name="colorAccent">#FF8F5D78</item>
+        <item name="gamingSurfaceColor">#FF2B124C</item>
+        <item name="gamingToolbarColor">#FF522B5B</item>
+        <item name="gamingPopupColor">#FF341C53</item>
+        <item name="semanticSurface">#FF2B124C</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF522B5B</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF444444</item>
+        <item name="semanticAccentDim">#FF3C2431</item>
+        <item name="semanticSurfaceContainer">#FF341C53</item>
+    </style>
+
+    <!-- Dusk Coral (Dark) -->
+    <style name="ThemePreset_DuskCoral">
+        <item name="android:windowBackground">#FF2E365A</item>
+        <item name="android:colorBackground">#FF2E365A</item>
+        <item name="colorPrimary">#FF6B597F</item>
+        <item name="colorPrimaryDark">#FF3F5B8D</item>
+        <item name="colorAccent">#FFD5A1A5</item>
+        <item name="gamingSurfaceColor">#FF3F5B8D</item>
+        <item name="gamingToolbarColor">#FF6B597F</item>
+        <item name="gamingPopupColor">#FF476291</item>
+        <item name="semanticSurface">#FF3F5B8D</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF6B597F</item>
+        <item name="semanticOnSurfaceVariant">#FFDBDBDB</item>
+        <item name="semanticDivider">#FF7D7D7D</item>
+        <item name="semanticAccentDim">#FF553134</item>
+        <item name="semanticSurfaceContainer">#FF476291</item>
+    </style>
+
+    <!-- Navy Blush (Dark) -->
+    <style name="ThemePreset_NavyBlush">
+        <item name="android:windowBackground">#FF221820</item>
+        <item name="android:colorBackground">#FF221820</item>
+        <item name="colorPrimary">#FF45141B</item>
+        <item name="colorPrimaryDark">#FF262F45</item>
+        <item name="colorAccent">#FFFE8492</item>
+        <item name="gamingSurfaceColor">#FF262F45</item>
+        <item name="gamingToolbarColor">#FF45141B</item>
+        <item name="gamingPopupColor">#FF2F384D</item>
+        <item name="semanticSurface">#FF262F45</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF45141B</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF4F4F4F</item>
+        <item name="semanticAccentDim">#FF723B42</item>
+        <item name="semanticSurfaceContainer">#FF2F384D</item>
+    </style>
+
+    <!-- Twilight Rose (Dark) -->
+    <style name="ThemePreset_TwilightRose">
+        <item name="android:windowBackground">#FF0E1F2F</item>
+        <item name="android:colorBackground">#FF0E1F2F</item>
+        <item name="colorPrimary">#FF555975</item>
+        <item name="colorPrimaryDark">#FF26425A</item>
+        <item name="colorAccent">#FFC38EB4</item>
+        <item name="gamingSurfaceColor">#FF26425A</item>
+        <item name="gamingToolbarColor">#FF555975</item>
+        <item name="gamingPopupColor">#FF2F4A61</item>
+        <item name="semanticSurface">#FF26425A</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF555975</item>
+        <item name="semanticOnSurfaceVariant">#FFD3D3D3</item>
+        <item name="semanticDivider">#FF5F5F5F</item>
+        <item name="semanticAccentDim">#FF584051</item>
+        <item name="semanticSurfaceContainer">#FF2F4A61</item>
+    </style>
+
+    <!-- Rust Pine (Dark) -->
+    <style name="ThemePreset_RustPine">
+        <item name="android:windowBackground">#FF12232A</item>
+        <item name="android:colorBackground">#FF12232A</item>
+        <item name="colorPrimary">#FF545748</item>
+        <item name="colorPrimaryDark">#FF2F3A32</item>
+        <item name="colorAccent">#FFDB9F75</item>
+        <item name="gamingSurfaceColor">#FF2F3A32</item>
+        <item name="gamingToolbarColor">#FF545748</item>
+        <item name="gamingPopupColor">#FF38423B</item>
+        <item name="semanticSurface">#FF2F3A32</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF545748</item>
+        <item name="semanticOnSurfaceVariant">#FFCACACA</item>
+        <item name="semanticDivider">#FF575757</item>
+        <item name="semanticAccentDim">#FF634835</item>
+        <item name="semanticSurfaceContainer">#FF38423B</item>
+    </style>
+
+    <!-- Grape Sunset (Dark) -->
+    <style name="ThemePreset_GrapeSunset">
+        <item name="android:windowBackground">#FF1D1A39</item>
+        <item name="android:colorBackground">#FF1D1A39</item>
+        <item name="colorPrimary">#FF662549</item>
+        <item name="colorPrimaryDark">#FF451952</item>
+        <item name="colorAccent">#FFF39F5A</item>
+        <item name="gamingSurfaceColor">#FF451952</item>
+        <item name="gamingToolbarColor">#FF662549</item>
+        <item name="gamingPopupColor">#FF4D2359</item>
+        <item name="semanticSurface">#FF451952</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF662549</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF4F4F4F</item>
+        <item name="semanticAccentDim">#FF6D4829</item>
+        <item name="semanticSurfaceContainer">#FF4D2359</item>
+    </style>
+
+    <!-- Emerald Depth (Dark) -->
+    <style name="ThemePreset_EmeraldDepth">
+        <item name="android:windowBackground">#FF051F20</item>
+        <item name="android:colorBackground">#FF051F20</item>
+        <item name="colorPrimary">#FF163832</item>
+        <item name="colorPrimaryDark">#FF0B2B26</item>
+        <item name="colorAccent">#FF8EB69B</item>
+        <item name="gamingSurfaceColor">#FF0B2B26</item>
+        <item name="gamingToolbarColor">#FF163832</item>
+        <item name="gamingPopupColor">#FF16342F</item>
+        <item name="semanticSurface">#FF0B2B26</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF163832</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF484848</item>
+        <item name="semanticAccentDim">#FF405246</item>
+        <item name="semanticSurfaceContainer">#FF16342F</item>
+    </style>
+
+    <!-- Berry Pink (Dark) -->
+    <style name="ThemePreset_BerryPink">
+        <item name="android:windowBackground">#FF450714</item>
+        <item name="android:colorBackground">#FF450714</item>
+        <item name="colorPrimary">#FF9B1E42</item>
+        <item name="colorPrimaryDark">#FF851636</item>
+        <item name="colorAccent">#FFDC6B8C</item>
+        <item name="gamingSurfaceColor">#FF851636</item>
+        <item name="gamingToolbarColor">#FF9B1E42</item>
+        <item name="gamingPopupColor">#FF8A203F</item>
+        <item name="semanticSurface">#FF851636</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF9B1E42</item>
+        <item name="semanticOnSurfaceVariant">#FFC4C4C4</item>
+        <item name="semanticDivider">#FF666666</item>
+        <item name="semanticAccentDim">#FF5D172B</item>
+        <item name="semanticSurfaceContainer">#FF8A203F</item>
+    </style>
+
+    <!-- Ocean Ice (Dark) -->
+    <style name="ThemePreset_OceanIce">
+        <item name="android:windowBackground">#FF021024</item>
+        <item name="android:colorBackground">#FF021024</item>
+        <item name="colorPrimary">#FF1D4274</item>
+        <item name="colorPrimaryDark">#FF052659</item>
+        <item name="colorAccent">#FF5483B3</item>
+        <item name="gamingSurfaceColor">#FF052659</item>
+        <item name="gamingToolbarColor">#FF1D4274</item>
+        <item name="gamingPopupColor">#FF102F60</item>
+        <item name="semanticSurface">#FF052659</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF1D4274</item>
+        <item name="semanticOnSurfaceVariant">#FFAFAFAF</item>
+        <item name="semanticDivider">#FF484848</item>
+        <item name="semanticAccentDim">#FF263B51</item>
+        <item name="semanticSurfaceContainer">#FF102F60</item>
+    </style>
+
+    <!-- Peach Maroon (Dark) -->
+    <style name="ThemePreset_PeachMaroon">
+        <item name="android:windowBackground">#FF4C1D3D</item>
+        <item name="android:colorBackground">#FF4C1D3D</item>
+        <item name="colorPrimary">#FFA33757</item>
+        <item name="colorPrimaryDark">#FF852E4E</item>
+        <item name="colorAccent">#FFE47D8D</item>
+        <item name="gamingSurfaceColor">#FF852E4E</item>
+        <item name="gamingToolbarColor">#FFA33757</item>
+        <item name="gamingPopupColor">#FF8A3755</item>
+        <item name="semanticSurface">#FF852E4E</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FFA33757</item>
+        <item name="semanticOnSurfaceVariant">#FFD8D8D8</item>
+        <item name="semanticDivider">#FF6E6E6E</item>
+        <item name="semanticAccentDim">#FF632831</item>
+        <item name="semanticSurfaceContainer">#FF8A3755</item>
+    </style>
+
+    <!-- Cyberpunk (Dark) -->
+    <style name="ThemePreset_Cyberpunk">
+        <item name="android:windowBackground">#FF0D0221</item>
+        <item name="android:colorBackground">#FF0D0221</item>
+        <item name="colorPrimary">#FF261447</item>
+        <item name="colorPrimaryDark">#FF190933</item>
+        <item name="colorAccent">#FFFF0055</item>
+        <item name="gamingSurfaceColor">#FF190933</item>
+        <item name="gamingToolbarColor">#FF261447</item>
+        <item name="gamingPopupColor">#FF200D3E</item>
+        <item name="semanticSurface">#FF190933</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF261447</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF4F1B6B</item>
+        <item name="semanticAccentDim">#FF730026</item>
+        <item name="semanticSurfaceContainer">#FF200D3E</item>
+    </style>
+
+    <!-- Obsidian OLED (Dark) -->
+    <style name="ThemePreset_ObsidianOLED">
+        <item name="android:windowBackground">#FF000000</item>
+        <item name="android:colorBackground">#FF000000</item>
+        <item name="colorPrimary">#FF1A1A1A</item>
+        <item name="colorPrimaryDark">#FF101010</item>
+        <item name="colorAccent">#FF3D5AFE</item>
+        <item name="gamingSurfaceColor">#FF101010</item>
+        <item name="gamingToolbarColor">#FF1A1A1A</item>
+        <item name="gamingPopupColor">#FF141414</item>
+        <item name="semanticSurface">#FF101010</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF1A1A1A</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF2B2B2B</item>
+        <item name="semanticAccentDim">#FF1B2872</item>
+        <item name="semanticSurfaceContainer">#FF141414</item>
+    </style>
+
+
+    <!-- ===================================================== -->
+    <!-- LIGHT THEME OVERLAYS                                  -->
+    <!-- ===================================================== -->
+
+    <!-- Default Winlator / Dark Glass (Light) -->
+    <style name="ThemePreset_DarkGlass_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF607D8B</item>
+        <item name="colorPrimaryDark">#FF455A64</item>
+        <item name="colorAccent">#FF0288D1</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF607D8B</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B30288D1</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Crimson Dusk (Light) -->
+    <style name="ThemePreset_CrimsonDusk_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FFB4182D</item>
+        <item name="colorPrimaryDark">#FF8E1324</item>
+        <item name="colorAccent">#FFB4182D</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FFB4182D</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3B4182D</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Mauve Ash (Light) -->
+    <style name="ThemePreset_MauveAsh_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF72676F</item>
+        <item name="colorPrimaryDark">#FF51403D</item>
+        <item name="colorAccent">#FF8D7B7A</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF72676F</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B38D7B7A</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Violet Cream (Light) -->
+    <style name="ThemePreset_VioletCream_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF522B5B</item>
+        <item name="colorPrimaryDark">#FF2B124C</item>
+        <item name="colorAccent">#FF854F6C</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF522B5B</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3854F6C</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Dusk Coral (Light) -->
+    <style name="ThemePreset_DuskCoral_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF3F5B8D</item>
+        <item name="colorPrimaryDark">#FF2E365A</item>
+        <item name="colorAccent">#FFBD6C73</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF3F5B8D</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3BD6C73</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Navy Blush (Light) -->
+    <style name="ThemePreset_NavyBlush_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF262F45</item>
+        <item name="colorPrimaryDark">#FF221820</item>
+        <item name="colorAccent">#FFE05364</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF262F45</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3E05364</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Twilight Rose (Light) -->
+    <style name="ThemePreset_TwilightRose_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF26425A</item>
+        <item name="colorPrimaryDark">#FF0E1F2F</item>
+        <item name="colorAccent">#FFA35E92</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF26425A</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3A35E92</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Rust Pine (Light) -->
+    <style name="ThemePreset_RustPine_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF2F3A32</item>
+        <item name="colorPrimaryDark">#FF12232A</item>
+        <item name="colorAccent">#FFC07743</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF2F3A32</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3C07743</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Grape Sunset (Light) -->
+    <style name="ThemePreset_GrapeSunset_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF451952</item>
+        <item name="colorPrimaryDark">#FF1D1A39</item>
+        <item name="colorAccent">#FFE07B28</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF451952</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3E07B28</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Emerald Depth (Light) -->
+    <style name="ThemePreset_EmeraldDepth_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF163832</item>
+        <item name="colorPrimaryDark">#FF0B2B26</item>
+        <item name="colorAccent">#FF2E7D32</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF163832</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B32E7D32</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Berry Pink (Light) -->
+    <style name="ThemePreset_BerryPink_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF851636</item>
+        <item name="colorPrimaryDark">#FF450714</item>
+        <item name="colorAccent">#FFB51B44</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF851636</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3B51B44</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Ocean Ice (Light) -->
+    <style name="ThemePreset_OceanIce_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF052659</item>
+        <item name="colorPrimaryDark">#FF021024</item>
+        <item name="colorAccent">#FF0288D1</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF052659</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B30288D1</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Peach Maroon (Light) -->
+    <style name="ThemePreset_PeachMaroon_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF852E4E</item>
+        <item name="colorPrimaryDark">#FF4C1D3D</item>
+        <item name="colorAccent">#FFC43A51</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF852E4E</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3C43A51</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Cyberpunk (Light) -->
+    <style name="ThemePreset_Cyberpunk_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF261447</item>
+        <item name="colorPrimaryDark">#FF0D0221</item>
+        <item name="colorAccent">#FFE6004C</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF261447</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B3E6004C</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Obsidian OLED (Light) -->
+    <style name="ThemePreset_ObsidianOLED_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF212121</item>
+        <item name="colorPrimaryDark">#FF000000</item>
+        <item name="colorAccent">#FF2979FF</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF212121</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticAccentDim">#B32979FF</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+    <!-- Custom (Dark) -->
+    <style name="ThemePreset_Custom_Dark">
+        <item name="android:windowBackground">#FF121212</item>
+        <item name="android:colorBackground">#FF121212</item>
+        <item name="colorPrimary">#FF2A2A2A</item>
+        <item name="colorPrimaryDark">#FF1E1E1E</item>
+        <item name="colorAccent">#FF0288D1</item>
+        <item name="gamingSurfaceColor">#FF1E1E1E</item>
+        <item name="gamingToolbarColor">#FF2A2A2A</item>
+        <item name="gamingPopupColor">#FF252525</item>
+        <item name="semanticSurface">#FF1E1E1E</item>
+        <item name="semanticOnSurface">#FFE0E0E0</item>
+        <item name="semanticSurfaceVariant">#FF2A2A2A</item>
+        <item name="semanticOnSurfaceVariant">#FFAAAAAA</item>
+        <item name="semanticDivider">#FF383838</item>
+        <item name="semanticAccentDim">#FF014B73</item>
+        <item name="semanticSurfaceContainer">#FF252525</item>
+    </style>
+
+    <!-- Custom (Light) -->
+    <style name="ThemePreset_Custom_Light">
+        <item name="android:windowBackground">#FFFAFAFA</item>
+        <item name="android:colorBackground">#FFFAFAFA</item>
+        <item name="colorPrimary">#FF607D8B</item>
+        <item name="colorPrimaryDark">#FF455A64</item>
+        <item name="colorAccent">#FF0288D1</item>
+        <item name="gamingSurfaceColor">#FFFFFFFF</item>
+        <item name="gamingToolbarColor">#FF607D8B</item>
+        <item name="gamingPopupColor">#FFF0F0F0</item>
+        <item name="semanticSurface">#FFFFFFFF</item>
+        <item name="semanticOnSurface">#FF121212</item>
+        <item name="semanticSurfaceVariant">#FFF0F0F0</item>
+        <item name="semanticOnSurfaceVariant">#FF424242</item>
+        <item name="semanticDivider">#FFE0E0E0</item>
+        <item name="semanticAccentDim">#B30288D1</item>
+        <item name="semanticSurfaceContainer">#FFF8F9FA</item>
+    </style>
+
+</resources>

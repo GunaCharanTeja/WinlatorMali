@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- Player color LED dot -->
+    <View
+        android:id="@+id/LedDot"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:background="#666666" />
+
+    <!-- Controller name -->
+    <TextView
+        android:id="@+id/TVControllerName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
+        android:textSize="13sp"
+        android:ellipsize="end"
+        android:maxLines="1" />
+
+    <!-- Slot selector -->
+    <Spinner
+        android:id="@+id/SlotSpinner"
+        style="@style/ComboBox"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:spinnerMode="dropdown" />
+
+</LinearLayout>

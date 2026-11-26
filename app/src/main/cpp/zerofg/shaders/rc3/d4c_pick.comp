@@ -1,0 +1,84 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D4c, stage 3 of 3: the best offset of each peak and its sub-pixel part, written as the two global
+// translation hypotheses (x, y, cost, valid) the fine stage tests as candidates. One 64-lane workgroup.
+// The order is the RC1 one: lowest cost, then the shorter offset, then the direction.
+#define CAM_WORK_BINDING 0
+#include "rc3_common.glsl"
+#include "d4c_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+
+layout(local_size_x = 64, local_size_y = 1) in;
+
+shared int reduce_cost[64];
+shared int reduce_k[64];
+
+ivec2 OffsetOf(int k) {
+  return ivec2(k % kCamSide - kCamRadius, k / kCamSide - kCamRadius);
+}
+
+bool Better(int cost, int k, int reference_cost, int reference_k) {
+  ivec2 v = OffsetOf(k), q = OffsetOf(reference_k);
+  int r2 = v.x * v.x + v.y * v.y;
+  int q2 = q.x * q.x + q.y * q.y;
+  return cost < reference_cost ||
+      (cost == reference_cost && (r2 < q2 || (r2 == q2 && DirectionLess(v, q))));
+}
+
+void main() {
+  uint lane = gl_LocalInvocationIndex;
+  for (int peak = 0; peak < 2; ++peak) {
+    vec4 record = camera[2 + peak];
+    if (record.w < 0.5) {
+      if (lane == 0u) {
+        camera[peak] = vec4(0.0);
+      }
+      continue;
+    }
+    int base = peak * kCamWindow;
+    int best_k = int(lane);
+    int best_cost = window_cost[base + best_k];
+    for (int k = int(lane) + 64; k < kCamWindow; k += 64) {
+      if (Better(window_cost[base + k], k, best_cost, best_k)) {
+        best_cost = window_cost[base + k];
+        best_k = k;
+      }
+    }
+    reduce_cost[lane] = best_cost;
+    reduce_k[lane] = best_k;
+    for (uint stride = 32u; stride > 0u; stride >>= 1u) {
+      barrier();
+      if (lane < stride) {
+        if (Better(reduce_cost[lane + stride], reduce_k[lane + stride], reduce_cost[lane],
+                   reduce_k[lane])) {
+          reduce_cost[lane] = reduce_cost[lane + stride];
+          reduce_k[lane] = reduce_k[lane + stride];
+        }
+      }
+    }
+    barrier();
+    if (lane == 0u) {
+      int k = reduce_k[0];
+      int cost = reduce_cost[0];
+      ivec2 offset = OffsetOf(k);
+      vec2 subpixel = vec2(0.0);
+      if (abs(offset.x) < kCamRadius && abs(offset.y) < kCamRadius && cost > 0) {
+        float dxm = float(window_cost[base + k - 1] - cost), dxp = float(window_cost[base + k + 1] - cost);
+        if (dxm > 0.0 && dxp > 0.0) {
+          float raw = 0.5 * (dxm - dxp) / (dxm + dxp);
+          subpixel.x = abs(raw) > 0.5001 ? 0.0 : clamp(raw, -0.5, 0.5);
+        }
+        float dym = float(window_cost[base + k - kCamSide] - cost);
+        float dyp = float(window_cost[base + k + kCamSide] - cost);
+        if (dym > 0.0 && dyp > 0.0) {
+          float raw = 0.5 * (dym - dyp) / (dym + dyp);
+          subpixel.y = abs(raw) > 0.5001 ? 0.0 : clamp(raw, -0.5, 0.5);
+        }
+      }
+      camera[peak] = vec4(record.xy + vec2(offset) + subpixel,
+                          float(cost) * (1.0 / float(kCamOutside * kCamSamples)), 1.0);
+    }
+    barrier();
+  }
+}

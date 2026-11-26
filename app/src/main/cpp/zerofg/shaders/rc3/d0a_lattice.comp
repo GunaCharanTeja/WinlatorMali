@@ -1,0 +1,56 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+// D0a Frontend, the A luma only where the fine stage reads it. The fine stage (D4) reads A at a fixed set of points per cell: cell origin
+// + 1 + stride * k for k = 0 .. samples - 1 on each axis (stride = ceil(cell / samples)). So A needs no full-resolution plane: this pass
+// writes, as small R8 images, one samples x samples BLOCK per cell (the M level, and the L1 level when it is used) and the 256 camera
+// sample points, with the SAME luma expression and 8-bit store as the full plane of D0b (SourceLuma): every value D4 and D4c read is word
+// for word the one the plane would hold. Nothing needs the cells to tile a regular lattice, so it holds at any resolution (30 px cells at
+// 1080p, stride 8). B keeps its plane: the candidate vectors move its sample points anywhere.
+#include "rc3_common.glsl"
+
+layout(constant_id = 0) const int ZFG_MODE = 0;
+layout(constant_id = 9) const int ZFG_PHOTO = 0;  // 1 = A's luma is mapped onto B's exposure (d0p_photo.comp)
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D source_image;
+layout(r8, binding = 1) uniform writeonly image2D block_out;     // the M level: (cells * samples) per axis
+layout(r8, binding = 2) uniform writeonly image2D block_out_l1;  // the L1 level (when used)
+layout(r8, binding = 3) uniform writeonly image2D camera_out;
+layout(std430, binding = 4) readonly buffer Photo {
+  vec4 photo;
+};
+
+// A's luma at a point, at B's exposure when the photometric estimate found a change (the identity otherwise: the same value).
+float LumaA(ivec2 p) {
+  float luma = SourceLuma(source_image, p);
+  return ZFG_PHOTO != 0 ? PhotoNormalize(luma, photo) : luma;
+}
+
+layout(push_constant) uniform LatticePush {
+  ivec2 extent;        // the source
+  ivec2 block_extent;  // M: cells * samples
+  ivec2 cell;          // M cell size in source pixels
+  ivec2 block_extent_l1;  // L1: cells * samples (0 = not used)
+  ivec2 cell_l1;
+  int stride;
+  int stride_l1;
+  int samples;
+} pc;
+
+void main() {
+  ivec2 g = ivec2(gl_GlobalInvocationID.xy);
+  if (all(lessThan(g, pc.block_extent))) {
+    ivec2 p = min((g / pc.samples) * pc.cell + ivec2(1) + (g % pc.samples) * pc.stride, pc.extent - ivec2(1));
+    imageStore(block_out, g, vec4(LumaA(p), 0.0, 0.0, 1.0));
+  }
+  if (all(lessThan(g, pc.block_extent_l1))) {
+    ivec2 p = min((g / pc.samples) * pc.cell_l1 + ivec2(1) + (g % pc.samples) * pc.stride_l1, pc.extent - ivec2(1));
+    imageStore(block_out_l1, g, vec4(LumaA(p), 0.0, 0.0, 1.0));
+  }
+  // The camera sample points travel in the first row of threads.
+  if (g.y == 0 && g.x < kCamSamples) {
+    imageStore(camera_out, ivec2(g.x, 0),
+               vec4(LumaA(CameraSamplePoint(g.x, pc.extent)), 0.0, 0.0, 1.0));
+  }
+}

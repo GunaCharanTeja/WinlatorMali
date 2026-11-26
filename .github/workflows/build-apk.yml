@@ -1,0 +1,103 @@
+name: Naruto Storm Mali APK Build
+
+on:
+  push:
+    branches:
+      - naruto-strom-mali
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: naruto-strom-mali-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install project-matched SDK, NDK and CMake
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;35.0.0" "cmake;3.22.1" "ndk;29.0.14206865"
+
+      - name: Generate release signing key (ephemeral)
+        run: |
+          mkdir -p app
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          keytool -genkeypair -v -keystore "app/release.keystore" -alias winlator_mali -keyalg RSA -keysize 2048 -validity 10000 -storepass "$STORE_PASSWORD" -keypass "$STORE_PASSWORD" -dname "CN=Winlator Mali, OU=Build, O=Winlator, L=CI, S=CI, C=US"
+          echo "RELEASE_KEYSTORE_FILE=$GITHUB_WORKSPACE/app/release.keystore" >> "$GITHUB_ENV"
+          echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_ALIAS=winlator_mali" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd xz-utils
+
+      - name: Download and safely slim imagefs archive
+        run: |
+          set -euo pipefail
+          ASSET_DIR="app/src/main/assets"
+          mkdir -p "$ASSET_DIR"
+          mapfile -t IMAGEFS_FILES < <(find "$ASSET_DIR" -maxdepth 1 -type f -name 'imagefs*' -print | sort)
+          if [ "${#IMAGEFS_FILES[@]}" -eq 0 ]; then
+            IMAGEFS="$ASSET_DIR/imagefs.tzst"
+            curl --fail --location --retry 3 --retry-delay 2 \
+              "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/imagefs.tzst" \
+              --output "$IMAGEFS"
+            IMAGEFS_FILES=("$IMAGEFS")
+          fi
+          for IMAGEFS in "${IMAGEFS_FILES[@]}"; do
+            test -s "$IMAGEFS"
+            TMP="$(mktemp -d)"
+            OUT="$(mktemp -d)"
+            tar -xf "$IMAGEFS" -C "$TMP"
+            ROOT="$TMP"
+            # Remove only documentation, manuals, headers and non-English locales.
+            rm -rf "$ROOT/usr/share/doc" "$ROOT/usr/share/man" "$ROOT/usr/include"
+            if [ -d "$ROOT/usr/share/locale" ]; then
+              find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 \
+                ! -name 'en*' -exec rm -rf -- {} +
+            fi
+            # Keep symlinks and executable modes; use numeric ownership.
+            case "$IMAGEFS" in
+              *.tzst|*.zst) tar --numeric-owner --zstd -cf "$OUT/slim" -C "$ROOT" . ;;
+              *.xz|*.txz) tar --numeric-owner -Jcf "$OUT/slim" -C "$ROOT" . ;;
+              *) tar --numeric-owner -cf "$OUT/slim" -C "$ROOT" . ;;
+            esac
+            mv "$OUT/slim" "$IMAGEFS"
+            test -s "$IMAGEFS"
+            echo "Slimmed $IMAGEFS: $(du -h "$IMAGEFS" | cut -f1)"
+            rm -rf "$TMP" "$OUT"
+          done
+
+      - name: Build standard release APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleStandardRelease --no-daemon --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: naruto-strom-mali-release-apk
+          path: app/build/outputs/apk/standard/release/*.apk
+          if-no-files-found: error
+          retention-days: 14

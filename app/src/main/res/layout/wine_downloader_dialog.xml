@@ -1,0 +1,133 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <!-- Subtitle -->
+    <TextView
+        android:id="@+id/TVWineDownloaderSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select a Content Source to download Wine or Proton runtimes:"
+        android:textSize="13sp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Content Source Selector Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="10dp">
+
+        <Spinner
+            android:id="@+id/SCatalogSource"
+            style="@style/ComboBox"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/BTRefreshSources"
+            style="@style/ToolButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_refresh"
+            app:tint="?attr/colorAccent"
+            android:contentDescription="Refresh Content Source" />
+    </LinearLayout>
+
+    <!-- Wine/Proton List Container -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="270dp">
+
+        <ProgressBar
+            android:id="@+id/PBSourcesLoading"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/TVEmptyList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:text="No Wine or Proton runtimes found in this source."
+            android:textSize="13sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:visibility="gone" />
+
+        <ListView
+            android:id="@+id/LVWineList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@drawable/content_dialog_divider"
+            android:dividerHeight="1dp"
+            android:scrollbars="vertical" />
+    </FrameLayout>
+
+    <!-- Live Download Progress Panel -->
+    <LinearLayout
+        android:id="@+id/LLDownloadProgressPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bordered_panel_dark"
+        android:padding="12dp"
+        android:layout_marginTop="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/TVProgressTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Downloading Wine runtime..."
+            android:textStyle="bold"
+            android:textSize="13sp"
+            android:textColor="?attr/colorAccent"
+            android:layout_marginBottom="6dp" />
+
+        <ProgressBar
+            android:id="@+id/PBDownload"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/custom_progress_bar"
+            android:layout_marginBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/TVProgressStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Downloading: 0 MB / 0 MB"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <TextView
+                android:id="@+id/TVProgressPercent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0%"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:textColor="?attr/colorAccent" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

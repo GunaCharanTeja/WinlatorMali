@@ -1,0 +1,985 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Modern Top Category Tabs -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/TabLayout"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/tab_layout_background"
+            app:tabGravity="fill"
+            app:tabMode="scrollable"
+            app:tabIndicatorColor="?attr/colorAccent"
+            app:tabIndicatorHeight="3dp"
+            app:tabIndicatorFullWidth="false"
+            app:tabTextColor="?attr/semanticOnSurface"
+            app:tabSelectedTextColor="?attr/semanticOnSurface">
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Appearance" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Emulation" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Input &amp; Display" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Storage &amp; Audio" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Performance" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Advanced" />
+        </com.google.android.material.tabs.TabLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- ========================================================= -->
+                <!-- TAB 1: APPEARANCE & THEMES                                -->
+                <!-- ========================================================= -->
+                <LinearLayout
+                    android:id="@+id/LLTabAppearance"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="visible">
+
+                    <TextView
+                        android:id="@+id/TVTheme"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Theme &amp; Colors"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <LinearLayout
+                            android:id="@+id/LLThemePreset"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Active Color Palette"
+                                android:textStyle="bold"
+                                android:textSize="13sp"
+                                android:textColor="?android:attr/textColorSecondary"
+                                android:layout_marginBottom="6dp" />
+
+                            <Spinner
+                                android:id="@+id/SThemePreset"
+                                style="@style/ComboBox"
+                                android:layout_width="match_parent"
+                                android:layout_height="42dp"
+                                android:spinnerMode="dropdown" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/LLCustomTheme"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Custom Palette Editor"
+                                android:textSize="14sp" />
+
+                            <ImageButton
+                                android:id="@+id/BTCustomizeTheme"
+                                style="@style/ToolButton"
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:src="@drawable/icon_popup_menu_settings"
+                                android:contentDescription="Customize Colors" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ========================================================= -->
+                <!-- TAB 2: EMULATION (BOX64 & FEXCORE)                        -->
+                <!-- ========================================================= -->
+                <LinearLayout
+                    android:id="@+id/LLTabEmulation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- Box64 Section -->
+                    <TextView
+                        android:id="@+id/TVBox64"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/box64"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/box64_preset"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginBottom="6dp" />
+
+                        <Spinner
+                            style="@style/ComboBox"
+                            android:id="@+id/SBox64Preset"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:spinnerMode="dropdown" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingTop="10dp">
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:id="@+id/BTAddBox64Preset"
+                                android:tooltipText="Add"
+                                android:src="@drawable/icon_add" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:id="@+id/BTEditBox64Preset"
+                                android:tooltipText="Edit"
+                                android:src="@drawable/icon_edit" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:tooltipText="Duplicate"
+                                android:id="@+id/BTDuplicateBox64Preset"
+                                android:src="@drawable/icon_duplicate" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:tooltipText="Remove"
+                                android:id="@+id/BTRemoveBox64Preset"
+                                android:src="@drawable/icon_remove" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:id="@+id/BTExportBox64Preset"
+                                android:tooltipText="Export"
+                                android:src="@drawable/icon_export" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:tooltipText="Import"
+                                android:id="@+id/BTImportBox64Preset"
+                                android:src="@drawable/icon_popup_menu_download" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- FEXCore Section -->
+                    <TextView
+                        android:id="@+id/TVFEXCore"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/fexcore_config"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/fexcore_preset"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginBottom="6dp" />
+
+                        <Spinner
+                            style="@style/ComboBox"
+                            android:id="@+id/SFEXCorePreset"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:spinnerMode="dropdown" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingTop="10dp">
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:id="@+id/BTAddFEXCorePreset"
+                                android:tooltipText="Add"
+                                android:src="@drawable/icon_add" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:id="@+id/BTEditFEXCorePreset"
+                                android:tooltipText="Edit"
+                                android:src="@drawable/icon_edit" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:tooltipText="Duplicate"
+                                android:id="@+id/BTDuplicateFEXCorePreset"
+                                android:src="@drawable/icon_duplicate" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:tooltipText="Remove"
+                                android:id="@+id/BTRemoveFEXCorePreset"
+                                android:src="@drawable/icon_remove" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:id="@+id/BTExportFEXCorePreset"
+                                android:tooltipText="Export"
+                                android:src="@drawable/icon_export" />
+
+                            <ImageButton
+                                style="@style/ListMenuButton"
+                                android:tooltipText="Import"
+                                android:id="@+id/BTImportFEXCorePreset"
+                                android:src="@drawable/icon_popup_menu_download" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ========================================================= -->
+                <!-- TAB 3: INPUT & DISPLAY (XSERVER)                          -->
+                <!-- ========================================================= -->
+                <LinearLayout
+                    android:id="@+id/LLTabInputDisplay"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/TVXServer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/xserver"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <!-- Cursor Speed -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="4dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/cursor_speed"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/TVCursorSpeed"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorAccent" />
+                        </LinearLayout>
+
+                        <SeekBar
+                            android:id="@+id/SBCursorSpeed"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="10dp"
+                            android:min="10"
+                            android:max="200" />
+
+                        <!-- brunodev85's Simulate touch screen: a tap clicks where you touch, a one-finger drag moves the cursor there. -->
+                        <CheckBox
+                            android:id="@+id/CBMoveCursorToTouchpoint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/move_cursor_to_touchpoint"
+                            android:layout_marginVertical="3dp" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="?android:attr/listDivider"
+                            android:layout_marginVertical="6dp" />
+
+                        <CheckBox
+                            android:id="@+id/CBUseDRI3"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/use_dri3_extension"
+                            android:layout_marginVertical="3dp" />
+
+                        <CheckBox
+                            android:id="@+id/CBCursorLock"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Capture External Pointer (Mouse Lock)"
+                            android:layout_marginVertical="3dp" />
+
+                        <CheckBox
+                            android:id="@+id/CBXinputToggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Disable XInput (Exclusive Mouse/Keyboard Mode)"
+                            android:layout_marginVertical="3dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ========================================================= -->
+                <!-- TAB 4: STORAGE & AUDIO                                    -->
+                <!-- ========================================================= -->
+                <LinearLayout
+                    android:id="@+id/LLTabStorageAudio"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- Path Settings -->
+                    <TextView
+                        android:id="@+id/TVShortcutSettings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Storage Paths"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Winlator Storage Path"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="4dp"
+                            android:layout_marginBottom="10dp">
+
+                            <TextView
+                                android:id="@+id/TVWinlatorPath"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:singleLine="true"
+                                android:ellipsize="start"
+                                android:textSize="13sp" />
+
+                            <Button
+                                style="@style/ButtonNeutral"
+                                android:id="@+id/BTChooseWinlatorPath"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="8dp"
+                                android:text="Browse" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Shortcut Export Path"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="4dp">
+
+                            <TextView
+                                android:id="@+id/TVShortcutExportPath"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:singleLine="true"
+                                android:ellipsize="start"
+                                android:textSize="13sp" />
+
+                            <Button
+                                style="@style/ButtonNeutral"
+                                android:id="@+id/BTChooseShortcutExportPath"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="8dp"
+                                android:text="Browse" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- SteamGridDB API Key -->
+                    <TextView
+                        android:id="@+id/TVCustomApiKey"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="SteamGridDB API Key"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <CheckBox
+                                android:id="@+id/CBEnableCustomApiKey"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Set SteamGrid API Key (Cover Art)" />
+
+                            <ImageView
+                                android:id="@+id/BTHelpApiKey"
+                                style="@style/HelpButton"
+                                android:contentDescription="@string/help_steamgrid"
+                                android:src="@drawable/icon_help" />
+                        </LinearLayout>
+
+                        <EditText
+                            android:id="@+id/ETCustomApiKey"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:hint="Enter your API Key here"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <!-- MIDI SoundFont -->
+                    <TextView
+                        android:id="@+id/TVSound"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/sound"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/midi_sound_font"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginBottom="6dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <Spinner
+                                android:id="@+id/SMIDISoundFont"
+                                style="@style/ComboBox"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1" />
+
+                            <ImageButton
+                                android:id="@+id/BTInstallSF"
+                                style="@style/ListMenuButton"
+                                android:layout_marginStart="6dp"
+                                android:src="@drawable/icon_add" />
+
+                            <ImageButton
+                                android:id="@+id/BTRemoveSF"
+                                style="@style/ListMenuButton"
+                                android:src="@drawable/icon_remove" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ========================================================= -->
+                <!-- TAB 5: PERFORMANCE (NON-ROOT & SYSTEM)                   -->
+                <!-- ========================================================= -->
+                <LinearLayout
+                    android:id="@+id/LLTabPerformance"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- System Performance Enhancements -->
+                    <TextView
+                        android:id="@+id/TVPerformanceHeader"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Non-Root Performance Enhancements"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <!-- Game Mode Signal -->
+                        <CheckBox
+                            android:id="@+id/CBGameModeSignal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Trigger Android Game Mode Signal (API 33+)"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Informs Android and OEM Game Boosters (HyperBoost, Game Turbo, Samsung Game Booster, Pixel Game Dashboard) that an active game is running."
+                            android:textSize="11sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Thread Priority Boost -->
+                        <CheckBox
+                            android:id="@+id/CBThreadPriorityBoost"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Guest Thread Priority Boost"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Promotes Box64/Wine CPU worker threads from default nice 0 to urgent display priorities (-8/-4/-2) without downgrading render threads."
+                            android:textSize="11sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Prefer Big CPU Cores -->
+                        <CheckBox
+                            android:id="@+id/CBPreferBigCores"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Prefer Big CPU Cores"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Dynamically detects the device's Prime/Big CPU cluster and pins emulation threads to high-performance cores via taskset affinity."
+                            android:textSize="11sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- High Refresh Rate -->
+                        <CheckBox
+                            android:id="@+id/CBHighRefreshRate"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Force High Refresh Rate"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Attempts to set the display to its maximum supported refresh rate (e.g., 120Hz/144Hz) to reduce input lag."
+                            android:textSize="11sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Sustained Performance Mode -->
+                        <CheckBox
+                            android:id="@+id/CBSustainedPerformance"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Sustained Performance Mode"
+                            android:textStyle="bold"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Requests Android sustained performance mode to prevent abrupt thermal clock throttling spikes and maintain consistent frame pacing."
+                            android:textSize="11sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginStart="32dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Samsung Galaxy Game Turbo -->
+                        <LinearLayout
+                            android:id="@+id/LLSamsungBoost"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <CheckBox
+                                android:id="@+id/CBSamsungBoost"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Samsung Galaxy Game Turbo"
+                                android:textStyle="bold"
+                                android:textSize="13sp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Engages Samsung Galaxy SPerf SDK hardware clock acceleration on supported Samsung devices."
+                                android:textSize="11sp"
+                                android:textColor="?android:attr/textColorSecondary"
+                                android:layout_marginStart="32dp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ========================================================= -->
+                <!-- TAB 6: ADVANCED & SYSTEM                                  -->
+                <!-- ========================================================= -->
+                <LinearLayout
+                    android:id="@+id/LLTabAdvanced"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- Download Catalog -->
+                    <TextView
+                        android:id="@+id/TVExperimental"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Catalog Settings"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Download Catalog Source"
+                            android:textStyle="bold"
+                            android:textSize="13sp"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:layout_marginBottom="4dp" />
+
+                        <Spinner
+                            android:id="@+id/SCatalogPreset"
+                            style="@style/ComboBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Catalog JSON URL"
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <EditText
+                            android:id="@+id/ETDownloadableContentsURL"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="13sp"
+                            android:hint="https://.../contents.json" />
+                    </LinearLayout>
+
+                    <!-- System Features -->
+                    <TextView
+                        android:id="@+id/TVSystem"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/system"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <CheckBox
+                                android:id="@+id/CBEnableFileProvider"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/enable_file_provider" />
+
+                            <ImageView
+                                android:id="@+id/BTHelpFileProvider"
+                                style="@style/HelpButton" />
+                        </LinearLayout>
+
+                        <CheckBox
+                            android:id="@+id/CBOpenWithAndroidBrowser"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/open_with_android_browser"
+                            android:layout_marginVertical="3dp" />
+
+                        <CheckBox
+                            android:id="@+id/CBShareAndroidClipboard"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/share_android_clipboard"
+                            android:layout_marginVertical="3dp" />
+
+                        <CheckBox
+                            android:id="@+id/CBShowAdrenoTools"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/show_adrenotools_unsupported"
+                            android:layout_marginVertical="3dp" />
+                    </LinearLayout>
+
+                    <!-- Logs & Diagnostics -->
+                    <TextView
+                        android:id="@+id/TVLogs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/logs"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp">
+
+                        <!-- The Log Manager replaces the old Wine debug / Box64 logs switches. -->
+                        <LinearLayout
+                            android:id="@+id/LLOpenLogManager"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackground"
+                            android:paddingVertical="6dp">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Log Manager"
+                                    android:textSize="15sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/TVLogManagerSummary"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:textSize="12sp"
+                                    android:text="What to record, where logs go, and every game's logs" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="›"
+                                android:textSize="22sp"
+                                android:textColor="?attr/colorAccent" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Recovery / Reinstall Imagefs -->
+                    <TextView
+                        android:id="@+id/TVImageFs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/imagefs"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorAccent"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bordered_panel_dark"
+                        android:padding="14dp"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="16dp"
+                        android:gravity="center">
+
+                        <Button
+                            style="@style/ButtonPositive"
+                            android:id="@+id/BTReInstallImagefs"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:text="@string/reinstall_imagefs" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/BTConfirm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        app:srcCompat="@drawable/icon_confirm"
+        android:src="@drawable/icon_confirm"
+        app:tint="#FFFFFF"
+        android:tint="#FFFFFF"
+        app:backgroundTint="?attr/colorAccent"
+        android:contentDescription="@string/ok"
+        android:layout_margin="16dp" />
+</FrameLayout>

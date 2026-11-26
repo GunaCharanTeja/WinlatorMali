@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:gravity="center"
+    android:clickable="false"
+    android:focusable="false">
+
+    <LinearLayout
+        android:id="@+id/LLPreloaderBackground"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="24dp"
+        android:layout_gravity="center"
+        android:gravity="end"
+        android:elevation="8dp"
+        android:background="@drawable/bordered_panel_dark">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="14dp">
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/CircularProgressIndicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:trackThickness="3dp"
+                    app:trackColor="#33888888"
+                    app:indicatorColor="?attr/colorAccent"
+                    app:indicatorSize="32dp"
+                    android:layout_gravity="center" />
+
+                <TextView
+                    android:id="@+id/TVProgress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:layout_gravity="center" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/TextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
+                android:text="@string/downloading_file" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/LLBottomBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:visibility="gone">
+
+            <Button
+                style="@style/ButtonNeutral"
+                android:text="@string/cancel"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:id="@+id/BTCancel" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

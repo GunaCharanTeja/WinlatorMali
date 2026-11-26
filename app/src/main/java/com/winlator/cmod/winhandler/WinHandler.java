@@ -1,0 +1,1084 @@
+package com.winlator.cmod.winhandler;
+
+import android.content.SharedPreferences;
+import android.util.Log;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+
+import androidx.preference.PreferenceManager;
+
+import com.winlator.cmod.XServerDisplayActivity;
+import com.winlator.cmod.core.StringUtils;
+import com.winlator.cmod.inputcontrols.ControlsProfile;
+import com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine;
+import com.winlator.cmod.inputcontrols.ExternalController;
+import com.winlator.cmod.inputcontrols.FakeInputWriter;
+import com.winlator.cmod.inputcontrols.GamepadState;
+import com.winlator.cmod.inputcontrols.UnifiedInputState;
+import com.winlator.cmod.math.Mathf;
+import com.winlator.cmod.xserver.XServer;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.hardware.input.InputManager;
+import android.os.Handler;
+import android.net.LocalServerSocket;
+import android.net.LocalSocket;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Iterator;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class WinHandler {
+    private static final short SERVER_PORT = 7947;
+    private static final short CLIENT_PORT = 7946;
+    public static final byte FLAG_INPUT_TYPE_XINPUT = 0x04;
+    public static final byte FLAG_INPUT_TYPE_DINPUT = 0x08;
+    public static final byte DEFAULT_INPUT_TYPE = FLAG_INPUT_TYPE_XINPUT;
+    private DatagramSocket socket;
+    private final ByteBuffer sendData = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN);
+    private final ByteBuffer receiveData = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN);
+    private final DatagramPacket sendPacket = new DatagramPacket(sendData.array(), 64);
+    private final DatagramPacket receivePacket = new DatagramPacket(receiveData.array(), 64);
+    private final ArrayDeque<Runnable> actions = new ArrayDeque<>();
+    private boolean initReceived = false;
+    private boolean running = false;
+    private OnGetProcessInfoListener onGetProcessInfoListener;
+    private final Map<Integer, ExternalController> controllers = new HashMap<>(); // map deviceId -> controller
+                                                                                  // implementation
+    private InetAddress localhost;
+    private byte inputType = DEFAULT_INPUT_TYPE;
+    private final XServerDisplayActivity activity;
+    private final List<Integer> gamepadClients = new CopyOnWriteArrayList<>();
+    private SharedPreferences preferences;
+    private final UnifiedInputState unifiedInputState = new UnifiedInputState();
+    private float gyroLX = 0;
+    private float gyroLY = 0;
+    private float gyroRX = 0;
+    private float gyroRY = 0;
+
+    // Multi-controller support
+    private static final int MAX_CONTROLLERS = 4;
+    private static final int OSC_DEVICE_ID = -1;
+    private FakeInputWriter[] writers = new FakeInputWriter[MAX_CONTROLLERS];
+    private Map<Integer, Integer> deviceToSlot = new HashMap<>();
+    private Set<Integer> usedSlots = new HashSet<>();
+    private String fakeInputBasePath;
+    private LocalServerSocket vibrationServer;
+    private volatile boolean vibrationRunning = false;
+    private boolean[] vibrationEnabledSlots = new boolean[MAX_CONTROLLERS]; // per-slot vibration toggle
+
+    /** Manual slot pins: deviceId -> forced slot (0-3). -1 = auto (FCFS). */
+    private final Map<Integer, Integer> manualSlotMap = new HashMap<>();
+
+    /** Per-slot left & right stick deadzones (0.0–1.0, default 0.10). */
+    private final float[] leftDeadzones  = new float[MAX_CONTROLLERS];
+    private final float[] rightDeadzones = new float[MAX_CONTROLLERS];
+
+
+    private boolean xinputDisabled;
+    private boolean xinputDisabledInitialized = false;
+
+    // Lock-free mouse move coalescing: accumulate dx/dy from high-frequency mouse
+    // events (500-1000 Hz) and flush as a single UDP packet per send-thread cycle.
+    // This eliminates per-event Runnable lambda allocation and synchronized queue contention.
+    private final AtomicInteger accumulatedMouseDx = new AtomicInteger(0);
+    private final AtomicInteger accumulatedMouseDy = new AtomicInteger(0);
+    private volatile boolean hasAccumulatedMouseMove = false;
+
+    private final InputManager inputManager;
+    private final InputManager.InputDeviceListener inputDeviceListener;
+
+    public WinHandler(XServerDisplayActivity activity) {
+        this.activity = activity;
+        this.inputManager = (InputManager) activity.getSystemService(Context.INPUT_SERVICE);
+        this.inputDeviceListener = new InputManager.InputDeviceListener() {
+            @Override
+            public void onInputDeviceAdded(int deviceId) {
+            }
+
+            @Override
+            public void onInputDeviceRemoved(int deviceId) {
+                releaseSlot(deviceId);
+            }
+
+            @Override
+            public void onInputDeviceChanged(int deviceId) {
+            }
+        };
+        inputManager.registerInputDeviceListener(inputDeviceListener, null);
+
+        preferences = PreferenceManager.getDefaultSharedPreferences(activity.getBaseContext());
+
+        // Load per-slot vibration preferences (default: enabled)
+        for (int i = 0; i < MAX_CONTROLLERS; i++) {
+            vibrationEnabledSlots[i] = preferences.getBoolean("vibration_slot_" + i, true);
+        }
+
+        // Initialize per-slot deadzones (default 10%) and load manual slot pins
+        for (int i = 0; i < MAX_CONTROLLERS; i++) {
+            leftDeadzones[i]  = preferences.getFloat("deadzone_left_slot_"  + i, 0.10f);
+            rightDeadzones[i] = preferences.getFloat("deadzone_right_slot_" + i, 0.10f);
+            int pinned = preferences.getInt("manual_slot_" + i, -1);
+            if (pinned >= 0) {
+                // Restore pinned deviceId -> slot mapping from last session
+                // We don't know deviceIds at startup; they are re-registered on connect.
+                // manualSlotMap is keyed by deviceId so we skip pre-loading here.
+            }
+        }
+
+        // Initialize Direct USB HID Force Feedback Engine immediately so controllers are ready
+        DirectGamepHidRumbleEngine.getInstance(activity).setWinHandler(this);
+    }
+
+    private boolean sendPacket(int port) {
+        try {
+            int size = sendData.position();
+            if (size == 0)
+                return false;
+            sendPacket.setAddress(localhost);
+            sendPacket.setPort(port);
+            socket.send(sendPacket);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public void exec(String command) {
+        command = command.trim();
+        if (command.isEmpty())
+            return;
+
+        // The `split` function here should be sensitive to paths with spaces.
+        // Instead of splitting, let's assume that command is directly provided in two
+        // parts: filename and parameters.
+        // Adjust command splitting based on whether it contains quotes.
+
+        String filename;
+        String parameters;
+
+        if (command.contains("\"")) {
+            // If the command is quoted, extract the quoted part as the filename
+            int firstQuote = command.indexOf("\"");
+            int lastQuote = command.lastIndexOf("\"");
+            filename = command.substring(firstQuote + 1, lastQuote);
+            if (lastQuote + 1 < command.length()) {
+                parameters = command.substring(lastQuote + 1).trim();
+            } else {
+                parameters = "";
+            }
+        } else {
+            // Standard split when no quotes
+            String[] cmdList = command.split(" ", 2);
+            filename = cmdList[0];
+            if (cmdList.length > 1) {
+                parameters = cmdList[1];
+            } else {
+                parameters = "";
+            }
+        }
+
+        addAction(() -> {
+            byte[] filenameBytes = filename.getBytes();
+            byte[] parametersBytes = parameters.getBytes();
+
+            sendData.rewind();
+            sendData.put(RequestCodes.EXEC);
+            sendData.putInt(filenameBytes.length + parametersBytes.length + 8);
+            sendData.putInt(filenameBytes.length);
+            sendData.putInt(parametersBytes.length);
+            sendData.put(filenameBytes);
+            sendData.put(parametersBytes);
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    public void killProcess(final String processName) {
+        addAction(() -> {
+            sendData.rewind();
+            sendData.put(RequestCodes.KILL_PROCESS);
+            byte[] bytes = processName.getBytes();
+            sendData.putInt(bytes.length);
+            sendData.put(bytes);
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    public void listProcesses() {
+        addAction(() -> {
+            sendData.rewind();
+            sendData.put(RequestCodes.LIST_PROCESSES);
+            sendData.putInt(0);
+
+            if (!sendPacket(CLIENT_PORT) && onGetProcessInfoListener != null) {
+                onGetProcessInfoListener.onGetProcessInfo(0, 0, null);
+            }
+        });
+    }
+
+    public void setProcessAffinity(final String processName, final int affinityMask) {
+        addAction(() -> {
+            byte[] bytes = processName.getBytes();
+            sendData.rewind();
+            sendData.put(RequestCodes.SET_PROCESS_AFFINITY);
+            sendData.putInt(9 + bytes.length);
+            sendData.putInt(0);
+            sendData.putInt(affinityMask);
+            sendData.put((byte) bytes.length);
+            sendData.put(bytes);
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    public void setProcessAffinity(final int pid, final int affinityMask) {
+        addAction(() -> {
+            sendData.rewind();
+            sendData.put(RequestCodes.SET_PROCESS_AFFINITY);
+            sendData.putInt(9);
+            sendData.putInt(pid);
+            sendData.putInt(affinityMask);
+            sendData.put((byte) 0);
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    public void mouseEvent(int flags, int dx, int dy, int wheelDelta) {
+        if (!initReceived)
+            return;
+        addAction(() -> {
+            sendData.rewind();
+            sendData.put(RequestCodes.MOUSE_EVENT);
+            sendData.putInt(10);
+            sendData.putInt(flags);
+            sendData.putShort((short) dx);
+            sendData.putShort((short) dy);
+            sendData.putShort((short) wheelDelta);
+            sendData.put((byte) ((flags & MouseEventFlags.MOVE) != 0 ? 1 : 0)); // cursor pos feedback
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    /**
+     * Coalesced mouse move: accumulates dx/dy atomically without allocating a Runnable
+     * or acquiring the actions monitor on the hot path. The send thread flushes the
+     * accumulated delta once per cycle, collapsing hundreds of raw mouse packets into
+     * a single UDP datagram. Safe to call from any thread at any rate.
+     */
+    public void mouseEventMove(int dx, int dy) {
+        if (!initReceived) return;
+        accumulatedMouseDx.addAndGet(dx);
+        accumulatedMouseDy.addAndGet(dy);
+        hasAccumulatedMouseMove = true;
+        synchronized (actions) {
+            actions.notify();
+        }
+    }
+
+    public void keyboardEvent(byte vkey, int flags) {
+        if (!initReceived)
+            return;
+        addAction(() -> {
+            sendData.rewind();
+            sendData.put(RequestCodes.KEYBOARD_EVENT);
+            sendData.put(vkey);
+            sendData.putInt(flags);
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    public void bringToFront(final String processName) {
+        bringToFront(processName, 0);
+    }
+
+    public void bringToFront(final String processName, final long handle) {
+        addAction(() -> {
+            sendData.rewind();
+            try {
+                sendData.put(RequestCodes.BRING_TO_FRONT);
+                byte[] bytes = processName.getBytes();
+                sendData.putInt(bytes.length);
+                // FIXME: Chinese and Japanese got from winhandler.exe are broken, and they
+                // cause overflow.
+                sendData.put(bytes);
+                sendData.putLong(handle);
+            } catch (java.nio.BufferOverflowException e) {
+                e.printStackTrace();
+                sendData.rewind();
+            }
+            sendPacket(CLIENT_PORT);
+        });
+    }
+
+    private void addAction(Runnable action) {
+        synchronized (actions) {
+            actions.add(action);
+            actions.notify();
+        }
+    }
+
+    public OnGetProcessInfoListener getOnGetProcessInfoListener() {
+        return onGetProcessInfoListener;
+    }
+
+    public void setOnGetProcessInfoListener(OnGetProcessInfoListener onGetProcessInfoListener) {
+        synchronized (actions) {
+            this.onGetProcessInfoListener = onGetProcessInfoListener;
+        }
+    }
+
+    private void startSendThread() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            while (running) {
+                synchronized (actions) {
+                    // Flush coalesced mouse moves before processing discrete actions
+                    // to preserve correct ordering (move, then click).
+                    if (initReceived && hasAccumulatedMouseMove) {
+                        int dx = accumulatedMouseDx.getAndSet(0);
+                        int dy = accumulatedMouseDy.getAndSet(0);
+                        hasAccumulatedMouseMove = false;
+                        if (dx != 0 || dy != 0) {
+                            sendData.rewind();
+                            sendData.put(RequestCodes.MOUSE_EVENT);
+                            sendData.putInt(10);
+                            sendData.putInt(MouseEventFlags.MOVE);
+                            sendData.putShort((short) dx);
+                            sendData.putShort((short) dy);
+                            sendData.putShort((short) 0);
+                            sendData.put((byte) 1);
+                            sendPacket(CLIENT_PORT);
+                        }
+                    }
+                    // Process queued discrete actions (button press/release, keyboard, etc.)
+                    while (initReceived && !actions.isEmpty())
+                        actions.poll().run();
+                    try {
+                        actions.wait(8); // Wake at ~125 Hz to flush accumulated mouse moves
+                    } catch (InterruptedException e) {
+                    }
+                }
+            }
+        });
+    }
+
+    public void stop() {
+        running = false;
+        closeFakeInputWriter();
+
+        if (socket != null) {
+            socket.close();
+            socket = null;
+        }
+
+        synchronized (actions) {
+            actions.notify();
+        }
+    }
+
+    public void startVibrationListener() {
+        if (vibrationRunning)
+            return;
+        vibrationRunning = true;
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                vibrationServer = new LocalServerSocket("winlator_vibration");
+                Log.d("WinHandler", "Vibration listener started on abstract socket: winlator_vibration");
+
+                while (vibrationRunning) {
+                    LocalSocket client = vibrationServer.accept();
+                    try {
+                        java.io.InputStream is = client.getInputStream();
+                        byte[] buf = new byte[8];
+                        int totalRead = 0;
+                        while (totalRead < 8) {
+                            int r = is.read(buf, totalRead, 8 - totalRead);
+                            if (r < 0) break;
+                            totalRead += r;
+                        }
+                        if (totalRead == 8) {
+                            int strong = (buf[0] & 0xFF) | ((buf[1] & 0xFF) << 8);
+                            int weak = (buf[2] & 0xFF) | ((buf[3] & 0xFF) << 8);
+                            int durationMs = (buf[4] & 0xFF) | ((buf[5] & 0xFF) << 8);
+                            int slot = (buf[6] & 0xFF) | ((buf[7] & 0xFF) << 8);
+                            triggerVibration(strong, weak, durationMs, slot);
+                        }
+                    } catch (IOException e) {
+                        Log.e("WinHandler", "Vibration client error: " + e.getMessage());
+                    } finally {
+                        try { client.close(); } catch (Exception ignored) {}
+                    }
+                }
+            } catch (IOException e) {
+                if (vibrationRunning) {
+                    Log.e("WinHandler", "Vibration listener error: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    private void triggerVibration(int strong, int weak, int durationMs, int slot) {
+        if (!isValidSlot(slot)) return;
+
+        // A duration of 0 or zero magnitudes means cancel, not vibrate
+        boolean shouldCancel = (durationMs == 0 && strong == 0 && weak == 0) || (strong == 0 && weak == 0);
+
+        // --- 1. Direct Hardware USB Force-Feedback (Redgear Elite / Xbox / PS / Switch Direct Motors) ---
+        if (activity != null) {
+            com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine usbRumble =
+                com.winlator.cmod.inputcontrols.DirectGamepHidRumbleEngine.getInstance(activity);
+            if (!shouldCancel) {
+                usbRumble.sendRumble(strong, weak, durationMs);
+            } else {
+                usbRumble.sendRumble(0, 0);
+            }
+        }
+
+        Vibrator vibrator = null;
+        android.os.VibratorManager vibratorManager = null;
+        boolean hasMultiMotor = false;
+
+        // Find which deviceId owns this slot
+        Integer deviceId = null;
+        for (Map.Entry<Integer, Integer> entry : deviceToSlot.entrySet()) {
+            if (entry.getValue() == slot) {
+                deviceId = entry.getKey();
+                break;
+            }
+        }
+
+        if (deviceId != null && deviceId.equals(OSC_DEVICE_ID)) {
+            // OSC is mapped to this slot — use the phone vibrator
+            vibrator = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+        } else if (deviceId != null) {
+            // Physical controller
+            android.view.InputDevice device = android.view.InputDevice.getDevice(deviceId);
+            if (device != null) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    vibratorManager = device.getVibratorManager();
+                    if (vibratorManager != null && vibratorManager.getVibratorIds().length > 1) {
+                        hasMultiMotor = true;
+                    }
+                }
+
+                if (!hasMultiMotor) {
+                    // Use VibratorManager for single-motor on API 31+ (getVibrator() is deprecated)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+                            && vibratorManager != null) {
+                        int[] ids = vibratorManager.getVibratorIds();
+                        if (ids.length > 0) {
+                            vibrator = vibratorManager.getVibrator(ids[0]);
+                        }
+                    } else {
+                        vibrator = device.getVibrator();
+                    }
+
+                    if (vibrator != null && !vibrator.hasVibrator()) vibrator = null;
+                }
+            }
+        }
+
+        // If vibration is disabled for this slot, cancel any active vibration and return
+        if (!vibrationEnabledSlots[slot]) {
+            if (hasMultiMotor && vibratorManager != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                int[] vibratorIds = vibratorManager.getVibratorIds();
+                if (vibratorIds.length >= 1) vibratorManager.getVibrator(vibratorIds[0]).cancel();
+                if (vibratorIds.length >= 2) vibratorManager.getVibrator(vibratorIds[1]).cancel();
+            } else if (vibrator != null) {
+                vibrator.cancel();
+            }
+            return;
+        }
+
+        int duration = durationMs > 0 ? durationMs : 250; // Continuous stream fallback (1ms was imperceptible)
+
+        if (hasMultiMotor && vibratorManager != null
+                && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            int[] vibratorIds = vibratorManager.getVibratorIds();
+
+            if (vibratorIds.length >= 1) {
+                Vibrator vStrong = vibratorManager.getVibrator(vibratorIds[0]);
+                if (!shouldCancel && strong > 0) {
+                    safeVibrate(vStrong, duration, clampAmplitude(strong));
+                } else if (vStrong != null) {
+                    vStrong.cancel();
+                }
+            }
+
+            if (vibratorIds.length >= 2) {
+                Vibrator vWeak = vibratorManager.getVibrator(vibratorIds[1]);
+                if (!shouldCancel && weak > 0) {
+                    safeVibrate(vWeak, duration, clampAmplitude(weak));
+                } else if (vWeak != null) {
+                    vWeak.cancel();
+                }
+            }
+            return;
+        }
+
+        // --- Single-motor path ---
+        if (vibrator == null || !vibrator.hasVibrator())
+            return;
+
+        if (!shouldCancel && (strong > 0 || weak > 0)) {
+            int intensity = Math.max(strong, weak);
+            safeVibrate(vibrator, duration, clampAmplitude(intensity));
+        } else {
+            vibrator.cancel();
+        }
+    }
+
+    private void safeVibrate(Vibrator v, int duration, int amplitude) {
+        if (v == null || !v.hasVibrator()) return;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (v.hasAmplitudeControl()) {
+                    v.vibrate(VibrationEffect.createOneShot(duration, amplitude));
+                } else {
+                    v.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+            } else {
+                v.vibrate(duration);
+            }
+        } catch (Exception e) {
+            try {
+                v.vibrate(duration);
+            } catch (Exception ignored) {}
+        }
+    }
+
+/** Maps a 0–65535 intensity value to a 1–255 VibrationEffect amplitude. */
+private int clampAmplitude(int value) {
+    return Math.min(255, Math.max(1, (int) ((value / 65535.0f) * 255)));
+}
+
+private boolean isValidSlot(int slot) {
+    return slot >= 0 && slot < MAX_CONTROLLERS;
+}
+
+public boolean isVibrationEnabledForSlot(int slot) {
+    return isValidSlot(slot) && vibrationEnabledSlots[slot];
+}
+
+public void setVibrationEnabledForSlot(int slot, boolean enabled) {
+    if (isValidSlot(slot)) {
+        vibrationEnabledSlots[slot] = enabled;
+        preferences.edit().putBoolean("vibration_slot_" + slot, enabled).apply();
+    }
+}
+
+    public int getMaxControllers() {
+        return MAX_CONTROLLERS;
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 2: Manual Slot Pinning API
+    // -----------------------------------------------------------------------
+
+    /**
+     * Pin a physical controller to a specific XInput slot.
+     * @param deviceId Android InputDevice ID
+     * @param slot     0-3 for Player 1-4, or -1 for auto (FCFS)
+     */
+    public void pinDeviceToSlot(int deviceId, int slot) {
+        if (slot < -1 || slot >= MAX_CONTROLLERS) return;
+
+        // Remove old slot assignment if any
+        Integer oldSlot = deviceToSlot.get(deviceId);
+        if (oldSlot != null && oldSlot != slot) {
+            // Release old slot so it can be reused
+            usedSlots.remove(oldSlot);
+            deviceToSlot.remove(deviceId);
+            if (writers[oldSlot] != null) {
+                writers[oldSlot].destroy();
+                writers[oldSlot] = null;
+            }
+        }
+
+        if (slot < 0) {
+            // Auto: remove pin, let FCFS assign naturally
+            manualSlotMap.remove(deviceId);
+        } else {
+            manualSlotMap.put(deviceId, slot);
+            // Force-assign now if slot is free
+            if (!usedSlots.contains(slot)) {
+                usedSlots.add(slot);
+                deviceToSlot.put(deviceId, slot);
+                if (fakeInputBasePath != null && writers[slot] == null) {
+                    writers[slot] = new FakeInputWriter(fakeInputBasePath, slot);
+                    writers[slot].open();
+                }
+            }
+        }
+        Log.d("WinHandler", "Pinned device " + deviceId + " -> slot " + slot);
+    }
+
+    /** Returns the manually-pinned slot for a device, or -1 if auto. */
+    public int getManualSlotForDevice(int deviceId) {
+        Integer pin = manualSlotMap.get(deviceId);
+        return pin != null ? pin : -1;
+    }
+
+    /** Returns the currently active slot for a device, or -1 if not assigned. */
+    public int getSlotForDevice(int deviceId) {
+        Integer slot = deviceToSlot.get(deviceId);
+        return slot != null ? slot : -1;
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 2: Per-Slot Deadzone API
+    // -----------------------------------------------------------------------
+
+    public float getLeftDeadzoneForSlot(int slot) {
+        return isValidSlot(slot) ? leftDeadzones[slot] : 0.10f;
+    }
+
+    public void setLeftDeadzoneForSlot(int slot, float deadzone) {
+        if (isValidSlot(slot)) {
+            leftDeadzones[slot] = Math.max(0f, Math.min(1f, deadzone));
+            preferences.edit()
+                .putFloat("deadzone_left_slot_" + slot, leftDeadzones[slot])
+                .apply();
+        }
+    }
+
+    public float getRightDeadzoneForSlot(int slot) {
+        return isValidSlot(slot) ? rightDeadzones[slot] : 0.10f;
+    }
+
+    public void setRightDeadzoneForSlot(int slot, float deadzone) {
+        if (isValidSlot(slot)) {
+            rightDeadzones[slot] = Math.max(0f, Math.min(1f, deadzone));
+            preferences.edit()
+                .putFloat("deadzone_right_slot_" + slot, rightDeadzones[slot])
+                .apply();
+        }
+    }
+
+    /**
+     * Apply per-slot deadzone to a GamepadState (inner deadzone circle).
+     */
+    private GamepadState applyDeadzones(GamepadState src, int slot) {
+        if (!isValidSlot(slot)) return src;
+        float ldz = leftDeadzones[slot];
+        float rdz = rightDeadzones[slot];
+        // Only allocate a copy if deadzones are non-trivial
+        if (ldz <= 0f && rdz <= 0f) return src;
+
+        GamepadState out = new GamepadState();
+        out.copy(src);
+
+        float lLen = (float) Math.sqrt(out.thumbLX * out.thumbLX + out.thumbLY * out.thumbLY);
+        if (lLen < ldz) {
+            out.thumbLX = 0f;
+            out.thumbLY = 0f;
+        } else if (lLen > 0f) {
+            float scale = (lLen - ldz) / (1f - ldz);
+            out.thumbLX = out.thumbLX / lLen * scale;
+            out.thumbLY = out.thumbLY / lLen * scale;
+        }
+
+        float rLen = (float) Math.sqrt(out.thumbRX * out.thumbRX + out.thumbRY * out.thumbRY);
+        if (rLen < rdz) {
+            out.thumbRX = 0f;
+            out.thumbRY = 0f;
+        } else if (rLen > 0f) {
+            float scale = (rLen - rdz) / (1f - rdz);
+            out.thumbRX = out.thumbRX / rLen * scale;
+            out.thumbRY = out.thumbRY / rLen * scale;
+        }
+        return out;
+    }
+
+    private void handleRequest(byte requestCode, final int port) {
+        switch (requestCode) {
+            case RequestCodes.INIT: {
+                initReceived = true;
+
+                preferences = PreferenceManager.getDefaultSharedPreferences(activity.getBaseContext());
+
+                if (!xinputDisabledInitialized) {
+                    xinputDisabled = preferences.getBoolean("xinput_toggle", false);
+                }
+                synchronized (actions) {
+                    actions.notify();
+                }
+                break;
+            }
+
+            case RequestCodes.GET_PROCESS: {
+                if (onGetProcessInfoListener == null)
+                    return;
+                receiveData.position(receiveData.position() + 4);
+                int numProcesses = receiveData.getShort();
+                int index = receiveData.getShort();
+                int pid = receiveData.getInt();
+                long memoryUsage = receiveData.getLong();
+                int affinityMask = receiveData.getInt();
+                boolean wow64Process = receiveData.get() == 1;
+
+                byte[] bytes = new byte[32];
+                receiveData.get(bytes);
+                String name = StringUtils.fromANSIString(bytes);
+
+                onGetProcessInfoListener.onGetProcessInfo(index, numProcesses,
+                        new ProcessInfo(pid, name, memoryUsage, affinityMask, wow64Process));
+                break;
+            }
+            case RequestCodes.GET_GAMEPAD: {
+                break;
+            }
+            case RequestCodes.GET_GAMEPAD_STATE: {
+                break;
+            }
+            case RequestCodes.RELEASE_GAMEPAD: {
+                // currentController = null; // No longer needed
+                // Maybe clear all controllers or reset mapping?
+                // For now, doing nothing is safest as mapping is sticky.
+            }
+            case RequestCodes.CURSOR_POS_FEEDBACK: {
+                short x = receiveData.getShort();
+                short y = receiveData.getShort();
+                XServer xServer = activity.getXServer();
+                xServer.pointer.setX(x);
+                xServer.pointer.setY(y);
+                activity.getXServerView().requestRender();
+                break;
+            }
+            default: {
+                // Handle any other request codes if needed
+                break;
+            }
+        }
+    }
+
+    public void start() {
+        try {
+            localhost = InetAddress.getLocalHost();
+        } catch (UnknownHostException e) {
+            try {
+                localhost = InetAddress.getByName("127.0.0.1");
+            } catch (UnknownHostException ex) {
+            }
+        }
+
+        running = true;
+        startSendThread();
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                socket = new DatagramSocket(null);
+                socket.setReuseAddress(true);
+                socket.bind(new InetSocketAddress((InetAddress) null, SERVER_PORT));
+
+                while (running) {
+                    socket.receive(receivePacket);
+
+                    synchronized (actions) {
+                        receiveData.rewind();
+                        byte requestCode = receiveData.get();
+                        handleRequest(requestCode, receivePacket.getPort());
+                    }
+                }
+            } catch (IOException e) {
+            }
+        });
+    }
+
+    public void sendGamepadState() {
+        final ControlsProfile profile = activity.getInputControlsView().getProfile();
+        if (profile == null) {
+            releaseSlot(OSC_DEVICE_ID);
+            return;
+        }
+
+        GamepadState gamepadState = profile.getGamepadState();
+        if (gyroRX != 0 || gyroRY != 0 || gyroLX != 0 || gyroLY != 0) {
+            GamepadState newState = new GamepadState();
+            newState.copy(gamepadState);
+            if (gyroRX != 0 || gyroRY != 0) {
+                newState.thumbRX = Mathf.clamp(newState.thumbRX + gyroRX, -1.0f, 1.0f);
+                newState.thumbRY = Mathf.clamp(newState.thumbRY + gyroRY, -1.0f, 1.0f);
+            }
+            if (gyroLX != 0 || gyroLY != 0) {
+                newState.thumbLX = Mathf.clamp(newState.thumbLX + gyroLX, -1.0f, 1.0f);
+                newState.thumbLY = Mathf.clamp(newState.thumbLY + gyroLY, -1.0f, 1.0f);
+            }
+            gamepadState = newState;
+        }
+
+        final boolean useVirtualGamepad = profile.isVirtualGamepad()
+                && activity.getInputControlsView().isShowTouchscreenControls();
+
+        // Handle virtual gamepad (on-screen controls)
+        if (useVirtualGamepad) {
+            int slot = assignSlot(OSC_DEVICE_ID);
+            if (slot >= 0 && writers[slot] != null) {
+                writers[slot].writeGamepadState(gamepadState);
+            }
+        } else {
+            releaseSlot(OSC_DEVICE_ID);
+        }
+    }
+
+    public void sendGamepadState(ExternalController controller) {
+        if (controller == null)
+            return;
+
+        GamepadState gamepadState = controller.state;
+        ControlsProfile profile = activity.getInputControlsView().getProfile();
+        if (profile != null) {
+            ExternalController profileController = profile.getController(controller.getDeviceId());
+            if (profileController != null && profileController.getControllerBindingCount() > 0) {
+                gamepadState = controller.remappedState;
+            }
+        }
+
+        if (gyroRX != 0 || gyroRY != 0 || gyroLX != 0 || gyroLY != 0) {
+            GamepadState newState = new GamepadState();
+            newState.copy(gamepadState);
+            if (gyroRX != 0 || gyroRY != 0) {
+                newState.thumbRX = Mathf.clamp(newState.thumbRX + gyroRX, -1.0f, 1.0f);
+                newState.thumbRY = Mathf.clamp(newState.thumbRY + gyroRY, -1.0f, 1.0f);
+            }
+            if (gyroLX != 0 || gyroLY != 0) {
+                newState.thumbLX = Mathf.clamp(newState.thumbLX + gyroLX, -1.0f, 1.0f);
+                newState.thumbLY = Mathf.clamp(newState.thumbLY + gyroLY, -1.0f, 1.0f);
+            }
+            gamepadState = newState;
+        }
+
+        int slot = assignSlot(controller.getDeviceId());
+        if (slot >= 0 && writers[slot] != null) {
+            // Apply per-slot deadzone before writing
+            GamepadState finalState = applyDeadzones(gamepadState, slot);
+            writers[slot].writeGamepadState(finalState);
+        }
+    }
+
+    public void sendDirectGamepadState(int slot, GamepadState state) {
+        if (!isValidSlot(slot) || state == null) return;
+        if (writers[slot] == null && fakeInputBasePath != null) {
+            writers[slot] = new FakeInputWriter(fakeInputBasePath, slot);
+            writers[slot].open();
+        }
+        if (writers[slot] != null) {
+            GamepadState finalState = applyDeadzones(state, slot);
+            writers[slot].writeGamepadState(finalState);
+        }
+    }
+
+    /**
+     * Assign a slot to a device using FCFS. Sticky slots - disconnect keeps
+     * reservation.
+     */
+    private int assignSlot(int deviceId) {
+        Integer existing = deviceToSlot.get(deviceId);
+        if (existing != null)
+            return existing;
+
+        // Check if this device has a manually-pinned slot
+        Integer pinned = manualSlotMap.get(deviceId);
+        if (pinned != null && pinned >= 0 && pinned < MAX_CONTROLLERS) {
+            if (!usedSlots.contains(pinned)) {
+                usedSlots.add(pinned);
+                deviceToSlot.put(deviceId, pinned);
+                if (fakeInputBasePath != null && writers[pinned] == null) {
+                    writers[pinned] = new FakeInputWriter(fakeInputBasePath, pinned);
+                    writers[pinned].open();
+                    Log.d("WinHandler", "Pinned device " + deviceId + " to slot " + pinned);
+                }
+                return pinned;
+            } else {
+                Log.w("WinHandler", "Pinned slot " + pinned + " already in use, falling back to FCFS");
+            }
+        }
+
+        // FCFS auto-assignment
+        for (int slot = 0; slot < MAX_CONTROLLERS; slot++) {
+            if (!usedSlots.contains(slot)) {
+                usedSlots.add(slot);
+                deviceToSlot.put(deviceId, slot);
+                if (fakeInputBasePath != null && writers[slot] == null) {
+                    writers[slot] = new FakeInputWriter(fakeInputBasePath, slot);
+                    writers[slot].open();
+                    Log.d("WinHandler", "Assigned device " + deviceId + " to slot " + slot);
+                }
+                return slot;
+            }
+        }
+        Log.w("WinHandler", "No slots available for device " + deviceId);
+        return -1;
+    }
+
+
+    private void releaseSlot(int deviceId) {
+        Integer slot = deviceToSlot.remove(deviceId);
+        if (slot != null) {
+            if (writers[slot] != null) {
+                writers[slot].destroy();
+                writers[slot] = null;
+            }
+            usedSlots.remove(slot);
+            controllers.remove(deviceId);
+            Log.d("WinHandler", "Device " + deviceId + " disconnected (or OSC disabled). Slot released: " + slot);
+        }
+    }
+
+    public UnifiedInputState getUnifiedInputState() {
+        return unifiedInputState;
+    }
+
+    public void setGyroStick(float rx, float ry) {
+        setGyroRightStick(rx, ry);
+    }
+
+    public void setGyroRightStick(float rx, float ry) {
+        this.gyroRX = rx;
+        this.gyroRY = ry;
+        this.gyroLX = 0;
+        this.gyroLY = 0;
+        sendGamepadState();
+        for (ExternalController controller : controllers.values()) {
+            sendGamepadState(controller);
+        }
+    }
+
+    public void setGyroLeftStick(float lx, float ly) {
+        this.gyroLX = lx;
+        this.gyroLY = ly;
+        this.gyroRX = 0;
+        this.gyroRY = 0;
+        sendGamepadState();
+        for (ExternalController controller : controllers.values()) {
+            sendGamepadState(controller);
+        }
+    }
+
+    public void setEmulationMode(UnifiedInputState.EmulationMode mode) {
+        this.unifiedInputState.mode = mode;
+    }
+
+    public void setXInputDisabled(boolean disabled) {
+        this.xinputDisabled = disabled;
+        this.xinputDisabledInitialized = true;
+        Log.d("WinHandler", "XInput Disabled set to: " + xinputDisabled);
+    }
+
+    /**
+     * @param fakeInputPath Path to the fake-input directory (e.g.,
+     *                      /home/xuser/fake-input)
+     */
+    public void setFakeInputPath(String fakeInputPath) {
+        if (fakeInputPath != null && !fakeInputPath.isEmpty()) {
+            this.fakeInputBasePath = fakeInputPath;
+            Log.d("WinHandler", "FakeInputWriter base path set: " + fakeInputPath);
+            startVibrationListener();
+        }
+    }
+
+    public void closeFakeInputWriter() {
+        if (inputManager != null && inputDeviceListener != null) {
+            inputManager.unregisterInputDeviceListener(inputDeviceListener);
+        }
+        for (int i = 0; i < MAX_CONTROLLERS; i++) {
+            if (writers[i] != null) {
+                writers[i].destroy();
+                writers[i] = null;
+            }
+        }
+        deviceToSlot.clear();
+        usedSlots.clear();
+        controllers.clear();
+
+        vibrationRunning = false;
+        if (vibrationServer != null) {
+            try {
+                vibrationServer.close();
+            } catch (IOException e) {
+            }
+            vibrationServer = null;
+        }
+    }
+
+    private ExternalController getController(int deviceId) {
+        if (controllers.containsKey(deviceId)) {
+            return controllers.get(deviceId);
+        }
+        ExternalController controller = ExternalController.getController(deviceId);
+        if (controller != null) {
+            controllers.put(deviceId, controller);
+        }
+        return controller;
+    }
+
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        boolean handled = false;
+        ExternalController controller = getController(event.getDeviceId());
+
+        if (controller != null) {
+            handled = controller.updateStateFromMotionEvent(event);
+            if (handled)
+                sendGamepadState(controller);
+        }
+        return handled;
+    }
+
+    public boolean onKeyEvent(KeyEvent event) {
+        boolean handled = false;
+        ExternalController controller = getController(event.getDeviceId());
+
+        if (controller != null && event.getRepeatCount() == 0) {
+            int action = event.getAction();
+
+            if (action == KeyEvent.ACTION_DOWN) {
+                handled = controller.updateStateFromKeyEvent(event);
+            } else if (action == KeyEvent.ACTION_UP) {
+                handled = controller.updateStateFromKeyEvent(event);
+            }
+
+            if (handled)
+                sendGamepadState(controller);
+        }
+        return handled;
+    }
+
+    public byte getInputType() {
+        return inputType;
+    }
+
+    public void setInputType(byte inputType) {
+        this.inputType = inputType;
+    }
+
+    public Map<Integer, ExternalController> getControllers() {
+        return controllers;
+    }
+
+    public void execWithDelay(String command, int delaySeconds) {
+        if (command == null || command.trim().isEmpty() || delaySeconds < 0)
+            return;
+
+        // Use a scheduled executor for delay
+        Executors.newSingleThreadScheduledExecutor().schedule(() -> exec(command), delaySeconds, TimeUnit.SECONDS);
+    }
+
+}
