@@ -71,16 +71,21 @@ jobs:
             OUT="$(mktemp -d)"
             tar -xf "$IMAGEFS" -C "$TMP"
             ROOT="$TMP"
-            # Remove only documentation, manuals, headers and non-English locales.
-            rm -rf "$ROOT/usr/share/doc" "$ROOT/usr/share/man" "$ROOT/usr/include"
+            # Remove safe, non-runtime data only. Never prune dynamic libraries, symlinks,
+            # /bin, /usr/bin, /lib or Box64. Keep English locales.
+            rm -rf "$ROOT/usr/share/doc" "$ROOT/usr/share/man" "$ROOT/usr/share/info" "$ROOT/usr/include"
             if [ -d "$ROOT/usr/share/locale" ]; then
               find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 \
                 ! -name 'en*' -exec rm -rf -- {} +
             fi
-            # Keep symlinks and executable modes; use numeric ownership.
+            # Static archives are build-time inputs, not runtime files.
+            if [ -d "$ROOT/usr/lib" ]; then
+              find "$ROOT/usr/lib" -type f -name '*.a' -delete
+            fi
+            # Preserve archive format, symlinks and modes; maximize compression.
             case "$IMAGEFS" in
-              *.tzst|*.zst) tar --numeric-owner --zstd -cf "$OUT/slim" -C "$ROOT" . ;;
-              *.xz|*.txz) tar --numeric-owner -Jcf "$OUT/slim" -C "$ROOT" . ;;
+              *.tzst|*.zst) tar --numeric-owner -I 'zstd -19 -T0' -cf "$OUT/slim" -C "$ROOT" . ;;
+              *.xz|*.txz) tar --numeric-owner -I 'xz -9e -T0' -cf "$OUT/slim" -C "$ROOT" . ;;
               *) tar --numeric-owner -cf "$OUT/slim" -C "$ROOT" . ;;
             esac
             mv "$OUT/slim" "$IMAGEFS"
