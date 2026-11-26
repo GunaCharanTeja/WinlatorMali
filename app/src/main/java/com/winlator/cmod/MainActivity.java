@@ -24,6 +24,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import android.content.ActivityNotFoundException;
 import java.io.FileInputStream;
@@ -60,6 +61,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.xenvironment.ImageFs;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.io.IOException;
@@ -91,6 +93,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         // Get shared preferences
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        sharedPreferences.edit().putBoolean("first_wine_prompt_shown", true).apply();
 
         isDarkMode = true;
         setTheme(R.style.AppTheme_Dark);
@@ -165,9 +168,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             }
 
             if (checkStoragePermissions()) {
-                if (!ImageFsInstaller.installIfNeeded(this)) {
-                    com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
-                }
+                ImageFsInstaller.installIfNeeded(this);
             } else {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     showAllFilesAccessDialog();
@@ -200,9 +201,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         }
                     })
                     .setNegativeButton("Later", (dialog, which) -> {
-                        if (!ImageFsInstaller.installIfNeeded(this)) {
-                            com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
-                        }
+                        ImageFsInstaller.installIfNeeded(this);
                     })
                     .show();
         }
@@ -213,14 +212,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                if (!ImageFsInstaller.installIfNeeded(this)) {
-                    com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
-                }
+                ImageFsInstaller.installIfNeeded(this);
             } else {
                 AppUtils.showToast(this, "Storage permission is recommended for container drives.");
-                if (!ImageFsInstaller.installIfNeeded(this)) {
-                    com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
-                }
+                ImageFsInstaller.installIfNeeded(this);
             }
         }
     }
@@ -230,9 +225,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         super.onResume();
         if (consoleGameFile == null || !consoleGameFile.exists()) { scanConsoleGames(); refreshConsoleUi(); }
         if (checkStoragePermissions()) {
-            if (!ImageFsInstaller.installIfNeeded(this)) {
-                com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(this);
-            }
+            ImageFsInstaller.installIfNeeded(this);
         }
         ensureConsoleContainer();
         NavigationView navigationView = findViewById(R.id.NavigationView);
@@ -343,7 +336,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         View bar = findViewById(R.id.HSVControllerHints);
         if (bar == null) return;
         boolean connected = com.winlator.cmod.core.ControllerNavigation.isControllerConnected();
-        ViewGroup hintContainer = findViewById(R.id.LLControllerHints);
+        LinearLayout hintContainer = findViewById(R.id.LLControllerHints);
         if (connected && hintContainer != null && hintContainer.getChildCount() == 0) {
             com.winlator.cmod.core.ControllerNavigation.buildHints(hintContainer, new String[][]{
                 {"A", "Select", "#3DA35D"},
@@ -818,26 +811,137 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ((Button)findViewById(R.id.btnConsoleControls)).setText(p.getBoolean(KEY_HUD,true)?"HUD ON":"HUD OFF");
         ((Button)findViewById(R.id.btnConsoleCpu)).setText(p.getBoolean(KEY_CPU_FULL,false)?"Penuh (8 Core)":"Adem (4 Core)");
     }
+    private volatile boolean consoleRuntimeInstallPending = false;
+
     private void ensureConsoleContainer() {
-        if (consoleContainerCreationPending) return;
+        if (consoleContainerCreationPending || consoleRuntimeInstallPending) return;
         if (containerManager == null) containerManager = new ContainerManager(this);
         if (!containerManager.isInitialized() || !containerManager.getContainers().isEmpty()) return;
         if (!ImageFs.find(this).isValid()) return;
 
         ContentsManager contentsManager = new ContentsManager(this);
         contentsManager.syncContents();
+        ContentProfile protonProfile = findConsoleProtonProfile(contentsManager);
+        if (protonProfile == null) {
+            installConsoleProtonRuntime();
+            return;
+        }
+        createConsoleContainer(contentsManager, protonProfile);
+    }
 
-        ContentProfile protonProfile = null;
+    private ContentProfile findConsoleProtonProfile(ContentsManager contentsManager) {
         for (ContentProfile profile : contentsManager.getInstalledProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
-            String versionName = profile != null && profile.verName != null
-                    ? profile.verName.toLowerCase(java.util.Locale.ROOT) : "";
-            if (versionName.contains("11.0-2")) {
-                protonProfile = profile;
-                break;
+            if (profile == null || profile.verName == null) continue;
+            String name = profile.verName.toLowerCase(java.util.Locale.ROOT);
+            if (name.contains("11.0-2") &&
+                    (name.contains("x86_box64") || name.contains("x86_64") || name.contains("x86-64"))) {
+                return profile;
             }
         }
-        if (protonProfile == null) return;
+        return null;
+    }
 
+    private String findConsoleProtonDownloadUrl(String catalogJson) {
+        try {
+            JSONArray entries = new JSONArray(catalogJson);
+            String fallbackUrl = null;
+            for (int i = 0; i < entries.length(); i++) {
+                JSONObject entry = entries.optJSONObject(i);
+                if (entry == null) continue;
+                String verName = entry.optString("verName", entry.optString("versionName", ""));
+                String versionName = entry.optString("versionName", "");
+                String url = entry.optString("remoteUrl", "");
+                String identity = (verName + " " + versionName + " " + url).toLowerCase(java.util.Locale.ROOT);
+                if (!identity.contains("11.0-2")) continue;
+                if (!(identity.contains("x86_box64") || identity.contains("x86_64") || identity.contains("x86-64"))) continue;
+                if (!url.startsWith("https://github.com/The412Banner/")) continue;
+                if (identity.contains("x86_box64")) return url;
+                if (fallbackUrl == null && !identity.contains("arm64ec")) fallbackUrl = url;
+            }
+            return fallbackUrl;
+        } catch (JSONException e) {
+            android.util.Log.e("ConsoleLauncher", "Invalid Proton catalog JSON", e);
+            return null;
+        }
+    }
+
+    private void installConsoleProtonRuntime() {
+        if (consoleRuntimeInstallPending) return;
+        consoleRuntimeInstallPending = true;
+        new Thread(() -> {
+            File archive = new File(getCacheDir(), "proton-11.0-2-x86_64.wcp");
+            File stagingDir = new File(ContentsManager.getContentDir(this), ".naruto-proton-staging");
+            try {
+                String catalogJson = com.winlator.cmod.contents.Downloader.downloadString(ContentsManager.BANNERLATOR_PROFILES);
+                String downloadUrl = catalogJson != null ? findConsoleProtonDownloadUrl(catalogJson) : null;
+                if (downloadUrl == null) {
+                    finishConsoleProtonInstall(false, "Paket Proton 11.0-2 x86_64 tidak ditemukan di katalog.");
+                    return;
+                }
+                if (!com.winlator.cmod.contents.Downloader.downloadFile(downloadUrl, archive) || !archive.isFile() || archive.length() < 1024L * 1024L) {
+                    finishConsoleProtonInstall(false, "Unduhan Proton 11.0-2 gagal atau arsip tidak lengkap.");
+                    return;
+                }
+
+                ContentsManager installer = new ContentsManager(this);
+                installer.extraContentFile(Uri.fromFile(archive), stagingDir, new ContentsManager.OnInstallFinishedCallback() {
+                    @Override
+                    public void onFailed(ContentsManager.InstallFailedReason reason, Exception e) {
+                        android.util.Log.e("ConsoleLauncher", "Proton runtime extraction failed: " + reason, e);
+                        finishConsoleProtonInstall(false, "Ekstraksi Proton 11.0-2 gagal: " + reason);
+                    }
+
+                    @Override
+                    public void onSucceed(ContentProfile profile) {
+                        if (profile == null || profile.type != ContentProfile.ContentType.CONTENT_TYPE_PROTON ||
+                                profile.verName == null || !profile.verName.toLowerCase(java.util.Locale.ROOT).contains("11.0-2")) {
+                            finishConsoleProtonInstall(false, "Arsip yang diunduh bukan Proton 11.0-2.");
+                            return;
+                        }
+                        if (profile.installedDirect) {
+                            installer.syncContents();
+                            finishConsoleProtonInstall(true, null);
+                            return;
+                        }
+                        installer.finishInstallContent(profile, stagingDir, new ContentsManager.OnInstallFinishedCallback() {
+                            @Override
+                            public void onFailed(ContentsManager.InstallFailedReason reason, Exception e) {
+                                android.util.Log.e("ConsoleLauncher", "Proton runtime install failed: " + reason, e);
+                                finishConsoleProtonInstall(false, "Instalasi Proton 11.0-2 gagal: " + reason);
+                            }
+
+                            @Override
+                            public void onSucceed(ContentProfile installedProfile) {
+                                installer.syncContents();
+                                finishConsoleProtonInstall(true, null);
+                            }
+                        });
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("ConsoleLauncher", "Automatic Proton installation failed", e);
+                finishConsoleProtonInstall(false, "Runtime Proton tidak dapat dipasang: " + e.getMessage());
+            } finally {
+                archive.delete();
+                FileUtils.delete(stagingDir);
+            }
+        }, "ConsoleProtonInstaller").start();
+    }
+
+    private void finishConsoleProtonInstall(boolean success, String message) {
+        consoleRuntimeInstallPending = false;
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (!success) {
+                Toast.makeText(this, message != null ? message : "Instalasi Proton gagal.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            Toast.makeText(this, "Proton 11.0-2 terpasang. Menyiapkan Naruto Storm Console...", Toast.LENGTH_SHORT).show();
+            ensureConsoleContainer();
+        });
+    }
+
+    private void createConsoleContainer(ContentsManager contentsManager, ContentProfile protonProfile) {
         String wineVersion = ContentsManager.getEntryName(protonProfile);
         WineInfo wineInfo = WineInfo.fromIdentifier(this, contentsManager, wineVersion);
         if (wineInfo.path == null || !new File(wineInfo.path).isDirectory()) {
@@ -867,7 +971,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 if (container == null) {
                     Toast.makeText(this, "Pembuatan Naruto Storm Console gagal. Periksa paket Proton 11.0-2 dan prefix pack-nya.", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(this, "Container Naruto Storm Console berhasil dibuat.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Naruto Storm Console siap digunakan.", Toast.LENGTH_SHORT).show();
                 }
             });
         } catch (JSONException e) {
