@@ -19,21 +19,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
 
-      - name: Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Install matching Android build packages
+      - name: Install project-matched SDK, NDK and CMake
         run: |
           sdkmanager "platforms;android-34" "build-tools;35.0.0" "cmake;3.22.1" "ndk;29.0.14206865"
 
-      - name: Build debug APK
+      - name: Build standard debug APK
         run: |
           chmod +x ./gradlew
           ./gradlew assembleStandardDebug --no-daemon --stacktrace
