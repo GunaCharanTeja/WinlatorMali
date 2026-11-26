@@ -23,6 +23,15 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Button;
+import android.widget.Toast;
+import android.content.ActivityNotFoundException;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+
 
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
@@ -79,6 +88,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ThemeManager.applyTheme(this);
 
         setContentView(R.layout.main_activity);
+        initializeConsoleLauncher();
+
         com.winlator.cmod.core.ControllerNavigation.attach(getWindow());
         com.winlator.cmod.logs.SessionLog.installCrashHandler(this);
         if (savedInstanceState == null) com.winlator.cmod.logs.SessionLog.autosaveExitReasons(this);
@@ -713,6 +724,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == OPEN_FILE_REQUEST_CODE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri picked = data.getData();
+            try {
+                String name = picked.getLastPathSegment();
+                if (name == null || !name.toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) { Toast.makeText(this, "Pilih file .exe", Toast.LENGTH_SHORT).show(); return; }
+                File pickedCopy = new File(getFilesDir(), "selected-game.exe");
+                try (InputStream in = getContentResolver().openInputStream(picked); FileOutputStream out = new FileOutputStream(pickedCopy)) { if (in == null) throw new IOException("No input"); byte[] buffer = new byte[8192]; int n; while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n); }
+                consoleGameFile = pickedCopy;
+                getSharedPreferences(CONSOLE_PREFS, MODE_PRIVATE).edit().putString(KEY_GAME_PATH, pickedCopy.getAbsolutePath()).apply();
+                refreshConsoleUi();
+            } catch (Exception e) { Toast.makeText(this, "File EXE tidak dapat dibaca", Toast.LENGTH_LONG).show(); }
+            return;
+        }
+
         if (requestCode == OPEN_IMAGE_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
             Bitmap bitmap = ImageUtils.getBitmapFromUri(this, data.getData(), 1280);
             if (bitmap == null) return;
