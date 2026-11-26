@@ -9,7 +9,7 @@
 </LinearLayout>
 <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:weightSum="100" android:layout_marginTop="6dp">
 <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="52" android:orientation="vertical" android:paddingEnd="8dp">
-<LinearLayout android:id="@+id/cardConsoleGame" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical" android:background="#141923" android:padding="12dp" android:gravity="center_vertical">
+<LinearLayout android:id="@+id/cardConsoleGame" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical" android:background="@drawable/console_card" android:padding="12dp" android:gravity="center_vertical">
 <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="0.4" android:background="@drawable/console_banner"/>
 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="GAME LIBRARY" android:textColor="#00D4FF" android:textStyle="bold" android:textSize="13sp" android:paddingTop="7dp"/>
 <TextView android:id="@+id/txtConsoleGame" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="NSUNSR.exe belum ditemukan" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:maxLines="2" android:ellipsize="end" android:paddingTop="4dp"/>

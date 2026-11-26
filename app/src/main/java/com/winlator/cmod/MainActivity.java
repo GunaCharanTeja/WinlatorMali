@@ -1055,7 +1055,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         Intent intent=new Intent(this,XServerDisplayActivity.class);intent.putExtra("container_id",target.id);intent.putExtra("shortcut_path",desktop.getAbsolutePath());intent.putExtra("shortcut_name","Naruto Storm Console");intent.putExtra("console_touch_controls",true);startActivity(intent);
     }
     private void writeConsoleConf(File f,int fps){try{File p=f.getParentFile();if(p!=null)p.mkdirs();String s="dxgi.maxFrameRate = "+fps+"\nd3d9.maxFrameRate = "+fps+"\n";try(FileOutputStream o=new FileOutputStream(f)){o.write(s.getBytes(StandardCharsets.UTF_8));}}catch(IOException e){android.util.Log.w("ConsoleLauncher","dxvk.conf write failed",e);}}
-    private void updateStormIni(File f,boolean hd){if(!f.exists())return;try{String s=new String(java.nio.file.Files.readAllBytes(f.toPath()),StandardCharsets.UTF_8);s=s.replaceAll("(?im)^\\s*width\\s*=.*$","width="+(hd?"1280":"960")).replaceAll("(?im)^\\s*height\\s*=.*$","height="+(hd?"720":"544")).replaceAll("(?im)^\\s*vsync\\s*=.*$","vsync=0").replaceAll("(?im)^\\s*shadow\\s*=.*$","shadow=0").replaceAll("(?im)^\\s*fxaa\\s*=.*$","fxaa=0");java.nio.file.Files.write(f.toPath(),s.getBytes(StandardCharsets.UTF_8));}catch(IOException e){android.util.Log.w("ConsoleLauncher","INI update failed",e);}}
+    private void updateStormIni(File f,boolean hd) {
+        String defaults="width="+(hd?"1280":"960")+"\\nheight="+(hd?"720":"544")+"\\nvsync=0\\nshadow=0\\nfxaa=0\\n";
+        try {
+            String s=f.exists()?new String(java.nio.file.Files.readAllBytes(f.toPath()),StandardCharsets.UTF_8):defaults;
+            s=s.replaceAll("(?im)^\\s*width\\s*=.*$","width="+(hd?"1280":"960"))
+             .replaceAll("(?im)^\\s*height\\s*=.*$","height="+(hd?"720":"544"))
+             .replaceAll("(?im)^\\s*vsync\\s*=.*$","vsync=0")
+             .replaceAll("(?im)^\\s*shadow\\s*=.*$","shadow=0")
+             .replaceAll("(?im)^\\s*fxaa\\s*=.*$","fxaa=0");
+            java.nio.file.Files.write(f.toPath(),s.getBytes(StandardCharsets.UTF_8));
+        } catch(IOException e) { android.util.Log.w("ConsoleLauncher","INI update failed",e); }
+    }
 
 @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
