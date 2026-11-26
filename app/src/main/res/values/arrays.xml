@@ -30,7 +30,6 @@
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>
         <item>v819</item>
-        <item>turnip25.1.0</item>
     </string-array>
     <string-array name="audio_driver_entries">
         <item>ALSA</item>
@@ -44,7 +43,7 @@
     </string-array>
     <string-array name="dxwrapper_entries">
         <item>WineD3D</item>
-        <item>DXVK+VKD3D</item>
+        <item>DXVK</item>
     </string-array>
     <!-- Order = ViewTransformation.MODE_* / ALIGN_* -->
     <string-array name="fullscreen_mode_entries">
@@ -186,11 +185,7 @@
         <item>max</item>
         <item>manual</item>
     </string-array>
-    <string-array name="vkd3d_version_entries">
-        <item>None</item>
-        <item>2.8</item>
-        <item>2.14.1</item>
-    </string-array>
+    <string-array name="vkd3d_version_entries" />
     <string-array name="some_lc_all">
         <item>ar_EG</item>
         <item>ar_SA</item>
