@@ -811,6 +811,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ((Button)findViewById(R.id.btnConsoleControls)).setText(p.getBoolean(KEY_HUD,true)?"HUD ON":"HUD OFF");
         ((Button)findViewById(R.id.btnConsoleCpu)).setText(p.getBoolean(KEY_CPU_FULL,false)?"Penuh (8 Core)":"Adem (4 Core)");
     }
+    public void onImageFsInstallationFinished() {
+        if (isFinishing() || isDestroyed() || !ImageFs.find(this).isValid()) return;
+        ensureConsoleContainer();
+    }
+
     private volatile boolean consoleRuntimeInstallPending = false;
 
     private void ensureConsoleContainer() {

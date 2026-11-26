@@ -107,7 +107,7 @@ public abstract class ImageFsInstaller {
                 dialog.closeOnUiThread();
                 activity.runOnUiThread(() -> {
                     if (!activity.isFinishing() && !activity.isDestroyed()) {
-                        com.winlator.cmod.contents.WineDownloader.checkFirstLaunchWineSetup(activity);
+                        activity.onImageFsInstallationFinished();
                     }
                 });
             }
