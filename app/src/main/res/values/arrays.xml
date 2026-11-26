@@ -63,6 +63,7 @@
     </string-array>
     <string-array name="dxvk_version_entries">
         <item>1.10.3-async</item>
+        <item>1.11</item>
     </string-array>
     <string-array name="dxvk_max_device_memory_entries">
         <item>0 (Default)</item>

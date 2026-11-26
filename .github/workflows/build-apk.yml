@@ -47,33 +47,48 @@ jobs:
           echo "RELEASE_KEY_ALIAS=winlator_mali" >> "$GITHUB_ENV"
           echo "RELEASE_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
 
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd xz-utils
+
       - name: Download and safely slim imagefs archive
         run: |
           set -euo pipefail
-          IMAGEFS="app/src/main/assets/imagefs.tzst"
-          mkdir -p "$(dirname "$IMAGEFS")"
-          if [ ! -s "$IMAGEFS" ]; then
+          ASSET_DIR="app/src/main/assets"
+          mkdir -p "$ASSET_DIR"
+          mapfile -t IMAGEFS_FILES < <(find "$ASSET_DIR" -maxdepth 1 -type f -name 'imagefs*' -print | sort)
+          if [ "${#IMAGEFS_FILES[@]}" -eq 0 ]; then
+            IMAGEFS="$ASSET_DIR/imagefs.tzst"
             curl --fail --location --retry 3 --retry-delay 2 \
               "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/imagefs.tzst" \
               --output "$IMAGEFS"
+            IMAGEFS_FILES=("$IMAGEFS")
           fi
-          TMP="$(mktemp -d)"
-          trap 'rm -rf "$TMP"' EXIT
-          tar --zstd -xf "$IMAGEFS" -C "$TMP"
-          ROOT="$TMP"
-          # Remove only documentation, manuals, headers and non-English locale trees.
-          rm -rf "$ROOT/usr/share/doc/"* "$ROOT/usr/share/man/"* "$ROOT/usr/include/"*
-          if [ -d "$ROOT/usr/share/locale" ]; then
-            find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 \
-              ! -name 'en*' -exec rm -rf -- {} +
-          fi
-          # Repack as a tar.zstd archive, retaining symlinks and executable bits.
-          OUT="$(mktemp -d)"
-          tar --numeric-owner --zstd -cf "$OUT/imagefs-slim.tzst" -C "$ROOT" .
-          mv "$OUT/imagefs-slim.tzst" "$IMAGEFS"
-          rm -rf "$OUT"
-          test -s "$IMAGEFS"
-          echo "Slimmed imagefs size: $(du -h "$IMAGEFS" | cut -f1)"
+          for IMAGEFS in "${IMAGEFS_FILES[@]}"; do
+            test -s "$IMAGEFS"
+            TMP="$(mktemp -d)"
+            OUT="$(mktemp -d)"
+            tar -xf "$IMAGEFS" -C "$TMP"
+            ROOT="$TMP"
+            # Remove only documentation, manuals, headers and non-English locales.
+            rm -rf "$ROOT/usr/share/doc" "$ROOT/usr/share/man" "$ROOT/usr/include"
+            if [ -d "$ROOT/usr/share/locale" ]; then
+              find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 \
+                ! -name 'en*' -exec rm -rf -- {} +
+            fi
+            # Keep symlinks and executable modes; use numeric ownership.
+            case "$IMAGEFS" in
+              *.tzst|*.zst) tar --numeric-owner --zstd -cf "$OUT/slim" -C "$ROOT" . ;;
+              *.xz|*.txz) tar --numeric-owner -Jcf "$OUT/slim" -C "$ROOT" . ;;
+              *) tar --numeric-owner -cf "$OUT/slim" -C "$ROOT" . ;;
+            esac
+            mv "$OUT/slim" "$IMAGEFS"
+            test -s "$IMAGEFS"
+            echo "Slimmed $IMAGEFS: $(du -h "$IMAGEFS" | cut -f1)"
+            rm -rf "$TMP" "$OUT"
+          done
+
       - name: Build standard release APK
         run: |
           chmod +x ./gradlew

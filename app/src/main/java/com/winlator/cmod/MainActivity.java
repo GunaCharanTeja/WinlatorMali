@@ -55,7 +55,7 @@ import com.winlator.cmod.core.ImageUtils;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.container.Container;
-import java.io.IOException;\nimport com.winlator.cmod.container.Container;\nimport java.io.IOException;
+import java.io.IOException;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.xenvironment.ImageFsInstaller;
 
@@ -740,6 +740,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private static final String KEY_DXVK = "dxvk_1103";
     private static final String KEY_FPS = "fps_60";
     private static final String KEY_TOUCH = "touch_controls";
+    private static final String KEY_CPU_FULL = "cpu_full";
     private void initializeConsoleLauncher() {
         View toolbar = findViewById(R.id.Toolbar); if (toolbar != null) toolbar.setVisibility(View.GONE);
         NavigationView nav = findViewById(R.id.NavigationView); if (nav != null) nav.setVisibility(View.GONE);
@@ -761,6 +762,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         findViewById(R.id.btnConsoleDxvk).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_DXVK,!prefs.getBoolean(KEY_DXVK,false)).apply(); refreshConsoleUi(); });
         findViewById(R.id.btnConsoleFps).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_FPS,!prefs.getBoolean(KEY_FPS,false)).apply(); refreshConsoleUi(); });
         findViewById(R.id.btnConsoleControls).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_TOUCH,!prefs.getBoolean(KEY_TOUCH,true)).apply(); refreshConsoleUi(); });
+        findViewById(R.id.btnConsoleCpu).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_CPU_FULL,!prefs.getBoolean(KEY_CPU_FULL,false)).apply(); refreshConsoleUi(); });
         findViewById(R.id.btnConsolePlay).setOnClickListener(v -> launchConsoleGame());
     }
     private void scanConsoleGames() {
@@ -781,6 +783,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ((Button)findViewById(R.id.btnConsoleDxvk)).setText(p.getBoolean(KEY_DXVK,false)?"DXVK 1.10.3":"DXVK 1.11");
         ((Button)findViewById(R.id.btnConsoleFps)).setText(p.getBoolean(KEY_FPS,false)?"60 FPS":"30 FPS");
         ((Button)findViewById(R.id.btnConsoleControls)).setText(p.getBoolean(KEY_TOUCH,true)?"Kontrol ON":"Kontrol OFF");
+        ((Button)findViewById(R.id.btnConsoleCpu)).setText(p.getBoolean(KEY_CPU_FULL,false)?"Penuh (8 Core)":"Adem (4 Core)");
     }
     private void launchConsoleGame() {
         if(consoleGameFile==null||!consoleGameFile.exists()){scanConsoleGames();refreshConsoleUi();}
@@ -789,6 +792,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         Container target=containerManager.getContainers().get(0);for(Container c:containerManager.getContainers())if("Naruto Storm Console".equals(c.getName())){target=c;break;}
         SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE);boolean hd=p.getBoolean(KEY_RESOLUTION,false),dx=p.getBoolean(KEY_DXVK,false),fps=p.getBoolean(KEY_FPS,false);
         target.setScreenSize(hd?"1280x720":"960x544");target.setDXWrapper("dxvk");
+        target.setCPUList(p.getBoolean(KEY_CPU_FULL,false)?"0,1,2,3,4,5,6,7":"4,5,6,7");
+        target.setDrives("F:"+Environment.getExternalStorageDirectory().getAbsolutePath()+"D:/storage/emulated/0");
+        target.setEnvVars(Container.DEFAULT_ENV_VARS+" DXVK_SHADER_COMPILATION_METHOD=dyasync");
         target.setDXWrapperConfig("version="+(dx?"1.10.3":"1.11")+",framerate=0,async=0,asyncCache=0,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl,dxvkConfig=1");target.saveData();
         writeConsoleConf(new File(consoleGameFile.getParentFile(),"dxvk.conf"),fps?0:30);writeConsoleConf(new File(target.getRootDir(),".wine/dxvk.conf"),fps?0:30);updateStormIni(new File(consoleGameFile.getParentFile(),"NSUNSR.ini"),hd);
         Intent i=new Intent(this,XServerDisplayActivity.class);i.putExtra("container_id",target.id);i.putExtra("shortcut_path",consoleGameFile.getAbsolutePath());i.putExtra("shortcut_name",consoleGameFile.getName());i.putExtra("console_touch_controls",p.getBoolean(KEY_TOUCH,true));startActivity(i);
