@@ -99,7 +99,7 @@
             <Button android:id="@+id/btnConsoleResolution" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="960x544" android:textSize="12sp" android:backgroundTint="#141923" android:textColor="#FFFFFF"/>
             <Button android:id="@+id/btnConsoleDxvk" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="DXVK 1.11" android:textSize="12sp" android:backgroundTint="#141923" android:textColor="#FFFFFF"/>
             <Button android:id="@+id/btnConsoleFps" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="30 FPS" android:textSize="12sp" android:backgroundTint="#141923" android:textColor="#FFFFFF"/>
-            <Button android:id="@+id/btnConsoleControls" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Kontrol ON" android:textSize="11sp" android:backgroundTint="#141923" android:textColor="#FFFFFF"/>
+            <Button android:id="@+id/btnConsoleControls" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="HUD ON" android:textSize="11sp" android:backgroundTint="#141923" android:textColor="#FFFFFF"/>
             <Button android:id="@+id/btnConsoleCpu" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Adem (4 Core)" android:textSize="11sp" android:backgroundTint="#141923" android:textColor="#FFFFFF"/>
         </LinearLayout>
 
