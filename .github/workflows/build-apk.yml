@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: naruto-strom-mali-build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
