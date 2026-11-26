@@ -146,11 +146,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             navigationView.setCheckedItem(R.id.main_menu_input_controls);
         } else {
             int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
-            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : R.id.main_menu_containers;
-
             setActionBarHomeIcon(R.drawable.icon_action_bar_menu);
-            onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
-            navigationView.setCheckedItem(menuItemId);
+            if (selectedMenuItemId > 0) {
+                onNavigationItemSelected(navigationView.getMenu().findItem(selectedMenuItemId));
+                navigationView.setCheckedItem(selectedMenuItemId);
+            } else {
+                View consoleRoot = findViewById(R.id.consoleRoot);
+                if (consoleRoot != null) consoleRoot.setVisibility(View.VISIBLE);
+                View fragmentContainer = findViewById(R.id.FLFragmentContainer);
+                if (fragmentContainer != null) fragmentContainer.setVisibility(View.GONE);
+            }
 
             if (checkStoragePermissions()) {
                 if (!ImageFsInstaller.installIfNeeded(this)) {
@@ -481,6 +486,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        View consoleRoot = findViewById(R.id.consoleRoot);
+        if (consoleRoot != null) consoleRoot.setVisibility(View.GONE);
+        View fragmentContainer = findViewById(R.id.FLFragmentContainer);
+        if (fragmentContainer != null) fragmentContainer.setVisibility(View.VISIBLE);
         FragmentManager fragmentManager = getSupportFragmentManager();
         if (fragmentManager.getBackStackEntryCount() > 0) {
             fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
