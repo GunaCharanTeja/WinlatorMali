@@ -12,6 +12,7 @@
     <color name="colorPrimaryDarkMode">#FF6B00</color>
     <color name="colorPrimaryDarkModeDark">#0D1117</color>
     <color name="colorAccentDark">#00D4FF</color>
+    <color name="naruto_scroll_gold">#F59E0B</color>
 
     <!-- Additional Colors for Dark Mode -->
     <color name="combo_box_dark">#303030</color>
