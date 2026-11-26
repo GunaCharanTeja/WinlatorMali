@@ -92,7 +92,7 @@ jobs:
       - name: Build standard release APK
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleStandardRelease --no-daemon --stacktrace
+          ./gradlew assembleStandardRelease --no-daemon --console=plain
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
