@@ -63,17 +63,7 @@
         <item>None</item>
     </string-array>
     <string-array name="dxvk_version_entries">
-        <item>1.5.5</item>
-        <item>1.5.5-async</item>
-        <item>1.7-async</item>
-        <item>1.7.2</item>
-        <item>1.7.3-async</item>
-        <item>1.9.3</item>
-        <item>1.10.3</item>
         <item>1.10.3-async</item>
-        <item>1.11.1-sarek</item>
-        <item>1.12.1-sarek</item>
-        
     </string-array>
     <string-array name="dxvk_max_device_memory_entries">
         <item>0 (Default)</item>
@@ -140,18 +130,11 @@
     </string-array>
     <string-array name="box64_version_entries">
         <item>0.4.3</item>
-        <item>0.3.7</item>
     </string-array>
     <string-array name="wowbox64_version_entries">
         <item>0.4.3</item>
-        <item>0.3.7</item>
     </string-array>
-    <string-array name="fexcore_version_entries">
-        <item>hybrid-x86</item>
-        <item>2605</item>
-        <item>2601</item>
-        <item>2508</item>
-    </string-array>
+    <string-array name="fexcore_version_entries" />
     <string-array name="desktop_theme_entries">
         <item>Light</item>
         <item>Dark</item>

@@ -147,12 +147,7 @@ android {
         }
         release {
             minifyEnabled false
-            def releaseKeyFile = project.rootProject.file('keystore/release.jks')
-            if (releaseKeyFile.exists()) {
-                signingConfig signingConfigs.release
-            } else {
-                signingConfig signingConfigs.debug
-            }
+            signingConfig signingConfigs.release
         }
     }
 

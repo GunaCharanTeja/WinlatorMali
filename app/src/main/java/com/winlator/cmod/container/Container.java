@@ -34,7 +34,7 @@ public class Container {
         return graphicsDriver != null && java.util.Arrays.asList(WRAPPER_DRIVERS).contains(graphicsDriver);
     }
     public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio-gn";
-    public static final String DEFAULT_EMULATOR = "FEXCore";
+    public static final String DEFAULT_EMULATOR = "Box64";
     public static final String DEFAULT_DXWRAPPER = "dxvk";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=0,asyncCache=0" + ",ddrawrapper=" + Container.DEFAULT_DDRAWRAPPER + ",csmt=3" + ",gpuName=NVIDIA GeForce GTX 480" + ",videoMemorySize=2048" + ",strict_shader_math=1" + ",OffscreenRenderingMode=fbo" + ",renderer=gl,dxvkConfig=1";
     public static final String DEFAULT_GRAPHICSDRIVERCONFIG =

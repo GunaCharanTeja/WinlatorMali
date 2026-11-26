@@ -37,15 +37,25 @@ jobs:
         run: |
           sdkmanager "platforms;android-34" "build-tools;35.0.0" "cmake;3.22.1" "ndk;29.0.14206865"
 
-      - name: Build standard debug APK
+      - name: Generate release signing key (ephemeral)
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-signing"
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/release-signing/release.keystore" -alias winlator_mali -keyalg RSA -keysize 2048 -validity 10000 -storepass "$STORE_PASSWORD" -keypass "$STORE_PASSWORD" -dname "CN=Winlator Mali, OU=Build, O=Winlator, L=CI, S=CI, C=US"
+          echo "RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/release-signing/release.keystore" >> "$GITHUB_ENV"
+          echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_ALIAS=winlator_mali" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Build standard release APK
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleStandardDebug --no-daemon --stacktrace
+          ./gradlew assembleStandardRelease --no-daemon --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: naruto-strom-mali-debug-apk
-          path: app/build/outputs/apk/standard/debug/*.apk
+          name: naruto-strom-mali-release-apk
+          path: app/build/outputs/apk/standard/release/*.apk
           if-no-files-found: error
           retention-days: 14
