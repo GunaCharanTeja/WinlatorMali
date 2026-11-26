@@ -53,7 +53,9 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.ImageUtils;
 import com.winlator.cmod.core.PreloaderDialog;
-import com.winlator.cmod.container.ContainerManager;\nimport com.winlator.cmod.container.Container;\nimport java.io.IOException;
+import com.winlator.cmod.container.ContainerManager;
+import com.winlator.cmod.container.Container;
+import java.io.IOException;\nimport com.winlator.cmod.container.Container;\nimport java.io.IOException;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.xenvironment.ImageFsInstaller;
 
@@ -721,7 +723,71 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         return containerManager;
     }
 
-    @Override
+    
+    private File consoleGameFile;
+    private static final String CONSOLE_PREFS = "naruto_console_launcher";
+    private static final String KEY_GAME_PATH = "game_path";
+    private static final String KEY_RESOLUTION = "resolution_hd";
+    private static final String KEY_DXVK = "dxvk_1103";
+    private static final String KEY_FPS = "fps_60";
+    private static final String KEY_TOUCH = "touch_controls";
+    private void initializeConsoleLauncher() {
+        View toolbar = findViewById(R.id.Toolbar); if (toolbar != null) toolbar.setVisibility(View.GONE);
+        NavigationView nav = findViewById(R.id.NavigationView); if (nav != null) nav.setVisibility(View.GONE);
+        SharedPreferences prefs = getSharedPreferences(CONSOLE_PREFS, MODE_PRIVATE);
+        String saved = prefs.getString(KEY_GAME_PATH, ""); if (!saved.isEmpty()) consoleGameFile = new File(saved);
+        if (consoleGameFile == null || !consoleGameFile.exists()) scanConsoleGames();
+        refreshConsoleUi();
+        findViewById(R.id.btnConsoleGear).setOnClickListener(v -> {
+            View root = findViewById(R.id.consoleRoot); if (root != null) root.setVisibility(View.GONE);
+            View fc = findViewById(R.id.FLFragmentContainer); if (fc != null) fc.setVisibility(View.VISIBLE);
+            if (nav != null) nav.setVisibility(View.VISIBLE); drawerLayout.openDrawer(GravityCompat.START);
+        });
+        findViewById(R.id.btnConsolePick).setOnClickListener(v -> {
+            Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT); pick.addCategory(Intent.CATEGORY_OPENABLE); pick.setType("*/*");
+            pick.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/x-msdownload","application/octet-stream"});
+            startActivityForResult(pick, OPEN_FILE_REQUEST_CODE);
+        });
+        findViewById(R.id.btnConsoleResolution).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_RESOLUTION,!prefs.getBoolean(KEY_RESOLUTION,false)).apply(); refreshConsoleUi(); });
+        findViewById(R.id.btnConsoleDxvk).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_DXVK,!prefs.getBoolean(KEY_DXVK,false)).apply(); refreshConsoleUi(); });
+        findViewById(R.id.btnConsoleFps).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_FPS,!prefs.getBoolean(KEY_FPS,false)).apply(); refreshConsoleUi(); });
+        findViewById(R.id.btnConsoleControls).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_TOUCH,!prefs.getBoolean(KEY_TOUCH,true)).apply(); refreshConsoleUi(); });
+        findViewById(R.id.btnConsolePlay).setOnClickListener(v -> launchConsoleGame());
+    }
+    private void scanConsoleGames() {
+        for (File root : new File[]{new File("/storage/emulated/0/Download"),new File("/storage/emulated/0/Games")}) {
+            File hit = findConsoleExe(root,3); if (hit != null) { consoleGameFile=hit; getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE).edit().putString(KEY_GAME_PATH,hit.getAbsolutePath()).apply(); return; }
+        }
+    }
+    private File findConsoleExe(File dir,int depth) {
+        if (dir==null||!dir.isDirectory()||depth<0)return null; File[] fs=dir.listFiles(); if(fs==null)return null;
+        for(File f:fs)if(f.isFile()&&f.getName().equalsIgnoreCase("NSUNSR.exe"))return f;
+        for(File f:fs)if(f.isFile()&&f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".exe"))return f;
+        for(File f:fs)if(f.isDirectory()){File r=findConsoleExe(f,depth-1);if(r!=null)return r;} return null;
+    }
+    private void refreshConsoleUi() {
+        SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE); TextView label=findViewById(R.id.txtConsoleGame);
+        if(label!=null)label.setText(consoleGameFile!=null&&consoleGameFile.exists()?consoleGameFile.getName()+"\n"+consoleGameFile.getParent():"NSUNSR.exe belum ditemukan");
+        ((Button)findViewById(R.id.btnConsoleResolution)).setText(p.getBoolean(KEY_RESOLUTION,false)?"1280x720":"960x544");
+        ((Button)findViewById(R.id.btnConsoleDxvk)).setText(p.getBoolean(KEY_DXVK,false)?"DXVK 1.10.3":"DXVK 1.11");
+        ((Button)findViewById(R.id.btnConsoleFps)).setText(p.getBoolean(KEY_FPS,false)?"60 FPS":"30 FPS");
+        ((Button)findViewById(R.id.btnConsoleControls)).setText(p.getBoolean(KEY_TOUCH,true)?"Kontrol ON":"Kontrol OFF");
+    }
+    private void launchConsoleGame() {
+        if(consoleGameFile==null||!consoleGameFile.exists()){scanConsoleGames();refreshConsoleUi();}
+        if(consoleGameFile==null||!consoleGameFile.exists()){Toast.makeText(this,"Pilih file EXE terlebih dahulu",Toast.LENGTH_LONG).show();return;}
+        if(containerManager==null||containerManager.getContainers().isEmpty()){Toast.makeText(this,"Container belum tersedia",Toast.LENGTH_LONG).show();return;}
+        Container target=containerManager.getContainers().get(0);for(Container c:containerManager.getContainers())if("Naruto Storm Console".equals(c.getName())){target=c;break;}
+        SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE);boolean hd=p.getBoolean(KEY_RESOLUTION,false),dx=p.getBoolean(KEY_DXVK,false),fps=p.getBoolean(KEY_FPS,false);
+        target.setScreenSize(hd?"1280x720":"960x544");target.setDXWrapper("dxvk");
+        target.setDXWrapperConfig("version="+(dx?"1.10.3":"1.11")+",framerate=0,async=0,asyncCache=0,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl,dxvkConfig=1");target.saveData();
+        writeConsoleConf(new File(consoleGameFile.getParentFile(),"dxvk.conf"),fps?0:30);writeConsoleConf(new File(target.getRootDir(),".wine/dxvk.conf"),fps?0:30);updateStormIni(new File(consoleGameFile.getParentFile(),"NSUNSR.ini"),hd);
+        Intent i=new Intent(this,XServerDisplayActivity.class);i.putExtra("container_id",target.id);i.putExtra("shortcut_path",consoleGameFile.getAbsolutePath());i.putExtra("shortcut_name",consoleGameFile.getName());i.putExtra("console_touch_controls",p.getBoolean(KEY_TOUCH,true));startActivity(i);
+    }
+    private void writeConsoleConf(File f,int fps){try{File p=f.getParentFile();if(p!=null)p.mkdirs();String s="dxgi.maxFrameRate = "+fps+"\nd3d9.maxFrameRate = "+fps+"\n";try(FileOutputStream o=new FileOutputStream(f)){o.write(s.getBytes(StandardCharsets.UTF_8));}}catch(IOException e){android.util.Log.w("ConsoleLauncher","dxvk.conf write failed",e);}}
+    private void updateStormIni(File f,boolean hd){if(!f.exists())return;try{String s=new String(java.nio.file.Files.readAllBytes(f.toPath()),StandardCharsets.UTF_8);s=s.replaceAll("(?im)^\\s*width\\s*=.*$","width="+(hd?"1280":"960")).replaceAll("(?im)^\\s*height\\s*=.*$","height="+(hd?"720":"544")).replaceAll("(?im)^\\s*vsync\\s*=.*$","vsync=0").replaceAll("(?im)^\\s*shadow\\s*=.*$","shadow=0").replaceAll("(?im)^\\s*fxaa\\s*=.*$","fxaa=0");java.nio.file.Files.write(f.toPath(),s.getBytes(StandardCharsets.UTF_8));}catch(IOException e){android.util.Log.w("ConsoleLauncher","INI update failed",e);}}
+
+@Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == OPEN_FILE_REQUEST_CODE && resultCode == RESULT_OK && data != null && data.getData() != null) {
