@@ -829,11 +829,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void ensureConsoleContainer() {
         if (consoleContainerCreationPending || consoleRuntimeInstallPending) return;
         if (containerManager == null) containerManager = new ContainerManager(this);
-        if (!containerManager.isInitialized() || !containerManager.getContainers().isEmpty()) return;
+        if (!containerManager.isInitialized()) return;
         if (!ImageFs.find(this).isValid()) return;
 
         ContentsManager contentsManager = new ContentsManager(this);
         contentsManager.syncContents();
+        for(Container existing:containerManager.getContainers()) {
+            if("Naruto Storm Console".equals(existing.getName())) {
+                WineInfo current=WineInfo.fromIdentifier(this,contentsManager,existing.getWineVersion());
+                if(current.path!=null&&new File(current.path).isDirectory()&&new File(current.path,"bin").exists()) return;
+            }
+        }
         ContentProfile protonProfile = findConsoleProtonProfile(contentsManager);
         if (protonProfile != null) { createConsoleContainer(contentsManager,protonProfile); return; }
         ContentProfile fallbackProfile=findFallbackConsoleRuntime(contentsManager);
@@ -982,9 +988,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
     private void createConsoleContainer(ContentsManager contentsManager, String wineVersion) {
         WineInfo wineInfo = WineInfo.fromIdentifier(this, contentsManager, wineVersion);
-        if (wineInfo.path == null || !new File(wineInfo.path).isDirectory()) {
-            android.util.Log.w("ConsoleLauncher", "Installed Proton 11.0-2 path is not available: " + wineInfo.path);
+        if (wineInfo.path == null || !new File(wineInfo.path).isDirectory() || !new File(wineInfo.path,"bin").exists()) {
+            android.util.Log.w("ConsoleLauncher", "Selected runtime path is incomplete: " + wineInfo.path);
             return;
+        }
+        for(Container existing:containerManager.getContainers()) {
+            if("Naruto Storm Console".equals(existing.getName())) {
+                existing.setWineVersion(wineVersion);
+                existing.putExtra("wineprefixNeedsUpdate","t");
+                existing.saveData();
+                Toast.makeText(this,"Runtime container diperbarui: "+wineVersion,Toast.LENGTH_LONG).show();
+                refreshConsoleUi();
+                return;
+            }
         }
 
         try {
