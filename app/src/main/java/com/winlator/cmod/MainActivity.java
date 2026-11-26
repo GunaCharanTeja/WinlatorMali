@@ -910,6 +910,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private ContentProfile findConsoleFallbackProfile(ContentsManager cm) {
+        WineInfo mainRuntime=WineInfo.fromIdentifier(this,cm,WineInfo.MAIN_WINE_VERSION.identifier());
+        if(mainRuntime.path!=null) {
+            File mainDir=new File(mainRuntime.path);
+            if(mainDir.isDirectory()&&new File(mainDir,"bin").isDirectory()&&new File(mainDir,"lib").isDirectory()) {
+                ContentProfile mainProfile=new ContentProfile();
+                mainProfile.type=ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                mainProfile.verName=WineInfo.MAIN_WINE_VERSION.identifier();
+                mainProfile.verCode=1;
+                mainProfile.wineBinPath=mainDir.getAbsolutePath();
+                mainProfile.wineLibPath=new File(mainDir,"lib").getAbsolutePath();
+                mainProfile.winePrefixPack=new File(mainDir,"prefixPack.txz").getAbsolutePath();
+                return mainProfile;
+            }
+        }
         ContentProfile best = null;
         int bestScore = Integer.MAX_VALUE;
         ContentProfile.ContentType[] types = {
