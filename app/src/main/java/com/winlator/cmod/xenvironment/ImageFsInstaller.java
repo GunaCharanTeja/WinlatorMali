@@ -70,6 +70,7 @@ public abstract class ImageFsInstaller {
 
     public static void installFromAssets(final MainActivity activity) {
         if (!isInstalling.compareAndSet(false, true)) return;
+        activity.onImageFsInstallationStarted();
         AppUtils.keepScreenOn(activity);
         ImageFs imageFs = ImageFs.find(activity);
         File rootDir = imageFs.getRootDir();
