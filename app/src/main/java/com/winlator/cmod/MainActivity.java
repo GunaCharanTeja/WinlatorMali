@@ -803,13 +803,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         for(File f:fs)if(f.isDirectory()){File r=findConsoleExe(f,depth-1);if(r!=null)return r;} return null;
     }
     private void refreshConsoleUi() {
-        SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE); TextView label=findViewById(R.id.txtConsoleGame);
-        if(label!=null)label.setText(consoleGameFile!=null&&consoleGameFile.exists()?consoleGameFile.getName()+"\n"+consoleGameFile.getParent():"NSUNSR.exe belum ditemukan");
-        ((Button)findViewById(R.id.btnConsoleResolution)).setText(p.getBoolean(KEY_RESOLUTION,false)?"1280x720":"960x544");
-        ((Button)findViewById(R.id.btnConsoleDxvk)).setText(p.getBoolean(KEY_DXVK,false)?"DXVK 1.10.3":"DXVK 1.11");
-        ((Button)findViewById(R.id.btnConsoleFps)).setText(p.getBoolean(KEY_FPS,false)?"60 FPS":"30 FPS");
-        ((Button)findViewById(R.id.btnConsoleControls)).setText(p.getBoolean(KEY_HUD,true)?"HUD ON":"HUD OFF");
-        ((Button)findViewById(R.id.btnConsoleCpu)).setText(p.getBoolean(KEY_CPU_FULL,false)?"Penuh (8 Core)":"Adem (4 Core)");
+        SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE);
+        boolean selected=consoleGameFile!=null&&consoleGameFile.isFile();
+        TextView label=findViewById(R.id.txtConsoleGame), path=findViewById(R.id.txtConsoleGamePath), ready=findViewById(R.id.txtConsoleReady), runtime=findViewById(R.id.txtRuntimeStatus);
+        if(label!=null) label.setText(selected?consoleGameFile.getName():"NSUNSR.exe belum ditemukan");
+        if(path!=null) path.setText(selected?consoleGameFile.getParent():"Pilih file EXE untuk mulai");
+        boolean runtimeReady=false;
+        if(containerManager!=null&&containerManager.isInitialized()) for(Container c:containerManager.getContainers()) if("Naruto Storm Console".equals(c.getName())) {runtimeReady=true;break;}
+        if(ready!=null) ready.setText(runtimeReady&&selected?"● Siap Dimainkan":(selected?"● Game dipilih • runtime disiapkan":"● Pilih Game"));
+        if(runtime!=null) runtime.setText(consoleRuntimeInstallPending?"RUNTIME: INSTALASI":(runtimeReady?"RUNTIME: SIAP":"RUNTIME: MENUNGGU"));
+        ((Button)findViewById(R.id.btnConsoleResolution)).setText("RESOLUSI : "+(p.getBoolean(KEY_RESOLUTION,false)?"1280x720":"960x544"));
+        ((Button)findViewById(R.id.btnConsoleDxvk)).setText("DXVK : "+(p.getBoolean(KEY_DXVK,false)?"1.10.3":"1.11"));
+        ((Button)findViewById(R.id.btnConsoleFps)).setText("TARGET : "+(p.getBoolean(KEY_FPS,false)?"60 FPS":"30 FPS"));
+        ((Button)findViewById(R.id.btnConsoleControls)).setText("HUD LAYAR : "+(p.getBoolean(KEY_HUD,true)?"ON":"OFF"));
+        ((Button)findViewById(R.id.btnConsoleCpu)).setText("MODE CPU : "+(p.getBoolean(KEY_CPU_FULL,false)?"Penuh (8 Core)":"Adem (4 Core)"));
+        View progress=findViewById(R.id.progressConsoleRuntime); if(progress!=null) progress.setVisibility(View.GONE);
     }
     public void onImageFsInstallationFinished() {
         if (isFinishing() || isDestroyed() || !ImageFs.find(this).isValid()) return;
@@ -827,11 +835,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ContentsManager contentsManager = new ContentsManager(this);
         contentsManager.syncContents();
         ContentProfile protonProfile = findConsoleProtonProfile(contentsManager);
-        if (protonProfile == null) {
-            installConsoleProtonRuntime();
-            return;
-        }
-        createConsoleContainer(contentsManager, protonProfile);
+        if (protonProfile != null) { createConsoleContainer(contentsManager,protonProfile); return; }
+        ContentProfile fallbackProfile=findFallbackConsoleRuntime(contentsManager);
+        if(fallbackProfile!=null) { createConsoleContainer(contentsManager,fallbackProfile); return; }
+        WineInfo bundled=WineInfo.fromIdentifier(this,contentsManager,WineInfo.MAIN_WINE_VERSION.identifier());
+        if(bundled.path!=null&&new File(bundled.path).isDirectory()) { createConsoleContainer(contentsManager,WineInfo.MAIN_WINE_VERSION.identifier()); return; }
+        installConsoleProtonRuntime();
     }
 
     private ContentProfile findConsoleProtonProfile(ContentsManager contentsManager) {
@@ -846,6 +855,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         return null;
     }
 
+    private ContentProfile findFallbackConsoleRuntime(ContentsManager contentsManager) {
+        ContentProfile best=null;
+        for(ContentProfile.ContentType type:new ContentProfile.ContentType[]{ContentProfile.ContentType.CONTENT_TYPE_PROTON,ContentProfile.ContentType.CONTENT_TYPE_WINE}) {
+            List<ContentProfile> profiles=contentsManager.getInstalledProfiles(type);
+            if(profiles==null) continue;
+            for(ContentProfile profile:profiles) {
+                if(profile==null||profile.verName==null) continue;
+                WineInfo wi=WineInfo.fromIdentifier(this,contentsManager,ContentsManager.getEntryName(profile));
+                File runtimeDir=wi.path!=null?new File(wi.path):null;
+                if(runtimeDir==null||!runtimeDir.isDirectory()||!new File(runtimeDir,"bin").exists()) continue;
+                String name=profile.verName.toLowerCase(java.util.Locale.ROOT);
+                if(name.contains("box64")||name.contains("x86_64")||name.contains("x86-64")) return profile;
+                if(best==null) best=profile;
+            }
+        }
+        return best;
+    }
     private String findConsoleProtonDownloadUrl(String catalogJson) {
         try {
             JSONArray entries = new JSONArray(catalogJson);
@@ -873,6 +899,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void installConsoleProtonRuntime() {
         if (consoleRuntimeInstallPending) return;
         consoleRuntimeInstallPending = true;
+        runOnUiThread(this::refreshConsoleUi);
         new Thread(() -> {
             File archive = new File(getCacheDir(), "proton-11.0-2-x86_64.wcp");
             File stagingDir = new File(ContentsManager.getContentDir(this), ".naruto-proton-staging");
@@ -938,16 +965,22 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         runOnUiThread(() -> {
             if (isFinishing() || isDestroyed()) return;
             if (!success) {
-                Toast.makeText(this, message != null ? message : "Instalasi Proton gagal.", Toast.LENGTH_LONG).show();
-                return;
+                ContentsManager manager=new ContentsManager(this); manager.syncContents();
+                ContentProfile fallback=findFallbackConsoleRuntime(manager);
+                if(fallback!=null) { Toast.makeText(this,"Proton 11.0-2 gagal; memakai runtime tersedia: "+fallback.verName,Toast.LENGTH_LONG).show(); createConsoleContainer(manager,fallback); return; }
+                WineInfo bundled=WineInfo.fromIdentifier(this,manager,WineInfo.MAIN_WINE_VERSION.identifier());
+                if(bundled.path!=null&&new File(bundled.path).isDirectory()) { Toast.makeText(this,"Unduhan gagal; memakai runtime bawaan.",Toast.LENGTH_LONG).show(); createConsoleContainer(manager,WineInfo.MAIN_WINE_VERSION.identifier()); return; }
+                Toast.makeText(this,message!=null?message:"Runtime tidak tersedia.",Toast.LENGTH_LONG).show(); return;
             }
-            Toast.makeText(this, "Proton 11.0-2 terpasang. Menyiapkan Naruto Storm Console...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Runtime terpasang. Menyiapkan Naruto Storm Console...", Toast.LENGTH_SHORT).show();
             ensureConsoleContainer();
         });
     }
 
-    private void createConsoleContainer(ContentsManager contentsManager, ContentProfile protonProfile) {
-        String wineVersion = ContentsManager.getEntryName(protonProfile);
+    private void createConsoleContainer(ContentsManager contentsManager, ContentProfile runtimeProfile) {
+        createConsoleContainer(contentsManager,ContentsManager.getEntryName(runtimeProfile));
+    }
+    private void createConsoleContainer(ContentsManager contentsManager, String wineVersion) {
         WineInfo wineInfo = WineInfo.fromIdentifier(this, contentsManager, wineVersion);
         if (wineInfo.path == null || !new File(wineInfo.path).isDirectory()) {
             android.util.Log.w("ConsoleLauncher", "Installed Proton 11.0-2 path is not available: " + wineInfo.path);
@@ -973,11 +1006,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             consoleContainerCreationPending = true;
             containerManager.createContainerAsync(data, contentsManager, container -> {
                 consoleContainerCreationPending = false;
-                if (container == null) {
-                    Toast.makeText(this, "Pembuatan Naruto Storm Console gagal. Periksa paket Proton 11.0-2 dan prefix pack-nya.", Toast.LENGTH_LONG).show();
-                } else {
-                    Toast.makeText(this, "Naruto Storm Console siap digunakan.", Toast.LENGTH_SHORT).show();
-                }
+                if (container == null) Toast.makeText(this, "Pembuatan Naruto Storm Console gagal. Periksa runtime dan ruang penyimpanan.", Toast.LENGTH_LONG).show();
+                else Toast.makeText(this, "Naruto Storm Console siap digunakan.", Toast.LENGTH_SHORT).show();
+                refreshConsoleUi();
             });
         } catch (JSONException e) {
             consoleContainerCreationPending = false;
@@ -986,18 +1017,26 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void launchConsoleGame() {
-        if(consoleGameFile==null||!consoleGameFile.exists()){scanConsoleGames();refreshConsoleUi();}
-        if(consoleGameFile==null||!consoleGameFile.exists()){Toast.makeText(this,"Pilih file EXE terlebih dahulu",Toast.LENGTH_LONG).show();return;}
-        if(containerManager==null||containerManager.getContainers().isEmpty()){ensureConsoleContainer();Toast.makeText(this,"Container sedang disiapkan. Pastikan Proton 11.0-2 sudah terpasang, lalu tekan MAIN SEKARANG lagi.",Toast.LENGTH_LONG).show();return;}
-        Container target=containerManager.getContainers().get(0);for(Container c:containerManager.getContainers())if("Naruto Storm Console".equals(c.getName())){target=c;break;}
+        if(!checkStoragePermissions()) { Toast.makeText(this,"Aktifkan izin akses penyimpanan sebelum menjalankan game.",Toast.LENGTH_LONG).show(); if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.R) showAllFilesAccessDialog(); return; }
+        if(consoleGameFile==null||!consoleGameFile.isFile()){scanConsoleGames();refreshConsoleUi();}
+        if(consoleGameFile==null||!consoleGameFile.isFile()){Toast.makeText(this,"Pilih file EXE terlebih dahulu.",Toast.LENGTH_LONG).show();return;}
+        if(containerManager==null||!containerManager.isInitialized()||containerManager.getContainers().isEmpty()){ensureConsoleContainer();Toast.makeText(this,"Runtime/container sedang disiapkan. Tekan MAIN SEKARANG lagi setelah status siap.",Toast.LENGTH_LONG).show();return;}
+        Container target=null; for(Container c:containerManager.getContainers()) if("Naruto Storm Console".equals(c.getName())) {target=c;break;}
+        if(target==null){ensureConsoleContainer();Toast.makeText(this,"Container Naruto Storm Console belum tersedia.",Toast.LENGTH_LONG).show();return;}
         SharedPreferences p=getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE);boolean hd=p.getBoolean(KEY_RESOLUTION,false),dx=p.getBoolean(KEY_DXVK,false),fps=p.getBoolean(KEY_FPS,false),hud=p.getBoolean(KEY_HUD,true);
-        target.setScreenSize(hd?"1280x720":"960x544");target.setDXWrapper("dxvk");
-        target.setCPUList(p.getBoolean(KEY_CPU_FULL,false)?"0,1,2,3,4,5,6,7":"4,5,6,7");
+        target.setScreenSize(hd?"1280x720":"960x544");target.setDXWrapper("dxvk");target.setCPUList(p.getBoolean(KEY_CPU_FULL,false)?"0,1,2,3,4,5,6,7":"4,5,6,7");
         target.setDrives("D:"+Environment.getExternalStorageDirectory().getAbsolutePath());
         target.setEnvVars(Container.DEFAULT_ENV_VARS.replace("DXVK_HUD=devinfo,fps,memory,gpuload,version,api",hud?"DXVK_HUD=devinfo,fps,memory,gpuload,version,api":"DXVK_HUD=0")+" DXVK_SHADER_COMPILATION_METHOD=dyasync");
         target.setDXWrapperConfig("version="+(dx?"1.10.3-async":"1.11")+",framerate=0,async=0,asyncCache=0,ddrawrapper=none,csmt=3,gpuName=NVIDIA GeForce GTX 480,videoMemorySize=2048,strict_shader_math=1,OffscreenRenderingMode=fbo,renderer=gl,dxvkConfig=1");target.saveData();
         writeConsoleConf(new File(consoleGameFile.getParentFile(),"dxvk.conf"),fps?60:30);writeConsoleConf(new File(target.getRootDir(),".wine/dxvk.conf"),fps?60:30);updateStormIni(new File(consoleGameFile.getParentFile(),"NSUNSR.ini"),hd);
-        Intent i=new Intent(this,XServerDisplayActivity.class);i.putExtra("container_id",target.id);i.putExtra("shortcut_path",consoleGameFile.getAbsolutePath());i.putExtra("shortcut_name",consoleGameFile.getName());i.putExtra("console_touch_controls",true);startActivity(i);
+        String storageRoot=Environment.getExternalStorageDirectory().getAbsolutePath(),absoluteExe=consoleGameFile.getAbsolutePath();
+        if(!absoluteExe.startsWith(storageRoot)){Toast.makeText(this,"Game harus berada di penyimpanan internal (drive D:).",Toast.LENGTH_LONG).show();return;}
+        String relative=absoluteExe.substring(storageRoot.length()).replace('/','\\');String windowsExe="D:"+relative;int lastSlash=relative.lastIndexOf('\\');String windowsFolder=lastSlash>=0?"D:"+relative.substring(0,lastSlash):"D:";
+        File desktopDir=target.getDesktopDir();if(!desktopDir.exists()&&!desktopDir.mkdirs()){Toast.makeText(this,"Folder Shortcut container tidak dapat dibuat.",Toast.LENGTH_LONG).show();return;}
+        File desktop=new File(desktopDir,"Naruto-Storm-Console.desktop");
+        String desktopContents="[Desktop Entry]\n"+"Name=Naruto Storm Console\n"+"Exec=env WINEPREFIX=\""+new File(target.getRootDir(),".wine").getAbsolutePath()+"\" wine \""+windowsExe+"\"\n"+"Path=\""+windowsFolder+"\"\n"+"Type=Application\n"+"StartupNotify=True\n"+"container_id:"+target.id+"\n";
+        try(FileOutputStream out=new FileOutputStream(desktop)){out.write(desktopContents.getBytes(StandardCharsets.UTF_8));}catch(IOException e){Toast.makeText(this,"Shortcut resmi gagal disimpan: "+e.getMessage(),Toast.LENGTH_LONG).show();return;}
+        Intent intent=new Intent(this,XServerDisplayActivity.class);intent.putExtra("container_id",target.id);intent.putExtra("shortcut_path",desktop.getAbsolutePath());intent.putExtra("shortcut_name","Naruto Storm Console");intent.putExtra("console_touch_controls",true);startActivity(intent);
     }
     private void writeConsoleConf(File f,int fps){try{File p=f.getParentFile();if(p!=null)p.mkdirs();String s="dxgi.maxFrameRate = "+fps+"\nd3d9.maxFrameRate = "+fps+"\n";try(FileOutputStream o=new FileOutputStream(f)){o.write(s.getBytes(StandardCharsets.UTF_8));}}catch(IOException e){android.util.Log.w("ConsoleLauncher","dxvk.conf write failed",e);}}
     private void updateStormIni(File f,boolean hd){if(!f.exists())return;try{String s=new String(java.nio.file.Files.readAllBytes(f.toPath()),StandardCharsets.UTF_8);s=s.replaceAll("(?im)^\\s*width\\s*=.*$","width="+(hd?"1280":"960")).replaceAll("(?im)^\\s*height\\s*=.*$","height="+(hd?"720":"544")).replaceAll("(?im)^\\s*vsync\\s*=.*$","vsync=0").replaceAll("(?im)^\\s*shadow\\s*=.*$","shadow=0").replaceAll("(?im)^\\s*fxaa\\s*=.*$","fxaa=0");java.nio.file.Files.write(f.toPath(),s.getBytes(StandardCharsets.UTF_8));}catch(IOException e){android.util.Log.w("ConsoleLauncher","INI update failed",e);}}

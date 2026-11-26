@@ -161,17 +161,17 @@ android {
         standard {
             dimension "version"
             applicationId "com.winlator.mali"
-            resValue "string", "app_name", "Winlator Mali"
+            resValue "string", "app_name", "Naruto Storm Console"
         }
         ludashi {
             dimension "version"
             applicationId "com.ludashi.benchmark"
-            resValue "string", "app_name", "Winlator Mali Ludashi"
+            resValue "string", "app_name", "Naruto Storm Console"
         }
         antutu {
             dimension "version"
             applicationId "com.antutu.ABenchMark"
-            resValue "string", "app_name", "Winlator Mali AnTuTu"
+            resValue "string", "app_name", "Naruto Storm Console"
         }
     }
 
