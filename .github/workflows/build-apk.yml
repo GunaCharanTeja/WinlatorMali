@@ -68,8 +68,10 @@ jobs:
               ! -name 'en*' -exec rm -rf -- {} +
           fi
           # Repack as a tar.zstd archive, retaining symlinks and executable bits.
-          tar --numeric-owner --zstd -cf "$TMP/imagefs-slim.tzst" -C "$ROOT" .
-          mv "$TMP/imagefs-slim.tzst" "$IMAGEFS"
+          OUT="$(mktemp -d)"
+          tar --numeric-owner --zstd -cf "$OUT/imagefs-slim.tzst" -C "$ROOT" .
+          mv "$OUT/imagefs-slim.tzst" "$IMAGEFS"
+          rm -rf "$OUT"
           test -s "$IMAGEFS"
           echo "Slimmed imagefs size: $(du -h "$IMAGEFS" | cut -f1)"
       - name: Build standard release APK
