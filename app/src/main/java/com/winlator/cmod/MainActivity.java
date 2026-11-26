@@ -948,24 +948,59 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         dialog.show();
     }
 
+    private String queryPickedFileDataPath(Uri uri) {
+        if (uri == null) return null;
+        try (android.database.Cursor cursor = getContentResolver().query(
+                uri, new String[]{"_data"}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int column = cursor.getColumnIndex("_data");
+                if (column >= 0) {
+                    String path = cursor.getString(column);
+                    if (path != null && path.startsWith(File.separator)) return path;
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.d("ConsoleLauncher", "Provider does not expose a direct file path", e);
+        }
+        return null;
+    }
+
     private String resolvePickedExePath(Uri uri) {
         if (uri == null) return null;
         if ("file".equalsIgnoreCase(uri.getScheme())) return uri.getPath();
         if (!"content".equalsIgnoreCase(uri.getScheme())) return null;
+
+        String authority = uri.getAuthority();
         try {
-            if (!"com.android.externalstorage.documents".equals(uri.getAuthority())) return null;
-            String documentId = android.provider.DocumentsContract.getDocumentId(uri);
-            int colon = documentId.indexOf(':');
-            if (colon < 0) return null;
-            String volume = documentId.substring(0, colon);
-            String relative = Uri.decode(documentId.substring(colon + 1));
-            if ("primary".equalsIgnoreCase(volume))
-                return new File(Environment.getExternalStorageDirectory(), relative).getAbsolutePath();
-            return new File("/storage/" + volume + "/" + relative).getAbsolutePath();
-        } catch (IllegalArgumentException e) {
-            android.util.Log.w("ConsoleLauncher", "Cannot resolve selected URI to a direct storage path", e);
-            return null;
+            if ("com.android.externalstorage.documents".equals(authority)) {
+                String documentId = android.provider.DocumentsContract.getDocumentId(uri);
+                int colon = documentId.indexOf(':');
+                if (colon < 0) return null;
+                String volume = documentId.substring(0, colon);
+                String relative = Uri.decode(documentId.substring(colon + 1));
+                if ("primary".equalsIgnoreCase(volume)) {
+                    return new File(Environment.getExternalStorageDirectory(), relative).getAbsolutePath();
+                }
+                return new File("/storage/" + volume + "/" + relative).getAbsolutePath();
+            }
+
+            if ("com.android.providers.downloads.documents".equals(authority)) {
+                String documentId = android.provider.DocumentsContract.getDocumentId(uri);
+                if (documentId.startsWith("raw:")) return documentId.substring(4);
+                if (documentId.matches("\\d+")) {
+                    Uri downloadUri = android.content.ContentUris.withAppendedId(
+                            Uri.parse("content://downloads/public_downloads"),
+                            Long.parseLong(documentId));
+                    String downloadPath = queryPickedFileDataPath(downloadUri);
+                    if (downloadPath != null) return downloadPath;
+                }
+            }
+        } catch (Exception e) {
+            android.util.Log.w("ConsoleLauncher", "Cannot resolve selected document URI directly", e);
         }
+
+        // Some local document providers expose the physical path through the legacy _data column.
+        return queryPickedFileDataPath(uri);
     }
 
     private void refreshConsoleUi() {
@@ -973,8 +1008,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         boolean hasGame = consoleGameFile != null && consoleGameFile.isFile();
         TextView name = findViewById(R.id.txtConsoleGame);
         TextView path = findViewById(R.id.txtConsoleGamePath);
-        if (name != null) name.setText(hasGame ? consoleGameFile.getName() : "NSUNSR.exe belum dipilih");
-        if (path != null) path.setText(hasGame ? consoleGameFile.getParent() : "Pilih folder game dari penyimpanan internal");
+        if (name != null) name.setText(hasGame ? consoleGameFile.getName() : "Belum ada file .exe dipilih");
+        if (path != null) path.setText(hasGame ? consoleGameFile.getParent() : "Pilih file .exe dari penyimpanan internal");
         Button resolution = findViewById(R.id.btnConsoleResolution);
         Button dxvk = findViewById(R.id.btnConsoleDxvk);
         Button fps = findViewById(R.id.btnConsoleFps);
@@ -1307,14 +1342,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
         String escapedExe = windowsExe.replace("\\", "\\\\");
         String escapedFolder = windowsFolder.replace("\\", "\\\\");
+        String gameName = exe.getName();
+        if (gameName.toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) {
+            gameName = gameName.substring(0, gameName.length() - 4);
+        }
+        gameName = gameName.replace("\r", " ").replace("\n", " ").trim();
+        if (gameName.isEmpty()) gameName = "Windows Game";
         File desktopFile = new File(desktopDir, "Naruto Storm Console.desktop");
         String shortcutText = "[Desktop Entry]\n" +
-                "Name=Naruto Storm Console\n" +
+                "Name=" + gameName + "\n" +
                 "Type=Application\n" +
                 "Exec=wine \"" + escapedExe + "\"\n" +
                 "Path=" + escapedFolder + "\n" +
                 "Terminal=false\n" +
-                "StartupWMClass=NSUNSR\n" +
                 "container_id:" + container.id + "\n";
         try (FileOutputStream out = new FileOutputStream(desktopFile)) {
             out.write(shortcutText.getBytes(StandardCharsets.UTF_8));
@@ -1386,13 +1426,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
             writeConsoleConf(new File(consoleGameFile.getParentFile(), "dxvk.conf"), fps60 ? 60 : 30);
             writeConsoleConf(new File(target.getRootDir(), ".wine/dxvk.conf"), fps60 ? 60 : 30);
-            updateStormIni(new File(consoleGameFile.getParentFile(), "NSUNSR.ini"), hd);
+            if ("NSUNSR.exe".equalsIgnoreCase(consoleGameFile.getName())) {
+                updateStormIni(new File(consoleGameFile.getParentFile(), "NSUNSR.ini"), hd);
+            }
 
             File shortcutFile = createConsoleDesktopShortcut(target, consoleGameFile);
             Intent launch = new Intent(this, XServerDisplayActivity.class);
             launch.putExtra("container_id", target.id);
             launch.putExtra("shortcut_path", shortcutFile.getAbsolutePath());
-            launch.putExtra("shortcut_name", "Naruto Storm Console");
+            launch.putExtra("shortcut_name", consoleGameFile.getName());
             launch.putExtra("console_touch_controls", true);
             startActivity(launch);
         } catch (IOException e) {
@@ -1445,7 +1487,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 String realPath = resolvePickedExePath(picked);
                 if (realPath == null) { Toast.makeText(this, "URI ini bukan file lokal yang dapat dipetakan. Pilih EXE dari penyimpanan internal melalui Documents.", Toast.LENGTH_LONG).show(); return; }
                 File selectedExe = new File(realPath);
-                if (!selectedExe.isFile()) { Toast.makeText(this, "File EXE tidak ditemukan atau izin penyimpanan belum aktif.", Toast.LENGTH_LONG).show(); return; }
+                if (!selectedExe.isFile() ||
+                        !selectedExe.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) {
+                    Toast.makeText(this, "File yang dipilih bukan file .exe yang valid.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                try {
+                    toWindowsDriveDPath(selectedExe);
+                } catch (IOException unsupportedLocation) {
+                    Toast.makeText(this, "Pilih file .exe dari penyimpanan internal utama agar dapat dijalankan.", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 consoleGameFile = selectedExe;
                 getSharedPreferences(CONSOLE_PREFS, MODE_PRIVATE).edit().putString(KEY_GAME_PATH, selectedExe.getAbsolutePath()).apply();
                 android.util.Log.i("ConsoleLauncher", "User selected EXE: " + selectedExe.getName());
