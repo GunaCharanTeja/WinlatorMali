@@ -134,6 +134,7 @@ public final class LogFiles {
     public static boolean isOurs(String name) {
         String n = name.toLowerCase(Locale.US);
         if (n.startsWith("crash_") && n.endsWith(".txt")) return true;
+        if (n.startsWith("console_diagnostics_") && n.endsWith(".txt")) return true;
         if (!n.endsWith(".log")) return false;
         return n.equals(WINE_LOG) || n.equals(LOGCAT_LOG) || n.equals("vkd3d-proton.log")
             || n.endsWith("_d3d8.log") || n.endsWith("_d3d9.log") || n.endsWith("_d3d10.log")

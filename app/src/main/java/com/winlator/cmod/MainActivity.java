@@ -224,7 +224,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     @Override
     protected void onResume() {
         super.onResume();
-        if (consoleGameFile == null || !consoleGameFile.exists()) { scanConsoleGames(); refreshConsoleUi(); }
+        refreshConsoleUi();
         if (checkStoragePermissions()) {
             ImageFsInstaller.installIfNeeded(this);
         }
@@ -753,9 +753,26 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         View toolbar = findViewById(R.id.Toolbar); if (toolbar != null) toolbar.setVisibility(View.GONE);
         NavigationView nav = findViewById(R.id.NavigationView); if (nav != null) nav.setVisibility(View.GONE);
         SharedPreferences prefs = getSharedPreferences(CONSOLE_PREFS, MODE_PRIVATE);
-        String saved = prefs.getString(KEY_GAME_PATH, ""); if (!saved.isEmpty()) consoleGameFile = new File(saved);
-        if (consoleGameFile == null || !consoleGameFile.exists()) scanConsoleGames();
+        String saved = prefs.getString(KEY_GAME_PATH, "");
+        if (!saved.isEmpty()) {
+            File selected = new File(saved);
+            if (selected.isFile() && selected.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) {
+                consoleGameFile = selected;
+            } else {
+                prefs.edit().remove(KEY_GAME_PATH).apply();
+                consoleGameFile = null;
+            }
+        }
         refreshConsoleUi();
+        TextView runtimeStatus = findViewById(R.id.txtConsoleRuntimeStatus);
+        if (runtimeStatus != null) {
+            runtimeStatus.setClickable(true);
+            runtimeStatus.setFocusable(true);
+            runtimeStatus.setContentDescription("Buka Runtime Manager");
+            runtimeStatus.setOnClickListener(v -> showConsoleRuntimeManager());
+        }
+        View diagnosticsButton = findViewById(R.id.btnConsoleDiagnostics);
+        if (diagnosticsButton != null) diagnosticsButton.setOnClickListener(v -> showConsoleDiagnosticsDialog());
         findViewById(R.id.btnConsoleGear).setOnClickListener(v -> {
             View root = findViewById(R.id.consoleRoot); if (root != null) root.setVisibility(View.GONE);
             View fc = findViewById(R.id.FLFragmentContainer); if (fc != null) fc.setVisibility(View.VISIBLE);
@@ -772,7 +789,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             pick.addCategory(Intent.CATEGORY_OPENABLE);
             pick.setType("*/*");
             pick.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/x-msdownload","application/octet-stream"});
-            startActivityForResult(pick, OPEN_FILE_REQUEST_CODE);
+            pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            try {
+                startActivityForResult(pick, OPEN_FILE_REQUEST_CODE);
+            } catch (ActivityNotFoundException e) {
+                Toast.makeText(this, "File picker Android tidak tersedia di perangkat ini.", Toast.LENGTH_LONG).show();
+                android.util.Log.e("ConsoleLauncher", "Could not open EXE picker", e);
+            }
         });
         findViewById(R.id.btnConsoleResolution).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_RESOLUTION,!prefs.getBoolean(KEY_RESOLUTION,false)).apply(); refreshConsoleUi(); });
         findViewById(R.id.btnConsoleDxvk).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_DXVK,!prefs.getBoolean(KEY_DXVK,false)).apply(); refreshConsoleUi(); });
@@ -781,6 +804,150 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         findViewById(R.id.btnConsoleCpu).setOnClickListener(v -> { prefs.edit().putBoolean(KEY_CPU_FULL,!prefs.getBoolean(KEY_CPU_FULL,false)).apply(); refreshConsoleUi(); });
         findViewById(R.id.btnConsolePlay).setOnClickListener(v -> launchConsoleGame());
     }
+
+    private String buildConsoleRuntimeReport() {
+        StringBuilder report = new StringBuilder();
+        boolean storageReady = checkStoragePermissions();
+        ImageFs imageFs = ImageFs.find(this);
+        boolean imageFsReady = imageFs.isValid();
+        report.append("Penyimpanan: ").append(storageReady ? "OK" : "IZIN DIPERLUKAN").append('\n');
+        report.append("ImageFS: ").append(imageFsReady ? "VALID" : "BELUM VALID");
+        if (imageFsReady) {
+            try { report.append(" (versi ").append(imageFs.getVersion()).append(')'); }
+            catch (Exception e) { report.append(" (versi tidak terbaca)"); }
+        }
+        report.append('\n');
+
+        if (containerManager == null) containerManager = new ContainerManager(this);
+        Container consoleContainer = null;
+        for (Container candidate : containerManager.getContainers()) {
+            if ("Naruto Storm Console".equals(candidate.getName())) {
+                consoleContainer = candidate;
+                break;
+            }
+        }
+        boolean runtimeReady = false;
+        report.append("Container: ").append(consoleContainer == null ? "BELUM DIBUAT" : "DITEMUKAN").append('\n');
+        if (consoleContainer != null) {
+            report.append("Runtime ID: ").append(consoleContainer.getWineVersion()).append('\n');
+            try {
+                ContentsManager contents = new ContentsManager(this);
+                contents.syncContents();
+                WineInfo info = WineInfo.fromIdentifier(this, contents, consoleContainer.getWineVersion());
+                File runtimeRoot = info.path == null ? null : new File(info.path);
+                boolean binReady = runtimeRoot != null && new File(runtimeRoot, "bin").isDirectory();
+                boolean libReady = runtimeRoot != null && new File(runtimeRoot, "lib").isDirectory();
+                runtimeReady = binReady && libReady;
+                report.append("Folder runtime: ").append(runtimeRoot == null ? "TIDAK DITEMUKAN" : runtimeRoot.getAbsolutePath()).append('\n');
+                report.append("Direktori bin: ").append(binReady ? "OK" : "HILANG").append('\n');
+                report.append("Direktori lib: ").append(libReady ? "OK" : "HILANG").append('\n');
+                report.append("Validasi runtime: ").append(runtimeReady ? "LULUS" : "GAGAL").append('\n');
+                if (!runtimeReady) report.append("Catatan: runtime perlu dipasang ulang atau dipilih dari Contents.\n");
+            } catch (Exception e) {
+                report.append("Validasi runtime: ERROR - ").append(e.getMessage()).append('\n');
+                android.util.Log.e("ConsoleLauncher", "Runtime Manager validation failed", e);
+            }
+        }
+        report.append("\nFile game: ").append(consoleGameFile != null && consoleGameFile.isFile() ? "DIPILIH" : "BELUM DIPILIH").append('\n');
+        if (consoleGameFile != null) report.append("EXE: ").append(consoleGameFile.getName()).append('\n');
+        report.append("\nStatus pekerjaan: ")
+                .append(consoleImageFsInstallPending ? "ImageFS sedang dipasang; " : "")
+                .append(consoleRuntimeInstallPending ? "Runtime sedang diunduh/dipasang; " : "")
+                .append(consoleContainerCreationPending ? "Container sedang dibuat; " : "");
+        boolean pending = consoleImageFsInstallPending || consoleRuntimeInstallPending || consoleContainerCreationPending;
+        if (!pending) report.append("tidak ada proses berjalan");
+        boolean overallReady = storageReady && imageFsReady && consoleContainer != null && runtimeReady && !pending;
+        report.insert(0, "STATUS: " + (pending ? "SEDANG DISIAPKAN" : (overallReady ? "SIAP" : "BELUM SIAP")) + "\n\n");
+        return report.toString();
+    }
+
+    private void showConsoleRuntimeManager() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("RUNTIME MANAGER")
+                .setMessage(buildConsoleRuntimeReport())
+                .setPositiveButton("SIAPKAN / COBA LAGI", (d, which) -> {
+                    if (!checkStoragePermissions()) {
+                        Toast.makeText(this, "Berikan izin penyimpanan terlebih dahulu.", Toast.LENGTH_LONG).show();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) showAllFilesAccessDialog();
+                        else ActivityCompat.requestPermissions(this,
+                                new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE},
+                                PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE);
+                        return;
+                    }
+                    if (ImageFsInstaller.installIfNeeded(this)) {
+                        Toast.makeText(this, "ImageFS sedang dipasang. Status akan diperbarui setelah selesai.", Toast.LENGTH_LONG).show();
+                    } else {
+                        consoleRuntimeInstallAttempted = false;
+                        ensureConsoleContainer();
+                        refreshConsoleUi();
+                        Toast.makeText(this, "Pemeriksaan dan penyiapan runtime dimulai.", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNeutralButton("PERIKSA ULANG", (d, which) -> showConsoleRuntimeManager())
+                .setNegativeButton("TUTUP", null)
+                .create();
+        dialog.show();
+    }
+
+    private String buildConsoleDiagnostics() {
+        StringBuilder report = new StringBuilder();
+        report.append("NARUTO STORM CONSOLE - DIAGNOSTICS\n");
+        report.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
+        report.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
+        report.append("Waktu: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT)
+                .format(new java.util.Date())).append("\n\n");
+        report.append("=== RUNTIME CHECK ===\n").append(buildConsoleRuntimeReport()).append("\n\n");
+        report.append("=== GAME SELECTION ===\n");
+        if (consoleGameFile != null && consoleGameFile.isFile()) {
+            report.append("Nama: ").append(consoleGameFile.getName()).append('\n');
+            report.append("Path: ").append(consoleGameFile.getAbsolutePath()).append('\n');
+            report.append("Ukuran: ").append(consoleGameFile.length()).append(" bytes\n");
+        } else {
+            report.append("Belum ada file EXE yang dipilih.\n");
+        }
+        report.append("\n=== APP LOGCAT (250 BARIS TERAKHIR) ===\n");
+        report.append(com.winlator.cmod.logs.SessionLog.logcat(250));
+        return report.toString();
+    }
+
+    private void showConsoleDiagnosticsDialog() {
+        final String diagnostics = buildConsoleDiagnostics();
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("DIAGNOSTICS & LOG")
+                .setMessage(diagnostics)
+                .setPositiveButton("SALIN LOG", (d, which) -> {
+                    android.content.ClipboardManager clipboard =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Naruto Storm diagnostics", diagnostics));
+                        Toast.makeText(this, "Diagnostics disalin.", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNeutralButton("BAGIKAN LOG", (d, which) -> {
+                    Intent share = new Intent(Intent.ACTION_SEND);
+                    share.setType("text/plain");
+                    share.putExtra(Intent.EXTRA_SUBJECT, "Naruto Storm Console diagnostics");
+                    share.putExtra(Intent.EXTRA_TEXT, diagnostics);
+                    try { startActivity(Intent.createChooser(share, "Bagikan diagnostics")); }
+                    catch (ActivityNotFoundException e) { Toast.makeText(this, "Tidak ada aplikasi untuk membagikan log.", Toast.LENGTH_SHORT).show(); }
+                })
+                .setNegativeButton("SIMPAN LOG", (d, which) -> {
+                    try {
+                        File directory = com.winlator.cmod.logs.LogFiles.appDir(this);
+                        File output = new File(directory, "console_diagnostics_" + System.currentTimeMillis() + ".txt");
+                        try (FileOutputStream stream = new FileOutputStream(output)) {
+                            stream.write(diagnostics.getBytes(StandardCharsets.UTF_8));
+                        }
+                        Toast.makeText(this, "Log tersimpan: " + output.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                    } catch (Exception e) {
+                        android.util.Log.e("ConsoleLauncher", "Could not save diagnostics log", e);
+                        Toast.makeText(this, "Log tidak dapat disimpan: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                })
+                .create();
+        dialog.show();
+    }
+
     private String resolvePickedExePath(Uri uri) {
         if (uri == null) return null;
         if ("file".equalsIgnoreCase(uri.getScheme())) return uri.getPath();
@@ -801,18 +968,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    private void scanConsoleGames() {
-        if (!checkStoragePermissions()) return;
-        for (File root : new File[]{new File("/storage/emulated/0/Download"),new File("/storage/emulated/0/Games")}) {
-            File hit = findConsoleExe(root,3); if (hit != null) { consoleGameFile=hit; getSharedPreferences(CONSOLE_PREFS,MODE_PRIVATE).edit().putString(KEY_GAME_PATH,hit.getAbsolutePath()).apply(); return; }
-        }
-    }
-    private File findConsoleExe(File dir,int depth) {
-        if (dir==null||!dir.isDirectory()||depth<0)return null; File[] fs=dir.listFiles(); if(fs==null)return null;
-        for(File f:fs)if(f.isFile()&&f.getName().equalsIgnoreCase("NSUNSR.exe"))return f;
-        for(File f:fs)if(f.isFile()&&f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".exe"))return f;
-        for(File f:fs)if(f.isDirectory()){File r=findConsoleExe(f,depth-1);if(r!=null)return r;} return null;
-    }
     private void refreshConsoleUi() {
         SharedPreferences p = getSharedPreferences(CONSOLE_PREFS, MODE_PRIVATE);
         boolean hasGame = consoleGameFile != null && consoleGameFile.isFile();
@@ -1181,10 +1336,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             return;
         }
         if (consoleGameFile == null || !consoleGameFile.isFile()) {
-            scanConsoleGames();
+            consoleGameFile = null;
             refreshConsoleUi();
-        }
-        if (consoleGameFile == null || !consoleGameFile.isFile()) {
             Toast.makeText(this, "File EXE belum dipilih. Tekan PILIH GAME (.EXE).", Toast.LENGTH_LONG).show();
             return;
         }
@@ -1295,6 +1448,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 if (!selectedExe.isFile()) { Toast.makeText(this, "File EXE tidak ditemukan atau izin penyimpanan belum aktif.", Toast.LENGTH_LONG).show(); return; }
                 consoleGameFile = selectedExe;
                 getSharedPreferences(CONSOLE_PREFS, MODE_PRIVATE).edit().putString(KEY_GAME_PATH, selectedExe.getAbsolutePath()).apply();
+                android.util.Log.i("ConsoleLauncher", "User selected EXE: " + selectedExe.getName());
                 refreshConsoleUi();
             } catch (Exception e) { Toast.makeText(this, "File EXE tidak dapat dibaca", Toast.LENGTH_LONG).show(); }
             return;

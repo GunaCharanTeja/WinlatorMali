@@ -11,9 +11,14 @@
                     android:text="NARUTO STORM CONSOLE" android:textColor="#FF6B00" android:textSize="18sp" android:textStyle="bold"
                     android:maxLines="1" android:ellipsize="end"/>
                 <TextView android:id="@+id/txtConsoleRuntimeStatus" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp" android:paddingHorizontal="10dp" android:paddingVertical="6dp"
+                    android:layout_marginEnd="6dp" android:paddingHorizontal="10dp" android:paddingVertical="6dp"
                     android:background="@drawable/console_status_background" android:text="RUNTIME • MEMERIKSA"
-                    android:textColor="#00D4FF" android:textSize="10sp" android:textStyle="bold" android:maxLines="1"/>
+                    android:textColor="#00D4FF" android:textSize="10sp" android:textStyle="bold" android:maxLines="1"
+                    android:clickable="true" android:focusable="true" android:contentDescription="Buka Runtime Manager"/>
+                <TextView android:id="@+id/btnConsoleDiagnostics" android:layout_width="38dp" android:layout_height="38dp"
+                    android:layout_marginEnd="4dp" android:gravity="center" android:background="@drawable/console_status_background"
+                    android:text="LOG" android:textColor="#00D4FF" android:textSize="10sp" android:textStyle="bold"
+                    android:clickable="true" android:focusable="true" android:contentDescription="Buka Diagnostics dan Log"/>
                 <TextView android:id="@+id/btnConsoleGear" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center"
                     android:text="⚙" android:textColor="#00D4FF" android:textSize="25sp" android:clickable="true" android:focusable="true"
                     android:contentDescription="Pengaturan lanjutan"/>
