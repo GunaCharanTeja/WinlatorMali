@@ -47,6 +47,31 @@ jobs:
           echo "RELEASE_KEY_ALIAS=winlator_mali" >> "$GITHUB_ENV"
           echo "RELEASE_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
 
+      - name: Download and safely slim imagefs archive
+        run: |
+          set -euo pipefail
+          IMAGEFS="app/src/main/assets/imagefs.tzst"
+          mkdir -p "$(dirname "$IMAGEFS")"
+          if [ ! -s "$IMAGEFS" ]; then
+            curl --fail --location --retry 3 --retry-delay 2 \
+              "https://github.com/GunaCharanTeja/Winlator-Extras/releases/download/Sd/imagefs.tzst" \
+              --output "$IMAGEFS"
+          fi
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          tar --zstd -xf "$IMAGEFS" -C "$TMP"
+          ROOT="$TMP"
+          # Remove only documentation, manuals, headers and non-English locale trees.
+          rm -rf "$ROOT/usr/share/doc/"* "$ROOT/usr/share/man/"* "$ROOT/usr/include/"*
+          if [ -d "$ROOT/usr/share/locale" ]; then
+            find "$ROOT/usr/share/locale" -mindepth 1 -maxdepth 1 \
+              ! -name 'en*' -exec rm -rf -- {} +
+          fi
+          # Repack as a tar.zstd archive, retaining symlinks and executable bits.
+          tar --numeric-owner --zstd -cf "$TMP/imagefs-slim.tzst" -C "$ROOT" .
+          mv "$TMP/imagefs-slim.tzst" "$IMAGEFS"
+          test -s "$IMAGEFS"
+          echo "Slimmed imagefs size: $(du -h "$IMAGEFS" | cut -f1)"
       - name: Build standard release APK
         run: |
           chmod +x ./gradlew
