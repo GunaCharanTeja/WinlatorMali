@@ -68,7 +68,7 @@ public class WineInfo implements Parcelable {
         return arch.equals("x86_64") || arch.equals("arm64ec");
     }
 
-    public boolean isArm64EC() { return arch.equals("arm64ec"); }
+    public boolean isArm64EC() { return arch != null && arch.equals("arm64ec"); }
 
     public String identifier() {
         if (type.equals("proton"))
@@ -133,7 +133,7 @@ public class WineInfo implements Parcelable {
 
         String type = cleanId.contains("proton") ? "proton" : "wine";
         String arch = cleanId.contains("arm64ec") ? "arm64ec" : (cleanId.contains("x86_64") ? "x86_64" : "x86");
-        String version = "9.0";
+        String version = "10.0";
         Matcher m = Pattern.compile("(\\d+(\\.\\d+)*)").matcher(cleanId);
         if (m.find()) {
             version = m.group(1);
