@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: naruto-strom-mali-build
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
