@@ -53,7 +53,7 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.ImageUtils;
 import com.winlator.cmod.core.PreloaderDialog;
-import com.winlator.cmod.container.ContainerManager;
+import com.winlator.cmod.container.ContainerManager;\nimport com.winlator.cmod.container.Container;\nimport java.io.IOException;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.xenvironment.ImageFsInstaller;
 
