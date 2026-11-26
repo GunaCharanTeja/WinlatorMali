@@ -125,17 +125,16 @@ android {
                 localPropertiesFile.withInputStream { props.load(it) }
             }
 
-            def keyFile = props['keystore.file'] ? file(props['keystore.file']) : file("${rootDir}/keystore/release.jks")
-            if (keyFile.exists()) {
-                storeFile keyFile
-                storePassword props['keystore.password'] ?: "android"
-                keyAlias props['key.alias'] ?: "winlator_mali"
-                keyPassword props['key.password'] ?: "android"
-                
-                enableV1Signing true
-                enableV2Signing true
-                enableV3Signing true
-            }
+            def keyFilePath = System.getenv('RELEASE_KEYSTORE_FILE') ?: props['keystore.file'] ?: project.file('release.keystore').absolutePath
+            def keyFile = file(keyFilePath)
+            storeFile keyFile
+            storePassword System.getenv('RELEASE_STORE_PASSWORD') ?: props['keystore.password'] ?: "android"
+            keyAlias System.getenv('RELEASE_KEY_ALIAS') ?: props['key.alias'] ?: "winlator_mali"
+            keyPassword System.getenv('RELEASE_KEY_PASSWORD') ?: props['key.password'] ?: "android"
+
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
         }
     }
 
@@ -151,7 +150,7 @@ android {
         }
     }
 
-    lintOptions {
+    lint {
         checkReleaseBuilds false
         abortOnError false
     }
@@ -185,13 +184,12 @@ android {
     }
 
     // If you want to be sure modern JNI packaging is used:
-    packagingOptions {
+    packaging {
         jniLibs {
             useLegacyPackaging = true
         }
         resources {
-            pickFirsts += 'assets/dexopt/baseline.prof'
-            pickFirsts += 'assets/dexopt/baseline.profm'
+            pickFirsts += ['assets/dexopt/baseline.prof', 'assets/dexopt/baseline.profm']
         }
     }
 }

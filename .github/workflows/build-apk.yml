@@ -39,10 +39,10 @@ jobs:
 
       - name: Generate release signing key (ephemeral)
         run: |
-          mkdir -p "$RUNNER_TEMP/release-signing"
+          mkdir -p app
           STORE_PASSWORD="$(openssl rand -hex 24)"
-          keytool -genkeypair -v -keystore "$RUNNER_TEMP/release-signing/release.keystore" -alias winlator_mali -keyalg RSA -keysize 2048 -validity 10000 -storepass "$STORE_PASSWORD" -keypass "$STORE_PASSWORD" -dname "CN=Winlator Mali, OU=Build, O=Winlator, L=CI, S=CI, C=US"
-          echo "RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/release-signing/release.keystore" >> "$GITHUB_ENV"
+          keytool -genkeypair -v -keystore "app/release.keystore" -alias winlator_mali -keyalg RSA -keysize 2048 -validity 10000 -storepass "$STORE_PASSWORD" -keypass "$STORE_PASSWORD" -dname "CN=Winlator Mali, OU=Build, O=Winlator, L=CI, S=CI, C=US"
+          echo "RELEASE_KEYSTORE_FILE=$GITHUB_WORKSPACE/app/release.keystore" >> "$GITHUB_ENV"
           echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "RELEASE_KEY_ALIAS=winlator_mali" >> "$GITHUB_ENV"
           echo "RELEASE_KEY_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
