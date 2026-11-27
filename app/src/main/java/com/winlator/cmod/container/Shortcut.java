@@ -135,7 +135,16 @@ public class Shortcut {
         this.name = FileUtils.getBasename(file.getPath());
         this.icon = null;
         this.iconFile = iconFile;
-        this.path = execArgs.lastIndexOf("wine ") != -1 ? StringUtils.unescape(execArgs.substring(execArgs.lastIndexOf("wine ") + 4)) : "";
+        String executablePath = "";
+        int wineCommandIndex = execArgs.lastIndexOf("wine ");
+        if (wineCommandIndex != -1) {
+            executablePath = execArgs.substring(wineCommandIndex + 5).trim();
+            if (executablePath.length() >= 2 && executablePath.charAt(0) == '"' &&
+                    executablePath.charAt(executablePath.length() - 1) == '"' ) {
+                executablePath = executablePath.substring(1, executablePath.length() - 1);
+            }
+        }
+        this.path = executablePath.isEmpty() ? "" : StringUtils.unescape(executablePath);
         this.wmClass = wmClass;
 
         this.customCoverArtPath = getExtra("customCoverArtPath");

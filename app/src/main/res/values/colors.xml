@@ -1,23 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Light Theme Colors -->
-    <color name="window_background_color">#fafafa</color>
-    <color name="colorPrimary">#607d8b</color>
-    <color name="colorPrimaryDark">#455a64</color>
-    <color name="colorAccent">#0288d1</color>
+    <color name="window_background_color">#0D1117</color>
+    <color name="colorPrimary">#FF6B00</color>
+    <color name="colorPrimaryDark">#C44E00</color>
+    <color name="colorAccent">#00D4FF</color>
     <color name="black">#000000</color>
 
     <!-- Dark Theme Colors -->
-    <color name="window_background_color_dark">#121212</color>
-    <color name="colorPrimaryDarkMode">#37474f</color>
-    <color name="colorPrimaryDarkModeDark">#263238</color>
-    <color name="colorAccentDark">#80d8ff</color>
+    <color name="window_background_color_dark">#0D1117</color>
+    <color name="colorPrimaryDarkMode">#FF6B00</color>
+    <color name="colorPrimaryDarkModeDark">#0D1117</color>
+    <color name="colorAccentDark">#00D4FF</color>
+    <color name="naruto_scroll_gold">#F59E0B</color>
 
     <!-- Additional Colors for Dark Mode -->
     <color name="combo_box_dark">#303030</color>
     <color name="content_dialog_background_dark">#424242</color>
     <color name="button_neutral_dark">#37474f</color>
-    <color name="button_positive_dark">#1e88e5</color>
+    <color name="button_positive_dark">#FF6B00</color>
 
     <color name="abc_decor_view_status_guard">#ff000000</color>
     <color name="abc_decor_view_status_guard_light">#ffffffff</color>

@@ -1662,7 +1662,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.setOverlayOpacity(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY));
         inputControlsView.setTouchpadView(touchpadView);
         inputControlsView.setXServer(xServer);
-        inputControlsView.setVisibility(View.VISIBLE);
+        inputControlsView.setVisibility(getIntent().getBooleanExtra("console_touch_controls", true) ? View.VISIBLE : View.GONE);
         radialWheelManager = new RadialWheelManager(inputControlsView, RadialWheelConfig.loadGlobal(this));
         inputControlsView.setRadialWheelManager(radialWheelManager);
         rootView.addView(inputControlsView);

@@ -23,8 +23,8 @@ import java.io.File;
 import java.util.Iterator;
 
 public class Container {
-    public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1 GLADIO_NO_ERROR=1";
-    public static final String DEFAULT_SCREEN_SIZE = "1280x720";
+    public static final String DEFAULT_ENV_VARS = "WRAPPER_MAX_IMAGE_COUNT=0 WINEESYNC=1 DXVK_HUD=devinfo,fps,memory,gpuload,version,api PULSE_LATENCY_MSEC=40 WRAPPER_NO_PATCH_OPCONSTCOMP=1 GLADIO_NO_ERROR=1 BOX64_PREFER_WRAPPED=1 BOX64_DYNAREC_BIGBLOCK=1 BOX64_DYNAREC_SAFEFLAGS=1 BOX64_DYNAREC_STRONGMEM=1";
+    public static final String DEFAULT_SCREEN_SIZE = "960x544";
     public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
     // Vulkan wrapper builds, each in assets/graphics_driver/<id>.tzst: the current unified build plus the ones the
     // 1.1 release offered. All install as the same ICD (libvulkan_wrapper.so), so one is chosen per container/shortcut.
@@ -34,9 +34,9 @@ public class Container {
         return graphicsDriver != null && java.util.Arrays.asList(WRAPPER_DRIVERS).contains(graphicsDriver);
     }
     public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio-gn";
-    public static final String DEFAULT_EMULATOR = "FEXCore";
-    public static final String DEFAULT_DXWRAPPER = "dxvk+vkd3d";
-    public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=0,asyncCache=0" + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1" + ",ddrawrapper=" + Container.DEFAULT_DDRAWRAPPER + ",csmt=3" + ",gpuName=NVIDIA GeForce GTX 480" + ",videoMemorySize=2048" + ",strict_shader_math=1" + ",OffscreenRenderingMode=fbo" + ",renderer=gl,dxvkConfig=1";
+    public static final String DEFAULT_EMULATOR = "Box64";
+    public static final String DEFAULT_DXWRAPPER = "dxvk";
+    public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=0,asyncCache=0" + ",ddrawrapper=" + Container.DEFAULT_DDRAWRAPPER + ",csmt=3" + ",gpuName=NVIDIA GeForce GTX 480" + ",videoMemorySize=2048" + ",strict_shader_math=1" + ",OffscreenRenderingMode=fbo" + ",renderer=gl,dxvkConfig=1";
     public static final String DEFAULT_GRAPHICSDRIVERCONFIG =
             "vulkanVersion=1.3" + ";version=" + ";blacklistedExtensions=" + ";maxDeviceMemory=0" + ";presentMode=mailbox" + ";syncFrame=0" + ";disablePresentWait=0" + ";resourceType=auto" + ";bcnEnabled=1" + ";bcnEmulation=auto" + ";bcnEmulationCache=1" + ";bcnKeepRaw=0" + ";bcnVersion=current" + ";bcnNativeDirect=1" + ";bcnTranscode=astc" + ";bcnQuality=auto" + ";gpuName=Device";
     public static final String DEFAULT_DDRAWRAPPER = "none";
